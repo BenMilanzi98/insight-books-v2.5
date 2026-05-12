@@ -215,7 +215,7 @@ const PaymentAccountsPage = () => {
         if (data.code === "PAYMENT_GL_SLOTS_EXHAUSTED") {
           window.alert(
             data.error ||
-              `You can only add up to 9 payment accounts of this type. Each type uses its own GL code range (e.g. Bank: 1141–1149).`
+              `Bank/Mobile/Wallet/POS registers use GL codes 1130-01 … 1130-99 under group 1130. That range is full — remove or merge an account. Cash uses GL 1110 only.`
           );
         }
         throw new Error(data.error || "Failed to create account");

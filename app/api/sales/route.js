@@ -9,7 +9,7 @@ import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 import { autoPostTaxEntry } from '@/lib/taxCalculationService';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
-import { prismaWhereCoaIncomeAccounts } from '@/lib/coaIncomeAccounts';
+import { prismaWhereCoaIncomeAccounts, findCoaIncomeAccountsForTenant } from '@/lib/coaIncomeAccounts';
 import { allocateNextSaleNumberReliable } from '@/lib/documentSequences';
 import {
   resolveSaleItemBaseQuantity,
@@ -61,14 +61,13 @@ function serializePaymentsForClient(payments) {
 /** Prefer 4000 / 4100 then first active income/revenue CoA row for the tenant (matches POS loader). */
 async function getDefaultIncomeAccountIdForTenant(tenantId) {
   const normCode = (c) => String(c ?? '').trim();
-  const accounts = await prisma.account.findMany({
-    where: prismaWhereCoaIncomeAccounts(tenantId),
-    select: { id: true, accountCode: true, isActive: true },
-    orderBy: [{ accountCode: 'asc' }],
-  });
+  const codeEq = (acc, want) =>
+    normCode(acc.accountCode) === want || normCode(acc.code) === want;
+
+  const accounts = await findCoaIncomeAccountsForTenant(prisma, tenantId);
   const defaultAccount =
-    accounts.find((acc) => normCode(acc.accountCode) === '4000') ||
-    accounts.find((acc) => normCode(acc.accountCode) === '4100') ||
+    accounts.find((acc) => codeEq(acc, '4000')) ||
+    accounts.find((acc) => codeEq(acc, '4100')) ||
     accounts.find((acc) => acc.isActive !== false) ||
     accounts[0];
   return defaultAccount?.id ?? null;
@@ -1708,10 +1707,16 @@ export async function POST(request) {
     
     // Check for specific error types
     if (error.message?.includes('accountId') || error.message?.includes('account')) {
+      const isGlLeaf =
+        error.message.includes('consolidation parent') ||
+        error.message.includes('Structural chart section headers') ||
+        error.message.includes('not open for new postings');
       return NextResponse.json(
-        { 
-          error: 'Account validation failed. Please ensure all sale items have valid income accounts from Chart of Accounts.',
-          details: error.message 
+        {
+          error: isGlLeaf
+            ? 'GL posting account error: a line is using a chart rollup or closed account. Use a detail account under that group (e.g. Stock on Hand under Inventory, Purchases under Cost of Sales), or contact support.'
+            : 'Account validation failed. Please ensure all sale items have valid income accounts from Chart of Accounts.',
+          details: error.message,
         },
         { status: 400 }
       );

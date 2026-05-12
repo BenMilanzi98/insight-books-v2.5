@@ -83,6 +83,17 @@ describe('accountBlocksDirectPosting', () => {
     );
     expect(r.blocked).toBe(true);
   });
+
+  it('allows 1110 operating cash even when legacy register children exist', () => {
+    const r = accountBlocksDirectPosting({
+      id: 'cash',
+      accountCode: '1110',
+      accountName: 'Cash - Main Account',
+      acceptsNewTransactions: true,
+      _count: { childAccounts: 3 },
+    });
+    expect(r.blocked).toBe(false);
+  });
 });
 
 describe('validateLineAccountsAllowDirectPosting', () => {

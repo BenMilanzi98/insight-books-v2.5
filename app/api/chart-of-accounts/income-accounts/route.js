@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { prismaWhereCoaIncomeAccounts } from '@/lib/coaIncomeAccounts';
+import { findCoaIncomeAccountsForTenant } from '@/lib/coaIncomeAccounts';
 
 // GET - Fetch income accounts for POS (no Finance/Admin requirement)
 export async function GET(request) {
@@ -16,19 +16,13 @@ export async function GET(request) {
       );
     }
 
-    const accounts = await prisma.account.findMany({
-      where: prismaWhereCoaIncomeAccounts(user.tenantId),
-      select: {
-        id: true,
-        accountCode: true,
-        accountName: true,
-        accountType: true,
-        type: true,
-        isActive: true
-      },
-      orderBy: [
-        { accountCode: 'asc' }
-      ]
+    const accounts = await findCoaIncomeAccountsForTenant(prisma, user.tenantId, {
+      id: true,
+      accountCode: true,
+      accountName: true,
+      accountType: true,
+      type: true,
+      isActive: true,
     });
 
     return NextResponse.json({
