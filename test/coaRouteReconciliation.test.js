@@ -26,6 +26,9 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
       transactionLine: {
         findMany: vi.fn(async (args) => {
           txnCalls.push(args);
+          if (args.where.transaction.isReversal === true) {
+            return [];
+          }
           return [
             {
               id: 'tl1',
@@ -35,7 +38,7 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
               transaction: {
                 date: new Date(2024, 4, 2),
                 status: 'posted',
-                isReversal: true,
+                isReversal: false,
               },
             },
           ];
@@ -59,7 +62,9 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
     });
 
     expect(journalCalls[0].where.journalEntry.transactionId).toBeNull();
-    expect(txnCalls[0].where.transaction.isReversal).toBeUndefined();
+    expect(txnCalls.length).toBe(2);
+    expect(txnCalls[0].where.transaction.isReversal).toBe(false);
+    expect(txnCalls[1].where.transaction.isReversal).toBe(true);
     expect(txnCalls[0].where.transaction.branchId).toBe('b1');
 
     const j = r.journalBySurvivor.get('a1');
