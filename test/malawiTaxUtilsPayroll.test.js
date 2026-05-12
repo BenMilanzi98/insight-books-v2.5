@@ -31,8 +31,8 @@ describe('effectiveNpsRatePercentForPayroll', () => {
   });
 });
 
-describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
-  it('subtracts employee NPS from gross before PAYE when both apply', () => {
+describe('calculateMalawiPayroll — PAYE and NPS as separate gross-based deductions', () => {
+  it('calculates PAYE and employee NPS separately from gross when both apply', () => {
     const gross = 500_000;
     const payeOnly = calculateMalawiPayroll(
       { basicSalary: gross, allowances: {}, otherDeductions: {} },
@@ -48,14 +48,13 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
     );
 
     expect(payeOnly.payeAmount).toBe(99_000);
-    expect(payeAndNps.payeTaxableIncome).toBe(475_000);
-    // (475_000 − 170_000) × 30% = 91,500
-    expect(payeAndNps.payeAmount).toBe(91_500);
-    expect(payeAndNps.payeAmount).toBeLessThan(payeOnly.payeAmount);
+    expect(payeAndNps.payeTaxableIncome).toBe(500_000);
+    expect(payeAndNps.payeAmount).toBe(99_000);
+    expect(payeAndNps.payeAmount).toBe(payeOnly.payeAmount);
     expect(payeAndNps.npsEmployeeAmount).toBe(25_000);
   });
 
-  it('uses custom NPS % from tenant rates for employee amount and PAYE base', () => {
+  it('uses custom NPS % from tenant rates without reducing the PAYE base', () => {
     const gross = 1_000_000;
     const r = calculateMalawiPayroll(
       { basicSalary: gross, allowances: {}, otherDeductions: {} },
@@ -68,7 +67,7 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
       employerRatePercent: 6,
     });
     expect(r.npsEmployeeAmount).toBe(25_000);
-    expect(r.payeTaxableIncome).toBe(975_000);
+    expect(r.payeTaxableIncome).toBe(1_000_000);
   });
 
   it('PAYE without NPS still uses full gross as taxable income', () => {
@@ -115,10 +114,10 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
     expect(r.grossPay).toBe(500_000);
     expect(r.totalAllowances).toBe(100_000);
     expect(r.npsEmployeeAmount).toBe(25_000);
-    expect(r.payeTaxableIncome).toBe(475_000);
-    expect(r.payeAmount).toBe(91_500);
-    expect(r.totalDeductions).toBe(126_500);
-    expect(r.netPay).toBe(473_500);
+    expect(r.payeTaxableIncome).toBe(500_000);
+    expect(r.payeAmount).toBe(99_000);
+    expect(r.totalDeductions).toBe(134_000);
+    expect(r.netPay).toBe(466_000);
   });
 
   it('balances generated journal entries when benefits and employer NPS are present', () => {
@@ -144,7 +143,7 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
   it('reports posted NPS split from payroll notes, including non-5/5 tenant rates', () => {
     const remittances = calculateStatutoryRemittances([
       {
-        payeAmount: 91_500,
+        payeAmount: 99_000,
         totalNpsAmount: 60_000,
         status: 'Posted',
         notes: JSON.stringify({
@@ -156,7 +155,7 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
       },
     ]);
 
-    expect(remittances.paye.amount).toBe(91_500);
+    expect(remittances.paye.amount).toBe(99_000);
     expect(remittances.nps.employeeAmount).toBe(25_000);
     expect(remittances.nps.employerAmount).toBe(35_000);
     expect(remittances.nps.totalAmount).toBe(60_000);
@@ -218,19 +217,19 @@ describe('calculateCustomDeductions', () => {
   });
 });
 
-describe('calculatePayroll — PAYE base after NPS', () => {
-  it('matches Malawi taxable-income rule for combined statutory deductions', () => {
+describe('calculatePayroll — PAYE and NPS as separate gross-based deductions', () => {
+  it('calculates combined statutory deductions separately from gross', () => {
     const gross = 500_000;
     const calc = calculatePayroll(gross, [payeDeduction, npsDeduction], {
       npsEmployeeRatePercent: 5,
       npsEmployerRatePercent: 5,
     });
-    expect(calc.payeTaxableIncome).toBe(475_000);
-    expect(calc.paye.payeAmount).toBe(91_500);
+    expect(calc.payeTaxableIncome).toBe(500_000);
+    expect(calc.paye.payeAmount).toBe(99_000);
     expect(calc.nps.employeeAmount).toBe(25_000);
   });
 
-  it('uses custom tenant employee/employer % for amounts and PAYE base', () => {
+  it('uses custom tenant employee/employer % without reducing the PAYE base', () => {
     const gross = 1_000_000;
     const calc = calculatePayroll(gross, [payeDeduction, npsDeduction], {
       npsEmployeeRatePercent: 3,
@@ -242,7 +241,8 @@ describe('calculatePayroll — PAYE base after NPS', () => {
     });
     expect(calc.nps.employeeAmount).toBe(30_000);
     expect(calc.nps.employerAmount).toBe(70_000);
-    expect(calc.payeTaxableIncome).toBe(970_000);
+    expect(calc.payeTaxableIncome).toBe(1_000_000);
+    expect(calc.paye.payeAmount).toBe(249_000);
   });
 
   it('defaults null tenant NPS to 5% each side when NPS applies (simple payroll API)', () => {
@@ -256,7 +256,7 @@ describe('calculatePayroll — PAYE base after NPS', () => {
       employerRatePercent: 5,
     });
     expect(calc.nps.employeeAmount).toBe(25_000);
-    expect(calc.payeTaxableIncome).toBe(475_000);
+    expect(calc.payeTaxableIncome).toBe(500_000);
   });
 
   it('does not apply PAYE when only NPS plus an unrelated statutory row containing "tax"', () => {
@@ -275,16 +275,16 @@ describe('calculatePayroll — PAYE base after NPS', () => {
     expect(calc.netPay).toBe(522_500);
   });
 
-  it('550k gross with PAYE + NPS: PAYE uses gross after employee NPS (combined net)', () => {
+  it('550k gross with PAYE + NPS: PAYE and NPS both use gross as their base', () => {
     const calc = calculatePayroll(
       550_000,
       [payeDeduction, npsDeduction],
       { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 5 },
     );
-    expect(calc.payeTaxableIncome).toBe(522_500);
-    expect(calc.paye.payeAmount).toBe(105_750);
+    expect(calc.payeTaxableIncome).toBe(550_000);
+    expect(calc.paye.payeAmount).toBe(114_000);
     expect(calc.nps.employeeAmount).toBe(27_500);
-    expect(calc.totalDeductions).toBe(133_250);
-    expect(calc.netPay).toBe(416_750);
+    expect(calc.totalDeductions).toBe(141_500);
+    expect(calc.netPay).toBe(408_500);
   });
 });

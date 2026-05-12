@@ -11,6 +11,7 @@ import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
+import { resolveSalaryAdvanceReceivableAccount } from '@/lib/salaryAdvanceGlAccount';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -385,33 +386,7 @@ export async function POST(request) {
     const npsEmployerAccount = findAccountByName('NPS Employer Contribution Liability');
     const otherDeductionsAccount = findAccountByName('Payroll Deductions Liability');
     
-    // Find or create Salary Advance Receivable account (Asset)
-    let advanceReceivableAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        OR: [
-          { accountName: { contains: 'Salary Advance Receivable', mode: 'insensitive' } },
-          { accountName: { contains: 'Advance Salary Receivable', mode: 'insensitive' } },
-          { accountName: { contains: 'Employee Advance Receivable', mode: 'insensitive' } }
-        ],
-        accountType: 'Asset',
-        isActive: true
-      }
-    });
-
-    if (!advanceReceivableAccount) {
-      advanceReceivableAccount = await prisma.account.create({
-        data: {
-          tenantId: user.tenantId,
-          accountCode: '1300',
-          accountName: 'Salary Advance Receivable',
-          accountType: 'Asset',
-          isActive: true,
-          description: 'Asset account for tracking salary advances given to employees (receivables)'
-        }
-      });
-      console.log('✅ Created Salary Advance Receivable account:', advanceReceivableAccount.id);
-    }
+    const advanceReceivableAccount = await resolveSalaryAdvanceReceivableAccount(user.tenantId, prisma);
 
     // Validate expense account is actually an expense account and not COGS
     if (expenseAccount) {
@@ -756,7 +731,7 @@ export async function POST(request) {
       const additionalInfo = {
         allowances: payrollCalculation.allowances || {},
         otherDeductions: payrollCalculation.otherDeductions || {},
-        // Malawi PAYE: gross less employee NPS (when NPS applies) before tax bands
+        // Malawi PAYE: gross payroll base before separate employee NPS deduction
         payeTaxableIncome: payrollCalculation.payeTaxableIncome ?? null,
         deductionNames: deductionNames, // Store deduction names for payslip
         advanceDeductions: advanceDeductions.map(ad => ({

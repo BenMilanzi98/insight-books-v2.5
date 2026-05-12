@@ -124,7 +124,7 @@ export default function PayrollProcessing() {
     try {
       setAccountsLoading(true);
       setAccountsError(null);
-      const response = await fetch('/api/chart-of-accounts/picker?accountType=Expense&isActive=true');
+      const response = await fetch('/api/chart-of-accounts/picker?accountType=Expense&isActive=true&postingEligibleOnly=true');
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to load accounts');

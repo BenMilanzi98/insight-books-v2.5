@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { isPayeTaxType, sumPaidPayeExpenses } from '@/lib/payeExpenseSettlement';
 
 /**
  * GET /api/tax-accounts/balances
@@ -62,8 +63,12 @@ export async function GET(request) {
       let totalRefunded = 0;
       const breakdownMap = new Map();
       const taxTypeRate = Number(taxType.taxRate);
+      const isPAYE = isPayeTaxType(taxType);
       const isOnlyNonPayeTaxType = nonPayeTaxTypes.length === 1 && nonPayeTaxTypes[0].id === taxType.id;
       const isFirstNonPayeTaxType = nonPayeTaxTypes.length > 0 && nonPayeTaxTypes[0].id === taxType.id;
+      let payePaidFromExpensesTotal = 0;
+      const payeTaxPaymentRows = [];
+      const payePayrollIdsCoveredByGl = new Set();
 
       const addToBreakdown = (date, field, amount) => {
         const d = new Date(date);
@@ -288,7 +293,7 @@ export async function GET(request) {
 
         for (const ex of directExpenses) {
           const expTaxAmount = Number(ex.taxAmount || 0);
-          if (expTaxAmount > 0) {
+          if (!isPAYE && expTaxAmount > 0) {
             totalPaid += expTaxAmount;
             addToBreakdown(ex.date, 'paid', expTaxAmount);
             expensesDirectlyLinked.add(ex.id);
@@ -311,6 +316,7 @@ export async function GET(request) {
         });
 
         for (const ex of expensesWithTax) {
+          if (isPAYE) continue;
           if (expensesDirectlyLinked.has(ex.id)) continue;
           const expTaxRate = Number(ex.taxRate || 0);
           const expTaxAmount = Number(ex.taxAmount || 0);
@@ -322,6 +328,21 @@ export async function GET(request) {
           if (rateMatches || isOnlyNonPaye || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
             totalPaid += expTaxAmount;
             addToBreakdown(ex.date, 'paid', expTaxAmount);
+          }
+        }
+
+        if (isPAYE) {
+          const branchId = user?.currentBranchId ?? null;
+          const paidPayeExpenses = await sumPaidPayeExpenses(prisma, {
+            tenantId: user.tenantId,
+            taxTypeId: taxType.id,
+            dateFilter,
+            branchId,
+          });
+          payePaidFromExpensesTotal = paidPayeExpenses.total;
+          for (const row of paidPayeExpenses.rows) {
+            totalPaid += row.amount;
+            addToBreakdown(row.date, 'paid', row.amount);
           }
         }
       } catch (err) {
@@ -345,12 +366,23 @@ export async function GET(request) {
               date: true,
               sourceType: true,
               sourceId: true,
+              isReversal: true,
+              reversedTransactionId: true,
               lines: {
                 where: { accountId: taxType.accountId },
                 select: { debitAmount: true, creditAmount: true },
               },
             },
           });
+
+          const payePayrollTxnIdToPayrollId = new Map();
+          if (isPAYE) {
+            for (const t of transactions) {
+              if (t.sourceType === 'Payroll' && t.sourceId) {
+                payePayrollTxnIdToPayrollId.set(t.id, t.sourceId);
+              }
+            }
+          }
 
           const taxExpenseSourceIds = [
             ...new Set(
@@ -378,10 +410,6 @@ export async function GET(request) {
             .toLowerCase();
           const isLiability = accountTypeNorm === 'liability';
           const isAsset = accountTypeNorm === 'asset';
-          const isPAYE =
-            (taxType.taxId || '').toString().toUpperCase() === 'PAYE' ||
-            (taxType.taxName || '').toString().toUpperCase().includes('PAYE');
-
           // Invoice void reverses the original Tax-Invoice journal as sourceType "Tax-Invoice-Void"
           // and also posts Tax-InvoiceVoid via reverseAutoPostTaxEntry — same economic reversal twice.
           const invoiceIdsWithCompoundTaxInvoiceVoid = new Set(
@@ -403,6 +431,7 @@ export async function GET(request) {
             // so Tax Types shows PAYE correctly under the linked PAYE account.
             // Reversal payroll journals (isReversal=true) will appear as a debit on this liability and are treated as refunded.
             if (isPAYE && tx.sourceType === 'Payroll') {
+              if (tx.sourceId) payePayrollIdsCoveredByGl.add(tx.sourceId);
               if (isLiability) {
                 if (creditAmount > 0) {
                   totalCollected += creditAmount;
@@ -413,6 +442,21 @@ export async function GET(request) {
                 }
               }
               continue;
+            }
+
+            if (isPAYE && tx.sourceType === 'Transaction' && tx.isReversal) {
+              const reversedPayrollId = payePayrollTxnIdToPayrollId.get(tx.reversedTransactionId);
+              if (reversedPayrollId) payePayrollIdsCoveredByGl.add(reversedPayrollId);
+              if (isLiability && debitAmount > 0) {
+                totalRefunded += debitAmount;
+                addToBreakdown(tx.date, 'refunded', debitAmount);
+                continue;
+              }
+              if (isAsset && creditAmount > 0) {
+                totalRefunded += creditAmount;
+                addToBreakdown(tx.date, 'refunded', creditAmount);
+                continue;
+              }
             }
 
             if (
@@ -426,8 +470,12 @@ export async function GET(request) {
             if (tx.sourceType === 'TaxPayment') {
               const paymentAmount = isLiability ? debitAmount : creditAmount;
               if (paymentAmount > 0) {
-                totalPaid += paymentAmount;
-                addToBreakdown(tx.date, 'paid', paymentAmount);
+                if (isPAYE) {
+                  payeTaxPaymentRows.push({ date: tx.date, amount: paymentAmount });
+                } else {
+                  totalPaid += paymentAmount;
+                  addToBreakdown(tx.date, 'paid', paymentAmount);
+                }
               }
             }
             // Supplier payment tax: debit to Liability = input VAT paid
@@ -515,6 +563,18 @@ export async function GET(request) {
         console.warn('Tax balances: Transaction query failed for', taxType.taxId, err?.message);
       }
 
+      if (isPAYE && payeTaxPaymentRows.length > 0) {
+        const payeTaxPaymentTotal = payeTaxPaymentRows.reduce((sum, row) => sum + row.amount, 0);
+        let unappliedTaxPaymentAmount = Math.max(0, payeTaxPaymentTotal - payePaidFromExpensesTotal);
+        for (const row of payeTaxPaymentRows) {
+          if (unappliedTaxPaymentAmount <= 0.005) break;
+          const amountToAdd = Math.min(row.amount, unappliedTaxPaymentAmount);
+          totalPaid += amountToAdd;
+          addToBreakdown(row.date, 'paid', amountToAdd);
+          unappliedTaxPaymentAmount -= amountToAdd;
+        }
+      }
+
       // ========== PAYE FALLBACK (Payroll table) ==========
       // If PAYE was not posted via GL (or tax account linkage differs), still reflect PAYE withheld.
       try {
@@ -531,19 +591,16 @@ export async function GET(request) {
                 { paymentDate: null, periodEnd: dateFilter },
               ],
             },
-            select: { payeAmount: true, status: true, paymentDate: true, periodEnd: true }
+            select: { id: true, payeAmount: true, status: true, paymentDate: true, periodEnd: true }
           });
           for (const p of payrolls) {
+            if (payePayrollIdsCoveredByGl.has(p.id)) continue;
             const amt = Number(p.payeAmount || 0);
             if (amt <= 0) continue;
+            if (p.status === 'Reversed') continue;
             const d = p.paymentDate || p.periodEnd;
-            if (p.status === 'Reversed') {
-              totalRefunded += amt;
-              addToBreakdown(d, 'refunded', amt);
-            } else {
-              totalCollected += amt;
-              addToBreakdown(d, 'collected', amt);
-            }
+            totalCollected += amt;
+            addToBreakdown(d, 'collected', amt);
           }
         }
       } catch (err) {

@@ -3,8 +3,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateReferenceNumber } from '@/lib/journalService';
-import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
+import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
+import { resolveSalaryAdvanceReceivableAccount } from '@/lib/salaryAdvanceGlAccount';
 
 /**
  * GET - Get all salary advances for the tenant
@@ -154,68 +157,18 @@ export async function POST(request) {
         }
       });
 
-      // Get or create "Salary Advance Receivable" asset account
-      // Salary advances are receivables (assets), not expenses
-      let receivableAccount = await tx.account.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          OR: [
-            { accountName: { contains: 'Salary Advance Receivable', mode: 'insensitive' } },
-            { accountName: { contains: 'Advance Salary Receivable', mode: 'insensitive' } },
-            { accountName: { contains: 'Employee Advance Receivable', mode: 'insensitive' } }
-          ],
-          accountType: 'Asset',
-          isActive: true
-        }
-      });
+      // Salary advances are receivables (assets), not expenses.
+      const receivableAccount = await resolveSalaryAdvanceReceivableAccount(user.tenantId, tx);
 
-      if (!receivableAccount) {
-        // Create "Salary Advance Receivable" account (Asset)
-        receivableAccount = await tx.account.create({
-          data: {
-            tenantId: user.tenantId,
-            accountCode: '1300',
-            accountName: 'Salary Advance Receivable',
-            accountType: 'Asset',
-            isActive: true,
-            description: 'Asset account for tracking salary advances given to employees (receivables)'
-          }
-        });
-      }
-
-      // Get payment account - handle both account ID and payment method name
       let paymentAccount;
-      
-      // First, try to find account by ID (in case frontend sends account ID)
-      if (selectedPaymentMethod) {
-        try {
-          paymentAccount = await tx.account.findFirst({
-            where: {
-              id: selectedPaymentMethod,
-              tenantId: user.tenantId,
-              isActive: true,
-              accountType: 'Asset' // Payment accounts should be assets
-            }
-          });
-        } catch (error) {
-          // If lookup by ID fails, it's probably not an ID, continue to payment method lookup
-          console.log('Payment method is not an account ID, trying payment method lookup');
-        }
+      try {
+        paymentAccount = await getAccountForPaymentMethod(user.tenantId, selectedPaymentMethod, tx);
+      } catch (error) {
+        console.error('Error getting payment account:', error);
+        throw new Error(`Payment account not found for method "${selectedPaymentMethod}". Please ensure the account exists and is active in your chart of accounts.`);
       }
-      
-      // If not found by ID, try payment method name lookup
-      if (!paymentAccount) {
-        try {
-          paymentAccount = await getPaymentAccount(user.tenantId, selectedPaymentMethod, tx);
-        } catch (error) {
-          console.error('Error getting payment account:', error);
-          throw new Error(`Payment account not found for method "${selectedPaymentMethod}". Please ensure the account exists and is active in your chart of accounts.`);
-        }
-      }
-      
-      if (!paymentAccount) {
-        throw new Error('Payment account not found. Please set up your chart of accounts.');
-      }
+
+      await assertAccountsAllowDirectPosting([receivableAccount.id, paymentAccount.id], tx);
 
       // Create journal entry for the advance
       // Debit: Salary Advance Receivable (Asset) - increases receivable
@@ -258,25 +211,8 @@ export async function POST(request) {
         },
       });
 
-      // Update payment account balance (credit = decrease)
-      await tx.account.update({
-        where: { id: paymentAccount.id },
-        data: {
-          balance: {
-            decrement: advanceAmount
-          }
-        }
-      });
-
-      // Update receivable account balance (debit = increase)
-      await tx.account.update({
-        where: { id: receivableAccount.id },
-        data: {
-          balance: {
-            increment: advanceAmount
-          }
-        }
-      });
+      await updateAccountBalanceOnTransaction(receivableAccount.id, advanceAmount, 0, tx);
+      await updateAccountBalanceOnTransaction(paymentAccount.id, 0, advanceAmount, tx);
 
       return advance;
     });

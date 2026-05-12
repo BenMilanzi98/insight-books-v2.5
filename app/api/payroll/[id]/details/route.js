@@ -54,8 +54,8 @@ export async function GET(request, { params }) {
     const basicSalary = payroll.basicSalary || 0;
     const additions = payroll.additions || 0;
     const deductions = payroll.deductions || 0;
-    const grossPay = basicSalary + additions;
-    const tax = 0; // Tax field not available in current schema
+    const grossPay = Number(payroll.grossPay || basicSalary || 0) || 0;
+    const tax = Number(payroll.payeAmount || 0) || 0;
     const netPay = payroll.netPay || 0;
 
     // Return payslip data EXACTLY matching frontend structure
@@ -94,10 +94,10 @@ export async function GET(request, { params }) {
         },
         // Additional fields that frontend expects
         benefits: {}, // Empty object as frontend expects
-        benefitsTotal: 0,
+        benefitsTotal: additions,
         grossPay: grossPay,
         yearToDate: {
-          earnings: grossPay, // Using current payslip data as fallback
+          earnings: grossPay + additions, // Using current payslip data as fallback
           tax: tax,
           netPay: netPay
         }

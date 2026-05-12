@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { postTaxPayment } from '@/lib/taxCalculationService';
+import { applyPayeSettlementToExpenses, isPayeTaxType } from '@/lib/payeExpenseSettlement';
 
 // POST - Settle tax liability by creating an expense record and journal entries
 export async function POST(request) {
@@ -80,6 +81,18 @@ export async function POST(request) {
         }
       });
 
+      let taxType = null;
+      let payeExpenseSettlement = null;
+      if (body.taxTypeId) {
+        taxType = await tx.taxType.findFirst({
+          where: { id: body.taxTypeId, tenantId: user.tenantId },
+          select: { id: true, taxId: true, taxName: true, taxCode: true },
+        });
+        if (!taxType) {
+          throw new Error('Tax type not found or access denied');
+        }
+      }
+
       // Create journal entries for tax payment if taxTypeId is provided
       let taxTransaction = null;
       if (body.taxTypeId) {
@@ -107,6 +120,18 @@ export async function POST(request) {
             sourceType: taxTransaction.sourceType,
             lines: taxTransaction.lines?.length || 0
           });
+
+          if (isPayeTaxType(taxType)) {
+            payeExpenseSettlement = await applyPayeSettlementToExpenses(tx, {
+              tenantId: user.tenantId,
+              taxTypeId: body.taxTypeId,
+              amount,
+              settlementDate: new Date(body.date),
+              paymentMethod: body.paymentMethod,
+              reference: `Tax Settlement - ${expense.id}`,
+              taxPeriod: body.taxPeriod || null,
+            });
+          }
         } catch (taxError) {
           console.error('❌ Error creating tax payment journal entry:', taxError);
           console.error('Tax payment error details:', {
@@ -144,12 +169,13 @@ export async function POST(request) {
             settlementDate: body.date,
             taxPeriod: body.taxPeriod || null,
             taxTypeId: body.taxTypeId || null,
+            payeExpenseSettlement,
             automaticSettlement: true
           })
         }
       });
 
-      return { expense, payment, taxTransaction };
+      return { expense, payment, taxTransaction, payeExpenseSettlement };
     });
 
     // Format response
@@ -165,14 +191,15 @@ export async function POST(request) {
         date: result.expense.date.toISOString().split('T')[0],
         paymentMethod: result.expense.paymentMethod,
         status: result.expense.status,
-        paymentId: result.payment.id
+        paymentId: result.payment.id,
+        payeExpenseSettlement: result.payeExpenseSettlement || null
       }
     }, { status: 201 });
 
   } catch (error) {
     console.error('Error creating tax settlement:', error);
     return NextResponse.json(
-      { error: 'Failed to record tax settlement. Please try again.' },
+      { error: error.message || 'Failed to record tax settlement. Please try again.' },
       { status: 500 }
     );
   }

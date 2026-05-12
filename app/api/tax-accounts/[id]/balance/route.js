@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { isPayeTaxType, sumPaidPayeExpenses } from '@/lib/payeExpenseSettlement';
 
 /**
  * GET /api/tax-accounts/[id]/balance
@@ -193,6 +194,9 @@ export async function GET(request, { params }) {
 
     const isLiability = taxType.account.accountType === 'Liability';
     const isAsset = taxType.account.accountType === 'Asset';
+    const isPAYE = isPayeTaxType(taxType);
+    let payePaidFromExpensesTotal = 0;
+    const payeTaxPaymentRows = [];
 
     // Calculate totalCollected from sales
     const salesTransactions = [];
@@ -392,6 +396,7 @@ export async function GET(request, { params }) {
       });
 
       for (const ex of expensesWithTax) {
+        if (isPAYE) continue;
         const expTaxRate = Number(ex.taxRate || 0);
         const expTaxAmount = Number(ex.taxAmount || 0);
         if (expTaxAmount <= 0) continue;
@@ -419,8 +424,87 @@ export async function GET(request, { params }) {
           });
         }
       }
+
+      if (isPAYE) {
+        const branchId = user?.currentBranchId ?? null;
+        const paidPayeExpenses = await sumPaidPayeExpenses(prisma, {
+          tenantId: user.tenantId,
+          taxTypeId: taxType.id,
+          dateFilter: Object.keys(dateFilter).length > 0 ? dateFilter : null,
+          branchId,
+        });
+        payePaidFromExpensesTotal = paidPayeExpenses.total;
+        for (const row of paidPayeExpenses.rows) {
+          totalPaid += row.amount;
+          expenseTransactions.push({
+            id: `paye-expense-paid-${row.id}`,
+            reference: `EXP-${row.id}`,
+            date: row.date,
+            description: `PAYE Paid - Expense: ${row.description || ''}`.trim(),
+            sourceType: 'PAYE-ExpensePayment',
+            sourceId: row.id,
+            transactionType: 'paid',
+            debitAmount: isLiability ? row.amount : 0,
+            creditAmount: isAsset ? row.amount : 0,
+            netAmount: isAsset ? row.amount : -row.amount,
+            createdBy: 'System',
+            runningBalance: 0,
+          });
+        }
+      }
     } catch (err) {
       console.warn('Tax balance detail: Expense query failed', err?.message);
+    }
+
+    if (isPAYE) {
+      try {
+        const payrolls = await prisma.payroll.findMany({
+          where: {
+            tenantId: user.tenantId,
+            payeAmount: { gt: 0 },
+            OR: [
+              { paymentDate: dateFilter },
+              { paymentDate: null, periodEnd: dateFilter },
+            ],
+          },
+          select: {
+            id: true,
+            payeAmount: true,
+            status: true,
+            paymentDate: true,
+            periodEnd: true,
+            employee: { select: { name: true } },
+          },
+          orderBy: [{ paymentDate: 'desc' }, { periodEnd: 'desc' }],
+        });
+
+        for (const p of payrolls) {
+          const amount = Number(p.payeAmount || 0);
+          if (amount <= 0) continue;
+          const isReversed = p.status === 'Reversed';
+          if (isReversed) continue;
+          const date = p.paymentDate || p.periodEnd;
+          totalCollected += amount;
+          const debitAmount = isReversed && isLiability ? amount : (!isReversed && isAsset ? amount : 0);
+          const creditAmount = isReversed && isAsset ? amount : (!isReversed && isLiability ? amount : 0);
+          salesTransactions.push({
+            id: `payroll-paye-${p.id}`,
+            reference: `PAY-${p.id}`,
+            date,
+            description: `${isReversed ? 'PAYE Reversed' : 'PAYE Withheld'} - ${p.employee?.name || 'Payroll'}`,
+            sourceType: 'Payroll',
+            sourceId: p.id,
+            transactionType: isReversed ? 'refunded' : 'collected',
+            debitAmount,
+            creditAmount,
+            netAmount: creditAmount - debitAmount,
+            createdBy: 'System',
+            runningBalance: 0,
+          });
+        }
+      } catch (err) {
+        console.warn('Tax balance detail: PAYE payroll query failed', err?.message);
+      }
     }
 
     // Map TaxPayment transactions
@@ -434,6 +518,17 @@ export async function GET(request, { params }) {
       
       // Tax payment
       const paymentAmount = isLiability ? debitAmount : creditAmount;
+      if (isPAYE) {
+        if (paymentAmount > 0) {
+          payeTaxPaymentRows.push({
+            tx,
+            line,
+            netAmount,
+            paymentAmount,
+          });
+        }
+        return null;
+      }
       totalPaid += paymentAmount;
 
       return {
@@ -451,6 +546,35 @@ export async function GET(request, { params }) {
         runningBalance: 0, // Will be calculated later
       };
     }).filter(tx => tx !== null);
+
+    if (isPAYE && payeTaxPaymentRows.length > 0) {
+      const payeTaxPaymentTotal = payeTaxPaymentRows.reduce((sum, row) => sum + row.paymentAmount, 0);
+      let unappliedTaxPaymentAmount = Math.max(0, payeTaxPaymentTotal - payePaidFromExpensesTotal);
+
+      for (const row of payeTaxPaymentRows) {
+        if (unappliedTaxPaymentAmount <= 0.005) break;
+        const amountToAdd = Math.min(row.paymentAmount, unappliedTaxPaymentAmount);
+        const debitAmount = isLiability ? amountToAdd : 0;
+        const creditAmount = isAsset ? amountToAdd : 0;
+        const netAmount = creditAmount - debitAmount;
+        totalPaid += amountToAdd;
+        paymentTransactions.push({
+          id: row.tx.id,
+          reference: row.tx.reference,
+          date: row.tx.date,
+          description: row.tx.description || row.line.description,
+          sourceType: row.tx.sourceType,
+          sourceId: row.tx.sourceId,
+          transactionType: 'paid',
+          debitAmount,
+          creditAmount,
+          netAmount,
+          createdBy: row.tx.createdBy?.name || 'System',
+          runningBalance: 0,
+        });
+        unappliedTaxPaymentAmount -= amountToAdd;
+      }
+    }
 
     // Combine all transaction types
     const allTransactions = [...salesTransactions, ...poTransactions, ...expenseTransactions, ...paymentTransactions];
@@ -516,4 +640,3 @@ export async function GET(request, { params }) {
     );
   }
 }
-

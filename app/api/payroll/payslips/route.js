@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { computeMalawiPayeMonthly } from '@/lib/malawiPAYE';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 // POST - Generate payslips for a payroll period or specific employee
 export async function POST(request) {
@@ -71,35 +73,32 @@ export async function POST(request) {
         // Create payslip reference number
         const refNumber = `PS-${periodStart.toLocaleString('default', { month: 'short' }).toUpperCase()}-${year}-${String(entry.employeeId).padStart(3, '0')}`;
         
-        // Calculate benefits (assuming 15% of basic salary for simplicity)
-        const benefits = {
-          housing: Math.round(entry.basicSalary * 0.1),
-          transport: Math.round(entry.basicSalary * 0.05)
-        };
-        
-        const benefitsTotal = Object.values(benefits).reduce((sum, value) => sum + value, 0);
-        
-        // Calculate gross pay
-        const grossPay = entry.basicSalary + benefitsTotal;
-        
-        // Break down deductions (assuming pension is 5% and health insurance is 3%)
+        const statutory = getPayrollStatutoryBreakdown(entry);
+        const grossPay = Number(entry.grossPay || entry.basicSalary || 0) || 0;
+        const benefitsTotal = Number(entry.additions || 0) || 0;
+        const benefits = benefitsTotal > 0 ? { additions: benefitsTotal } : {};
+        const storedTax = entry.payeAmount == null ? NaN : Number(entry.payeAmount);
+        const parsedTax = Number(statutory.payeAmount);
+        const tax = Number.isFinite(storedTax)
+          ? storedTax
+          : Number.isFinite(parsedTax)
+            ? parsedTax
+            : computeMalawiPayeMonthly(grossPay).payeAmount;
+        const pension = Number(statutory.npsEmployeeAmount || 0) || 0;
+        const storedDeductions = entry.deductions == null ? NaN : Number(entry.deductions);
+        const deductionsTotal = Number.isFinite(storedDeductions) ? storedDeductions : tax + pension;
+        const otherDeductions = Math.max(0, deductionsTotal - tax - pension);
         const deductions = {
-          pension: Math.round(entry.basicSalary * 0.05),
-          healthInsurance: Math.round(entry.basicSalary * 0.03)
+          paye: tax,
+          pension,
+          ...(otherDeductions > 0 ? { other: otherDeductions } : {})
         };
-        
-        const deductionsTotal = Object.values(deductions).reduce((sum, value) => sum + value, 0);
-        
-        // Calculate tax (assuming standard rate of 30% after pension deduction)
-        const taxableIncome = grossPay - deductions.pension;
-        const tax = Math.round(taxableIncome * 0.3);
-        
-        // Calculate net pay
-        const netPay = grossPay - deductionsTotal - tax;
+        const storedNetPay = entry.netPay == null ? NaN : Number(entry.netPay);
+        const netPay = Number.isFinite(storedNetPay) ? storedNetPay : grossPay - deductionsTotal + benefitsTotal;
         
         // Generate YTD figures (simplified - just multiply by the month number)
         const currentMonth = periodStart.getMonth() + 1; // 1-indexed month
-        const ytdEarnings = grossPay * currentMonth;
+        const ytdEarnings = (grossPay + benefitsTotal) * currentMonth;
         const ytdTax = tax * currentMonth;
         const ytdNetPay = netPay * currentMonth;
         
@@ -216,35 +215,55 @@ export async function POST(request) {
       // Create payslip reference number
       const refNumber = `PS-${periodStart.toLocaleString('default', { month: 'short' }).toUpperCase()}-${year}-${String(employee.id).padStart(3, '0')}`;
       
-      // Calculate benefits (assuming 15% of basic salary)
-      const benefits = {
-        housing: Math.round(basicSalary * 0.1),
-        transport: Math.round(basicSalary * 0.05)
-      };
-      
-      const benefitsTotal = Object.values(benefits).reduce((sum, value) => sum + value, 0);
-      
-      // Calculate gross pay
-      const grossPay = basicSalary + benefitsTotal;
-      
-      // Break down deductions (assuming pension is 5% and health insurance is 3%)
-      const deductions = {
-        pension: Math.round(basicSalary * 0.05),
-        healthInsurance: Math.round(basicSalary * 0.03)
-      };
-      
-      const deductionsTotal = Object.values(deductions).reduce((sum, value) => sum + value, 0);
-      
-      // Calculate tax (assuming standard rate of 30% after pension deduction)
-      const taxableIncome = grossPay - deductions.pension;
-      const tax = Math.round(taxableIncome * 0.3);
-      
-      // Calculate net pay
-      const netPay = grossPay - deductionsTotal - tax;
+      const grossPay = payrollEntry
+        ? Number(payrollEntry.grossPay || payrollEntry.basicSalary || 0) || 0
+        : Number(basicSalary || 0) || 0;
+
+      let benefits = {};
+      let benefitsTotal = 0;
+      let deductions = {};
+      let deductionsTotal = 0;
+      let tax = 0;
+      let netPay = 0;
+
+      if (payrollEntry) {
+        const statutory = getPayrollStatutoryBreakdown(payrollEntry);
+        benefitsTotal = Number(payrollEntry.additions || 0) || 0;
+        benefits = benefitsTotal > 0 ? { additions: benefitsTotal } : {};
+        const storedTax = payrollEntry.payeAmount == null ? NaN : Number(payrollEntry.payeAmount);
+        const parsedTax = Number(statutory.payeAmount);
+        tax = Number.isFinite(storedTax)
+          ? storedTax
+          : Number.isFinite(parsedTax)
+            ? parsedTax
+            : computeMalawiPayeMonthly(grossPay).payeAmount;
+        const pension = Number(statutory.npsEmployeeAmount || 0) || 0;
+        const storedDeductions = payrollEntry.deductions == null ? NaN : Number(payrollEntry.deductions);
+        deductionsTotal = Number.isFinite(storedDeductions) ? storedDeductions : tax + pension;
+        const otherDeductions = Math.max(0, deductionsTotal - tax - pension);
+        deductions = {
+          paye: tax,
+          pension,
+          ...(otherDeductions > 0 ? { other: otherDeductions } : {})
+        };
+        const storedNetPay = payrollEntry.netPay == null ? NaN : Number(payrollEntry.netPay);
+        netPay = Number.isFinite(storedNetPay) ? storedNetPay : grossPay - deductionsTotal + benefitsTotal;
+      } else {
+        benefits = {
+          housing: Math.round(grossPay * 0.1),
+          transport: Math.round(grossPay * 0.05)
+        };
+        benefitsTotal = Object.values(benefits).reduce((sum, value) => sum + value, 0);
+        const pension = Math.round(grossPay * 0.05);
+        tax = Math.round(computeMalawiPayeMonthly(grossPay).payeAmount);
+        deductions = { paye: tax, pension };
+        deductionsTotal = Object.values(deductions).reduce((sum, value) => sum + value, 0);
+        netPay = grossPay - deductionsTotal + benefitsTotal;
+      }
       
       // Generate YTD figures (simplified - just multiply by the month number)
       const currentMonth = month + 1; // 1-indexed month
-      const ytdEarnings = grossPay * currentMonth;
+      const ytdEarnings = (grossPay + benefitsTotal) * currentMonth;
       const ytdTax = tax * currentMonth;
       const ytdNetPay = netPay * currentMonth;
       
