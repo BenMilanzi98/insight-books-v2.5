@@ -816,6 +816,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   Future<void> _showPartialPaymentSheet(Invoice invoice) async {
     final accounts = await _loadPaymentAccountsForInvoice();
     if (accounts == null || accounts.isEmpty) return;
+    if (!mounted) return;
 
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
