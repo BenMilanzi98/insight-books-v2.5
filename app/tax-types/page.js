@@ -121,13 +121,11 @@ export default function TaxTypesPage() {
   }, [balancePeriod]);
 
   useEffect(() => {
-    // Set default date range for reports (last 30 days)
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-    setReportEndDate(endDate.toISOString().split('T')[0]);
-    setReportStartDate(startDate.toISOString().split('T')[0]);
-  }, []);
+    if (balanceStartDate && balanceEndDate) {
+      setReportStartDate(balanceStartDate);
+      setReportEndDate(balanceEndDate);
+    }
+  }, [balanceStartDate, balanceEndDate]);
 
   useEffect(() => {
     if (balanceStartDate && balanceEndDate) {
@@ -257,14 +255,24 @@ export default function TaxTypesPage() {
   };
 
   const handleEdit = (taxType) => {
+    const rawRate = taxType.taxRate;
+    let taxRateStr = "";
+    if (rawRate != null && rawRate !== "") {
+      if (typeof rawRate === "object" && typeof rawRate.toNumber === "function") {
+        taxRateStr = String(rawRate.toNumber());
+      } else {
+        const n = Number(rawRate);
+        taxRateStr = Number.isFinite(n) ? String(n) : String(rawRate);
+      }
+    }
     setFormData({
-      taxId: taxType.taxId,
-      taxName: taxType.taxName,
-      taxCode: taxType.taxCode,
-      taxRate: taxType.taxRate.toString(),
-      calculationType: taxType.calculationType,
-      accountId: taxType.accountId,
-      status: taxType.status
+      taxId: taxType.taxId ?? "",
+      taxName: taxType.taxName ?? "",
+      taxCode: taxType.taxCode ?? "",
+      taxRate: taxRateStr,
+      calculationType: taxType.calculationType || "Percentage",
+      accountId: taxType.accountId ?? "",
+      status: taxType.status || "Active",
     });
     setEditingId(taxType.id);
     setShowAddModal(true);
@@ -354,16 +362,22 @@ export default function TaxTypesPage() {
   };
 
   const handleViewReports = async (tax) => {
+    const start = balanceStartDate || reportStartDate;
+    const end = balanceEndDate || reportEndDate;
     setSelectedTaxType(tax);
+    if (start && end) {
+      setReportStartDate(start);
+      setReportEndDate(end);
+    }
     setShowReportsModal(true);
     setLoadingReports(true);
     setTaxReports(null);
-    
+
     try {
       const params = new URLSearchParams();
-      if (reportStartDate) params.append('startDate', reportStartDate);
-      if (reportEndDate) params.append('endDate', reportEndDate);
-      
+      if (start) params.append("startDate", start);
+      if (end) params.append("endDate", end);
+
       const response = await fetch(`/api/tax-types/${tax.id}/reports?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to load tax reports');
       

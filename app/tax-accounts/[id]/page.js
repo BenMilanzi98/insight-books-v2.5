@@ -18,26 +18,35 @@ import { formatCurrency } from "@/lib/currencyUtils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 
+function toYmdLocalDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function initialThisMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { start: toYmdLocalDate(start), end: toYmdLocalDate(end) };
+}
+
 export default function TaxAccountDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const taxTypeId = params.id;
-  
+  const monthInit = initialThisMonthRange();
+  const taxTypeId = params?.id != null ? String(params.id) : "";
+
   const [accountData, setAccountData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasAccess, setHasAccess] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
+  const [startDate, setStartDate] = useState(monthInit.start);
+  const [endDate, setEndDate] = useState(monthInit.end);
+  const [selectedPeriod, setSelectedPeriod] = useState("thisMonth");
 
-  const toYmdLocal = (value) => {
-    const d = new Date(value);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
+  const toYmdLocal = (value) => toYmdLocalDate(new Date(value));
 
   useEffect(() => {
     checkPermissions();

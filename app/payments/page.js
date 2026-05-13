@@ -285,7 +285,7 @@ const PaymentAccountsPage = () => {
 
   return (
     <PermissionGuard permission="payments.view">
-      <div className="max-w-6xl mx-auto pb-10">
+      <div className="w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-10 pb-10">
         {notification && (
           <div
             className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md ${

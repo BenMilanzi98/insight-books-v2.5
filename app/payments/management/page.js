@@ -193,7 +193,7 @@ function PaymentManagementPageInner() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-none">
         {onboarding && (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm">
             <p className="font-medium">Required setup — payment accounts</p>
