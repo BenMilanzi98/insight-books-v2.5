@@ -86,8 +86,14 @@ function processPayslipData(payroll) {
   const deductionsTotal = deductions + pension + paye;
   const totalEarnings = grossPay + additions;
 
+  // Explicit fields only — do not spread full payroll (avoids leaking `notes` JSON or other DB fields into PDF/HTML).
   return {
-    ...payroll,
+    id: payroll.id,
+    employee: payroll.employee,
+    periodStart: payroll.periodStart,
+    periodEnd: payroll.periodEnd,
+    paymentDate: payroll.paymentDate,
+    status: payroll.status,
     basicSalary,
     additions,
     deductions,
@@ -103,11 +109,6 @@ function processPayslipData(payroll) {
     payPeriod: `${new Date(payroll.periodStart).toLocaleString('default', { month: 'long' })} ${new Date(payroll.periodStart).getFullYear()}`,
     benefits: {},
     benefitsTotal: 0,
-    yearToDate: {
-      earnings: totalEarnings,
-      tax: tax,
-      netPay: netPay
-    }
   };
 }
 
@@ -274,23 +275,6 @@ async function generatePayslipPDFWithPuppeteer(processedPayslip) {
               font-size: 24px;
               font-weight: bold;
               color: #059669;
-            }
-            .ytd-section {
-              margin-bottom: 30px;
-            }
-            .ytd-table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            .ytd-table th, .ytd-table td {
-              padding: 12px;
-              text-align: center;
-              border: 1px solid #e5e7eb;
-            }
-            .ytd-table th {
-              background-color: #f9fafb;
-              font-weight: 600;
-              color: #374151;
             }
             .footer {
               margin-top: 30px;
@@ -486,33 +470,6 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
         <div class="net-pay-amount">${formatSalaryAmount(processedPayslip.netPay)}</div>
       </div>
       
-      <div class="ytd-section">
-        <h3 class="section-title">Year-to-Date Summary</h3>
-        <table class="ytd-table">
-          <thead>
-            <tr>
-              <th>Gross Earnings</th>
-              <th>Total Tax</th>
-              <th>Net Pay</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${formatSalaryAmount(processedPayslip.yearToDate.earnings)}</td>
-              <td>${formatSalaryAmount(processedPayslip.yearToDate.tax)}</td>
-              <td>${formatSalaryAmount(processedPayslip.yearToDate.netPay)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      ${processedPayslip.notes ? `
-      <div class="notes-section">
-        <h3 class="section-title">Notes</h3>
-        <p>${processedPayslip.notes}</p>
-      </div>
-      ` : ''}
-      
       <div class="footer">
         <p>This is a computer-generated document and does not require a signature.</p>
         <p>For any queries regarding this payslip, please contact the HR department.</p>
@@ -682,41 +639,6 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
     doc.text('NET PAY:', margin + 5, yPos + 8);
     doc.text(formatSalaryAmount(processedPayslip.netPay), 165, yPos + 8, { align: 'right' });
     yPos += 20;
-
-    // Year-to-Date Summary (matching frontend exactly)
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Year-to-Date Summary', margin, yPos);
-    yPos += 8;
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Gross Earnings', 'Total Tax', 'Net Pay']],
-      body: [[
-        formatSalaryAmount(processedPayslip.yearToDate.earnings),
-        formatSalaryAmount(processedPayslip.yearToDate.tax),
-        formatSalaryAmount(processedPayslip.yearToDate.netPay)
-      ]],
-      headStyles: {
-        fillColor: [40, 40, 40],
-        textColor: 255,
-        fontStyle: 'bold'
-      },
-      margin: { left: margin, right: margin },
-      theme: 'striped'
-    });
-    yPos = doc.lastAutoTable.finalY + 15;
-
-    // Notes section (if available)
-    if (processedPayslip.notes) {
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Notes:', margin, yPos);
-      doc.setFont('helvetica', 'normal');
-      const splitNotes = doc.splitTextToSize(processedPayslip.notes, 170);
-      doc.text(splitNotes, margin, yPos + 5);
-      yPos += splitNotes.length * 5 + 10;
-    }
 
     // Footer (matching frontend exactly)
     doc.setFontSize(8);

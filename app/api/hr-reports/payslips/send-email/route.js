@@ -148,9 +148,11 @@ async function generatePayslipPDF(payslip, tenant) {
   doc.text(formatSalaryAmount(payslip.netPay), pageWidth - margin - 10, yPos, { align: 'right' });
   yPos += 20;
 
-  // Footer
+  // Footer (no Year-to-Date or Notes — same policy as /api/payroll/[id]/payslip)
   doc.setFontSize(8);
   doc.setFont(undefined, 'normal');
+  doc.text('This is a computer-generated document and does not require a signature.', pageWidth / 2, yPos, { align: 'center' });
+  yPos += 5;
   doc.text('For any queries regarding this payslip, please contact the HR department.', pageWidth / 2, yPos, { align: 'center' });
   yPos += 5;
   doc.text(`Generated on: ${formatDate(new Date())}`, pageWidth / 2, yPos, { align: 'center' });

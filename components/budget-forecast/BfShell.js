@@ -15,7 +15,7 @@ export default function BfShell({ children }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="w-full max-w-none px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
         <header className="mb-8 border-b border-slate-200 pb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

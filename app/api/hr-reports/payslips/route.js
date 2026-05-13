@@ -280,7 +280,7 @@ async function generatePayslipsPDF(payslips, tenantId) {
     
     yPos += 32;
 
-    // Footer
+    // Footer (no Year-to-Date or Notes — same policy as /api/payroll/[id]/payslip)
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);

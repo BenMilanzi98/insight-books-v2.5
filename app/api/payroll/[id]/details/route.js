@@ -72,7 +72,6 @@ export async function GET(request, { params }) {
         periodStart: payroll.periodStart,
         periodEnd: payroll.periodEnd,
         paymentDate: payroll.paymentDate,
-        notes: payroll.notes,
         refNumber: `PS-${payroll.id.substring(0, 8).toUpperCase()}`,
         issueDate: formatDate(new Date()),
         payPeriod: `${new Date(payroll.periodStart).toLocaleString('default', { month: 'long' })} ${new Date(payroll.periodStart).getFullYear()}`,
@@ -96,11 +95,6 @@ export async function GET(request, { params }) {
         benefits: {}, // Empty object as frontend expects
         benefitsTotal: additions,
         grossPay: grossPay,
-        yearToDate: {
-          earnings: grossPay + additions, // Using current payslip data as fallback
-          tax: tax,
-          netPay: netPay
-        }
       },
     });
   } catch (error) {

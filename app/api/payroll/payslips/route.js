@@ -96,12 +96,6 @@ export async function POST(request) {
         const storedNetPay = entry.netPay == null ? NaN : Number(entry.netPay);
         const netPay = Number.isFinite(storedNetPay) ? storedNetPay : grossPay - deductionsTotal + benefitsTotal;
         
-        // Generate YTD figures (simplified - just multiply by the month number)
-        const currentMonth = periodStart.getMonth() + 1; // 1-indexed month
-        const ytdEarnings = (grossPay + benefitsTotal) * currentMonth;
-        const ytdTax = tax * currentMonth;
-        const ytdNetPay = netPay * currentMonth;
-        
         return {
           employee: {
             id: entry.employee.id,
@@ -122,11 +116,6 @@ export async function POST(request) {
           deductionsTotal,
           tax,
           netPay,
-          yearToDate: {
-            earnings: ytdEarnings,
-            tax: ytdTax,
-            netPay: ytdNetPay
-          },
           payrollEntryId: entry.id
         };
       });
@@ -261,12 +250,6 @@ export async function POST(request) {
         netPay = grossPay - deductionsTotal + benefitsTotal;
       }
       
-      // Generate YTD figures (simplified - just multiply by the month number)
-      const currentMonth = month + 1; // 1-indexed month
-      const ytdEarnings = (grossPay + benefitsTotal) * currentMonth;
-      const ytdTax = tax * currentMonth;
-      const ytdNetPay = netPay * currentMonth;
-      
       const payslip = {
         employee: {
           id: employee.id,
@@ -287,11 +270,6 @@ export async function POST(request) {
         deductionsTotal,
         tax,
         netPay,
-        yearToDate: {
-          earnings: ytdEarnings,
-          tax: ytdTax,
-          netPay: ytdNetPay
-        },
         payrollEntryId: payrollEntry ? payrollEntry.id : null,
         isEstimate: !payrollEntry
       };

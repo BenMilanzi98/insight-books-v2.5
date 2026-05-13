@@ -506,7 +506,7 @@ export default function RentalsClient({ mode }) {
   return (
     <PermissionGuard permissions={["rentals.view", "invoices.view", "invoices.create"]}>
       <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="w-full max-w-none px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
           <header className="mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">
