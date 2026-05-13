@@ -6,6 +6,7 @@ import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { fetchCogsExpenseRegisterRows } from '@/lib/fetchCogsExpenseRegisterRows';
 import { fetchSalaryAdvanceRegisterRows } from '@/lib/fetchSalaryAdvanceRegisterRows';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
 
 // GET - Export expenses data in CSV format
 export async function GET(request) {
@@ -69,14 +70,7 @@ export async function GET(request) {
       }
     }
     
-    // Add search filter if provided
-    if (search) {
-      where.OR = [
-        { description: { contains: search, mode: 'insensitive' } },
-        { category: { contains: search, mode: 'insensitive' } },
-        { merchant: { contains: search, mode: 'insensitive' } }
-      ];
-    }
+    applyExpenseTextSearchToWhere(where, search);
     
     const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
     const isSalaryAdvanceOnly =

@@ -1,6 +1,6 @@
 "use client";
 import { scanReceipt } from "@/lib/receipt-scanner";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import ExpensePartialPaymentModal from "@/components/ExpensePartialPaymentModal";
 import ExpensePaymentHistory from "@/components/ExpensePaymentHistory";
 import { 
@@ -307,8 +307,8 @@ const ExpensesPage = () => {
   const [selectedPreviewOpen, setSelectedPreviewOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchTimeout, setSearchTimeout] = useState(null);
-  
+  const searchDebounceMountRef = useRef(true);
+
   // Batch operations state
   const [selectedExpenses, setSelectedExpenses] = useState([]);
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -425,29 +425,28 @@ const ExpensesPage = () => {
     }
   }, [isScanning]);
   // Load expenses and statistics on initial render and when filters change
+  useLayoutEffect(() => {
+    setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [activeTab, selectedCategory, showDeletedExpenses]);
+
   useEffect(() => {
     loadExpenses();
-    loadStatistics();
+    loadStatistics(true);
     loadRecurringExpenses();
   }, [activeTab, selectedCategory, pagination.page, showDeletedExpenses]);
-  
-  // Handle search query changes with debounce
+
+  // Debounced search: reset to page 1 and reload (server merges search with branch OR correctly)
   useEffect(() => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+    if (searchDebounceMountRef.current) {
+      searchDebounceMountRef.current = false;
+      return;
     }
-    
     const timeout = setTimeout(() => {
+      setPagination((prev) => ({ ...prev, page: 1 }));
       loadExpenses();
-    }, 500);
-    
-    setSearchTimeout(timeout);
-    
-    return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-    };
+      loadStatistics(true);
+    }, 450);
+    return () => clearTimeout(timeout);
   }, [searchQuery]);
   
   // Close modals when escape key is pressed
@@ -796,17 +795,22 @@ const ExpensesPage = () => {
     }
   };
   
-  // Load statistics data from the API
+  // Load statistics (scoped to same account / category / search as the list — not status tab)
   const loadStatistics = async (forceRefresh = false) => {
     try {
       setIsLoadingStatistics(true);
-      // Add cache-busting parameter when force refreshing
-      const params = forceRefresh ? { _t: Date.now() } : {};
+      const params = {
+        ...(selectedCategory !== 'all' && selectedCategory !== 'salary-advance'
+          ? { accountId: selectedCategory }
+          : {}),
+        ...(selectedCategory === 'salary-advance' ? { category: 'Salary Advance' } : {}),
+        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(forceRefresh ? { _t: Date.now() } : {}),
+      };
       const stats = await getExpenseStatistics(params);
       setStatistics(stats);
     } catch (error) {
       console.error("Error loading statistics:", error);
-      // Don't set error state for statistics, just log it
     } finally {
       setIsLoadingStatistics(false);
     }
@@ -1427,7 +1431,7 @@ const handleFileUpload = async (e) => {
         status: activeTab === 'all' ? null : activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
         accountId: selectedCategory !== 'all' && selectedCategory !== 'salary-advance' ? selectedCategory : null,
         category: selectedCategory === 'salary-advance' ? 'Salary Advance' : null,
-        search: searchQuery || null
+        search: searchQuery.trim() || null
       };
       
       const blob = await exportExpenses(filters, format);

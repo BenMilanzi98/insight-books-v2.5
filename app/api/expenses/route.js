@@ -10,6 +10,7 @@ import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCatego
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -94,13 +95,8 @@ export async function GET(request) {
       }
     }
     
-    // Add search filter if provided
-    if (search) {
-      whereClause.OR = [
-        { description: { contains: search, mode: 'insensitive' } },
-        { category: { contains: search, mode: 'insensitive' } }
-      ];
-    }
+    // Search (must not overwrite branch OR from addBranchFilterIncludeUnassigned)
+    applyExpenseTextSearchToWhere(whereClause, search);
     
     const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(
       prisma,
@@ -184,16 +180,11 @@ export async function GET(request) {
 
     // Check if we should include salary advances
     // Include salary advances when no category filter is applied or when specifically filtering for "Salary Advance"
-    const includeSalaryAdvances = (!accountId && (!category || category === 'all' || category === '')) ||
-      categoryLower === 'salary advance' ||
-      category === 'Salary Advance';
-    
-    console.log('🔍 Salary advances inclusion check:', {
-      category,
-      categoryLower,
-      includeSalaryAdvances,
-      categoryType: typeof category
-    });
+    const includeSalaryAdvances =
+      (!accountId || accountId === 'all') &&
+      ((!category || category === 'all' || category === '') ||
+        categoryLower === 'salary advance' ||
+        category === 'Salary Advance');
 
     // Build salary advance filter (hide cancelled from the expenses register; manage in HR → Advances)
     const salaryAdvanceFilter = {

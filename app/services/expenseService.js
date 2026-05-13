@@ -3,7 +3,21 @@
 // Fetch expenses with optional filters, sorting, and pagination
 export const fetchExpenses = async (params = {}) => {
     try {
-      const { page, limit, sortBy, sortOrder, status, category, search, dateFrom, dateTo, branchId } = params;
+      const {
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+        status,
+        category,
+        search,
+        dateFrom,
+        dateTo,
+        branchId,
+        accountId,
+        supplierId,
+        includeDeleted,
+      } = params;
       
       // Build query string from params
       const queryParams = new URLSearchParams();
@@ -16,6 +30,11 @@ export const fetchExpenses = async (params = {}) => {
       if (search) queryParams.append('search', search);
       if (dateFrom) queryParams.append('dateFrom', dateFrom);
       if (dateTo) queryParams.append('dateTo', dateTo);
+      if (accountId && accountId !== 'all') queryParams.append('accountId', accountId);
+      if (supplierId) queryParams.append('supplierId', supplierId);
+      if (includeDeleted === true || includeDeleted === 'true') {
+        queryParams.append('includeDeleted', 'true');
+      }
       // Note: branchId is handled automatically by API using user's currentBranchId
       // Only pass branchId if explicitly provided (e.g., for "All Branches" view)
       if (branchId) queryParams.append('branchId', branchId);
@@ -196,12 +215,15 @@ export const createExpenseWithAttachments = async (expenseData, attachments) => 
   // Get expense statistics
   export const getExpenseStatistics = async (params = {}) => {
     try {
-      const { dateFrom, dateTo, _t } = params;
+      const { dateFrom, dateTo, accountId, category, search, _t } = params;
       
       // Build query string from params
       const queryParams = new URLSearchParams();
       if (dateFrom) queryParams.append('dateFrom', dateFrom);
       if (dateTo) queryParams.append('dateTo', dateTo);
+      if (accountId && accountId !== 'all') queryParams.append('accountId', accountId);
+      if (category && category !== 'all') queryParams.append('category', category);
+      if (search && String(search).trim()) queryParams.append('search', String(search).trim());
       if (_t) queryParams.append('_t', _t); // Cache-busting parameter
       
       const queryString = queryParams.toString();

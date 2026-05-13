@@ -9,6 +9,7 @@ import {
   isGlCogsWindowActive,
   prismaWhereExpenseRegisterOverlapsGlCogs,
 } from '@/lib/expenseRegisterGlCogsOverlap';
+import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
 
 // GET - Fetch expense statistics
 export async function GET(request) {
@@ -51,6 +52,30 @@ export async function GET(request) {
     if (Object.keys(dateFilter).length > 0) {
       baseFilter.date = dateFilter;
     }
+
+    const accountId = searchParams.get('accountId');
+    const category = searchParams.get('category');
+    const search = searchParams.get('search');
+    const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
+
+    if (accountId && accountId !== 'all') {
+      baseFilter.expenseAccountId = accountId;
+    }
+    if (category && category !== 'all') {
+      baseFilter.category = category;
+    }
+    applyExpenseTextSearchToWhere(baseFilter, search);
+
+    const includeCOGS =
+      !category ||
+      category === 'all' ||
+      categoryLower.includes('cost of goods') ||
+      categoryLower.includes('cogs');
+    const includeSalaryAdvances =
+      (!accountId || accountId === 'all') &&
+      ((!category || category === 'all' || category === '') ||
+        categoryLower === 'salary advance' ||
+        category === 'Salary Advance');
     
     // Get total expenses count and sum
     const totalExpenses = await prisma.expense.aggregate({
@@ -185,10 +210,9 @@ export async function GET(request) {
     }
     
     // COGS accounts — same set as expense list / export (incl. 5100 Cost of Sales, etc.)
-    const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(
-      prisma,
-      user.tenantId
-    );
+    const cogsAccountIds = includeCOGS
+      ? await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId)
+      : [];
     
     // Get COGS transactions for the period
     let cogsTotal = 0;
@@ -233,7 +257,7 @@ export async function GET(request) {
       cogsAccountIds.length > 0 && isGlCogsWindowActive(cogsTotal, cogsTransactionCount);
 
     let registerGlCogsOverlapAmount = 0;
-    if (glCogsWindowActive && cogsAccountIds.length > 0) {
+    if (includeCOGS && glCogsWindowActive && cogsAccountIds.length > 0) {
       const overlapAgg = await prisma.expense.aggregate({
         where: {
           AND: [baseFilter, prismaWhereExpenseRegisterOverlapsGlCogs(cogsAccountIds)],
@@ -254,11 +278,15 @@ export async function GET(request) {
     if (Object.keys(dateFilter).length > 0) {
       salaryAdvanceWhere.advanceDate = { ...dateFilter };
     }
-    const salaryAgg = await prisma.salaryAdvance.aggregate({
-      where: salaryAdvanceWhere,
-      _sum: { amount: true }
-    });
-    const salaryAdvancesTotal = Number(salaryAgg._sum.amount || 0);
+    const salaryAgg = includeSalaryAdvances
+      ? await prisma.salaryAdvance.aggregate({
+          where: salaryAdvanceWhere,
+          _sum: { amount: true },
+        })
+      : { _sum: { amount: null } };
+    const salaryAdvancesTotal = includeSalaryAdvances
+      ? Number(salaryAgg._sum.amount || 0)
+      : 0;
 
     // Grand total = expense rows − register rows already in GL COGS + net COGS + salary advances
     const totalExpenseAmount =
@@ -366,7 +394,7 @@ export async function GET(request) {
         // Expense rows only (matches list + export); COGS is separate
         count: operatingCount,
         amount: fmt(operatingSum),
-        cogsIncluded: cogsTotal !== 0,
+        cogsIncluded: includeCOGS && cogsTotal !== 0,
         cogsAmount: cogsTotal,
         cogsPostingCount: cogsTransactionCount,
         registerGlCogsOverlapAmount: fmt(registerGlCogsOverlapAmount),
