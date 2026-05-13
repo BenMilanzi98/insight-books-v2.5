@@ -147,142 +147,247 @@ async function generatePayslipPDFWithPuppeteer(processedPayslip) {
           <title>Payslip - ${processedPayslip.employee.name}</title>
           <style>
             @page {
-              margin: 0.5in;
+              margin: 0.45in;
               size: A4;
             }
             body {
-              font-family: system-ui, -apple-system, sans-serif;
+              font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
               -webkit-print-color-adjust: exact;
-              color-adjust: exact;
+              print-color-adjust: exact;
               margin: 0;
               padding: 0;
-              line-height: 1.4;
+              line-height: 1.45;
+              color: #1e293b;
+              background: #f1f5f9;
             }
             .payslip {
-              max-width: 800px;
+              max-width: 720px;
               margin: 0 auto;
-              padding: 20px;
+              padding: 8px 0 24px;
+            }
+            .payslip-frame {
+              background: #fff;
+              border-radius: 12px;
+              box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+              border: 1px solid #e2e8f0;
+              overflow: hidden;
+            }
+            .accent-bar {
+              height: 5px;
+              background: linear-gradient(90deg, #0d9488 0%, #2563eb 50%, #7c3aed 100%);
             }
             .header {
               text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #e5e7eb;
-              padding-bottom: 20px;
+              padding: 22px 24px 18px;
+              border-bottom: 1px solid #e2e8f0;
+              background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
             }
             .logo {
-              max-height: 80px;
+              max-height: 72px;
               max-width: 200px;
               object-fit: contain;
-              margin-bottom: 15px;
+              margin-bottom: 12px;
             }
             .company-name {
-              font-size: 24px;
-              font-weight: bold;
-              color: #111827;
-              margin-bottom: 10px;
+              font-size: 22px;
+              font-weight: 700;
+              color: #0f172a;
+              letter-spacing: -0.02em;
             }
             .company-info {
+              font-size: 13px;
+              color: #64748b;
+              margin-top: 4px;
+            }
+            .title-row {
+              display: flex;
+              flex-wrap: wrap;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              padding: 18px 24px 12px;
+            }
+            .pill {
+              display: inline-block;
+              font-size: 13px;
+              font-weight: 700;
+              letter-spacing: 0.12em;
+              color: #fff;
+              background: linear-gradient(135deg, #0d9488, #2563eb);
+              padding: 8px 16px;
+              border-radius: 999px;
+            }
+            .period-chip {
               font-size: 14px;
-              color: #6b7280;
-              margin-bottom: 5px;
-            }
-            .payslip-title {
-              font-size: 20px;
-              font-weight: bold;
-              color: #374151;
-              margin-bottom: 20px;
-            }
-            .pay-period {
-              font-size: 16px;
-              color: #6b7280;
-              margin-bottom: 20px;
+              font-weight: 600;
+              color: #475569;
+              background: #e0f2fe;
+              border: 1px solid #bae6fd;
+              padding: 8px 14px;
+              border-radius: 8px;
             }
             .meta-section {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 30px;
+              margin: 0 24px 20px;
+              padding: 14px 16px;
+              background: #f8fafc;
+              border-radius: 8px;
+              border-left: 4px solid #2563eb;
+              font-size: 13px;
+              color: #334155;
+            }
+            .meta-section strong {
+              color: #0f172a;
             }
             .employee-details {
-              margin-bottom: 30px;
+              margin: 0 24px 22px;
             }
             .employee-details h3 {
-              font-size: 18px;
-              font-weight: 600;
-              color: #111827;
-              margin-bottom: 15px;
+              font-size: 15px;
+              font-weight: 700;
+              color: #0f172a;
+              margin: 0 0 12px;
               padding-bottom: 8px;
-              border-bottom: 1px solid #e5e7eb;
+              border-bottom: 2px solid #e2e8f0;
             }
             .details-grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 15px;
+              gap: 12px 20px;
             }
             .detail-item {
-              margin-bottom: 10px;
+              padding: 10px 12px;
+              background: #f8fafc;
+              border-radius: 8px;
+              border: 1px solid #e2e8f0;
             }
             .detail-label {
-              font-weight: 600;
-              color: #374151;
-              margin-bottom: 5px;
+              font-size: 11px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              color: #64748b;
+              margin-bottom: 4px;
             }
             .detail-value {
-              color: #6b7280;
+              font-size: 14px;
+              font-weight: 600;
+              color: #0f172a;
             }
             .earnings-section, .deductions-section {
-              margin-bottom: 30px;
+              margin: 0 24px 22px;
             }
             .section-title {
-              font-size: 16px;
-              font-weight: 600;
-              color: #111827;
-              margin-bottom: 15px;
-              padding-bottom: 8px;
-              border-bottom: 1px solid #e5e7eb;
+              font-size: 15px;
+              font-weight: 700;
+              color: #0f172a;
+              margin: 0 0 10px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .section-title::before {
+              content: '';
+              width: 4px;
+              height: 18px;
+              border-radius: 2px;
+            }
+            .earnings-section .section-title::before {
+              background: #0d9488;
+            }
+            .deductions-section .section-title::before {
+              background: #6366f1;
+            }
+            .table-wrap {
+              border-radius: 10px;
+              overflow: hidden;
+              border: 1px solid #e2e8f0;
             }
             .table {
               width: 100%;
               border-collapse: collapse;
+              font-size: 14px;
             }
             .table th, .table td {
-              padding: 12px;
+              padding: 12px 14px;
               text-align: left;
-              border-bottom: 1px solid #e5e7eb;
             }
-            .table th {
-              background-color: #f9fafb;
-              font-weight: 600;
-              color: #374151;
+            .table thead th {
+              font-weight: 700;
+              font-size: 12px;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              color: #fff;
+            }
+            .table-earnings thead th {
+              background: linear-gradient(135deg, #0f766e, #0d9488);
+            }
+            .table-deductions thead th {
+              background: linear-gradient(135deg, #4338ca, #6366f1);
+            }
+            .table tbody tr:nth-child(odd) {
+              background: #f8fafc;
+            }
+            .table tbody tr:nth-child(even) {
+              background: #fff;
+            }
+            .table tbody td {
+              border-bottom: 1px solid #e2e8f0;
+              color: #334155;
+            }
+            .table tbody tr:last-child td {
+              border-bottom: none;
             }
             .table .total-row {
-              font-weight: 600;
-              background-color: #f3f4f6;
+              font-weight: 700;
+              background: #ecfdf5 !important;
+              color: #065f46;
+            }
+            .table-deductions .total-row {
+              background: #eef2ff !important;
+              color: #3730a3;
+            }
+            .table td:last-child, .table th:last-child {
+              text-align: right;
+              font-variant-numeric: tabular-nums;
             }
             .net-pay {
-              background-color: #f3f4f6;
-              padding: 20px;
-              border-radius: 8px;
-              margin: 30px 0;
-              text-align: center;
+              margin: 24px;
+              padding: 0;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+            }
+            .net-pay-inner {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              flex-wrap: wrap;
+              gap: 12px;
+              padding: 20px 24px;
+              background: linear-gradient(125deg, #0f172a 0%, #1e3a5f 45%, #0f766e 100%);
             }
             .net-pay-label {
-              font-size: 18px;
-              font-weight: 600;
-              color: #374151;
-              margin-bottom: 10px;
+              font-size: 14px;
+              font-weight: 800;
+              letter-spacing: 0.14em;
+              color: #e2e8f0;
             }
             .net-pay-amount {
-              font-size: 24px;
-              font-weight: bold;
-              color: #059669;
+              font-size: 28px;
+              font-weight: 800;
+              color: #6ee7b7;
+              text-shadow: 0 1px 2px rgba(0,0,0,0.25);
             }
             .footer {
-              margin-top: 30px;
+              margin: 0 24px 20px;
               text-align: center;
-              font-size: 12px;
-              color: #6b7280;
-              border-top: 1px solid #e5e7eb;
-              padding-top: 20px;
+              font-size: 11px;
+              color: #64748b;
+              padding-top: 16px;
+              border-top: 1px solid #e2e8f0;
+            }
+            .footer p {
+              margin: 4px 0;
             }
           </style>
         </head>
@@ -360,119 +465,134 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
 
   return `
     <div class="payslip">
-      <div class="header">
-        ${logoHtml}
-        <div class="company-name">${tenant.name || 'InsightBooks'}</div>
-        ${companyInfoHtml}
-      </div>
-      
-      <div class="payslip-title">PAYSLIP</div>
-      <div class="pay-period">Pay Period: ${processedPayslip.payPeriod}</div>
-      
-      <div class="meta-section">
-        <div>
-          <strong>Ref Number:</strong> ${processedPayslip.refNumber}<br>
-          <strong>Issue Date:</strong> ${formatDate(processedPayslip.issueDate)}<br>
-          <strong>Pay Period:</strong> ${processedPayslip.payPeriod}
+      <div class="payslip-frame">
+        <div class="accent-bar"></div>
+        <div class="header">
+          ${logoHtml}
+          <div class="company-name">${tenant.name || 'InsightBooks'}</div>
+          ${companyInfoHtml}
         </div>
-      </div>
-      
-      <div class="employee-details">
-        <h3>Employee Information</h3>
-        <div class="details-grid">
-          <div class="detail-item">
-            <div class="detail-label">Employee:</div>
-            <div class="detail-value">${processedPayslip.employee.name}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Employee ID:</div>
-            <div class="detail-value">${processedPayslip.employee.id}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Position:</div>
-            <div class="detail-value">${processedPayslip.employee.position || 'N/A'}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Department:</div>
-            <div class="detail-value">${processedPayslip.employee.department || 'N/A'}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Tax ID:</div>
-            <div class="detail-value">${processedPayslip.employee.taxID || 'N/A'}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Bank Account:</div>
-            <div class="detail-value">${processedPayslip.employee.bankAccount || 'N/A'}</div>
+
+        <div class="title-row">
+          <span class="pill">PAYSLIP</span>
+          <span class="period-chip">Pay Period: ${processedPayslip.payPeriod}</span>
+        </div>
+
+        <div class="meta-section">
+          <strong>Ref:</strong> ${processedPayslip.refNumber}
+          &nbsp;·&nbsp;
+          <strong>Issue date:</strong> ${formatDate(processedPayslip.issueDate)}
+        </div>
+
+        <div class="employee-details">
+          <h3>Employee information</h3>
+          <div class="details-grid">
+            <div class="detail-item">
+              <div class="detail-label">Employee</div>
+              <div class="detail-value">${processedPayslip.employee.name}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Employee ID</div>
+              <div class="detail-value">${processedPayslip.employee.id}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Position</div>
+              <div class="detail-value">${processedPayslip.employee.position || 'N/A'}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Department</div>
+              <div class="detail-value">${processedPayslip.employee.department || 'N/A'}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Payment date</div>
+              <div class="detail-value">${processedPayslip.paymentDate ? formatDate(processedPayslip.paymentDate) : 'Pending'}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Tax ID</div>
+              <div class="detail-value">${processedPayslip.employee.taxID || 'N/A'}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Bank account</div>
+              <div class="detail-value">${processedPayslip.employee.bankAccount || 'N/A'}</div>
+            </div>
           </div>
         </div>
-      </div>
-      
-      <div class="earnings-section">
-        <h3 class="section-title">Earnings</h3>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Basic Salary</td>
-              <td>${formatSalaryAmount(processedPayslip.basicSalary)}</td>
-            </tr>
-            ${processedPayslip.additions > 0 ? `
-            <tr>
-              <td>Benefits & Allowances (after tax)</td>
-              <td>${formatSalaryAmount(processedPayslip.additions)}</td>
-            </tr>
-            ` : ''}
-            <tr class="total-row">
-              <td><strong>Taxable Gross Pay</strong></td>
-              <td><strong>${formatSalaryAmount(processedPayslip.grossPay)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      <div class="deductions-section">
-        <h3 class="section-title">Deductions</h3>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Deductions</td>
-              <td>${formatSalaryAmount(processedPayslip.deductions)}</td>
-            </tr>
-            <tr>
-              <td>Pension (NPS)</td>
-              <td>${formatSalaryAmount(processedPayslip.pension || 0)}</td>
-            </tr>
-            <tr>
-              <td>Income Tax (PAYE)</td>
-              <td>${formatSalaryAmount(processedPayslip.paye || 0)}</td>
-            </tr>
-            <tr class="total-row">
-              <td><strong>Total Deductions</strong></td>
-              <td><strong>${formatSalaryAmount(processedPayslip.deductionsTotal || 0)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      <div class="net-pay">
-        <div class="net-pay-label">NET PAY</div>
-        <div class="net-pay-amount">${formatSalaryAmount(processedPayslip.netPay)}</div>
-      </div>
-      
-      <div class="footer">
-        <p>This is a computer-generated document and does not require a signature.</p>
-        <p>For any queries regarding this payslip, please contact the HR department.</p>
+
+        <div class="earnings-section">
+          <h3 class="section-title">Earnings</h3>
+          <div class="table-wrap">
+            <table class="table table-earnings">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Basic salary</td>
+                  <td>${formatSalaryAmount(processedPayslip.basicSalary)}</td>
+                </tr>
+                ${processedPayslip.additions > 0 ? `
+                <tr>
+                  <td>Benefits &amp; allowances (after tax)</td>
+                  <td>${formatSalaryAmount(processedPayslip.additions)}</td>
+                </tr>
+                ` : ''}
+                <tr class="total-row">
+                  <td>Taxable gross pay</td>
+                  <td>${formatSalaryAmount(processedPayslip.grossPay)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="deductions-section">
+          <h3 class="section-title">Deductions</h3>
+          <div class="table-wrap">
+            <table class="table table-deductions">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Number(processedPayslip.deductions) > 0 ? `
+                <tr>
+                  <td>Other deductions</td>
+                  <td>${formatSalaryAmount(processedPayslip.deductions)}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                  <td>Pension (NPS)</td>
+                  <td>${formatSalaryAmount(processedPayslip.pension || 0)}</td>
+                </tr>
+                <tr>
+                  <td>Income tax (PAYE)</td>
+                  <td>${formatSalaryAmount(processedPayslip.paye || 0)}</td>
+                </tr>
+                <tr class="total-row">
+                  <td>Total deductions</td>
+                  <td>${formatSalaryAmount(processedPayslip.deductionsTotal || 0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-pay">
+          <div class="net-pay-inner">
+            <div class="net-pay-label">NET PAY</div>
+            <div class="net-pay-amount">${formatSalaryAmount(processedPayslip.netPay)}</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>This is a computer-generated document and does not require a signature.</p>
+          <p>For any queries regarding this payslip, please contact the HR department.</p>
+        </div>
       </div>
     </div>
   `;
@@ -549,47 +669,61 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
       }
     }
 
-    // Payslip title
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PAYSLIP', 105, yPos + 5, { align: 'center' });
-    yPos += 15;
+    // Accent strip + payslip title
+    doc.setFillColor(13, 148, 136);
+    doc.rect(margin, yPos, doc.internal.pageSize.getWidth() - margin * 2, 2.5, 'F');
+    yPos += 8;
 
-    // Pay period (matching frontend format)
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('PAYSLIP', 105, yPos + 4, { align: 'center' });
+    yPos += 12;
+
+    // Pay period
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(
-      `Pay Period: ${processedPayslip.payPeriod}`,
-      105,
-      yPos,
-      { align: 'center' }
-    );
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Pay Period: ${processedPayslip.payPeriod}`, 105, yPos, { align: 'center' });
     yPos += 10;
 
-    // Employee information table (matching frontend exactly)
+    // Employee information
     autoTable(doc, {
       startY: yPos,
+      head: [['Employee information', '']],
       body: [
         ['Employee Name:', processedPayslip.employee.name || 'N/A'],
         ['Position:', processedPayslip.employee.position || 'N/A'],
         ['Department:', processedPayslip.employee.department || 'N/A'],
-        ['Payment Date:', processedPayslip.paymentDate ? 
+        ['Payment Date:', processedPayslip.paymentDate ?
           formatDate(processedPayslip.paymentDate) : 'Pending'],
         ['Employee ID:', processedPayslip.employee.id.substring(0, 8)],
-        ['Tax ID:', 'N/A'], // Matching frontend
-        ['Bank Account:', 'N/A'] // Matching frontend
+        ['Tax ID:', 'N/A'],
+        ['Bank Account:', 'N/A']
       ],
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 50 },
-        1: { cellWidth: 'auto' }
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [15, 23, 42],
+        fontStyle: 'bold',
+        fontSize: 10
       },
-      margin: { left: margin },
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 1 }
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 52, textColor: [71, 85, 105] },
+        1: { textColor: [15, 23, 42], fontStyle: 'normal' }
+      },
+      margin: { left: margin, right: margin },
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 2.5, lineColor: [226, 232, 240], lineWidth: 0.1 }
     });
     yPos = doc.lastAutoTable.finalY + 10;
 
-    // Earnings table (matching frontend exactly)
+    // Earnings
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 118, 110);
+    doc.text('Earnings', margin, yPos);
+    yPos += 5;
+
     autoTable(doc, {
       startY: yPos,
       head: [['Description', 'Amount']],
@@ -599,46 +733,81 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
         ['Taxable Gross Pay', formatSalaryAmount(processedPayslip.grossPay)]
       ],
       headStyles: {
-        fillColor: [40, 40, 40],
+        fillColor: [15, 118, 110],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        fontSize: 9
       },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: margin, right: margin },
-      theme: 'striped'
+      theme: 'striped',
+      columnStyles: { 1: { halign: 'right' } },
+      styles: { fontSize: 10, cellPadding: 3 }
     });
     yPos = doc.lastAutoTable.finalY + 10;
 
-    // Deductions table (matching frontend exactly)
+    // Deductions (no redundant "Deductions" line — show other only if > 0)
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(67, 56, 202);
+    doc.text('Deductions', margin, yPos);
+    yPos += 5;
+
+    const deductionRows = [];
+    if (Number(processedPayslip.deductions) > 0) {
+      deductionRows.push(['Other deductions', formatSalaryAmount(processedPayslip.deductions)]);
+    }
+    deductionRows.push(
+      ['Pension (NPS)', formatSalaryAmount(processedPayslip.pension || 0)],
+      ['Income Tax (PAYE)', formatSalaryAmount(processedPayslip.paye || 0)],
+      ['Total Deductions', formatSalaryAmount(processedPayslip.deductionsTotal || 0)]
+    );
+
     autoTable(doc, {
       startY: yPos,
       head: [['Description', 'Amount']],
-      body: [
-        ['Deductions', formatSalaryAmount(processedPayslip.deductions)],
-        ['Pension (NPS)', formatSalaryAmount(processedPayslip.pension || 0)],
-        ['Income Tax (PAYE)', formatSalaryAmount(processedPayslip.paye || 0)],
-        [
-          'Total Deductions',
-          formatSalaryAmount(processedPayslip.deductionsTotal || 0)
-        ]
-      ],
+      body: deductionRows,
       headStyles: {
-        fillColor: [40, 40, 40],
+        fillColor: [79, 70, 229],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        fontSize: 9
       },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: margin, right: margin },
-      theme: 'striped'
+      theme: 'striped',
+      columnStyles: { 1: { halign: 'right' } },
+      styles: { fontSize: 10, cellPadding: 3 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index === deductionRows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [238, 242, 255];
+          data.cell.styles.textColor = [55, 48, 163];
+        }
+      }
     });
-    yPos = doc.lastAutoTable.finalY + 15;
+    yPos = doc.lastAutoTable.finalY + 12;
 
-    // Net pay section (matching frontend)
-    doc.setFillColor(240, 240, 240);
-    doc.rect(margin, yPos, 170, 12, 'F');
-    doc.setFontSize(12);
+    // Net pay — high contrast banner
+    const pageW = doc.internal.pageSize.getWidth();
+    const bannerW = pageW - margin * 2;
+    const bannerH = 18;
+    doc.setFillColor(15, 23, 42);
+    doc.roundedRect(margin, yPos, bannerW, bannerH, 2, 2, 'F');
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.4);
+    doc.line(margin + 2, yPos + bannerH - 1.5, margin + bannerW - 2, yPos + bannerH - 1.5);
+
     doc.setFont('helvetica', 'bold');
-    doc.text('NET PAY:', margin + 5, yPos + 8);
-    doc.text(formatSalaryAmount(processedPayslip.netPay), 165, yPos + 8, { align: 'right' });
-    yPos += 20;
+    doc.setFontSize(11);
+    doc.setTextColor(226, 232, 240);
+    doc.text('NET PAY', margin + 6, yPos + 11);
+
+    doc.setFontSize(17);
+    doc.setTextColor(110, 231, 183);
+    doc.text(formatSalaryAmount(processedPayslip.netPay), pageW - margin - 6, yPos + 11.5, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    yPos += bannerH + 10;
 
     // Footer (matching frontend exactly)
     doc.setFontSize(8);
@@ -671,7 +840,7 @@ function createLogoPlaceholder(doc, logoUrl, margin, yPos) {
     const initials = companyName.substring(0, 2).toUpperCase();
     
     // Draw a styled logo placeholder similar to frontend
-    doc.setFillColor(70, 130, 180); // Steel blue color
+    doc.setFillColor(13, 148, 136);
     doc.circle(margin + 20, yPos + 15, 15, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(12);
