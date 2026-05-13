@@ -321,7 +321,7 @@ const UsersTable = ({
 }) => {
   if (loading && usersData.length === 0) {
     return (
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="w-full min-w-0 rounded-xl border border-gray-200 bg-white overflow-x-auto md:overflow-visible">
         <div className="min-w-full divide-y divide-gray-100">
           <div className="bg-gray-50/80 flex">
             {columns.map((col, index) => (
@@ -387,7 +387,7 @@ const UsersTable = ({
   }
   
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="w-full min-w-0 rounded-xl border border-gray-200 bg-white overflow-x-auto md:overflow-visible">
       <table className="min-w-full divide-y divide-gray-100">
         <thead className="bg-gray-50/80">
           <tr>
@@ -601,7 +601,7 @@ const getDisplayPermissions = (permissions) => {
 };
   if (loading && rolesData.length === 0) {
     return (
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="w-full min-w-0 rounded-xl border border-gray-200 bg-white overflow-x-auto md:overflow-visible">
         <div className="min-w-full divide-y divide-gray-100">
           <div className="bg-gray-50/80 flex">
             {columns.map((col, index) => (
@@ -667,7 +667,7 @@ const getDisplayPermissions = (permissions) => {
   }
   
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="w-full min-w-0 rounded-xl border border-gray-200 bg-white overflow-x-auto md:overflow-visible">
       <table className="min-w-full divide-y divide-gray-100">
         <thead className="bg-gray-50/80">
           <tr>
@@ -2399,8 +2399,8 @@ const toggleModulePermissions = (module) => {
   
   return (
     <PermissionGuard permissions={["users.view", "roles.view"]}>
-    <div className="w-full max-w-full min-h-screen bg-gray-50/60">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="w-full min-h-screen bg-gray-50/60">
+      <div className="w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 lg:py-8 overflow-x-visible">
         {/* Header Section */}
         <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
@@ -2430,7 +2430,7 @@ const toggleModulePermissions = (module) => {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 bg-white rounded-t-xl border border-gray-200 border-b-0 shadow-sm min-w-0">
+        <div className="mb-6 bg-white rounded-t-xl border border-gray-200 border-b-0 shadow-sm min-w-0 overflow-visible">
           <div className="flex gap-0 px-1 pt-1 overflow-x-auto sm:overflow-visible">
             {mergedConfig.tabs.users.enabled && (
               <button 
@@ -2481,8 +2481,8 @@ const toggleModulePermissions = (module) => {
 
       {/* Users Tab Content */}
       {activeTab === "users" && mergedConfig.tabs.users.enabled && (
-        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm min-w-0">
-        <div className="p-4 sm:p-6">
+        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm min-w-0 overflow-visible">
+        <div className="p-4 sm:p-6 overflow-visible">
           {/* Controls */}
           <div className="flex flex-col lg:flex-row gap-4 mb-6">
             <div className="relative flex-grow min-w-0">
@@ -2635,8 +2635,8 @@ const toggleModulePermissions = (module) => {
 
       {/* Roles Tab Content */}
       {activeTab === "roles" && mergedConfig.tabs.roles.enabled && (
-        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm min-w-0">
-        <div className="p-4 sm:p-6">
+        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm min-w-0 overflow-visible">
+        <div className="p-4 sm:p-6 overflow-visible">
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6 sm:items-stretch">
             <div className="relative flex-grow min-w-0">
