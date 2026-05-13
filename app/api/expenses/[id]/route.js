@@ -201,18 +201,16 @@ export async function PUT(request, { params }) {
 
     let expenseAccount = null;
     if (body.expenseAccountId) {
-      expenseAccount = await prisma.account.findFirst({
-        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
+      const ecByPickerId = await prisma.expenseCategory.findFirst({
+        where: { id: body.expenseAccountId, tenantId: user.tenantId },
+        include: { account: true },
       });
-
-      if (!expenseAccount) {
-        const ecByPickerId = await prisma.expenseCategory.findFirst({
-          where: { id: body.expenseAccountId, tenantId: user.tenantId },
-          include: { account: true },
+      if (ecByPickerId?.account) {
+        expenseAccount = ecByPickerId.account;
+      } else {
+        expenseAccount = await prisma.account.findFirst({
+          where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
         });
-        if (ecByPickerId?.account) {
-          expenseAccount = ecByPickerId.account;
-        }
       }
 
       if (!expenseAccount) {
@@ -233,7 +231,7 @@ export async function PUT(request, { params }) {
       }
 
       updateData.expenseAccountId = expenseAccount.id;
-      updateData.category = expenseAccount.accountName;
+      updateData.category = ecByPickerId?.name || expenseAccount.accountName;
     }
     
     // Only include fields that are provided in the request

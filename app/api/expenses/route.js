@@ -630,28 +630,28 @@ export async function POST(request) {
     let categoryId = null;
 
     if (body.expenseAccountId) {
-      expenseAccount = await prisma.account.findFirst({
-        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
+      // Picker value is usually ExpenseCategory id — resolve that first so GL matches the category's linked account.
+      const ecByPickerId = await prisma.expenseCategory.findFirst({
+        where: { id: body.expenseAccountId, tenantId: user.tenantId },
+        include: { account: true },
       });
-
-      if (expenseAccount) {
-        expenseCategory = await prisma.expenseCategory.findFirst({
-          where: { tenantId: user.tenantId, accountId: expenseAccount.id },
-        });
-        if (expenseCategory) {
-          categoryId = expenseCategory.id;
-          selectedCategory = expenseCategory.name;
-        }
+      if (ecByPickerId?.account) {
+        expenseAccount = ecByPickerId.account;
+        expenseCategory = ecByPickerId;
+        categoryId = ecByPickerId.id;
+        selectedCategory = ecByPickerId.name;
       } else {
-        const ecByPickerId = await prisma.expenseCategory.findFirst({
-          where: { id: body.expenseAccountId, tenantId: user.tenantId },
-          include: { account: true },
+        expenseAccount = await prisma.account.findFirst({
+          where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
         });
-        if (ecByPickerId?.account) {
-          expenseAccount = ecByPickerId.account;
-          expenseCategory = ecByPickerId;
-          categoryId = ecByPickerId.id;
-          selectedCategory = ecByPickerId.name;
+        if (expenseAccount) {
+          expenseCategory = await prisma.expenseCategory.findFirst({
+            where: { tenantId: user.tenantId, accountId: expenseAccount.id },
+          });
+          if (expenseCategory) {
+            categoryId = expenseCategory.id;
+            selectedCategory = expenseCategory.name;
+          }
         }
       }
     }

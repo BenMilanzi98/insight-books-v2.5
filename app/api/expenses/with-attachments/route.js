@@ -128,15 +128,24 @@ async function handleExpenseCreation(user, expenseData, formData) {
   // Start a transaction to create the expense and attachments
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create the expense
-    let expenseAccount = null;
+    let expenseCategoryName = null;
     if (expenseData.expenseAccountId) {
-      expenseAccount = await tx.account.findFirst({
-        where: {
-          id: expenseData.expenseAccountId,
-          tenantId: user.tenantId,
-          accountType: 'Expense'
-        }
+      const ecByPickerId = await tx.expenseCategory.findFirst({
+        where: { id: expenseData.expenseAccountId, tenantId: user.tenantId },
+        include: { account: true },
       });
+      if (ecByPickerId?.account) {
+        expenseAccount = ecByPickerId.account;
+        expenseCategoryName = ecByPickerId.name;
+      } else {
+        expenseAccount = await tx.account.findFirst({
+          where: {
+            id: expenseData.expenseAccountId,
+            tenantId: user.tenantId,
+            accountType: 'Expense',
+          },
+        });
+      }
     }
 
     if (!expenseAccount && expenseData.category) {
@@ -169,7 +178,7 @@ async function handleExpenseCreation(user, expenseData, formData) {
         description: expenseData.description,
         amount: amount,
         date: new Date(expenseData.date),
-        category: expenseAccount.accountName,
+        category: expenseCategoryName || expenseData.category || expenseAccount.accountName,
         expenseAccountId: expenseAccount.id,
         status: expenseData.status || 'Pending',
         notes: expenseData.notes || null,
