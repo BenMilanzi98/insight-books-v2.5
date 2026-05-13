@@ -855,6 +855,12 @@ export async function POST(request) {
       const expenseDate = paymentDate || periodEnd;
       const PAYROLL_DASHBOARD_EXPENSE_PREFIX = 'payrollDashboardExpense:';
       const payrollExpenseMarker = `${PAYROLL_DASHBOARD_EXPENSE_PREFIX}${payrollEntry.id}`;
+      const payrollExpenseBranchId =
+        user?.currentBranchId &&
+        (typeof user.currentBranchId === 'string' ? user.currentBranchId : user.currentBranchId?.id);
+      const payrollExpenseBranchPayload = payrollExpenseBranchId
+        ? { branchId: payrollExpenseBranchId }
+        : {};
       
       // 1. Net Pay expense (actual payment to employee)
       if (netPay > 0) {
@@ -873,7 +879,8 @@ export async function POST(request) {
             submittedById: user.id,
             tenantId: user.tenantId,
             originalReference: payrollEntry.id,
-            notes: `Net Pay for ${employee.name} after all deductions | ${payrollExpenseMarker}`
+            notes: `Net Pay for ${employee.name} after all deductions | ${payrollExpenseMarker}`,
+            ...payrollExpenseBranchPayload,
           }
         });
 
@@ -919,7 +926,8 @@ export async function POST(request) {
             tenantId: user.tenantId,
             taxTypeId: payeTaxTypeRow?.id || null,
             originalReference: payrollEntry.id,
-            notes: `PAYE for ${employee.name} | Gross: ${grossPay.toFixed(2)} | PAYE: ${payeAmount.toFixed(2)} | Period: ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()} | For MRA Settlement | ${payrollExpenseMarker}`
+            notes: `PAYE for ${employee.name} | Gross: ${grossPay.toFixed(2)} | PAYE: ${payeAmount.toFixed(2)} | Period: ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()} | For MRA Settlement | ${payrollExpenseMarker}`,
+            ...payrollExpenseBranchPayload,
           }
         });
 
@@ -942,7 +950,8 @@ export async function POST(request) {
             submittedById: user.id,
             tenantId: user.tenantId,
             originalReference: payrollEntry.id,
-            notes: `Employer pension contribution (${npsRates.employerRatePercent}%) for ${employee.name} - This amount is owed to NPS | ${payrollExpenseMarker}`
+            notes: `Employer pension contribution (${npsRates.employerRatePercent}%) for ${employee.name} - This amount is owed to NPS | ${payrollExpenseMarker}`,
+            ...payrollExpenseBranchPayload,
           }
         });
       }

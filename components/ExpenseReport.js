@@ -63,7 +63,18 @@ export const ExpenseReport = ({
             <div className="bg-gradient-to-br from-amber-50 to-white p-4 sm:p-5 rounded-2xl border border-amber-200/80 shadow-sm border-l-4 border-l-amber-500">
               <h3 className="text-sm font-medium text-amber-700 mb-1">Total expenses</h3>
               <p className="text-2xl font-semibold text-slate-800">{formatCurrency(data.summary.totalExpenses)}</p>
-              <p className="text-xs text-slate-500 mt-1">{data.summary.expenseCount} expense transactions</p>
+              <p className="text-xs text-slate-500 mt-1">
+                {data.summary.expenseCount} register line{data.summary.expenseCount !== 1 ? 's' : ''}
+                {typeof data.summary.cogsFromGl === 'number' && Math.abs(data.summary.cogsFromGl) >= 0.005 ? (
+                  <>
+                    {' · '}
+                    COGS (GL): {formatCurrency(data.summary.cogsFromGl)}
+                    {typeof data.summary.registerSubtotalExcludingCogsGlAccounts === 'number' ? (
+                      <> · Operating register: {formatCurrency(data.summary.registerSubtotalExcludingCogsGlAccounts)}</>
+                    ) : null}
+                  </>
+                ) : null}
+              </p>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-sm border-l-4 border-l-blue-500">
               <h3 className="text-sm font-medium text-blue-700 mb-1">Average monthly expense</h3>
@@ -77,11 +88,13 @@ export const ExpenseReport = ({
               {data.expensesByCategory?.length > 0 ? (
                 (() => {
                   const top = [...data.expensesByCategory].sort((a, b) => b.total - a.total)[0];
+                  const denom = data.summary.totalExpenses || 0;
+                  const pct = denom > 0 ? Math.round((top.total / denom) * 100) : 0;
                   return (
                     <>
                       <p className="text-2xl font-semibold text-slate-800">{top.category}</p>
                       <p className="text-xs text-slate-500 mt-1">
-                        {formatCurrency(top.total)} ({Math.round((top.total / data.summary.totalExpenses) * 100)}% of total)
+                        {formatCurrency(top.total)} ({pct}% of total)
                       </p>
                     </>
                   );

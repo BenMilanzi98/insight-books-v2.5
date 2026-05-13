@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { fetchCogsExpenseRegisterRows } from '@/lib/fetchCogsExpenseRegisterRows';
 import { fetchSalaryAdvanceRegisterRows } from '@/lib/fetchSalaryAdvanceRegisterRows';
+import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 
 // GET - Export expenses data in CSV format
 export async function GET(request) {
@@ -38,8 +39,8 @@ export async function GET(request) {
     };
     if (branchIdParam) {
       where.branchId = branchIdParam;
-    } else if (user?.currentBranchId) {
-      where.branchId = user.currentBranchId;
+    } else {
+      addBranchFilterIncludeUnassigned(user, where);
     }
     
     // Add status filter if provided

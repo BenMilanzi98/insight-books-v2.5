@@ -4,6 +4,11 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import {
+  isGlCogsWindowActive,
+  prismaWhereExpenseRegisterOverlapsGlCogs,
+} from '@/lib/expenseRegisterGlCogsOverlap';
 
 // GET - Fetch expense statistics
 export async function GET(request) {
@@ -35,15 +40,12 @@ export async function GET(request) {
     }
     
     // Base query filter for tenant's expenses (exclude deleted).
-    // Branch rule must match GET /api/expenses: strict current branch when set (no OR null),
-    // so totals match the on-screen table and CSV export.
+    // Branch rule matches GET /api/expenses / export: current branch OR unassigned (null branchId).
     const baseFilter = {
       tenantId: user.tenantId,
       isDeleted: false
     };
-    if (user?.currentBranchId) {
-      baseFilter.branchId = user.currentBranchId;
-    }
+    addBranchFilterIncludeUnassigned(user, baseFilter);
     
     // Only add date filter if there are actual date constraints
     if (Object.keys(dateFilter).length > 0) {
@@ -96,6 +98,13 @@ export async function GET(request) {
     });
 
     const APPROVAL_BUCKET_STATUSES = ['Approved', 'Pending', 'Rejected', 'Draft'];
+    const DEFAULT_EXPENSE_CATEGORY_NAMES = [
+      'Rent Expense', 'Utilities Expense', 'Salaries & Wages', 'Advertising Expense',
+      'Office Supplies', 'Insurance Expense', 'Depreciation Expense', 'Bank Charges',
+      'Other Expenses', 'Travel & Transportation', 'Marketing & Advertising',
+      'Professional Fees', 'Maintenance & Repairs', 'Miscellaneous Expenses',
+      'Tax', 'Pension', 'Salary', 'Cost of Goods Sold',
+    ];
     const draftExpenses = await prisma.expense.aggregate({
       where: {
         ...baseFilter,
@@ -149,13 +158,6 @@ export async function GET(request) {
     });
 
     // Default (hardcoded) expense category names so section always shows a base set
-    const DEFAULT_EXPENSE_CATEGORY_NAMES = [
-      'Rent Expense', 'Utilities Expense', 'Salaries & Wages', 'Advertising Expense',
-      'Office Supplies', 'Insurance Expense', 'Depreciation Expense', 'Bank Charges',
-      'Other Expenses', 'Travel & Transportation', 'Marketing & Advertising',
-      'Professional Fees', 'Maintenance & Repairs', 'Miscellaneous Expenses'
-    ];
-
     // Build full list: default + custom (ExpenseCategory) + Chart of Accounts expense accounts
     const allCategoryNames = new Set(DEFAULT_EXPENSE_CATEGORY_NAMES);
     try {
@@ -205,8 +207,13 @@ export async function GET(request) {
         tenantId: user.tenantId,
         status: { in: ['posted', 'Posted'] },
         ...(Object.keys(transactionDateFilter).length > 0 ? { date: transactionDateFilter } : {}),
-        ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
       };
+      const bid =
+        user?.currentBranchId &&
+        (typeof user.currentBranchId === 'string' ? user.currentBranchId : user.currentBranchId?.id);
+      if (bid) {
+        transactionWhere.OR = [{ branchId: bid }, { branchId: null }];
+      }
 
       cogsTotal = await sumNetCogsDebitMinusCredit(prisma, {
         cogsAccountIds,
@@ -221,7 +228,21 @@ export async function GET(request) {
         },
       });
     }
-    
+
+    const glCogsWindowActive =
+      cogsAccountIds.length > 0 && isGlCogsWindowActive(cogsTotal, cogsTransactionCount);
+
+    let registerGlCogsOverlapAmount = 0;
+    if (glCogsWindowActive && cogsAccountIds.length > 0) {
+      const overlapAgg = await prisma.expense.aggregate({
+        where: {
+          AND: [baseFilter, prismaWhereExpenseRegisterOverlapsGlCogs(cogsAccountIds)],
+        },
+        _sum: { amount: true },
+      });
+      registerGlCogsOverlapAmount = Number(overlapAgg._sum.amount || 0);
+    }
+
     const operatingSum = totalExpenses._sum.amount || 0;
     const operatingCount = totalExpenses._count || 0;
 
@@ -239,8 +260,9 @@ export async function GET(request) {
     });
     const salaryAdvancesTotal = Number(salaryAgg._sum.amount || 0);
 
-    // Grand total = expense rows + net COGS + salary advances (matches combined register / export)
-    const totalExpenseAmount = operatingSum + cogsTotal + salaryAdvancesTotal;
+    // Grand total = expense rows − register rows already in GL COGS + net COGS + salary advances
+    const totalExpenseAmount =
+      operatingSum - registerGlCogsOverlapAmount + cogsTotal + salaryAdvancesTotal;
     const approvedAmount = approvedExpenses._sum.amount || 0;
     const pendingAmount = pendingExpenses._sum.amount || 0;
     const rejectedAmount = rejectedExpenses._sum.amount || 0;
@@ -347,6 +369,7 @@ export async function GET(request) {
         cogsIncluded: cogsTotal !== 0,
         cogsAmount: cogsTotal,
         cogsPostingCount: cogsTransactionCount,
+        registerGlCogsOverlapAmount: fmt(registerGlCogsOverlapAmount),
         salaryAdvanceAmount: salaryAdvancesTotal,
         grandTotalAmount: fmt(totalExpenseAmount)
       },

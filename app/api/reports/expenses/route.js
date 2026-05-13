@@ -2,12 +2,26 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
+import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
+import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import {
+  expenseOverlapsGlCogsForDedup,
+  isGlCogsWindowActive,
+} from '@/lib/expenseRegisterGlCogsOverlap';
+
+function monthKeyFromDate(d) {
+  const date = new Date(d);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabelFromDate(d) {
+  return new Date(d).toLocaleString('default', { month: 'long', year: 'numeric' });
+}
 
 export async function GET(request) {
   try {
-    // Get user from session
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -15,14 +29,12 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    // Get query parameters
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const category = searchParams.get('category');
-    
-    // Validate dates
+
     if (!startDate || !endDate) {
       return NextResponse.json(
         { error: 'Start date and end date are required' },
@@ -31,25 +43,27 @@ export async function GET(request) {
     }
 
     const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
-    
-    // Build query filter — approved register only (aligned with P&L operating expenses)
-    const filter = addBranchFilter(user, {
+    const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
+    const includeCogsInReport =
+      !category ||
+      categoryLower.includes('cost of goods') ||
+      categoryLower.includes('cogs');
+
+    const filter = addBranchFilterIncludeUnassigned(user, {
       tenantId: user.tenantId,
       status: 'Approved',
       isDeleted: false,
       isReversal: false,
       date: {
         gte: start,
-        lte: end
-      }
+        lte: end,
+      },
     });
-    
-    // Add category filter if provided
+
     if (category) {
       filter.category = category;
     }
-    
-    // Get expenses with account code via ExpenseCategory
+
     const expenses = await prisma.expense.findMany({
       where: filter,
       select: {
@@ -59,26 +73,27 @@ export async function GET(request) {
         date: true,
         category: true,
         categoryId: true,
+        expenseAccountId: true,
         status: true,
         merchant: true,
         expenseCategory: {
           select: {
+            accountId: true,
             accountCode: true,
             name: true,
-          }
+          },
         },
         submittedBy: {
           select: {
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: {
-        date: 'desc'
-      }
+        date: 'desc',
+      },
     });
 
-    // Build a lookup of category name → account code from ExpenseCategory table
     const categoryCodeMap = {};
     try {
       const expenseCategories = await prisma.expenseCategory.findMany({
@@ -88,98 +103,222 @@ export async function GET(request) {
       expenseCategories.forEach((ec) => {
         if (ec.name) categoryCodeMap[ec.name] = ec.accountCode || '';
       });
-    } catch (_) { /* non-fatal */ }
+    } catch (_) {
+      /* non-fatal */
+    }
 
-    // Attach accountCode to each expense
     expenses.forEach((exp) => {
       exp.accountCode =
-        exp.expenseCategory?.accountCode ||
-        categoryCodeMap[exp.category] ||
-        '';
+        exp.expenseCategory?.accountCode || categoryCodeMap[exp.category] || '';
     });
-    
-    // Get expense categories - filter by branch
-    const categories = await prisma.expense.groupBy({
-      by: ['category'],
-      where: addBranchFilter(user, {
-        tenantId: user.tenantId,
-        status: 'Approved',
-        isDeleted: false,
-        isReversal: false,
-        date: {
-          gte: start,
-          lte: end
-        }
-      }),
-      _sum: {
-        amount: true
+
+    const cogsAccountIds = includeCogsInReport
+      ? await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId)
+      : [];
+    const cogsIdSet = new Set(cogsAccountIds);
+
+    const transactionWhere = {
+      tenantId: user.tenantId,
+      status: { in: ['posted', 'Posted'] },
+      date: {
+        gte: start,
+        lte: end,
       },
-      _count: true
-    });
-    
-    // Group expenses by category, include account code
+    };
+    const bid =
+      user?.currentBranchId &&
+      (typeof user.currentBranchId === 'string'
+        ? user.currentBranchId
+        : user.currentBranchId?.id);
+    if (bid) {
+      transactionWhere.OR = [{ branchId: bid }, { branchId: null }];
+    }
+
+    let reversedParentIds = [];
+    if (includeCogsInReport && cogsAccountIds.length > 0) {
+      try {
+        const reversedParents = await prisma.transaction.findMany({
+          where: {
+            tenantId: user.tenantId,
+            isReversal: true,
+            reversedTransactionId: { not: null },
+          },
+          select: { reversedTransactionId: true },
+        });
+        reversedParentIds = [
+          ...new Set(reversedParents.map((r) => r.reversedTransactionId).filter(Boolean)),
+        ];
+      } catch (reversalErr) {
+        console.warn('Expense report: COGS reversal filter skipped', reversalErr?.message);
+      }
+      if (reversedParentIds.length > 0) {
+        transactionWhere.id = { notIn: reversedParentIds };
+      }
+    }
+
+    let cogsTotal = 0;
+    let cogsTransactionCount = 0;
+    const cogsByMonth = new Map();
+    let cogsLines = [];
+
+    if (includeCogsInReport && cogsAccountIds.length > 0) {
+      cogsTotal = await sumNetCogsDebitMinusCredit(prisma, {
+        cogsAccountIds,
+        transactionWhere,
+      });
+
+      cogsLines = await prisma.transactionLine.findMany({
+        where: {
+          accountId: { in: cogsAccountIds },
+          OR: [{ debitAmount: { gt: 0 } }, { creditAmount: { gt: 0 } }],
+          transaction: transactionWhere,
+        },
+        select: {
+          id: true,
+          debitAmount: true,
+          creditAmount: true,
+          transaction: { select: { id: true, date: true, description: true, reference: true } },
+        },
+      });
+
+      cogsTransactionCount = cogsLines.length;
+
+      for (const line of cogsLines) {
+        const debit = Number(line.debitAmount) || 0;
+        const credit = Number(line.creditAmount) || 0;
+        const net = debit - credit;
+        if (Math.abs(net) < 1e-9) continue;
+        const txDate = line.transaction.date;
+        const mk = monthKeyFromDate(txDate);
+        cogsByMonth.set(mk, (cogsByMonth.get(mk) || 0) + net);
+      }
+    }
+
+    const glCogsActive =
+      includeCogsInReport &&
+      cogsAccountIds.length > 0 &&
+      isGlCogsWindowActive(cogsTotal, cogsTransactionCount);
+
+    const forAggregation =
+      includeCogsInReport && glCogsActive
+        ? expenses.filter((e) => !expenseOverlapsGlCogsForDedup(e, cogsIdSet, glCogsActive))
+        : expenses;
+
+    const registerSumAll = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const registerSumNonCogsGl = forAggregation.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const totalExpenses = includeCogsInReport ? registerSumNonCogsGl + cogsTotal : registerSumAll;
+    const registerGlCogsOverlapAmount =
+      glCogsActive && includeCogsInReport ? registerSumAll - registerSumNonCogsGl : 0;
+
     const expensesByCategory = {};
-    expenses.forEach(expense => {
+    for (const expense of forAggregation) {
       const key = expense.category;
       if (!expensesByCategory[key]) {
         expensesByCategory[key] = {
           category: expense.category,
           accountCode: expense.accountCode || categoryCodeMap[key] || '',
           total: 0,
-          items: []
+          items: [],
         };
       }
-      
       expensesByCategory[key].total += expense.amount;
       expensesByCategory[key].items.push(expense);
-    });
-    
-    // Group expenses by month
-    const expensesByMonth = {};
-    expenses.forEach(expense => {
-      const date = new Date(expense.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      
-      if (!expensesByMonth[monthKey]) {
-        expensesByMonth[monthKey] = {
-          month: monthName,
-          total: 0
+    }
+
+    if (includeCogsInReport && cogsAccountIds.length > 0 && cogsLines.length > 0) {
+      const cogsLabel = 'Cost of Goods Sold';
+      const cogsCode = categoryCodeMap[cogsLabel] || '';
+      const sorted = [...cogsLines].sort(
+        (a, b) => new Date(b.transaction.date) - new Date(a.transaction.date)
+      );
+      const cogsItems = sorted
+        .slice(0, 300)
+        .map((line) => {
+          const debit = Number(line.debitAmount) || 0;
+          const credit = Number(line.creditAmount) || 0;
+          const net = debit - credit;
+          if (Math.abs(net) < 1e-9) return null;
+          const ref = line.transaction.reference || '';
+          return {
+            id: `cogs-${line.transaction.id}-${line.id}`,
+            description:
+              line.transaction.description ||
+              (net < 0 ? `COGS credit — ${ref || 'Journal'}` : `COGS — ${ref || 'Journal'}`),
+            amount: net,
+            date: line.transaction.date,
+            merchant: 'General ledger',
+            category: cogsLabel,
+            status: 'Approved',
+            accountCode: cogsCode,
+          };
+        })
+        .filter(Boolean);
+
+      if (cogsItems.length > 0 || Math.abs(cogsTotal) >= 1e-6) {
+        expensesByCategory[cogsLabel] = {
+          category: cogsLabel,
+          accountCode: cogsCode,
+          total: cogsTotal,
+          items: cogsItems,
         };
       }
-      
-      expensesByMonth[monthKey].total += expense.amount;
-    });
-    
-    // Calculate totals
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    
-    // Format the final report
+    }
+
+    const expensesByMonth = {};
+    for (const expense of forAggregation) {
+      const mk = monthKeyFromDate(expense.date);
+      const monthName = monthLabelFromDate(expense.date);
+      if (!expensesByMonth[mk]) {
+        expensesByMonth[mk] = {
+          monthKey: mk,
+          month: monthName,
+          total: 0,
+        };
+      }
+      expensesByMonth[mk].total += expense.amount;
+    }
+
+    for (const [mk, net] of cogsByMonth.entries()) {
+      if (!expensesByMonth[mk]) {
+        const synthetic = new Date(`${mk}-01T12:00:00`);
+        expensesByMonth[mk] = {
+          monthKey: mk,
+          month: monthLabelFromDate(synthetic),
+          total: 0,
+        };
+      }
+      expensesByMonth[mk].total += net;
+    }
+
+    const availableCategories = Object.values(expensesByCategory)
+      .map((c) => ({
+        name: c.category,
+        accountCode: c.accountCode || '',
+        count: c.items.length,
+        amount: c.total,
+      }))
+      .sort((a, b) => (b.amount || 0) - (a.amount || 0));
+
     return NextResponse.json({
       period: {
         startDate,
-        endDate
+        endDate,
       },
       summary: {
         totalExpenses,
+        registerApprovedTotal: registerSumAll,
+        registerSubtotalExcludingCogsGlAccounts: registerSumNonCogsGl,
+        registerGlCogsOverlapAmount,
+        cogsFromGl: cogsTotal,
+        cogsTransactionCount,
         expenseCount: expenses.length,
-        availableCategories: categories.map((c) => {
-          const codeFromMap = categoryCodeMap[c.category] || '';
-          const codeFromLine =
-            expenses.find((e) => e.category === c.category)?.accountCode || '';
-          return {
-            name: c.category,
-            accountCode: codeFromMap || codeFromLine,
-            count: c._count,
-            amount: c._sum.amount,
-          };
-        }),
+        availableCategories,
       },
       expensesByCategory: Object.values(expensesByCategory),
-      expensesByMonth: Object.values(expensesByMonth).sort((a, b) => 
-        a.month.localeCompare(b.month)
+      expensesByMonth: Object.values(expensesByMonth).sort((a, b) =>
+        (a.monthKey || '').localeCompare(b.monthKey || '')
       ),
-      expenses
+      expenses,
     });
   } catch (error) {
     console.error('Error generating expense report:', error);

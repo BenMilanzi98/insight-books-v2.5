@@ -9,6 +9,7 @@ import { resolveBranchId } from '@/lib/branchHelpers';
 import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
+import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -53,13 +54,13 @@ export async function GET(request) {
       isDeleted: includeDeleted === 'true' ? undefined : false // Exclude deleted by default
     };
     
-    // Add branch filter - use provided branchId or user's current branch
+    // Branch: explicit query wins; otherwise include tenant-wide rows (branchId null) so payroll PAYE/NPS
+    // and legacy expenses still appear when a branch is selected (matches statistics & export).
     const branchId = searchParams.get('branchId');
     if (branchId) {
       whereClause.branchId = branchId;
-    } else if (user?.currentBranchId) {
-      // Auto-filter by user's current branch if no branchId provided
-      whereClause.branchId = user.currentBranchId;
+    } else {
+      addBranchFilterIncludeUnassigned(user, whereClause);
     }
     
     // Add status filter if provided
@@ -120,11 +121,17 @@ export async function GET(request) {
         : null;
 
     if (cogsTransactionFilter) {
-      // Add branch filter to COGS transactions if applicable
+      // GL: match branch or unscoped journals (same rule as financial-analytics / P&L COGS)
       if (branchId) {
         cogsTransactionFilter.transaction.branchId = branchId;
       } else if (user?.currentBranchId) {
-        cogsTransactionFilter.transaction.branchId = user.currentBranchId;
+        const bid =
+          typeof user.currentBranchId === 'string'
+            ? user.currentBranchId
+            : user.currentBranchId?.id;
+        if (bid) {
+          cogsTransactionFilter.transaction.OR = [{ branchId: bid }, { branchId: null }];
+        }
       }
 
       // Add date range filter to COGS transactions if provided

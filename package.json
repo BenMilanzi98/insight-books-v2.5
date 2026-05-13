@@ -35,6 +35,7 @@
     "verify-system": "node scripts/verify-system.js",
     "seed:roles": "node scripts/seed-default-roles.js",
     "normalize:expenses": "node scripts/normalize-expense-categories.js",
+    "backfill:cogs-expense-links": "node scripts/backfill-cogs-expense-links.js",
     "consolidate-salary-accounts": "node scripts/consolidate-salary-accounts.js",
     "consolidate-salary-accounts:dry-run": "node scripts/consolidate-salary-accounts.js --dry-run",
     "coa:snapshot": "node scripts/coa-snapshot-export.cjs",
