@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.insightbooksafrica.insightbooks_android"
+    namespace = "com.insightbooksafrica.insightbooks"
     compileSdk = flutter.compileSdkVersion
     // Highest NDK required by any plugin (NDK is backward compatible). Several
     // plugins (audioplayers_android, mobile_scanner, file_picker, ...) require
@@ -40,14 +40,13 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.insightbooksafrica.insightbooks_android"
+        applicationId = "com.insightbooksafrica.insightbooks"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Must match pubspec `version: x.y.z+N` — N is versionCode and what the server compares.
+        // Must match pubspec `version: x.y.z+N` — N is versionCode (must increase for every Play upload).
         versionCode = flutter.versionCode
-        // Android settings should show four-part label as requested.
-        // Keep versionCode from pubspec (+N), but force visible versionName here.
-        versionName = "1.0.0.8"
+        // Keep in sync with pubspec version (before +); avoids mismatch with versionCode after bumps.
+        versionName = flutter.versionName
     }
 
     signingConfigs {

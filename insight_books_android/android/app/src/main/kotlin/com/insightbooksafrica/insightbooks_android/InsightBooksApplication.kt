@@ -1,4 +1,4 @@
-package com.insightbooksafrica.insightbooks_android
+package com.insightbooksafrica.insightbooks
 
 import android.app.Application
 

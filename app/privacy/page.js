@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Shield, Eye, Lock, Database, Users, Bell, CheckCircle, AlertCircle, Clock, Mail, MapPin, FileText, Globe, Settings } from "lucide-react";
+import { ArrowLeft, Shield, Eye, Lock, Database, Users, Bell, CheckCircle, AlertCircle, Clock, Mail, MapPin, FileText, Globe, Settings, Camera } from "lucide-react";
 
 export default function PrivacyPolicy() {
   const [activeSection, setActiveSection] = useState("introduction");
@@ -10,6 +10,7 @@ export default function PrivacyPolicy() {
   const sections = [
     { id: "introduction", title: "Introduction", icon: Shield },
     { id: "information-collection", title: "Information We Collect", icon: Database },
+    { id: "mobile-app-camera", title: "Mobile app & POS camera", icon: Camera },
     { id: "how-we-use", title: "How We Use Information", icon: Settings },
     { id: "information-sharing", title: "Information Sharing", icon: Users },
     { id: "data-security", title: "Data Security", icon: Lock },
@@ -223,6 +224,24 @@ export default function PrivacyPolicy() {
                           <span className="text-gray-700 text-sm">{item}</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  <div id="mobile-app-camera" className="mt-10 pt-8 border-t border-gray-200 scroll-mt-28">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                      <Camera size={18} className="mr-2 text-indigo-600" />
+                      2.4 Mobile app — camera use for POS (barcode scanning)
+                    </h3>
+                    <div className="prose prose-lg max-w-none text-gray-700 space-y-4">
+                      <p className="leading-relaxed">
+                        The <strong>InsightBooks</strong> mobile app includes a <strong>Point of Sale (POS)</strong> workspace. When you choose to scan a product barcode or machine-readable code at checkout, the app may request permission to use your device&apos;s <strong>camera</strong>. That permission is used <strong>only when you actively open the scanner</strong> to capture barcodes or similar codes—not for continuous background recording or unrelated surveillance.
+                      </p>
+                      <p className="leading-relaxed">
+                        The camera feed is used <strong>on your device</strong> to read the code and match it to products or line items in your sale. We process the <strong>decoded scan result</strong> (for example, a SKU or barcode value) as part of your normal POS and inventory workflow. We do <strong>not</strong> upload or retain <strong>video recordings</strong> of your camera for this barcode feature on our servers.
+                      </p>
+                      <p className="leading-relaxed">
+                        You can decline camera access and still use other POS actions (such as manual search or selection), though barcode scanning will not be available without permission. You may withdraw camera permission at any time in your device settings; the app will only request it again when you use a feature that requires the camera.
+                      </p>
                     </div>
                   </div>
                 </section>

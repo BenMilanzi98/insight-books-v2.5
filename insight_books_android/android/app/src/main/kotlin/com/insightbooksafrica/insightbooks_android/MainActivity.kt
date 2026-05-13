@@ -1,4 +1,4 @@
-package com.insightbooksafrica.insightbooks_android
+package com.insightbooksafrica.insightbooks
 
 import android.content.Context
 import android.graphics.Color
@@ -30,7 +30,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private val channelName =
-        "com.insightbooksafrica.insightbooks_android/thermal_receipt_print"
+        "com.insightbooksafrica.insightbooks/thermal_receipt_print"
 
     /** Hidden WebView used only to render the same HTML receipt as web `/pos`. */
     private var printWebView: WebView? = null

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paste this URL into Play Console → App content → Privacy policy (CAMERA, etc.). Must be public HTTPS. -->
+    <string name="play_store_privacy_policy_url" translatable="false">https://insightbooksafrica.com/privacy</string>
+</resources>

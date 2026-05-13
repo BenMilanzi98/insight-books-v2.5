@@ -11,7 +11,7 @@ import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 
 const _thermalReceiptPrintChannel =
-    MethodChannel('com.insightbooksafrica.insightbooks_android/thermal_receipt_print');
+    MethodChannel('com.insightbooksafrica.insightbooks/thermal_receipt_print');
 
 /// Same receipt document as web `/pos`: HTML from `/api/sales/{id}/receipt` with
 /// `autoPrint=0`, printed via Android [WebView] + [PrintDocumentAdapter].

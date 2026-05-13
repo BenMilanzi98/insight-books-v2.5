@@ -26,10 +26,10 @@
 
     <application
         android:label="InsightBooks"
-        android:name="com.insightbooksafrica.insightbooks_android.InsightBooksApplication"
+        android:name="com.insightbooksafrica.insightbooks.InsightBooksApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name="com.insightbooksafrica.insightbooks_android.MainActivity"
+            android:name="com.insightbooksafrica.insightbooks.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

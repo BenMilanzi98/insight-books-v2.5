@@ -17,8 +17,9 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
 # Android versionCode = the number after + (must be >= InsightBooks admin "Latest build").
-# versionName comes from the x.y.z part; versionCode from +N (android/app/build.gradle.kts uses flutter.versionName/versionCode).
-version: 1.0.0+8
+# Every new AAB on Play must use a strictly higher versionCode than any previous upload on this app id.
+# versionName = x.y.z from pubspec; versionCode = +N (see android/app/build.gradle.kts).
+version: 1.0.1+15
 
 environment:
   sdk: ^3.11.0
