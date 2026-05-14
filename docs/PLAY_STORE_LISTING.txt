@@ -1,0 +1,30 @@
+PLAY STORE — COPY/PASTE
+=========================
+
+SHORT DESCRIPTION (max 80 characters)
+--------------------------------------
+InsightBooks: cloud accounting, POS & invoicing for African SMBs.
+
+
+FULL DESCRIPTION (max 1000 characters)
+---------------------------------------
+InsightBooks Africa is cloud financial software for SMEs: accounting, sales, and ops in one app.
+
+FEATURES
+• Dashboard — KPIs, cash flow, revenue & expenses (per branch when enabled)
+• POS — checkout, cart, receipts; Android barcode scan
+• Quotations & invoices — create, convert, payments, PDF
+• Expenses — categories, approvals, receipts, GL posting
+• Payments — cash/bank/wallets, reconciliation
+• Reporting — P&L and statements tied to your ledger
+• Clients — CRM-lite, AR, statements
+• Assets & liabilities — register, depreciation
+• Tax — rates, tax accounts, PAYE where configured
+• Purchases — suppliers, POs, bills
+• GL — chart of accounts, journals, periods, AR/AP
+• Budget & forecast (when enabled)
+• Payroll / HR runs & reversals (region-dependent)
+• Tenants, roles, branches (plan-dependent)
+• Android app 
+
+HTTPS, tenant separation. See privacy policy for data and camera (POS). InsightBooks login required.
