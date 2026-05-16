@@ -502,11 +502,8 @@ const POSPage = () => {
           const accounts = data.accounts || [];
           setIncomeAccounts(accounts);
 
-          const normCode = (c) => String(c ?? '').trim();
           const defaultAccount =
-            accounts.find((acc) => normCode(acc.accountCode) === '4000') ||
-            accounts.find((acc) => normCode(acc.accountCode) === '4100') ||
-            accounts.find((acc) => acc.isActive !== false) ||
+            accounts.find((acc) => acc.id === data.defaultAccountId) ||
             accounts[0];
 
           let resolvedDefaultId = null;

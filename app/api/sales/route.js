@@ -58,19 +58,10 @@ function serializePaymentsForClient(payments) {
   }));
 }
 
-/** Prefer 4000 / 4100 then first active income/revenue CoA row for the tenant (matches POS loader). */
+/** Prefer postable leaf income accounts (4100, etc.) — never section header 4000. */
 async function getDefaultIncomeAccountIdForTenant(tenantId) {
-  const normCode = (c) => String(c ?? '').trim();
-  const codeEq = (acc, want) =>
-    normCode(acc.accountCode) === want || normCode(acc.code) === want;
-
-  const accounts = await findCoaIncomeAccountsForTenant(prisma, tenantId);
-  const defaultAccount =
-    accounts.find((acc) => codeEq(acc, '4000')) ||
-    accounts.find((acc) => codeEq(acc, '4100')) ||
-    accounts.find((acc) => acc.isActive !== false) ||
-    accounts[0];
-  return defaultAccount?.id ?? null;
+  const { resolveDefaultPostableRevenueAccountId } = await import('@/lib/coaIncomeAccounts');
+  return resolveDefaultPostableRevenueAccountId(prisma, tenantId);
 }
 
 // Helper function to normalize payment method for AccountBalance

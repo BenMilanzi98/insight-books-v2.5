@@ -99,7 +99,7 @@ const InvoiceModal = ({
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [incomeAccounts, setIncomeAccounts] = useState([]);
-  // Fixed revenue account for invoice items (4000 - Revenue only, not changeable)
+  // Default postable revenue leaf (e.g. 4100 Product Sales), not section header 4000
   const [revenueAccount, setRevenueAccount] = useState(null);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [itemSearchQueries, setItemSearchQueries] = useState({}); // Separate search query for each item
@@ -268,14 +268,13 @@ const InvoiceModal = ({
         if (!res.ok || cancelled) return;
         const data = await res.json();
         const accounts = Array.isArray(data.accounts) ? data.accounts : [];
-        const code4000 = (a) => {
-          const code = a.accountCode != null ? String(a.accountCode).trim() : '';
-          return code === '4000' || a.accountCode === 4000;
-        };
-        const revenueOnly = accounts.find(code4000) || accounts[0] || null;
+        const revenueOnly =
+          accounts.find((a) => a.id === data.defaultAccountId) ||
+          accounts[0] ||
+          null;
         if (!cancelled && revenueOnly) {
           setRevenueAccount(revenueOnly);
-          setIncomeAccounts([revenueOnly]);
+          setIncomeAccounts(accounts.length ? accounts : [revenueOnly]);
         }
       } catch (e) {
         if (!cancelled) console.error('Error loading income accounts:', e);
@@ -284,7 +283,7 @@ const InvoiceModal = ({
     return () => { cancelled = true; };
   }, [isOpen, revenueAccount]);
 
-  // When revenue account (4000 - Revenue) is set, ensure all items use it
+  // When default revenue account is set, ensure all items use it
   useEffect(() => {
     if (revenueAccount?.id && formData.items.some(item => item.accountId !== revenueAccount.id)) {
       setFormData(prev => ({
@@ -350,18 +349,17 @@ const InvoiceModal = ({
         // Load products using enhanced method
         await loadProducts();
 
-        // Use the lightweight income accounts endpoint; prefer 4000 - Revenue, else first Income/Revenue account
+        // Postable leaf income accounts only (never section header 4000)
         const accountsResponse = await fetch('/api/chart-of-accounts/income-accounts');
         if (accountsResponse.ok) {
           const accountsData = await accountsResponse.json();
           const accounts = Array.isArray(accountsData.accounts) ? accountsData.accounts : [];
-          const code4000 = (a) => {
-            const code = a.accountCode != null ? String(a.accountCode).trim() : '';
-            return code === '4000' || a.accountCode === 4000;
-          };
-          const revenueOnly = accounts.find(code4000) || accounts[0] || null;
+          const revenueOnly =
+            accounts.find((a) => a.id === accountsData.defaultAccountId) ||
+            accounts[0] ||
+            null;
           setRevenueAccount(revenueOnly);
-          setIncomeAccounts(revenueOnly ? [revenueOnly] : []);
+          setIncomeAccounts(accounts.length ? accounts : revenueOnly ? [revenueOnly] : []);
         } else {
           console.error('Failed to fetch income accounts:', accountsResponse.status, accountsResponse.statusText);
         }
@@ -684,7 +682,7 @@ const InvoiceModal = ({
     setFormData({ ...formData, discount });
   };
   
-  // Add a new item (income account fixed to 4000 - Revenue); default to no tax (user selects if needed)
+  // Add a new item (income account fixed to default postable revenue); default to no tax
   const addItem = () => {
     const newItem = {
       description: "",
@@ -723,7 +721,7 @@ const InvoiceModal = ({
     const newErrors = {};
     
     if (!revenueAccount) {
-      newErrors.incomeAccount = "Income account is not loaded. Add an Income or Revenue account (e.g. 4000 - Revenue) in Chart of Accounts, then try again.";
+      newErrors.incomeAccount = "Income account is not loaded. Add a detail Income account (e.g. 4100 Product Sales) in Chart of Accounts, then try again.";
     }
     
     if (!formData.clientId) {
@@ -908,7 +906,7 @@ const InvoiceModal = ({
         <div className="flex-1 overflow-y-auto p-4">
           {!revenueAccount && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
-              Loading income account… If this persists, add an Income or Revenue account (e.g. 4000 - Revenue) in <strong>Chart of Accounts</strong>.
+              Loading income account… If this persists, add a detail Income account (e.g. 4100 Product Sales) in <strong>Chart of Accounts</strong>.
             </div>
           )}
           {errors.incomeAccount && (
@@ -1149,7 +1147,7 @@ const InvoiceModal = ({
                               <Search className="w-4 h-4 text-gray-400" />
                             </div>
 
-                            {/* Revenue account fixed to 4000 - Revenue; hidden to reduce UI confusion */}
+                            {/* Revenue account fixed to default postable leaf; hidden to reduce UI confusion */}
                             <input type="hidden" name={`items.${index}.accountId`} value={revenueAccount?.id || ''} />
                             {errors[`items.${index}.accountId`] && (
                               <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.accountId`]}</p>

@@ -9,6 +9,7 @@ import { resolveBranchId } from '@/lib/branchHelpers';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 
 // Enhanced helper function to calculate invoice totals with discounts
 function calculateInvoiceTotals(items, globalDiscount = 0) {
@@ -431,7 +432,17 @@ export async function POST(request) {
           { accountType: 'Revenue' }
         ]
       },
-      select: { id: true }
+      select: {
+        id: true,
+        accountCode: true,
+        accountName: true,
+        acceptsNewTransactions: true,
+        _count: {
+          select: {
+            childAccounts: { where: { isActive: true } },
+          },
+        },
+      },
     });
 
     if (incomeAccounts.length !== new Set(incomeAccountIds).size) {
@@ -439,6 +450,19 @@ export async function POST(request) {
         { error: 'Invoice items must reference active income accounts.' },
         { status: 400 }
       );
+    }
+
+    for (const acc of incomeAccounts) {
+      const block = accountBlocksDirectPosting(acc);
+      if (block.blocked) {
+        const label = acc.accountName || acc.accountCode || acc.id;
+        return NextResponse.json(
+          {
+            error: `Cannot post invoice revenue to "${label}". ${block.reason} Use a detail account such as 4100 Product Sales.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Enhanced calculation using the new function
@@ -838,6 +862,22 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Invoice number already exists for this business.' },
         { status: 409 }
+      );
+    }
+
+    const postingMsg = String(error.message || '');
+    if (
+      postingMsg.includes('cannot receive direct postings') ||
+      postingMsg.includes('consolidation parent') ||
+      postingMsg.includes('not open for new postings')
+    ) {
+      return NextResponse.json(
+        {
+          error: postingMsg.includes('Use a detail account')
+            ? postingMsg
+            : `${postingMsg} Use a detail income account (e.g. 4100 Product Sales), not the 4000 Revenue section header.`,
+        },
+        { status: 400 }
       );
     }
 

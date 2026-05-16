@@ -231,44 +231,18 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Resolve default income account for items missing accountId (e.g. from older data or UI race)
+    // Resolve default postable income account for items missing accountId (e.g. from older data or UI race)
     let defaultAccountId = null;
     const missingAccountId = body.items.some(item => !item.accountId);
     if (missingAccountId) {
-      const incomeOrRevenue = {
-        tenantId: user.tenantId,
-        isActive: true,
-        OR: [
-          { accountType: 'Income' },
-          { accountType: 'Revenue' }
-        ]
-      };
-      const defaultAccount = await prisma.account.findFirst({
-        where: {
-          ...incomeOrRevenue,
-          AND: [
-            {
-              OR: [
-                { accountCode: '4000' },
-                { name: { contains: 'Revenue', mode: 'insensitive' } },
-                { accountName: { contains: 'Revenue', mode: 'insensitive' } }
-              ]
-            }
-          ]
-        },
-        select: { id: true }
-      });
-      defaultAccountId = defaultAccount?.id || null;
-      if (!defaultAccountId) {
-        const anyIncome = await prisma.account.findFirst({
-          where: incomeOrRevenue,
-          select: { id: true }
-        });
-        defaultAccountId = anyIncome?.id || null;
-      }
+      const { resolveDefaultPostableRevenueAccountId } = await import('@/lib/coaIncomeAccounts');
+      defaultAccountId = await resolveDefaultPostableRevenueAccountId(prisma, user.tenantId);
       if (!defaultAccountId) {
         return NextResponse.json(
-          { error: 'Each invoice item must reference an income account. Please add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.' },
+          {
+            error:
+              'Each invoice item must reference an income account. Add a detail Income account (e.g. 4100 Product Sales) in Chart of Accounts.',
+          },
           { status: 400 }
         );
       }
