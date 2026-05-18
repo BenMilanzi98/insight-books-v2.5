@@ -8,8 +8,12 @@ import { FinancialReport } from './FinancialReportComponents';
 /** Group movements by day or week; returns array of { date, transactionType, qtyIn, qtyOut, balance, reference }. Balance = closing balance for that period. */
 function groupMovements(movements, groupBy) {
   if (!movements?.length || groupBy === 'none') return movements || [];
+  const rows = movements.filter(
+    (m) => m.transactionType !== 'Closing balance' && m.date != null && m.date !== ''
+  );
+  if (!rows.length) return [];
   const groups = new Map();
-  for (const m of movements) {
+  for (const m of rows) {
     const d = new Date(m.date);
     const key = groupBy === 'week'
       ? (() => { const sun = new Date(d); sun.setDate(d.getDate() - d.getDay()); return sun.toISOString().slice(0, 10); })()
@@ -233,7 +237,10 @@ export const StockMovementReport = ({
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800 text-right">{Number(productMovement.openingBalance) ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800">—</td>
                     </tr>
-                    {(groupBy === 'none' ? productMovement.movements : groupMovements(productMovement.movements || [], groupBy)).map((movement, mIdx) => (
+                    {(groupBy === 'none'
+                      ? (productMovement.movements || []).filter((m) => m.transactionType !== 'Closing balance')
+                      : groupMovements(productMovement.movements || [], groupBy)
+                    ).map((movement, mIdx) => (
                       <tr key={mIdx} className="hover:bg-slate-50/70">
                         <td className="px-4 py-2.5 text-sm text-slate-800">
                           {movement.date ? formatDate(movement.date) : ''}

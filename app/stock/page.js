@@ -60,6 +60,8 @@ import {
 } from "@/components/StockTransfer";
 import { fetchStockMovement, exportReport } from "@/app/services/financialReportingService";
 import { StockMovementReport } from "@/components/FinancialReportComponents";
+import { ReportDateRangeModals } from "@/components/ReportDateRangeModals";
+import { useReportTimeframe } from "@/hooks/useReportTimeframe";
 
 // Main Stock Management Component
 const StockManagement = () => {
@@ -135,9 +137,25 @@ const StockManagement = () => {
   const [stockMovementReportData, setStockMovementReportData] = useState(null);
   const [stockMovementReportLoading, setStockMovementReportLoading] = useState(false);
   const [stockMovementReportError, setStockMovementReportError] = useState(null);
-  const [stockMovementReportTimeframe, setStockMovementReportTimeframe] = useState('thisMonth');
   const [stockMovementReportProductId, setStockMovementReportProductId] = useState(null);
-  const [stockMovementReportCustomDateRange, setStockMovementReportCustomDateRange] = useState(null);
+  const stockMovementTimeframe = useReportTimeframe('thisMonth');
+  const {
+    timeframe: stockMovementReportTimeframe,
+    customRangeForApi: stockMovementCustomRangeForApi,
+    needsDateRangeSelection: stockMovementNeedsDateRange,
+    showCustomDateRange: stockMovementShowCustomRange,
+    setShowCustomDateRange: setStockMovementShowCustomRange,
+    showSingleDayPicker: stockMovementShowSingleDay,
+    setShowSingleDayPicker: setStockMovementShowSingleDay,
+    customDateRange: stockMovementCustomDateRange,
+    singleDayPickerDate: stockMovementSingleDayDate,
+    setSingleDayPickerDate: setStockMovementSingleDayDate,
+    handleTimeframeChange: handleStockMovementTimeframeChange,
+    handleCustomDateRangeChange: handleStockMovementCustomDateChange,
+    applyCustomDateRange: applyStockMovementCustomRange,
+    applySingleDayPicker: applyStockMovementSingleDay,
+    resetTimeframe: resetStockMovementTimeframe,
+  } = stockMovementTimeframe;
   const [pagePermissions, setPagePermissions] = useState({  
     canCreateStock: false,
     canDeleteStock: false,
@@ -1879,13 +1897,19 @@ const StockManagement = () => {
 
   // Load Stock Movement Report data (used when opening report or refreshing)
   const loadStockMovementReport = useCallback(async () => {
+    if (stockMovementNeedsDateRange) {
+      setStockMovementReportLoading(false);
+      setStockMovementReportError(null);
+      setStockMovementReportData(null);
+      return;
+    }
     setStockMovementReportLoading(true);
     setStockMovementReportError(null);
     try {
       const data = await fetchStockMovement({
         timeframe: stockMovementReportTimeframe,
         productId: stockMovementReportProductId || undefined,
-        customDateRange: stockMovementReportTimeframe === 'custom' ? stockMovementReportCustomDateRange : null,
+        customDateRange: stockMovementCustomRangeForApi,
       });
       setStockMovementReportData(data);
     } catch (err) {
@@ -1895,14 +1919,26 @@ const StockManagement = () => {
     } finally {
       setStockMovementReportLoading(false);
     }
-  }, [stockMovementReportTimeframe, stockMovementReportProductId, stockMovementReportCustomDateRange]);
+  }, [
+    stockMovementReportTimeframe,
+    stockMovementReportProductId,
+    stockMovementCustomRangeForApi,
+    stockMovementNeedsDateRange,
+  ]);
 
   // When report is open, fetch when timeframe/product/date range changes
   useEffect(() => {
     if (stockMovementReportOpen) {
       loadStockMovementReport();
     }
-  }, [stockMovementReportOpen, stockMovementReportTimeframe, stockMovementReportProductId, stockMovementReportCustomDateRange, loadStockMovementReport]);
+  }, [
+    stockMovementReportOpen,
+    stockMovementReportTimeframe,
+    stockMovementReportProductId,
+    stockMovementCustomRangeForApi,
+    stockMovementNeedsDateRange,
+    loadStockMovementReport,
+  ]);
 
   // Open Stock Movement Report (fetch is triggered by useEffect)
   const handleOpenStockMovementReport = useCallback(() => {
@@ -1911,26 +1947,46 @@ const StockManagement = () => {
     setStockMovementReportOpen(true);
   }, []);
 
-  const handleStockMovementTimeframeChange = useCallback((tf) => {
-    setStockMovementReportTimeframe(tf);
-  }, []);
-
   const handleStockMovementExport = useCallback(async (format) => {
+    if (stockMovementNeedsDateRange) {
+      showToast("error", "Date range required", "Please select and apply a date range before exporting.");
+      return;
+    }
     try {
       await exportReport('stock-movement', format, {
         timeframe: stockMovementReportTimeframe,
-        customDateRange: stockMovementReportTimeframe === 'custom' ? stockMovementReportCustomDateRange : null,
+        customDateRange: stockMovementCustomRangeForApi,
         productId: stockMovementReportProductId || undefined,
       });
       showToast("success", "Export complete", `Stock movement report downloaded as ${format.toUpperCase()}`);
     } catch (err) {
       showToast("error", "Export failed", err?.message || "Failed to export report.");
     }
-  }, [stockMovementReportTimeframe, stockMovementReportCustomDateRange, stockMovementReportProductId]);
+  }, [
+    stockMovementReportTimeframe,
+    stockMovementCustomRangeForApi,
+    stockMovementReportProductId,
+    stockMovementNeedsDateRange,
+  ]);
 
   const handleCloseStockMovementReport = useCallback(() => {
     setStockMovementReportOpen(false);
-  }, []);
+    resetStockMovementTimeframe();
+  }, [resetStockMovementTimeframe]);
+
+  const onApplyStockMovementCustomRange = useCallback(() => {
+    const result = applyStockMovementCustomRange();
+    if (!result.ok) {
+      showToast("error", "Invalid date range", result.error);
+    }
+  }, [applyStockMovementCustomRange]);
+
+  const onApplyStockMovementSingleDay = useCallback(() => {
+    const result = applyStockMovementSingleDay();
+    if (!result.ok) {
+      showToast("error", "Invalid date", result.error);
+    }
+  }, [applyStockMovementSingleDay]);
 
   // Format currency in Malawi Kwacha
   const formatCurrency = (amount) => {
@@ -2889,6 +2945,11 @@ const StockManagement = () => {
             </button>
           </div>
           <div className="p-4">
+            {stockMovementNeedsDateRange && !stockMovementShowCustomRange && !stockMovementShowSingleDay && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                Select a date range using the period dropdown above.
+              </p>
+            )}
             <StockMovementReport
               data={stockMovementReportData}
               loading={stockMovementReportLoading}
@@ -2899,6 +2960,18 @@ const StockManagement = () => {
               onExport={handleStockMovementExport}
               productId={stockMovementReportProductId}
               onProductFilterChange={setStockMovementReportProductId}
+            />
+            <ReportDateRangeModals
+              showCustomDateRange={stockMovementShowCustomRange}
+              onCloseCustom={() => setStockMovementShowCustomRange(false)}
+              customDateRange={stockMovementCustomDateRange}
+              onCustomDateRangeChange={handleStockMovementCustomDateChange}
+              onApplyCustom={onApplyStockMovementCustomRange}
+              showSingleDayPicker={stockMovementShowSingleDay}
+              onCloseSingleDay={() => setStockMovementShowSingleDay(false)}
+              singleDayPickerDate={stockMovementSingleDayDate}
+              onSingleDayDateChange={setStockMovementSingleDayDate}
+              onApplySingleDay={onApplyStockMovementSingleDay}
             />
           </div>
         </div>
