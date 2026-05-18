@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 
 /** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
 function isProductCategoryType(type) {
@@ -50,6 +51,9 @@ export async function GET(request) {
       const tenantId = user.tenantId;
 
       const categoriesById = new Map();
+      const isPostableExpensePickerAccount = (account) =>
+        isSystemExpenseStructurePickerAccount(account) &&
+        !accountBlocksDirectPosting(account).blocked;
       const toEntry = (accountId, code, name, account, description, expCatId = null) => ({
         id: accountId,
         code: code || '',
@@ -72,13 +76,19 @@ export async function GET(request) {
                 accountType: true,
                 isActive: true,
                 mergedIntoAccountId: true,
+                acceptsNewTransactions: true,
+                _count: {
+                  select: {
+                    childAccounts: { where: { isActive: true } },
+                  },
+                },
               }
             }
           },
           orderBy: { name: 'asc' }
         });
         expenseCategories.forEach((cat) => {
-          if (!cat.account || !isSystemExpenseStructurePickerAccount(cat.account)) return;
+          if (!cat.account || !isPostableExpensePickerAccount(cat.account)) return;
           const accountId = cat.accountId;
           if (categoriesById.has(accountId)) return;
           categoriesById.set(
@@ -99,6 +109,12 @@ export async function GET(request) {
         accountSubtype: true,
         isActive: true,
         mergedIntoAccountId: true,
+        acceptsNewTransactions: true,
+        _count: {
+          select: {
+            childAccounts: { where: { isActive: true } },
+          },
+        },
       };
       const baseWhere = {
         tenantId,
@@ -113,7 +129,7 @@ export async function GET(request) {
           orderBy: [{ accountCode: 'asc' }],
         });
         expenseGlAccounts.forEach((acc) => {
-          if (!isSystemExpenseStructurePickerAccount(acc)) return;
+          if (!isPostableExpensePickerAccount(acc)) return;
           const id = acc.id;
           if (categoriesById.has(id)) return;
           const code = acc.accountCode || acc.code || '';

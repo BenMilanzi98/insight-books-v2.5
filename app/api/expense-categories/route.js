@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 
 /**
  * GET /api/expense-categories
@@ -34,7 +35,14 @@ export async function GET(request) {
             code: true,
             accountName: true,
             accountType: true,
-            isActive: true
+            isActive: true,
+            mergedIntoAccountId: true,
+            acceptsNewTransactions: true,
+            _count: {
+              select: {
+                childAccounts: { where: { isActive: true } },
+              },
+            },
           }
         },
         _count: {
@@ -49,7 +57,12 @@ export async function GET(request) {
     });
 
     const allowed = categories.filter((cat) => {
-      if (cat.account) return isSystemExpenseStructurePickerAccount(cat.account);
+      if (cat.account) {
+        return (
+          isSystemExpenseStructurePickerAccount(cat.account) &&
+          !accountBlocksDirectPosting(cat.account).blocked
+        );
+      }
       return isSystemExpenseStructurePickerAccount({
         accountCode: cat.accountCode || '',
         accountType: 'Expense',

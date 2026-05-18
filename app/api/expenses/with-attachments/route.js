@@ -4,6 +4,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 
 // POST - Create expense with attachments in a single request
 export async function POST(request) {
@@ -101,9 +103,16 @@ export async function POST(request) {
     return handleExpenseCreation(user, expenseData, formData);
   } catch (error) {
     console.error('Error creating expense with attachments:', error);
+    const message = error?.message || 'Failed to create expense with attachments. Please try again.';
+    const directPostingFailure =
+      message.includes('consolidation parent') ||
+      message.includes('cannot receive direct postings') ||
+      message.includes('not open for new postings') ||
+      message.includes('Structural chart section headers') ||
+      message.includes('not a standard expense category');
     return NextResponse.json(
-      { error: 'Failed to create expense with attachments. Please try again.' },
-      { status: 500 }
+      { error: directPostingFailure ? message : 'Failed to create expense with attachments. Please try again.' },
+      { status: directPostingFailure ? 400 : 500 }
     );
   }
 }
@@ -128,11 +137,22 @@ async function handleExpenseCreation(user, expenseData, formData) {
   // Start a transaction to create the expense and attachments
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create the expense
+    let expenseAccount = null;
     let expenseCategoryName = null;
     if (expenseData.expenseAccountId) {
       const ecByPickerId = await tx.expenseCategory.findFirst({
         where: { id: expenseData.expenseAccountId, tenantId: user.tenantId },
-        include: { account: true },
+        include: {
+          account: {
+            include: {
+              _count: {
+                select: {
+                  childAccounts: { where: { isActive: true } },
+                },
+              },
+            },
+          },
+        },
       });
       if (ecByPickerId?.account) {
         expenseAccount = ecByPickerId.account;
@@ -144,6 +164,13 @@ async function handleExpenseCreation(user, expenseData, formData) {
             tenantId: user.tenantId,
             accountType: 'Expense',
           },
+          include: {
+            _count: {
+              select: {
+                childAccounts: { where: { isActive: true } },
+              },
+            },
+          },
         });
       }
     }
@@ -154,23 +181,56 @@ async function handleExpenseCreation(user, expenseData, formData) {
           tenantId: user.tenantId,
           accountType: 'Expense',
           accountName: { equals: expenseData.category, mode: 'insensitive' }
-        }
+        },
+        include: {
+          _count: {
+            select: {
+              childAccounts: { where: { isActive: true } },
+            },
+          },
+        },
       });
     }
 
     if (!expenseAccount) {
-      expenseAccount = await tx.account.findFirst({
+      const fallbackAccounts = await tx.account.findMany({
         where: {
           tenantId: user.tenantId,
           accountType: 'Expense',
-          isActive: true
+          isActive: true,
+          mergedIntoAccountId: null,
+        },
+        include: {
+          _count: {
+            select: {
+              childAccounts: { where: { isActive: true } },
+            },
+          },
         },
         orderBy: { accountCode: 'asc' }
       });
+      expenseAccount = fallbackAccounts.find(
+        (account) =>
+          isSystemExpenseStructurePickerAccount(account) &&
+          !accountBlocksDirectPosting(account).blocked
+      ) || null;
     }
 
     if (!expenseAccount) {
       throw new Error('No expense account found. Please configure your Chart of Accounts.');
+    }
+
+    if (!isSystemExpenseStructurePickerAccount(expenseAccount)) {
+      throw new Error(
+        'That account is not a standard expense category. Select a detail account from the EXPENSES (5000) structure in Chart of accounts.'
+      );
+    }
+
+    const postingBlock = accountBlocksDirectPosting(expenseAccount);
+    if (postingBlock.blocked) {
+      throw new Error(
+        `Cannot post expenses to "${postingBlock.details || expenseAccount.accountName || expenseAccount.accountCode}". ${postingBlock.reason} Choose a sub-account beneath it.`
+      );
     }
 
     const expense = await tx.expense.create({

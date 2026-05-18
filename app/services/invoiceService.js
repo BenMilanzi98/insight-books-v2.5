@@ -55,8 +55,6 @@ export const getInvoiceById = async (invoiceId) => {
 // Create a new invoice
 export const createInvoice = async (invoiceData) => {
   try {
-    console.log("🚀 INVOICE SERVICE: Creating invoice with data:", JSON.stringify(invoiceData, null, 2));
-    
     const response = await fetch('/api/invoices', {
       method: 'POST',
       headers: {

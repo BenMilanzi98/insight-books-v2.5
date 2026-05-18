@@ -571,8 +571,6 @@ const InvoiceModal = ({
 
   // Handle product selection from dropdown
   const handleProductSelect = async (index, product) => {
-    console.log(`Product selected: ${product.name} (ID: ${product.id}) for item ${index}`);
-    
     try {
       // Fetch full product details including units and taxes
       const [productResponse, taxesResponse] = await Promise.all([
@@ -585,25 +583,21 @@ const InvoiceModal = ({
       
       if (productResponse.ok) {
         productData = await productResponse.json();
-        console.log("Full product data with units:", productData);
       }
       
       if (taxesResponse.ok) {
         const taxesData = await taxesResponse.json();
         productTaxes = taxesData.taxes || [];
-        console.log("Product taxes from API:", productTaxes);
       }
       
       // If taxes API returned empty, try to get taxes from product data
       if (productTaxes.length === 0 && productData.taxes && productData.taxes.length > 0) {
         productTaxes = productData.taxes;
-        console.log("Product taxes from product data:", productTaxes);
       }
       
       // If still no taxes, try productTaxes array from product data
       if (productTaxes.length === 0 && productData.productTaxes && productData.productTaxes.length > 0) {
         productTaxes = productData.productTaxes.map(pt => pt.taxType || pt).filter(Boolean);
-        console.log("Product taxes from productTaxes array:", productTaxes);
       }
       
       // Calculate combined tax rate from all taxes (for backward compatibility with single taxRate field)
@@ -672,8 +666,6 @@ const InvoiceModal = ({
     setItemSearchQueries(prev => ({ ...prev, [index]: "" }));
     setShowProductDropdown(false);
     setActiveSearchIndex(null);
-    
-    console.log(`Updated item ${index} with product: ${product.name}`);
   };
   
   // Enhanced update discount function for global discount
@@ -819,11 +811,9 @@ const InvoiceModal = ({
                 const conversionRate = parseFloat(unit.conversionToBase);
                 const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
                 totalBaseQuantity += convertedToBase;
-                console.log(`Unit ${unit.symbol}: ${qty} = ${convertedToBase.toFixed(6)} base units`);
               }
             });
             finalQuantity = totalBaseQuantity;
-            console.log(`Total calculated quantity for ${item.description}: ${finalQuantity.toFixed(6)}`);
           }
           
           return {
@@ -1115,11 +1105,9 @@ const InvoiceModal = ({
                                 value={item.productId ? (products.find(p => p.id === item.productId)?.name || item.description) : (itemSearchQueries[index] || item.description)}
                                 onChange={(e) => {
                                   const value = e.target.value;
-                                  console.log(`Search input changed to: "${value}"`);
                                   
                                   if (item.productId) {
                                     // If a product is selected, clear it to allow custom description
-                                    console.log(`Clearing productId for item ${index}`);
                                     handleItemChange(index, "productId", "");
                                   }
                                   handleItemChange(index, "description", value);
@@ -1129,7 +1117,6 @@ const InvoiceModal = ({
                                 setShowProductDropdown(true);
                                 }}
                                 onFocus={() => {
-                                  console.log(`Search input focused for item ${index}`);
                                     setActiveSearchIndex(index);
                                 // Show dropdown immediately on focus (true combobox behavior)
                                     setShowProductDropdown(true);

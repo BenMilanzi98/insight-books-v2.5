@@ -1288,7 +1288,7 @@ const handleFileUpload = async (e) => {
       loadStatistics();
     } catch (error) {
       console.error("Error submitting expense:", error);
-      alert("Failed to save expense. Please try again.");
+      alert(error?.message || "Failed to save expense. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

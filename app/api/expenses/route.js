@@ -11,6 +11,7 @@ import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForE
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
+import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -691,6 +692,23 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    const activeChildCount = await prisma.account.count({
+      where: {
+        tenantId: user.tenantId,
+        parentAccountId: expenseAccount.id,
+        isActive: true,
+      },
+    });
+    const postingBlock = accountBlocksDirectPosting(expenseAccount, { activeChildCount });
+    if (postingBlock.blocked) {
+      return NextResponse.json(
+        {
+          error: `Cannot post expenses to "${postingBlock.details || expenseAccount.accountName || expenseAccount.accountCode}". ${postingBlock.reason} Choose a sub-account beneath it.`,
+        },
+        { status: 400 }
+      );
+    }
     const paymentStatus = body.paymentStatus || 'Fully paid';
     // Default payment method when missing so Payment.create and journal/balance updates don't throw (500)
     const paymentMethod = (body.paymentMethod != null && String(body.paymentMethod).trim() !== '')
@@ -952,9 +970,14 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error creating expense:', error);
     const message = error?.message || 'Failed to create expense. Please try again.';
+    const directPostingFailure =
+      message.includes('consolidation parent') ||
+      message.includes('cannot receive direct postings') ||
+      message.includes('not open for new postings') ||
+      message.includes('Structural chart section headers');
     return NextResponse.json(
       { error: message },
-      { status: 500 }
+      { status: directPostingFailure ? 400 : 500 }
     );
   }
 }

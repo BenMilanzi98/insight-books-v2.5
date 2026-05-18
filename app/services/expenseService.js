@@ -137,11 +137,12 @@ export const createExpenseWithAttachments = async (expenseData, attachments) => 
         body: JSON.stringify(expenseData),
       });
       
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(`Error updating expense: ${response.statusText}`);
+        const message = data?.error || response.statusText || 'Failed to update expense';
+        throw new Error(message);
       }
       
-      const data = await response.json();
       return data;
     } catch (error) {
       console.error(`Error updating expense ${expenseId}:`, error);
