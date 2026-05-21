@@ -52,6 +52,7 @@ export async function GET(request) {
       take: limit,
       include: {
         supplier: { select: { supplierName: true, supplierCode: true } },
+        goodsReceipt: { select: { receiptNumber: true } },
         allocations: {
           include: {
             payment: { select: { paymentNumber: true, paymentDate: true } }

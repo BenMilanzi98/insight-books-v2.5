@@ -17,6 +17,21 @@ function parsePagination(searchParams) {
   return { page, limit };
 }
 
+function looksLikeRecordId(value) {
+  return typeof value === 'string' && value.length > 20 && /^[a-z0-9]+$/i.test(value);
+}
+
+function formatPaymentMethodName(paymentMethod, paymentAccountById) {
+  const paymentAccount = paymentAccountById.get(paymentMethod);
+  if (paymentAccount) {
+    return paymentAccount.accountType
+      ? `${paymentAccount.name} (${paymentAccount.accountType})`
+      : paymentAccount.name;
+  }
+
+  return looksLikeRecordId(paymentMethod) ? 'Unknown method' : paymentMethod || '—';
+}
+
 export async function GET(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -49,14 +64,43 @@ export async function GET(request) {
         supplier: { select: { supplierName: true, supplierCode: true } },
         allocations: {
           include: {
-            bill: { select: { billNumber: true, totalAmount: true, amountPaid: true } }
+            bill: {
+              select: {
+                billNumber: true,
+                totalAmount: true,
+                amountPaid: true,
+                goodsReceipt: { select: { receiptNumber: true } },
+              },
+            }
           }
         }
       }
     });
 
+    const paymentMethodIds = [
+      ...new Set(payments.map((payment) => payment.paymentMethod).filter(looksLikeRecordId)),
+    ];
+    const paymentAccounts = paymentMethodIds.length
+      ? await prisma.paymentAccount.findMany({
+          where: {
+            tenantId: user.tenantId,
+            id: { in: paymentMethodIds },
+          },
+          select: { id: true, name: true, accountType: true },
+        })
+      : [];
+    const paymentAccountById = new Map(
+      paymentAccounts.map((account) => [account.id, account])
+    );
+
     return NextResponse.json({
-      payments,
+      payments: payments.map((payment) => ({
+        ...payment,
+        paymentMethodName: formatPaymentMethodName(
+          payment.paymentMethod,
+          paymentAccountById
+        ),
+      })),
       pagination: {
         page,
         limit,

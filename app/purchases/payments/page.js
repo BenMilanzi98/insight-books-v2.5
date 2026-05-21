@@ -33,6 +33,23 @@ async function createPayment(payload) {
 const cardPanelClass =
   "space-y-4 rounded-2xl border border-gray-200 bg-white/95 p-4  ring-1 ring-gray-50";
 
+function displayBillNumber(bill) {
+  if (!bill) return "—";
+  if (bill.goodsReceipt?.receiptNumber && /^GRB-c[a-z0-9]+$/i.test(bill.billNumber || "")) {
+    return `GRB-${bill.goodsReceipt.receiptNumber}`;
+  }
+  if (/^GRB-c[a-z0-9]+$/i.test(bill.billNumber || "")) return "—";
+  return bill.billNumber || "—";
+}
+
+function displayPaymentMethod(payment) {
+  if (payment?.paymentMethodName) return payment.paymentMethodName;
+  if (typeof payment?.paymentMethod === "string" && payment.paymentMethod.length > 20) {
+    return "Unknown method";
+  }
+  return payment?.paymentMethod || "—";
+}
+
 function PaymentFormSection({ title, description, children }) {
   return (
     <div className={cardPanelClass}>
@@ -200,7 +217,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
                   className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 md:flex-row md:items-center md:justify-between"
                 >
                   <div>
-                    <div className="font-semibold text-gray-900">{bill.billNumber}</div>
+                    <div className="font-semibold text-gray-900">{displayBillNumber(bill)}</div>
                     <div className="text-xs text-gray-500">
                       Due {bill.dueDate ? formatDateDDMMYYYY(bill.dueDate) : "—"}
                     </div>
@@ -299,7 +316,7 @@ function PaymentDetails({ payment, onClose }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <div className="text-xs uppercase text-gray-500">Payment Method</div>
-              <div className="mt-1 text-gray-900">{payment.paymentMethod}</div>
+              <div className="mt-1 text-gray-900">{displayPaymentMethod(payment)}</div>
             </div>
             <div>
               <div className="text-xs uppercase text-gray-500">Reference</div>
@@ -332,7 +349,7 @@ function PaymentDetails({ payment, onClose }) {
                     payment.allocations.map((allocation) => (
                       <tr key={allocation.id}>
                         <td className="px-4 py-2 text-gray-900">
-                          {allocation.bill?.billNumber ?? allocation.billId}
+                          {displayBillNumber(allocation.bill)}
                         </td>
                         <td className="px-4 py-2 text-right text-gray-900">
                           MWK {Number(allocation.amountAllocated || allocation.amount || 0).toLocaleString()}
@@ -509,7 +526,9 @@ export default function SupplierPaymentsPage() {
                     <td className="px-4 py-2 text-gray-700">
                       {payment.paymentDate ? formatDateDDMMYYYY(payment.paymentDate) : "—"}
                     </td>
-                    <td className="px-4 py-2 text-gray-700">{payment.paymentMethod}</td>
+                    <td className="px-4 py-2 text-gray-700">
+                      {displayPaymentMethod(payment)}
+                    </td>
                     <td className="px-4 py-2 text-right text-gray-900">
                       MWK {Number(payment.totalAmount || 0).toLocaleString()}
                     </td>

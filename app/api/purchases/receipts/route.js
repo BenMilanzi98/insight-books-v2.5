@@ -181,7 +181,11 @@ export async function GET(request) {
       include: {
         supplier: { select: { supplierName: true, supplierCode: true } },
         purchaseOrder: { select: { poNumber: true, orderType: true } },
-        items: true
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } },
+          },
+        },
       }
     });
 
@@ -538,7 +542,11 @@ export async function POST(request) {
     const goodsReceiptOut = await prisma.goodsReceipt.findFirst({
       where: { id: result.id, tenantId: user.tenantId },
       include: {
-        items: true,
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } },
+          },
+        },
         supplier: { select: { supplierName: true, supplierCode: true } },
         purchaseOrder: { select: { poNumber: true, orderType: true } },
         receivedBy: { select: { name: true } },

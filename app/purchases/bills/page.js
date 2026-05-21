@@ -54,6 +54,15 @@ function SummaryCard({ label, value, helper }) {
   );
 }
 
+function displayBillNumber(bill) {
+  if (!bill) return "—";
+  if (bill.goodsReceipt?.receiptNumber && /^GRB-c[a-z0-9]+$/i.test(bill.billNumber || "")) {
+    return `GRB-${bill.goodsReceipt.receiptNumber}`;
+  }
+  if (/^GRB-c[a-z0-9]+$/i.test(bill.billNumber || "")) return "—";
+  return bill.billNumber || "—";
+}
+
 function ConfirmDialog({ title, message, onConfirm, onCancel, loading, confirmLabel = "Confirm" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -562,7 +571,9 @@ export default function SupplierBillsPage() {
               <tbody className="divide-y divide-gray-200 bg-white text-sm">
                 {bills.map((bill) => (
                   <tr key={bill.id}>
-                    <td className="px-4 py-2 font-semibold text-gray-900">{bill.billNumber}</td>
+                    <td className="px-4 py-2 font-semibold text-gray-900">
+                      {displayBillNumber(bill)}
+                    </td>
                     <td className="px-4 py-2">
                       <div className="font-medium text-gray-900">
                         {bill.supplier?.supplierName ?? "—"}

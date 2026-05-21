@@ -830,7 +830,7 @@ function ReceiptDetails({ receipt, onClose }) {
                   <tbody className="divide-y divide-gray-100 bg-white">
                     {receipt.items.map((item) => (
                       <tr key={item.id}>
-                        <td className="px-4 py-2 text-gray-900">{item.product?.name ?? item.productId}</td>
+                        <td className="px-4 py-2 text-gray-900">{item.product?.name ?? "—"}</td>
                         <td className="px-4 py-2 text-gray-700">
                           {Number(item.quantityReceived || 0).toLocaleString()}
                         </td>
