@@ -154,69 +154,73 @@ const Signup = () => {
       <div className="absolute -left-24 top-32 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
 
       <div className="relative z-10 grid min-h-screen xl:grid-cols-[0.9fr_1.1fr]">
-        <aside className="hidden flex-col justify-between p-10 text-white xl:flex xl:p-14">
+        <aside className="hidden flex-col justify-between p-8 text-white xl:flex xl:p-10">
           <div>
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur">
-              <img src="/logo.png" alt="InsightBooks" className="h-10 w-auto rounded-lg object-contain" />
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 shadow-2xl backdrop-blur">
+              <img src="/logo.png" alt="InsightBooks" className="h-9 w-auto rounded-lg object-contain" />
               <div>
-                <p className="text-sm font-bold">InsightBooks</p>
-                <p className="text-xs text-indigo-100">Start, scale, and stay in control</p>
+                <p className="text-sm font-semibold tracking-wide">InsightBooks</p>
+                <p className="text-xs text-indigo-100">Business cockpit</p>
               </div>
             </div>
 
-            <div className="mt-24 max-w-xl">
-              <p className="mb-5 inline-flex rounded-full border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100">
-                Free 2-day trial. No card required.
+            <div className="mt-16 max-w-xl">
+              <p className="mb-4 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 backdrop-blur">
+                Future-ready business OS
               </p>
-              <h1 className="text-5xl font-black leading-tight tracking-tight">
-                Build your business workspace in minutes.
+              <h1 className="text-4xl font-black leading-tight tracking-tight">
+                Control finance, stock, sales, and payroll from one intelligent workspace.
               </h1>
-              <p className="mt-6 text-lg leading-8 text-slate-200">
-                Create invoices, track stock, manage POS, run payroll, and see your numbers clearly from day one.
+              <p className="mt-5 max-w-lg text-sm leading-7 text-slate-200">
+                A compact, secure command center for daily operations, reporting, and team workflows.
               </p>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="grid max-w-xl grid-cols-3 gap-3">
             {[
-              [Clock, "2-Day Free Trial", "Full access for 48 hours"],
-              [Shield, "Secure by Design", "Private tenant workspace"],
-              [Calendar, "Flexible Plans", "Choose monthly or yearly later"],
-            ].map(([Icon, title, text]) => (
-              <div key={title} className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10">
-                  <Icon size={20} />
-                </div>
-                <div>
-                  <p className="font-semibold">{title}</p>
-                  <p className="text-sm text-slate-300">{text}</p>
-                </div>
+              ["48h", "Trial access"],
+              ["360°", "Visibility"],
+              ["Secure", "Tenant data"],
+            ].map(([metric, label]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <p className="text-xl font-bold">{metric}</p>
+                <p className="mt-1 text-xs text-slate-300">{label}</p>
               </div>
             ))}
           </div>
         </aside>
 
-        <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-          <div className="w-full max-w-3xl">
-            <div className="mb-6 flex justify-center xl:hidden">
+        <main className="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+          <div className="w-full max-w-2xl">
+            <div className="mb-5 flex justify-center xl:hidden">
               <div className="rounded-2xl bg-white/95 p-3 shadow-xl">
                 <img src="/logo.png" alt="InsightBooks" className="h-9 w-auto object-contain" />
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/70 bg-white/95 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-8 lg:p-10">
-              <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="rounded-[1.75rem] border border-white/70 bg-white/95 p-5 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-6 lg:p-7">
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-indigo-600">Create account</p>
-                  <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Create account</p>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                     Start your free trial
                   </h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-500">
-                    Register with your business details. Your email verification flow remains the same.
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Register with your business details.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700">
-                  48 hours free
+                <Link href="/auth/login" className="rounded-full border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
+                  Login
+                </Link>
+              </div>
+
+              <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1">
+                <div className="grid grid-cols-2 text-center text-sm font-bold">
+                  <Link href="/auth/login" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
+                    Login
+                  </Link>
+                  <span className="rounded-xl bg-slate-950 px-3 py-2 text-white shadow-sm">Signup</span>
                 </div>
               </div>
 
@@ -233,8 +237,8 @@ const Signup = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="businessName" className="mb-2 block text-sm font-semibold text-slate-700">
                       Business Name
@@ -246,7 +250,7 @@ const Signup = () => {
                         name="businessName"
                         type="text"
                         required
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                         placeholder="Your Company Ltd."
                         value={formData.businessName}
                         onChange={handleChange}
@@ -265,7 +269,7 @@ const Signup = () => {
                         name="fullName"
                         type="text"
                         required
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                         placeholder="John Doe"
                         value={formData.fullName}
                         onChange={handleChange}
@@ -284,7 +288,7 @@ const Signup = () => {
                         name="email"
                         type="email"
                         required
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                         placeholder="you@company.com"
                         value={formData.email}
                         onChange={handleChange}
@@ -303,7 +307,7 @@ const Signup = () => {
                         name="phone"
                         type="tel"
                         required
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                         placeholder="+265 999 123 456"
                         value={formData.phone}
                         onChange={handleChange}
@@ -312,7 +316,7 @@ const Signup = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="password" className="mb-2 block text-sm font-semibold text-slate-700">
                       Password
@@ -325,7 +329,7 @@ const Signup = () => {
                         type={showPassword ? "text" : "password"}
                         required
                         minLength={8}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 pr-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                         placeholder="Min. 8 characters"
                         value={formData.password}
                         onChange={handleChange}
@@ -369,7 +373,7 @@ const Signup = () => {
                         name="confirmPassword"
                         type={showPassword ? "text" : "password"}
                         required
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                         placeholder="Repeat password"
                         value={formData.confirmPassword}
                         onChange={handleChange}
@@ -385,7 +389,7 @@ const Signup = () => {
                   </div>
                 )}
 
-                <label htmlFor="agreeTerms" className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600">
+                <label htmlFor="agreeTerms" className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-sm text-slate-600">
                   <input
                     id="agreeTerms"
                     name="agreeTerms"
@@ -407,7 +411,7 @@ const Signup = () => {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="group flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                    className="group flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
                   >
                     {isLoading ? (
                       <>
@@ -429,14 +433,14 @@ const Signup = () => {
                     href="https://calendly.com/insightbooks/demo"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-6 py-4 font-bold text-indigo-700 transition hover:bg-indigo-100"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-3.5 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"
                   >
                     <Calendar size={18} />
                     Book a Demo
                   </a>
                 </div>
 
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-center">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-center">
                   <p className="text-sm text-indigo-800">
                     <Clock size={14} className="mr-1 inline -mt-0.5" />
                     Your <strong>free 2-day trial</strong> starts immediately. No payment required.

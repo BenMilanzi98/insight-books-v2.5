@@ -106,64 +106,78 @@ function LoginForm() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-900">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.35),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.22),_transparent_36%)]" />
-      <div className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.35),_transparent_34%),radial-gradient(circle_at_bottom_left,_rgba(20,184,166,0.18),_transparent_38%)]" />
+      <div className="absolute -left-24 top-32 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
 
-      <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden flex-col justify-between p-10 text-white lg:flex xl:p-14">
+      <div className="relative z-10 grid min-h-screen xl:grid-cols-[0.9fr_1.1fr]">
+        <section className="hidden flex-col justify-between p-8 text-white xl:flex xl:p-10">
           <div>
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl shadow-indigo-950/20 backdrop-blur">
-              <img src="/logo.png" alt="InsightBooks Logo" className="h-10 w-auto rounded-lg object-contain" />
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 shadow-2xl shadow-indigo-950/20 backdrop-blur">
+              <img src="/logo.png" alt="InsightBooks Logo" className="h-9 w-auto rounded-lg object-contain" />
               <div>
                 <p className="text-sm font-semibold tracking-wide">InsightBooks</p>
-                <p className="text-xs text-indigo-100">Business command center</p>
+                <p className="text-xs text-indigo-100">Business cockpit</p>
               </div>
             </div>
 
-            <div className="mt-24 max-w-2xl">
-              <p className="mb-5 inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-indigo-100 backdrop-blur">
-                Secure access for growing teams
+            <div className="mt-16 max-w-xl">
+              <p className="mb-4 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 backdrop-blur">
+                Future-ready business OS
               </p>
-              <h1 className="text-5xl font-black leading-tight tracking-tight xl:text-6xl">
-                Run your finance, stock, sales, and payroll from one calm dashboard.
+              <h1 className="text-4xl font-black leading-tight tracking-tight">
+                Control finance, stock, sales, and payroll from one intelligent workspace.
               </h1>
-              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-200">
-                Sign in to manage invoices, expenses, reporting, inventory, POS, HR, and approvals with a workspace built for modern businesses.
+              <p className="mt-5 max-w-lg text-sm leading-7 text-slate-200">
+                A compact, secure command center for daily operations, reporting, and team workflows.
               </p>
             </div>
           </div>
 
-          <div className="grid max-w-2xl grid-cols-3 gap-4">
+          <div className="grid max-w-xl grid-cols-3 gap-3">
             {[
-              ["99.9%", "Cloud-ready access"],
-              ["360°", "Business visibility"],
-              ["2FA", "Security-minded workflows"],
+              ["48h", "Trial access"],
+              ["360°", "Visibility"],
+              ["Secure", "Tenant data"],
             ].map(([metric, label]) => (
-              <div key={label} className="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur">
-                <p className="text-2xl font-bold">{metric}</p>
-                <p className="mt-1 text-sm text-slate-300">{label}</p>
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <p className="text-xl font-bold">{metric}</p>
+                <p className="mt-1 text-xs text-slate-300">{label}</p>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-          <div className="w-full max-w-xl">
-            <div className="mb-8 flex items-center justify-center lg:hidden">
+        <section className="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+          <div className="w-full max-w-2xl">
+            <div className="mb-5 flex items-center justify-center xl:hidden">
               <div className="rounded-2xl bg-white/95 p-3 shadow-xl">
-                <img src="/logo.png" alt="InsightBooks Logo" className="h-10 w-auto object-contain" />
+                <img src="/logo.png" alt="InsightBooks Logo" className="h-9 w-auto object-contain" />
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/70 bg-white/95 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-8 lg:p-10">
-              <div className="mb-8">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-indigo-600">Welcome back</p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                  Login to your account
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-slate-500">
-                  Enter your credentials to continue to your business dashboard.
-                </p>
+            <div className="rounded-[1.75rem] border border-white/70 bg-white/95 p-5 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-6 lg:p-7">
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Welcome back</p>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Login to your account
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Enter your credentials to continue.
+                  </p>
+                </div>
+                <Link href="/auth/signup" className="rounded-full border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
+                  Create account
+                </Link>
+              </div>
+
+              <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1">
+                <div className="grid grid-cols-2 text-center text-sm font-bold">
+                  <span className="rounded-xl bg-slate-950 px-3 py-2 text-white shadow-sm">Login</span>
+                  <Link href="/auth/signup" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
+                    Signup
+                  </Link>
+                </div>
               </div>
 
               {error && (
@@ -180,9 +194,9 @@ function LoginForm() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {showBusinessChoice && tenantChoices.length > 0 && (
-                  <div className="rounded-3xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
                     <p className="font-semibold">Choose your business</p>
                     <p className="mt-1 text-indigo-900/75">
                       Your email is linked to more than one business. Select where you want to log in.
@@ -193,7 +207,7 @@ function LoginForm() {
                         <label
                           key={tenant.id}
                           htmlFor={`tenant-${tenant.id}`}
-                          className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-all ${
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
                             selectedTenantId === tenant.id
                               ? "border-indigo-500 bg-white shadow-sm"
                               : "border-indigo-100 bg-white/40 hover:bg-white"
@@ -217,7 +231,7 @@ function LoginForm() {
                 )}
 
                 {showBusinessChoice && tenantChoices.length === 0 && (
-                  <div className="rounded-3xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
                     <p className="font-semibold">Choose your business</p>
                     <p className="mt-1 text-indigo-900/75">
                       Enter your password and continue. If this email belongs to multiple businesses, we will show them here for selection.
@@ -234,7 +248,7 @@ function LoginForm() {
                     <input
                       id="email"
                       type="email"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                       placeholder="you@company.com"
                       value={email}
                       onChange={(e) => handleEmailChange(e.target.value)}
@@ -257,7 +271,7 @@ function LoginForm() {
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 pr-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -289,12 +303,19 @@ function LoginForm() {
 
                 <button
                   type="submit"
-                  className="group flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 p-4 font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                  className="group flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 p-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
                   disabled={isLoading}
                 >
                   {isLoading ? "Logging in..." : "Login"}
                 </button>
               </form>
+
+              <p className="mt-5 text-center text-sm text-slate-600">
+                New to InsightBooks?{" "}
+                <Link href="/auth/signup" className="font-bold text-indigo-700 hover:text-indigo-900">
+                  Create an account
+                </Link>
+              </p>
             </div>
           </div>
         </section>
