@@ -2434,7 +2434,14 @@ const EmployeeManagement = () => {
             setIsFormOpen(false);
             return;
           }
-          throw new Error('Failed to update employee');
+          const errorData = await response.json().catch(() => ({}));
+          if (response.status === 403) {
+            throw new Error(
+              errorData.error ||
+                'You do not have permission to update employees. Ask an admin to enable HR update access for your role.'
+            );
+          }
+          throw new Error(errorData.error || errorData.details || 'Failed to update employee');
         }
 
         const data = await response.json();
