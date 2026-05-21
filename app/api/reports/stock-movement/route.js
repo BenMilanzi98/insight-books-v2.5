@@ -48,9 +48,10 @@ export async function GET(request) {
     return NextResponse.json(report);
   } catch (error) {
     console.error('Error generating stock movement report:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate stock movement report. Please try again.' },
-      { status: 500 }
-    );
+    const message =
+      process.env.NODE_ENV === 'development'
+        ? error?.message || String(error)
+        : 'Failed to generate stock movement report. Please try again.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
