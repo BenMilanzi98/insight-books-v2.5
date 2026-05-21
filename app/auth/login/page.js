@@ -304,7 +304,7 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* <div className="mt-8">
+          <div className="mt-8">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
@@ -319,7 +319,7 @@ function LoginForm() {
             </div>
           </div>
 
-          <div className="mt-8 text-center">
+          {/* <div className="mt-8 text-center">
             <p className="text-gray-600">
               Don't have an account?{" "}
               <Link href="/auth/signup" className="text-indigo-700 font-medium hover:underline">
