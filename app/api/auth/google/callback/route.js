@@ -9,9 +9,15 @@ import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
 import { findUsersByEmailForAuth, pickUserForLogin } from '@/lib/userEmailResolve';
+import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
 
 export async function GET(request) {
   try {
+    const appUrl = getPublicAppBaseUrlForEmail({
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      forwardedHost: request.headers.get('x-forwarded-host'),
+    });
+
     // Check for required environment variables
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -19,13 +25,12 @@ export async function GET(request) {
     if (!clientId || !clientSecret) {
       console.error('Google OAuth Callback: Missing required environment variables');
       return NextResponse.redirect(
-        `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=oauth_config_missing`
+        `${appUrl}/auth/signup?error=oauth_config_missing`
       );
     }
 
     // Set up redirect URI
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
-      `${process.env.APP_URL || 'http://localhost:3000'}/api/auth/google/callback`;
+    const redirectUri = `${appUrl}/api/auth/google/callback`;
 
     // Initialize Google OAuth client with timeout configuration
     const googleClient = new OAuth2Client(clientId, clientSecret, redirectUri);
@@ -39,14 +44,14 @@ export async function GET(request) {
     if (error) {
       console.error('Google OAuth error:', error);
       return NextResponse.redirect(
-        `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=oauth_denied&details=${encodeURIComponent(error)}`
+        `${appUrl}/auth/signup?error=oauth_denied&details=${encodeURIComponent(error)}`
       );
     }
     
     if (!code) {
       console.error('Google OAuth Callback: No authorization code received');
       return NextResponse.redirect(
-        `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=oauth_no_code`
+        `${appUrl}/auth/signup?error=oauth_no_code`
       );
     }
 
@@ -154,25 +159,24 @@ export async function GET(request) {
     }
 
     if (!existingUser && candidates.length > 1) {
-      const base = process.env.APP_URL || 'http://localhost:3000';
       const qp = new URLSearchParams({
         error: 'multi_tenant_google',
         email: emailForLookup || '',
       });
-      return NextResponse.redirect(`${base}/auth/login?${qp.toString()}`);
+      return NextResponse.redirect(`${appUrl}/auth/login?${qp.toString()}`);
     }
 
     if (existingUser) {
       // User exists - handle login
       if (!existingUser.isActive) {
         return NextResponse.redirect(
-          `${process.env.APP_URL || 'http://localhost:3000'}/auth/login?error=account_deactivated`
+          `${appUrl}/auth/login?error=account_deactivated`
         );
       }
 
       if (existingUser.tenantId && existingUser.tenant?.status !== 'active') {
         return NextResponse.redirect(
-          `${process.env.APP_URL || 'http://localhost:3000'}/auth/login?error=tenant_suspended`
+          `${appUrl}/auth/login?error=tenant_suspended`
         );
       }
 
@@ -215,15 +219,14 @@ export async function GET(request) {
         ...getSessionCookieOptions(),
       });
 
-      const base = process.env.APP_URL || 'http://localhost:3000';
       const dest = getDefaultPostLoginPath(oauthCtx);
       console.log('Google OAuth: Existing user logged in successfully');
-      return NextResponse.redirect(`${base}${dest}`);
+      return NextResponse.redirect(`${appUrl}${dest}`);
     } else {
       // User doesn't exist - handle signup
       if (mode === 'login') {
         return NextResponse.redirect(
-          `${process.env.APP_URL || 'http://localhost:3000'}/auth/login?error=account_not_found`
+          `${appUrl}/auth/login?error=account_not_found`
         );
       }
 
@@ -264,12 +267,12 @@ export async function GET(request) {
 
         console.log('Google OAuth: New user created successfully');
         return NextResponse.redirect(
-          `${process.env.APP_URL || 'http://localhost:3000'}/auth/business-setup?userId=${result.user.id}&tenantId=${result.user.tenantId}`
+          `${appUrl}/auth/business-setup?userId=${result.user.id}&tenantId=${result.user.tenantId}`
         );
       } else {
         console.error('Google OAuth: Signup failed:', result.error);
         return NextResponse.redirect(
-          `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=signup_failed&details=${encodeURIComponent(result.error)}`
+          `${appUrl}/auth/signup?error=signup_failed&details=${encodeURIComponent(result.error)}`
         );
       }
     }
@@ -286,8 +289,12 @@ export async function GET(request) {
       errorMessage = 'OAuth configuration error - redirect URI mismatch';
     }
     
+    const appUrl = getPublicAppBaseUrlForEmail({
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      forwardedHost: request.headers.get('x-forwarded-host'),
+    });
     return NextResponse.redirect(
-      `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=oauth_callback_failed&details=${encodeURIComponent(errorMessage)}`
+      `${appUrl}/auth/signup?error=oauth_callback_failed&details=${encodeURIComponent(errorMessage)}`
     );
   }
 }

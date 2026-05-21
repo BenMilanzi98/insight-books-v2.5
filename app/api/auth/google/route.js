@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
+import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
 
 export async function GET(request) {
   try {
+    const appUrl = getPublicAppBaseUrlForEmail({
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      forwardedHost: request.headers.get('x-forwarded-host'),
+    });
+
     // Check for required environment variables
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -12,13 +18,12 @@ export async function GET(request) {
       console.error('GOOGLE_CLIENT_ID:', clientId ? 'Set' : 'Missing');
       console.error('GOOGLE_CLIENT_SECRET:', clientSecret ? 'Set' : 'Missing');
       return NextResponse.redirect(
-        `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=oauth_config_missing`
+        `${appUrl}/auth/signup?error=oauth_config_missing`
       );
     }
 
     // Set up redirect URI
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
-      `${process.env.APP_URL || 'http://localhost:3000'}/api/auth/google/callback`;
+    const redirectUri = `${appUrl}/api/auth/google/callback`;
 
     console.log('Google OAuth Configuration:');
     console.log('Client ID:', clientId ? 'Set' : 'Missing');
@@ -50,8 +55,12 @@ export async function GET(request) {
     return NextResponse.redirect(authUrl);
   } catch (error) {
     console.error('Google OAuth initiation error:', error);
+    const appUrl = getPublicAppBaseUrlForEmail({
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      forwardedHost: request.headers.get('x-forwarded-host'),
+    });
     return NextResponse.redirect(
-      `${process.env.APP_URL || 'http://localhost:3000'}/auth/signup?error=oauth_init_failed&details=${encodeURIComponent(error.message)}`
+      `${appUrl}/auth/signup?error=oauth_init_failed&details=${encodeURIComponent(error.message)}`
     );
   }
 } 

@@ -19,7 +19,9 @@ import {
   CreditCard,
   X
 } from 'lucide-react';
-import { SUBSCRIPTION_PLANS, EIS_PLANS } from '@/lib/subscriptionConfig';
+import { PUBLIC_SUBSCRIPTION_PLANS, SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
+
+const SHOW_EIS_SUBSCRIPTION_UI = false;
 
 export default function AdminSubscriptions() {
   const [activeTab, setActiveTab] = useState('subscriptions');
@@ -99,7 +101,6 @@ export default function AdminSubscriptions() {
     fetchTenants();
     fetchBranchSubscriptions();
     fetchAllBranches();
-    fetchEISSubscriptions();
   }, []);
 
   const fetchSubscriptions = async () => {
@@ -697,16 +698,18 @@ export default function AdminSubscriptions() {
           >
             Subscriptions
           </button>
-          <button
-            onClick={() => setActiveTab('eis')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'eis'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            EIS Subscriptions
-          </button>
+          {SHOW_EIS_SUBSCRIPTION_UI && (
+            <button
+              onClick={() => setActiveTab('eis')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'eis'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              EIS Subscriptions
+            </button>
+          )}
           {activeTab === 'subscriptions' && (
             <button
               onClick={() => setShowAddModal(true)}
@@ -1310,8 +1313,8 @@ export default function AdminSubscriptions() {
                       onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      {Object.entries(SUBSCRIPTION_PLANS).map(([key, plan]) => (
-                        <option key={key} value={key}>{plan.displayName}</option>
+                      {PUBLIC_SUBSCRIPTION_PLANS.map((plan) => (
+                        <option key={plan.id} value={plan.id}>{plan.displayName}</option>
                       ))}
                     </select>
                   </div>
@@ -1520,8 +1523,8 @@ export default function AdminSubscriptions() {
                       onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      {Object.entries(SUBSCRIPTION_PLANS).map(([key, plan]) => (
-                        <option key={key} value={key}>{plan.displayName}</option>
+                      {PUBLIC_SUBSCRIPTION_PLANS.map((plan) => (
+                        <option key={plan.id} value={plan.id}>{plan.displayName}</option>
                       ))}
                     </select>
                   </div>
@@ -1720,7 +1723,7 @@ export default function AdminSubscriptions() {
       )}
 
       {/* EIS Subscriptions Section */}
-      {activeTab === 'eis' && (
+      {SHOW_EIS_SUBSCRIPTION_UI && activeTab === 'eis' && (
         <div className="space-y-6">
           {/* EIS Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

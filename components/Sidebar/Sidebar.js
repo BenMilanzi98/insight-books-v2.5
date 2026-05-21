@@ -279,22 +279,6 @@ const navigationByPermission = {
       ],
     },
     {
-      label: "MRA EIS",
-      items: [
-        {
-          href: "/eis",
-          icon: "reports",
-          text: "MRA EIS",
-          expandable: true,
-          subItems: [
-            { href: "/eis", text: "EIS Dashboard" },
-            { href: "/eis/invoices", text: "EIS Invoices" },
-            { href: "/eis/config", text: "EIS Configuration" },
-          ]
-        },
-      ],
-    },
-    {
       label: "Accounting",
       items: [
         {
