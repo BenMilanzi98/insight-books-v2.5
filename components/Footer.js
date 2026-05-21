@@ -72,7 +72,7 @@ const Footer = ({ skipPermissions = false }) => {
               <span style={{ fontWeight: "600", color: "#1e293b" }}>InsightBooks</span>
             </div>
             <p style={{ margin: "0 0 12px 0", lineHeight: "1.6" }}>
-              A powerful financial management platform designed for businesses of all sizes.
+              A powerful Business Management platform designed for businesses of all sizes.
               Streamline your accounting, invoicing, and financial reporting.
             </p>
             <div style={{ display: "flex", gap: "12px" }}>

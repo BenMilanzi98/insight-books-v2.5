@@ -288,7 +288,7 @@ function HeroSection() {
             </div>
 
             <h1 className="text-[clamp(1.65rem,5.5vw,2.25rem)] sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.12] sm:leading-[1.08] mb-5 sm:mb-6 text-balance px-0.5 sm:px-0">
-              Financial Management{' '}
+              Business Management{' '}
               <span className="bg-gradient-to-r from-sky-200 via-white to-indigo-200 bg-clip-text text-transparent">
                 Simplified
               </span>

@@ -11,7 +11,7 @@ InsightBooks includes the following features:
 - User activity tracking
 - Password reset and account management
 
-**Financial Management:**
+**Business Management:**
 - Invoicing: Create, send, and manage invoices
 - Quotations: Create and convert quotations to invoices
 - Expense Tracking: Record and categorize expenses

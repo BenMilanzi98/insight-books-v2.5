@@ -127,7 +127,7 @@ export default function TermsOfService() {
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4 leading-relaxed">
-                      Welcome to <strong>InsightBooks</strong> ("we," "our," or "us"). These Terms of Service ("Terms") govern your use of our financial management platform and services (collectively, the "Service").
+                      Welcome to <strong>InsightBooks</strong> ("we," "our," or "us"). These Terms of Service ("Terms") govern your use of our Business Management platform and services (collectively, the "Service").
                     </p>
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
                       <p className="text-blue-800 font-medium">

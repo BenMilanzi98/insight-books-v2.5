@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, AlertCircle, CheckCircle } from "lucide-react";
-import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
 import { clearUserCache } from "@/lib/permissions";
 
 // Component that safely uses search params
@@ -36,18 +35,6 @@ function LoginForm() {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
-
-  useEffect(() => {
-    const err = searchParams.get("error");
-    const qpEmail = searchParams.get("email");
-    if (err === "multi_tenant_google" && qpEmail) {
-      setEmail(qpEmail);
-      setShowBusinessChoice(true);
-      setError(
-        "This Google account’s email is linked to more than one business. Sign in with your password below to choose the business you want to access."
-      );
-    }
-  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -118,216 +105,199 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Branding Section */}
-      <div className="hidden md:flex md:w-1/2 bg-indigo-800 text-white p-8 flex-col justify-between">
-        <div>
-          {/* <div className="flex items-center mb-8">
-            <div className="h-10 w-10 rounded-md bg-white text-blue-800 flex items-center justify-center font-bold text-xl mr-3">
-              IB
-            </div>
-            <h1 className="text-2xl font-bold">InsightBooks</h1>
-          </div> */}
-          <div className="flex items-center">
-            <img
-            src="/logo.png"
-            alt="InsightBooks Logo"
-            className="h-10 w-auto object-contain rounded-md"
-            />
-          </div>
-          <div className="max-w-md mt-6">
-            <h2 className="text-3xl font-bold mb-6">Welcome to your complete business management solution</h2>
-            <p className="mb-4">
-              Streamline your invoicing, expenses, financial reporting, and more with our powerful multi-tenant platform.
-            </p>
-            <div className="mt-8">
-              <div className="flex items-center mb-4">
-                <div className="h-8 w-8 rounded-full bg-indigo-700 flex items-center justify-center mr-3">✓</div>
-                <span>Secure multi-tenant architecture</span>
-              </div>
-              <div className="flex items-center mb-4">
-                <div className="h-8 w-8 rounded-full bg-indigo-700 flex items-center justify-center mr-3">✓</div>
-                <span>Comprehensive financial management</span>
-              </div>
-              <div className="flex items-center">
-                <div className="h-8 w-8 rounded-full bg-indigo-700 flex items-center justify-center mr-3">✓</div>
-                <span>Inventory, HR, and POS integration</span>
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-900">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.35),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.22),_transparent_36%)]" />
+      <div className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+
+      <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="hidden flex-col justify-between p-10 text-white lg:flex xl:p-14">
+          <div>
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl shadow-indigo-950/20 backdrop-blur">
+              <img src="/logo.png" alt="InsightBooks Logo" className="h-10 w-auto rounded-lg object-contain" />
+              <div>
+                <p className="text-sm font-semibold tracking-wide">InsightBooks</p>
+                <p className="text-xs text-indigo-100">Business command center</p>
               </div>
             </div>
-          </div>
-        </div>
-        <div className="text-sm opacity-80">
-          © InsightBooks {new Date().getFullYear()}. All rights reserved.
-        </div>
-      </div>
 
-      {/* Login Form Section */}
-      <div className="w-full md:w-1/2 p-6 flex items-center justify-center">
-        <div className="w-full max-w-md">
-          <div className="mb-8 text-center md:text-left">
-            <h2 className="text-2xl font-bold text-gray-800">Login to your account</h2>
-            <p className="text-gray-600 mt-2">Enter your credentials to access your dashboard</p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700">
-              <AlertCircle size={18} className="mr-2" />
-              {error}
+            <div className="mt-24 max-w-2xl">
+              <p className="mb-5 inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-indigo-100 backdrop-blur">
+                Secure access for growing teams
+              </p>
+              <h1 className="text-5xl font-black leading-tight tracking-tight xl:text-6xl">
+                Run your finance, stock, sales, and payroll from one calm dashboard.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-200">
+                Sign in to manage invoices, expenses, reporting, inventory, POS, HR, and approvals with a workspace built for modern businesses.
+              </p>
             </div>
-          )}
-          
-          {successMessage && (
-            <div className="mb-6 p-3 bg-green-50 border border-green-200 rounded-md flex items-center text-green-700">
-              <CheckCircle size={18} className="mr-2" />
-              {successMessage}
-            </div>
-          )}
+          </div>
 
-          <form onSubmit={handleSubmit}>
-            {showBusinessChoice && tenantChoices.length > 0 && (
-              <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-950">
-                <p className="font-medium mb-2">Choose your business</p>
-                <p className="mb-3 text-indigo-900/80">
-                  Your email is linked to more than one business. Select where you want to log in.
+          <div className="grid max-w-2xl grid-cols-3 gap-4">
+            {[
+              ["99.9%", "Cloud-ready access"],
+              ["360°", "Business visibility"],
+              ["2FA", "Security-minded workflows"],
+            ].map(([metric, label]) => (
+              <div key={label} className="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur">
+                <p className="text-2xl font-bold">{metric}</p>
+                <p className="mt-1 text-sm text-slate-300">{label}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
+          <div className="w-full max-w-xl">
+            <div className="mb-8 flex items-center justify-center lg:hidden">
+              <div className="rounded-2xl bg-white/95 p-3 shadow-xl">
+                <img src="/logo.png" alt="InsightBooks Logo" className="h-10 w-auto object-contain" />
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-white/70 bg-white/95 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-8 lg:p-10">
+              <div className="mb-8">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-indigo-600">Welcome back</p>
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                  Login to your account
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                  Enter your credentials to continue to your business dashboard.
                 </p>
-                <fieldset className="space-y-2">
-                  <legend className="sr-only">Business</legend>
-                  {tenantChoices.map((tenant) => (
-                    <label
-                      key={tenant.id}
-                      htmlFor={`tenant-${tenant.id}`}
-                      className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors ${
-                        selectedTenantId === tenant.id
-                          ? "border-indigo-500 bg-white"
-                          : "border-indigo-100 bg-indigo-50/40 hover:bg-white"
-                      }`}
-                    >
-                      <input
-                        id={`tenant-${tenant.id}`}
-                        type="radio"
-                        name="tenantId"
-                        value={tenant.id}
-                        checked={selectedTenantId === tenant.id}
-                        onChange={() => setSelectedTenantId(tenant.id)}
-                        className="h-4 w-4 border-gray-300 text-indigo-700 focus:ring-indigo-500"
-                        required
-                      />
-                      <span className="font-medium text-gray-900">{tenant.name || "Business"}</span>
+              </div>
+
+              {error && (
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  <CheckCircle size={18} className="mt-0.5 flex-shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {showBusinessChoice && tenantChoices.length > 0 && (
+                  <div className="rounded-3xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
+                    <p className="font-semibold">Choose your business</p>
+                    <p className="mt-1 text-indigo-900/75">
+                      Your email is linked to more than one business. Select where you want to log in.
+                    </p>
+                    <fieldset className="mt-4 space-y-2">
+                      <legend className="sr-only">Business</legend>
+                      {tenantChoices.map((tenant) => (
+                        <label
+                          key={tenant.id}
+                          htmlFor={`tenant-${tenant.id}`}
+                          className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-all ${
+                            selectedTenantId === tenant.id
+                              ? "border-indigo-500 bg-white shadow-sm"
+                              : "border-indigo-100 bg-white/40 hover:bg-white"
+                          }`}
+                        >
+                          <input
+                            id={`tenant-${tenant.id}`}
+                            type="radio"
+                            name="tenantId"
+                            value={tenant.id}
+                            checked={selectedTenantId === tenant.id}
+                            onChange={() => setSelectedTenantId(tenant.id)}
+                            className="h-4 w-4 border-slate-300 text-indigo-700 focus:ring-indigo-500"
+                            required
+                          />
+                          <span className="font-semibold text-slate-900">{tenant.name || "Business"}</span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  </div>
+                )}
+
+                {showBusinessChoice && tenantChoices.length === 0 && (
+                  <div className="rounded-3xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
+                    <p className="font-semibold">Choose your business</p>
+                    <p className="mt-1 text-indigo-900/75">
+                      Enter your password and continue. If this email belongs to multiple businesses, we will show them here for selection.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="email"
+                      type="email"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => handleEmailChange(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                      Password
                     </label>
-                  ))}
-                </fieldset>
-              </div>
-            )}
-
-            {showBusinessChoice && tenantChoices.length === 0 && (
-              <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-950">
-                <p className="font-medium mb-1">Choose your business</p>
-                <p className="text-indigo-900/80">
-                  Enter your password and continue. If this email belongs to multiple businesses, we will show them here for selection.
-                </p>
-              </div>
-            )}
-
-            <div className="mb-6">
-              <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  <Mail size={18} />
+                    <Link href="/auth/forgot-password" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 pl-12 pr-12 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      onClick={togglePasswordVisibility}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
-                <input
-                  id="email"
-                  type="email"
-                  className="w-full p-3 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => handleEmailChange(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="mb-6">
-              <div className="flex justify-between mb-2">
-                <label htmlFor="password" className="block text-gray-700 font-medium">
-                  Password
-                </label>
-                <Link href="/auth/forgot-password" className="text-sm text-indigo-700 hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  <Lock size={18} />
+                <div className="flex items-center justify-between">
+                  <label htmlFor="remember-me" className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                    <input
+                      id="remember-me"
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      checked={rememberMe}
+                      onChange={() => setRememberMe(!rememberMe)}
+                    />
+                    Remember me
+                  </label>
                 </div>
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  className="w-full p-3 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+
                 <button
-                  type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  onClick={togglePasswordVisibility}
+                  type="submit"
+                  className="group flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 p-4 font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                  disabled={isLoading}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {isLoading ? "Logging in..." : "Login"}
                 </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 border-gray-300 rounded text-blue-600 focus:ring-blue-500"
-                  checked={rememberMe}
-                  onChange={() => setRememberMe(!rememberMe)}
-                />
-                <label htmlFor="remember-me" className="ml-2 text-sm text-gray-600">
-                  Remember me
-                </label>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-indigo-700 text-white p-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? "Logging in..." : "Login"}
-            </button>
-          </form>
-
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 gap-3">
-              <GoogleOAuthButton mode="login" />
+              </form>
             </div>
           </div>
-
-          {/* <div className="mt-8 text-center">
-            <p className="text-gray-600">
-              Don't have an account?{" "}
-              <Link href="/auth/signup" className="text-indigo-700 font-medium hover:underline">
-                Create Account
-              </Link>
-            </p>
-          </div> */}
-        </div>
+        </section>
       </div>
     </div>
   );

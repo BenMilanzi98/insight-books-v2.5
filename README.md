@@ -1,6 +1,6 @@
-# Insight Books - Financial Management Platform
+# Insight Books - Business Management Platform
 
-A comprehensive financial management platform built with Next.js, featuring accounting, inventory, HR, and business management tools.
+A comprehensive Business Management platform built with Next.js, featuring accounting, inventory, HR, and business management tools.
 
 ## 🗄️ Database Setup
 

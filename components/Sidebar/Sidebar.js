@@ -174,7 +174,7 @@ const navigationByPermission = {
           expandable: true,
           subItems: [
             { href: "/insightbooks/internal-business/overview", text: "Business Overview" },
-            { href: "/insightbooks/internal-business/finances", text: "Financial Management" },
+            { href: "/insightbooks/internal-business/finances", text: "Business Management" },
             { href: "/insightbooks/internal-business/staff", text: "Staff Management" },
             { href: "/insightbooks/internal-business/expenses", text: "Expense Tracking" },
             { href: "/insightbooks/internal-business/revenue", text: "Revenue Analytics" },

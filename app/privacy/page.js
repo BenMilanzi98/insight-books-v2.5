@@ -128,7 +128,7 @@ export default function PrivacyPolicy() {
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4 leading-relaxed">
-                      At <strong>InsightBooks</strong> ("we," "our," or "us"), we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our financial management platform and services.
+                      At <strong>InsightBooks</strong> ("we," "our," or "us"), we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Business Management platform and services.
                     </p>
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
                       <p className="text-blue-800 font-medium">
@@ -260,7 +260,7 @@ export default function PrivacyPolicy() {
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
-                        { title: "Service Provision", desc: "To provide, maintain, and improve our financial management services", color: "blue" },
+                        { title: "Service Provision", desc: "To provide, maintain, and improve our Business Management services", color: "blue" },
                         { title: "Account Management", desc: "To create and manage your account, process payments, and provide customer support", color: "green" },
                         { title: "Communication", desc: "To send you important updates, security alerts, and support messages", color: "purple" },
                         { title: "Analytics", desc: "To analyze usage patterns and improve our Service", color: "indigo" },
