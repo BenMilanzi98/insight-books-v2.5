@@ -47,7 +47,7 @@ export async function GET(request) {
       if (!isMissingDbFieldError(settingsError)) throw settingsError;
     }
 
-    const earlyDays = settings?.expiryWarnDaysEarly ?? 30;
+    const earlyDays = settings?.expiryWarnDaysEarly ?? 60;
     const urgentDays = settings?.expiryWarnDaysUrgent ?? 7;
 
     const data = await fetchExpiryAlerts({

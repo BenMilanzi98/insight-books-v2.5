@@ -42,6 +42,12 @@ async function getProductWithValidation(id, tenantId) {
     isService: true,
     isPerishable: true,
     expiryDate: true,
+    batchNumber: true,
+    supplier: true,
+    discountAmount: true,
+    weight: true,
+    dimensions: true,
+    tags: true,
     serviceBillingType: true,
     serviceDefaultQty: true,
     incomeAccountId: true,
@@ -473,6 +479,27 @@ export async function PUT(request, { params }) {
           : body.expiryDate !== undefined
             ? (body.expiryDate ? new Date(body.expiryDate) : null)
             : result.product.expiryDate,
+      batchNumber:
+        body.batchNumber !== undefined
+          ? (body.batchNumber && String(body.batchNumber).trim() ? String(body.batchNumber).trim() : null)
+          : result.product.batchNumber,
+      supplier:
+        body.supplier !== undefined
+          ? (body.supplier && String(body.supplier).trim() ? String(body.supplier).trim() : null)
+          : result.product.supplier,
+      discountAmount:
+        body.discountAmount !== undefined
+          ? (body.discountAmount === null || body.discountAmount === '' ? null : Number(body.discountAmount))
+          : result.product.discountAmount,
+      weight:
+        body.weight !== undefined
+          ? (body.weight === null || body.weight === '' ? null : Number(body.weight))
+          : result.product.weight,
+      dimensions:
+        body.dimensions !== undefined
+          ? (body.dimensions && String(body.dimensions).trim() ? String(body.dimensions).trim() : null)
+          : result.product.dimensions,
+      tags: Array.isArray(body.tags) ? body.tags.map((tag) => String(tag).trim()).filter(Boolean) : result.product.tags,
       image: imagePath,
       barcode: barcodesInput && barcodesInput[0] ? barcodesInput[0] : (barcodesInput && barcodesInput.length === 0 ? null : result.product.barcode),
       // Recalculate inventory value when cost or stock changes so /stock shows correct value

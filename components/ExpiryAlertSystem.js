@@ -34,6 +34,8 @@ const ExpiryAlertSystem = ({
     notes: "",
   });
   const [restockSubmitting, setRestockSubmitting] = useState(false);
+  const [thresholdForm, setThresholdForm] = useState({ earlyDays: "60", urgentDays: "7" });
+  const [savingThresholds, setSavingThresholds] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +45,10 @@ const ExpiryAlertSystem = ({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load alerts");
       setData(json);
+      setThresholdForm({
+        earlyDays: String(json?.thresholds?.earlyDays ?? 60),
+        urgentDays: String(json?.thresholds?.urgentDays ?? 7),
+      });
     } catch (e) {
       setError(e.message || "Failed to load");
     } finally {
@@ -166,6 +172,43 @@ const ExpiryAlertSystem = ({
     }
   };
 
+  const handleSaveThresholds = async () => {
+    const earlyDays = Number(thresholdForm.earlyDays);
+    const urgentDays = Number(thresholdForm.urgentDays);
+    if (!Number.isFinite(earlyDays) || earlyDays <= 0) {
+      showToast?.("error", "Invalid alert window", "Early warning days must be greater than 0");
+      return;
+    }
+    if (!Number.isFinite(urgentDays) || urgentDays <= 0) {
+      showToast?.("error", "Invalid alert window", "Urgent warning days must be greater than 0");
+      return;
+    }
+    if (urgentDays > earlyDays) {
+      showToast?.("error", "Invalid alert window", "Urgent days cannot be greater than early warning days");
+      return;
+    }
+
+    setSavingThresholds(true);
+    try {
+      const res = await fetch("/api/tenant/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expiryWarnDaysEarly: earlyDays,
+          expiryWarnDaysUrgent: urgentDays,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to save expiry alert settings");
+      showToast?.("success", "Expiry alerts updated", `Early warning set to ${earlyDays} days`);
+      await load();
+    } catch (e) {
+      showToast?.("error", "Save failed", e.message || "Could not save expiry alert settings");
+    } finally {
+      setSavingThresholds(false);
+    }
+  };
+
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-600 gap-2">
@@ -201,7 +244,7 @@ const ExpiryAlertSystem = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-600">
           Per-batch expiry (goods receipts / stock in). Thresholds: urgent ≤{" "}
-          {thresholds?.urgentDays ?? 7} days, early ≤ {thresholds?.earlyDays ?? 30} days (tenant
+          {thresholds?.urgentDays ?? 7} days, early ≤ {thresholds?.earlyDays ?? 60} days (tenant
           settings override defaults).
         </p>
         <button
@@ -213,6 +256,54 @@ const ExpiryAlertSystem = ({
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
+      </div>
+
+      <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-blue-950">Expiry alert window</h3>
+            <p className="mt-1 text-xs text-blue-800">
+              Default early warning is 60 days (about 2 months). Adjust this tenant-wide for
+              goods received into expiring batches.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs font-medium text-blue-950">
+              Early warning days
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={thresholdForm.earlyDays}
+                onChange={(e) =>
+                  setThresholdForm((prev) => ({ ...prev, earlyDays: e.target.value }))
+                }
+                className="mt-1 block w-28 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-blue-950">
+              Urgent days
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={thresholdForm.urgentDays}
+                onChange={(e) =>
+                  setThresholdForm((prev) => ({ ...prev, urgentDays: e.target.value }))
+                }
+                className="mt-1 block w-28 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleSaveThresholds}
+              disabled={savingThresholds}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {savingThresholds ? "Saving…" : "Save alerts"}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -241,7 +332,7 @@ const ExpiryAlertSystem = ({
           <Package className="mx-auto mb-2 opacity-70" size={40} />
           <p className="font-medium">No batch expiry alerts</p>
           <p className="text-sm mt-1 opacity-90">
-            No batches with expiry in the next {thresholds?.earlyDays ?? 30} days (or expired), or
+            No batches with expiry in the next {thresholds?.earlyDays ?? 60} days (or expired), or
             batches have no expiry date set.
           </p>
         </div>

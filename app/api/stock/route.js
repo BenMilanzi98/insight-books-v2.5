@@ -644,6 +644,27 @@ export async function POST(request) {
       image: imagePath,
       isService: !!body.isService,
       isPerishable: !!body.isPerishable,
+      batchNumber:
+        body.batchNumber !== undefined && body.batchNumber !== null && String(body.batchNumber).trim() !== ''
+          ? String(body.batchNumber).trim()
+          : null,
+      supplier:
+        body.supplier !== undefined && body.supplier !== null && String(body.supplier).trim() !== ''
+          ? String(body.supplier).trim()
+          : null,
+      discountAmount:
+        body.discountAmount !== undefined && body.discountAmount !== null && body.discountAmount !== ''
+          ? parseFloat(body.discountAmount)
+          : null,
+      weight:
+        body.weight !== undefined && body.weight !== null && body.weight !== ''
+          ? parseFloat(body.weight)
+          : null,
+      dimensions:
+        body.dimensions !== undefined && body.dimensions !== null && String(body.dimensions).trim() !== ''
+          ? String(body.dimensions).trim()
+          : null,
+      tags: Array.isArray(body.tags) ? body.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
       expiryDate:
         body.isPerishable && body.expiryDate
           ? new Date(body.expiryDate)

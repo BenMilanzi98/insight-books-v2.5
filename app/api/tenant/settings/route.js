@@ -88,6 +88,8 @@ export async function GET(request) {
       invoiceReminders: settings?.invoiceReminders,
       lowStockAlerts: settings?.lowStockAlerts,
       paymentReceipts: settings?.paymentReceipts,
+      expiryWarnDaysEarly: settings?.expiryWarnDaysEarly ?? 60,
+      expiryWarnDaysUrgent: settings?.expiryWarnDaysUrgent ?? 7,
       
       // Additional settings 
       taxEnabled: settings?.taxEnabled,
@@ -151,6 +153,17 @@ export async function PUT(request) {
       tpin: body.tpin !== undefined ? (body.tpin || null) : undefined,
     });
 
+    const normalizePositiveInt = (value, fallbackUndefined = true) => {
+      if (value === undefined) return fallbackUndefined ? undefined : null;
+      if (value === null || value === '') return null;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+      return Math.min(365, Math.round(parsed));
+    };
+
+    const expiryWarnDaysEarly = normalizePositiveInt(body.expiryWarnDaysEarly);
+    const expiryWarnDaysUrgent = normalizePositiveInt(body.expiryWarnDaysUrgent);
+
     const settingsFields = omitUndefined({
       emailFooter: body.emailFooter,
       customDomain: body.customDomain,
@@ -172,6 +185,13 @@ export async function PUT(request) {
       invoiceReminders: body.invoiceReminders,
       lowStockAlerts: body.lowStockAlerts,
       paymentReceipts: body.paymentReceipts,
+      expiryWarnDaysEarly,
+      expiryWarnDaysUrgent:
+        expiryWarnDaysEarly != null &&
+        expiryWarnDaysUrgent != null &&
+        expiryWarnDaysUrgent > expiryWarnDaysEarly
+          ? Math.max(1, Math.min(7, expiryWarnDaysEarly))
+          : expiryWarnDaysUrgent,
     });
 
     if (Object.keys(tenantFields).length > 0) {
