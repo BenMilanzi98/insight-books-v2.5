@@ -105,9 +105,17 @@ function LoginForm() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-900">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.35),_transparent_34%),radial-gradient(circle_at_bottom_left,_rgba(20,184,166,0.18),_transparent_38%)]" />
-      <div className="absolute -left-24 top-32 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden bg-blue-950 text-slate-900">
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950" />
+      <div
+        className="absolute inset-0 opacity-70"
+        style={{
+          background:
+            'radial-gradient(ellipse 100% 80% at 50% -28%, rgba(67, 56, 202, 0.45), transparent 52%), radial-gradient(ellipse 55% 45% at 100% 45%, rgba(29, 78, 216, 0.3), transparent), radial-gradient(ellipse 40% 40% at 0% 80%, rgba(30, 58, 138, 0.35), transparent)',
+        }}
+      />
+      <div className="absolute top-20 left-1/4 hidden h-[min(420px,55vw)] w-[min(420px,55vw)] rounded-full bg-indigo-600/20 blur-[100px] sm:block" />
+      <div className="absolute bottom-10 right-0 hidden h-[min(380px,50vw)] w-[min(380px,50vw)] rounded-full bg-blue-600/25 blur-[90px] sm:block" />
 
       <div className="relative z-10 grid min-h-screen xl:grid-cols-[0.9fr_1.1fr]">
         <section className="hidden flex-col justify-between p-8 text-white xl:flex xl:p-10">
@@ -121,7 +129,7 @@ function LoginForm() {
             </div>
 
             <div className="mt-16 max-w-xl">
-              <p className="mb-4 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100 backdrop-blur">
+              <p className="mb-4 inline-flex rounded-full border border-sky-400/20 bg-blue-950/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-sky-100 backdrop-blur">
                 Future-ready business OS
               </p>
               <h1 className="text-4xl font-black leading-tight tracking-tight">
@@ -147,19 +155,19 @@ function LoginForm() {
           </div>
         </section>
 
-        <section className="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+        <section className="flex min-h-screen items-start justify-center px-3 py-4 sm:items-center sm:px-6 sm:py-6 lg:px-8">
           <div className="w-full max-w-2xl">
-            <div className="mb-5 flex items-center justify-center xl:hidden">
-              <div className="rounded-2xl bg-white/95 p-3 shadow-xl">
-                <img src="/logo.png" alt="InsightBooks Logo" className="h-9 w-auto object-contain" />
+            <div className="mb-4 flex items-center justify-center xl:hidden">
+              <div className="rounded-2xl bg-white/95 p-2.5 shadow-xl">
+                <img src="/logo.png" alt="InsightBooks Logo" className="h-8 w-auto object-contain sm:h-9" />
               </div>
             </div>
 
-            <div className="rounded-[1.75rem] border border-white/70 bg-white/95 p-5 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-6 lg:p-7">
-              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="rounded-3xl border border-white/70 bg-white/95 p-4 shadow-2xl shadow-blue-950/50 backdrop-blur-xl sm:p-6 lg:p-7">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Welcome back</p>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                     Login to your account
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -172,8 +180,8 @@ function LoginForm() {
               </div>
 
               <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1">
-                <div className="grid grid-cols-2 text-center text-sm font-bold">
-                  <span className="rounded-xl bg-slate-950 px-3 py-2 text-white shadow-sm">Login</span>
+                <div className="grid grid-cols-2 text-center text-sm font-semibold">
+                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">Login</span>
                   <Link href="/auth/signup" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
                     Signup
                   </Link>
@@ -188,7 +196,7 @@ function LoginForm() {
               )}
 
               {successMessage && (
-                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                   <CheckCircle size={18} className="mt-0.5 flex-shrink-0" />
                   <span>{successMessage}</span>
                 </div>
@@ -303,7 +311,7 @@ function LoginForm() {
 
                 <button
                   type="submit"
-                  className="group flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 p-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                  className="group flex w-full items-center justify-center rounded-xl bg-blue-600 p-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-950/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
                   disabled={isLoading}
                 >
                   {isLoading ? "Logging in..." : "Login"}
