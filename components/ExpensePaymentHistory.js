@@ -118,8 +118,11 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
     }
   };
 
-  const getPaymentMethodName = (method) => {
-    switch (method?.toLowerCase()) {
+  const getPaymentMethodName = (payment) => {
+    if (payment?.paymentMethodName) return payment.paymentMethodName;
+    const method = payment?.paymentMethod || payment;
+    if (!method || typeof method !== 'string') return '—';
+    switch (method.toLowerCase()) {
       case 'cash':
         return 'Cash';
       case 'credit_card':
@@ -135,7 +138,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
       case 'other':
         return 'Other';
       default:
-        return method || 'Unknown';
+        return method.length > 20 ? 'Unknown method' : method;
     }
   };
 
@@ -392,7 +395,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
                         </span>
                       </div>
                       <div className="text-sm text-gray-600">
-                        {getPaymentMethodName(payment.paymentMethod)} • {formatDateTime(payment.paymentDate)}
+                        {getPaymentMethodName(payment)} • {formatDateTime(payment.paymentDate)}
                       </div>
                       {payment.reference && (
                         <div className="text-xs text-gray-500">

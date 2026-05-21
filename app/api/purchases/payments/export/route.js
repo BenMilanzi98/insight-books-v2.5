@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  buildPaymentAccountMap,
+  resolvePaymentMethodLabel,
+  looksLikeRecordId,
+} from '@/lib/userFacingLabels';
 
 export async function GET(request) {
   try {
@@ -99,6 +104,12 @@ export async function GET(request) {
       'Currency'
     ];
 
+    const paymentAccountById = await buildPaymentAccountMap(
+      prisma,
+      user.tenantId,
+      payments.map((p) => p.paymentMethod).filter(looksLikeRecordId)
+    );
+
     const csvRows = payments.map(payment => {
       const currency = payment.currency || 'MWK';
       return [
@@ -106,7 +117,7 @@ export async function GET(request) {
         payment.supplier?.supplierName || 'N/A',
         payment.supplier?.supplierCode || 'N/A',
         formatDate(payment.paymentDate),
-        payment.paymentMethod || 'N/A',
+        resolvePaymentMethodLabel(payment.paymentMethod, paymentAccountById),
         formatCurrency(payment.totalAmount, currency),
         payment.referenceNumber || 'N/A',
         (payment.allocations?.length || 0).toString(),

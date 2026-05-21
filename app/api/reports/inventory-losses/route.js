@@ -116,6 +116,45 @@ export async function GET(request) {
       })
       .filter((item) => (eventType === 'all' ? true : item.eventType === eventType));
 
+    const sourceIds = [...new Set(items.map((i) => i.sourceId).filter(Boolean))];
+    const batchLabels = new Map();
+    if (sourceIds.length) {
+      const batches = await prisma.inventoryBatch.findMany({
+        where: { tenantId: user.tenantId, id: { in: sourceIds } },
+        select: {
+          id: true,
+          purchaseDate: true,
+          expiryDate: true,
+          product: { select: { name: true, sku: true } },
+        },
+      });
+      for (const b of batches) {
+        const productLabel = b.product?.name || b.product?.sku || 'Product';
+        const dateHint = b.expiryDate
+          ? `exp. ${new Date(b.expiryDate).toLocaleDateString()}`
+          : b.purchaseDate
+            ? `received ${new Date(b.purchaseDate).toLocaleDateString()}`
+            : '';
+        batchLabels.set(b.id, dateHint ? `${productLabel} (${dateHint})` : productLabel);
+      }
+      const missingIds = sourceIds.filter((id) => !batchLabels.has(id));
+      if (missingIds.length) {
+        const products = await prisma.product.findMany({
+          where: { tenantId: user.tenantId, id: { in: missingIds }, isDeleted: false },
+          select: { id: true, name: true, sku: true },
+        });
+        for (const p of products) {
+          batchLabels.set(p.id, p.name || p.sku || 'Product');
+        }
+      }
+    }
+
+    for (const item of items) {
+      item.sourceLabel = item.sourceId
+        ? batchLabels.get(item.sourceId) || 'Inventory adjustment'
+        : 'Inventory adjustment';
+    }
+
     const summary = items.reduce(
       (acc, item) => {
         const amount = Number(item.amount || 0);

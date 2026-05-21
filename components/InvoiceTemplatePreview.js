@@ -294,7 +294,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   <div className="pt-1">
                     <p className="text-xs font-medium text-gray-500 mb-1">Payment history</p>
                     {displayData.payments.map((payment, i) => (
-                      <div key={payment.id || i} className="flex justify-between text-xs text-gray-600"><span>{formatDate(payment.paymentDate)} · {payment.paymentMethod}</span><span>{formatCurrencyDisplay(payment.amount)}</span></div>
+                      <div key={payment.id || i} className="flex justify-between text-xs text-gray-600"><span>{formatDate(payment.paymentDate)} · {payment.paymentMethodName || payment.paymentMethod}</span><span>{formatCurrencyDisplay(payment.amount)}</span></div>
                     ))}
                   </div>
                 )}
@@ -497,7 +497,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   <div className="space-y-1">
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
-                        <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
+                        <span>{formatDate(payment.paymentDate)} - {payment.paymentMethodName || payment.paymentMethod}</span>
                         <span>{formatCurrencyDisplay(payment.amount)}</span>
                       </div>
                     ))}
@@ -695,7 +695,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   <div className="space-y-1">
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
-                        <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
+                        <span>{formatDate(payment.paymentDate)} - {payment.paymentMethodName || payment.paymentMethod}</span>
                         <span>{formatCurrencyDisplay(payment.amount)}</span>
                       </div>
                     ))}

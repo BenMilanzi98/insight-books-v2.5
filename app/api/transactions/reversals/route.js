@@ -218,6 +218,11 @@ export async function GET(request) {
           payrollReversals.push({
             id: rev.id,
             type: 'payroll',
+            displayReference:
+              orig.reference ||
+              (payroll?.employee?.name
+                ? `Payroll — ${payroll.employee.name}`
+                : orig.description || 'Payroll'),
             description: orig.description || `Payroll reversal – ${payroll?.employee?.name || 'Employee'}`,
             originalAmount: amount,
             reversalAmount: -amount,
@@ -353,6 +358,7 @@ export async function GET(request) {
         return {
           id: expense.id,
           type: 'expense',
+          displayReference: orig?.description || expense.description || 'Expense',
           description: expense.description,
           originalAmount,
           reversalAmount: -originalAmount,
@@ -385,6 +391,7 @@ export async function GET(request) {
       ...invoiceReversals.map(invoice => ({
         id: invoice.id,
         type: 'sale',
+        displayReference: invoice.invoiceNumber ? `Invoice ${invoice.invoiceNumber}` : 'Invoice',
         description: `Invoice #${invoice.invoiceNumber}`,
         originalAmount: parseFloat(invoice.total),
         reversalAmount: -parseFloat(invoice.total),
@@ -406,6 +413,11 @@ export async function GET(request) {
       ...paymentReversals.map(payment => ({
         id: payment.id,
         type: 'payment',
+        displayReference:
+          payment.reference ||
+          (payment.invoice?.invoiceNumber ? `Invoice ${payment.invoice.invoiceNumber}` : null) ||
+          payment.expense?.description ||
+          'Payment',
         description: `Payment ${payment.type === 'received' ? 'Received' : 'Made'}`,
         originalAmount: parseFloat(payment.amount),
         reversalAmount: -parseFloat(payment.amount),
@@ -425,6 +437,9 @@ export async function GET(request) {
       ...refundReversals.map(refund => ({
         id: refund.id,
         type: 'refund',
+        displayReference: refund.invoice?.invoiceNumber
+          ? `Refund — Invoice ${refund.invoice.invoiceNumber}`
+          : 'Refund',
         description: `Refund for Invoice #${refund.invoice.invoiceNumber}`,
         originalAmount: parseFloat(refund.refundAmount),
         reversalAmount: -parseFloat(refund.refundAmount),
@@ -446,6 +461,7 @@ export async function GET(request) {
       ...saleRefundReversals.map(sale => ({
         id: sale.id,
         type: 'sale_refund',
+        displayReference: sale.saleNumber ? `Sale ${sale.saleNumber}` : 'Sale refund',
         description: `Refund for Sale #${sale.saleNumber}`,
         originalAmount: parseFloat(sale.total),
         reversalAmount: -parseFloat(sale.total),

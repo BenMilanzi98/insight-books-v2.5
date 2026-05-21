@@ -78,7 +78,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'This email is used for more than one business. Enter your business subdomain (from your company link) and try again.',
+            'This email is used for more than one business. Choose the business you want to access, then try again.',
           code: 'MULTI_TENANT_EMAIL',
           tenants: tenantsHintFromUserCandidates(candidates),
         },

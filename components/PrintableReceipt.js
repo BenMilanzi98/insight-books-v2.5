@@ -15,7 +15,11 @@ const PrintableReceipt = ({ receiptData }) => {
   // Determine if this is an invoice or expense receipt
   const isExpenseReceipt = !!expense;
   const document = isExpenseReceipt ? expense : invoice;
-  const documentNumber = isExpenseReceipt ? `EXP-${expense?.id?.slice(-8) || 'N/A'}` : invoice?.invoiceNumber || 'N/A';
+  const documentNumber = isExpenseReceipt
+    ? expense?.reference ||
+      expense?.originalReference ||
+      (expense?.description ? String(expense.description).slice(0, 48) : 'Expense')
+    : invoice?.invoiceNumber || 'N/A';
   const documentType = isExpenseReceipt ? 'Expense' : 'Invoice';
   const documentTotal = isExpenseReceipt ? (expense?.amount || 0) : (invoice?.total || 0);
   
@@ -47,15 +51,18 @@ const PrintableReceipt = ({ receiptData }) => {
     });
   };
 
-  const getPaymentMethodName = (method) => {
+  const getPaymentMethodName = (paymentOrMethod) => {
+    if (paymentOrMethod?.paymentMethodName) return paymentOrMethod.paymentMethodName;
+    const method = paymentOrMethod?.paymentMethod || paymentOrMethod;
     if (!method) return 'N/A';
+    if (typeof method !== 'string') return 'N/A';
     switch (method.toLowerCase()) {
       case 'cash': return 'Cash';
       case 'bank_transfer': return 'Bank Transfer';
       case 'mobile_money': return 'Mobile Money';
       case 'check': return 'Check';
       case 'credit_card': return 'Credit Card';
-      default: return method;
+      default: return method.length > 20 ? 'Unknown method' : method;
     }
   };
 
@@ -94,7 +101,7 @@ const PrintableReceipt = ({ receiptData }) => {
           <div>
             <h3 className="text-lg font-semibold text-blue-600 mb-3">Receipt Details</h3>
             <p><strong>Receipt Date:</strong> {formatDate(payment?.paymentDate)}</p>
-            <p><strong>Payment ID:</strong> {payment?.id || 'N/A'}</p>
+            <p><strong>Payment reference:</strong> {payment?.reference || payment?.receiptReference || 'N/A'}</p>
             <p><strong>{documentType} Total:</strong> {formatCurrency(documentTotal)}</p>
           </div>
         ) : (
@@ -126,7 +133,12 @@ const PrintableReceipt = ({ receiptData }) => {
             </div>
 
             <div className="mb-4">
-              <h4 className="font-semibold mb-2">Payment Method: {payment?.paymentMethod || payment?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</h4>
+              <h4 className="font-semibold mb-2">
+                Payment Method:{' '}
+                {getPaymentMethodName(payment) !== 'N/A'
+                  ? getPaymentMethodName(payment)
+                  : payment?.allocations?.[0]?.paymentAccount?.name || 'N/A'}
+              </h4>
               <p>Payment Date: {formatDateTime(payment?.paymentDate)}</p>
               {payment?.reference && <p>Reference: {payment.reference}</p>}
               {payment?.notes && <p>Notes: {payment.notes}</p>}
@@ -179,7 +191,7 @@ const PrintableReceipt = ({ receiptData }) => {
               {(payments || []).map((p, index) => (
                 <div key={index} className="p-3 border-b border-gray-200 grid grid-cols-4 gap-4">
                   <div>{formatDateTime(p.paymentDate)}</div>
-                  <div>{getPaymentMethodName(p.paymentMethod)}</div>
+                  <div>{getPaymentMethodName(p)}</div>
                   <div>{formatCurrency(p.amount)}</div>
                   <div>{p.reference || 'N/A'}</div>
                 </div>

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 
 // GET - Export payments to CSV
 export async function GET(request) {
@@ -65,6 +66,8 @@ export async function GET(request) {
       }
     });
 
+    const enriched = await enrichPaymentsWithMethodNames(prisma, user.tenantId, payments);
+
     if (format === 'csv') {
       // Generate CSV content
       const csvHeaders = [
@@ -78,12 +81,12 @@ export async function GET(request) {
         'Notes'
       ];
 
-      const csvRows = payments.map(payment => [
+      const csvRows = enriched.map((payment) => [
         payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : '',
         payment.invoice?.invoiceNumber || '',
         payment.invoice?.client?.name || '',
         payment.amount.toString(),
-        payment.paymentMethod || '',
+        payment.paymentMethodName || payment.paymentMethod || '',
         payment.reference || '',
         payment.status || '',
         payment.notes || ''

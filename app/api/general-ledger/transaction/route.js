@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  getEntryDisplayLabel,
+  getSourceDocumentLabel,
+  humanizeSourceType,
+  resolveReversedEntryLabelsBatch,
+  resolveSourceDocumentLabelsBatch,
+} from '@/lib/userFacingLabels';
 
 export async function GET(request) {
   try {
@@ -94,7 +101,29 @@ export async function GET(request) {
       return NextResponse.json({ error: 'No ledger entries found.' }, { status: 404 });
     }
 
-    return NextResponse.json({ entries: results });
+    const sourceLabels = await resolveSourceDocumentLabelsBatch(prisma, tenantId, results);
+    const reversedLabels = await resolveReversedEntryLabelsBatch(
+      prisma,
+      tenantId,
+      results.map((e) => e.reversedTransactionId).filter(Boolean)
+    );
+
+    const entries = results.map((entry) => ({
+      ...entry,
+      entryLabel: getEntryDisplayLabel(entry),
+      sourceTypeLabel: humanizeSourceType(entry.sourceType),
+      sourceLabel: getSourceDocumentLabel(
+        sourceLabels,
+        entry.sourceType,
+        entry.sourceId,
+        entry.reference || ''
+      ),
+      reversedEntryLabel: entry.reversedTransactionId
+        ? reversedLabels.get(entry.reversedTransactionId) || 'Original entry'
+        : null,
+    }));
+
+    return NextResponse.json({ entries });
   } catch (error) {
     console.error('Error fetching ledger transaction:', error);
     return NextResponse.json(

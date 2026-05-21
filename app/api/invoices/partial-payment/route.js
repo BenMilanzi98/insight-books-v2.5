@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
 import { createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
+import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 
 // POST - Process a partial payment for an invoice
 export async function POST(request) {
@@ -174,15 +175,17 @@ export async function POST(request) {
     const updatedInvoice = result.invoice;
 
     // Format response data
-    const formattedPayment = {
-      id: payment.id,
-      amount: payment.amount,
-      paymentMethod: payment.paymentMethod,
-      paymentDate: payment.paymentDate.toISOString().split('T')[0],
-      reference: payment.reference,
-      notes: payment.notes,
-      status: payment.status
-    };
+    const [formattedPayment] = await enrichPaymentsWithMethodNames(prisma, user.tenantId, [
+      {
+        id: payment.id,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        paymentDate: payment.paymentDate.toISOString().split('T')[0],
+        reference: payment.reference,
+        notes: payment.notes,
+        status: payment.status,
+      },
+    ]);
 
     const formattedInvoice = {
       id: updatedInvoice.id,
@@ -253,16 +256,19 @@ export async function GET(request) {
       );
     }
 
-    // Format payments data
-    const formattedPayments = invoice.payments.map(payment => ({
-      id: payment.id,
-      amount: payment.amount,
-      paymentMethod: payment.paymentMethod,
-      paymentDate: payment.paymentDate.toISOString().split('T')[0],
-      reference: payment.reference,
-      notes: payment.notes,
-      status: payment.status
-    }));
+    const formattedPayments = await enrichPaymentsWithMethodNames(
+      prisma,
+      user.tenantId,
+      invoice.payments.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        paymentDate: payment.paymentDate.toISOString().split('T')[0],
+        reference: payment.reference,
+        notes: payment.notes,
+        status: payment.status,
+      }))
+    );
 
     return NextResponse.json({
       payments: formattedPayments,

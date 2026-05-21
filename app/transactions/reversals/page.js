@@ -218,9 +218,9 @@ const ReversalsPage = () => {
       const data = await response.json();
 
       // Generate CSV
-      const headers = ['ID', 'Type', 'Description', 'Original Amount', 'Reversal Amount', 'Tax Reversed', 'Date', 'Reversed At', 'Reason', 'Performed By'];
+      const headers = ['Reference', 'Type', 'Description', 'Original Amount', 'Reversal Amount', 'Tax Reversed', 'Date', 'Reversed At', 'Reason', 'Performed By'];
       const rows = data.reversals.map(r => [
-        r.id,
+        r.displayReference || r.description || r.invoiceNumber || r.saleNumber || r.reference || '—',
         getTypeLabel(r.type),
         r.description,
         r.originalAmount,
@@ -515,7 +515,9 @@ const ReversalsPage = () => {
                       <td className="px-4 sm:px-6 py-4">
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-gray-900">{reversal.description}</span>
-                          <span className="text-xs text-gray-500">ID: {reversal.id}</span>
+                          <span className="text-xs text-gray-500">
+                            Ref: {reversal.displayReference || reversal.description || '—'}
+                          </span>
                           {reversal.client && (
                             <span className="text-xs text-gray-500">{reversal.client.name}</span>
                           )}

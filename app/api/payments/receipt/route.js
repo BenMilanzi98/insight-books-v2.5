@@ -3,6 +3,34 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generatePaymentReceiptPdfBuffer } from '@/lib/server-pdf-jspdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
+import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+
+async function enrichReceiptData(prisma, tenantId, receiptData) {
+  if (!receiptData) return receiptData;
+  if (receiptData.payment) {
+    const [payment] = await enrichPaymentsWithMethodNames(prisma, tenantId, [receiptData.payment]);
+    receiptData.payment = payment;
+  }
+  if (Array.isArray(receiptData.payments) && receiptData.payments.length) {
+    receiptData.payments = await enrichPaymentsWithMethodNames(
+      prisma,
+      tenantId,
+      receiptData.payments
+    );
+  }
+  if (receiptData.expense) {
+    receiptData.expense = {
+      ...receiptData.expense,
+      reference:
+        receiptData.expense.reference ||
+        receiptData.expense.originalReference ||
+        (receiptData.expense.description
+          ? String(receiptData.expense.description).slice(0, 80)
+          : null),
+    };
+  }
+  return receiptData;
+}
 
 // GET - Download receipt data (for client-side PDF generation)
 export async function GET(request) {
@@ -88,10 +116,14 @@ export async function GET(request) {
             notes: payment.notes,
             status: payment.status
           },
-          expense: payment.expense ? {
-            id: payment.expense.id,
-            amount: payment.expense.amount
-          } : null,
+          expense: payment.expense
+            ? {
+                id: payment.expense.id,
+                amount: payment.expense.amount,
+                description: payment.expense.description,
+                originalReference: payment.expense.originalReference,
+              }
+            : null,
           client: {
             name: payment.expense?.submittedBy?.name || 'N/A',
             email: payment.expense?.submittedBy?.email || 'N/A',
@@ -246,6 +278,8 @@ export async function GET(request) {
       };
     }
 
+    receiptData = await enrichReceiptData(prisma, user.tenantId, receiptData);
+
     // If format=pdf requested, generate server-side PDF
     const format = searchParams.get('format');
     if (format === 'pdf') {
@@ -256,11 +290,13 @@ export async function GET(request) {
         console.error('Payment receipt PDF (jsPDF) failed, falling back to text PDF:', pdfErr?.message || pdfErr);
         const lines = [];
         lines.push('PAYMENT RECEIPT');
-        lines.push(`${receiptData.type === 'individual' ? 'Payment' : 'Summary'} - ${receiptData.expense ? 'Expense' : 'Invoice'} #${receiptData.invoice?.invoiceNumber || receiptData.expense?.id || ''}`);
+        lines.push(
+          `${receiptData.type === 'individual' ? 'Payment' : 'Summary'} - ${receiptData.expense ? 'Expense' : 'Invoice'} #${receiptData.invoice?.invoiceNumber || receiptData.expense?.reference || receiptData.expense?.description || ''}`
+        );
         lines.push(`Client: ${receiptData.client?.name || 'N/A'}`);
         if (receiptData.type === 'individual' && receiptData.payment) {
           lines.push(`Amount: ${receiptData.payment.amount}`);
-          lines.push(`Method: ${receiptData.payment.paymentMethod}`);
+          lines.push(`Method: ${receiptData.payment.paymentMethodName || receiptData.payment.paymentMethod}`);
           lines.push(`Date: ${receiptData.payment.paymentDate}`);
         }
         lines.push('');
@@ -465,6 +501,8 @@ export async function POST(request) {
         } : null
       };
     }
+
+    receiptData = await enrichReceiptData(prisma, user.tenantId, receiptData);
 
     // If format=pdf requested, generate server-side PDF
     if (body.format === 'pdf') {

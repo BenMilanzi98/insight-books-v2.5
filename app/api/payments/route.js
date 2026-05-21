@@ -14,6 +14,7 @@ import { resolveBranchId } from '@/lib/branchHelpers';
 import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
+import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 
 /** Payments that count toward invoice balance (completed, not a reversal row). */
 function sumEligibleInvoicePayments(payments) {
@@ -354,10 +355,12 @@ export async function GET(request) {
       }
     });
     
-    // Format payments for response
-    const formattedPayments = payments.map(formatPaymentResponse);
-    
-    // Return payments with pagination metadata
+    const formattedPayments = await enrichPaymentsWithMethodNames(
+      prisma,
+      user.tenantId,
+      payments.map(formatPaymentResponse)
+    );
+
     return NextResponse.json({
       payments: formattedPayments,
       pagination: {

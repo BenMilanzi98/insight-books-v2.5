@@ -16,9 +16,9 @@ function LoginForm() {
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [businessSubdomain, setBusinessSubdomain] = useState("");
+  const [selectedTenantId, setSelectedTenantId] = useState("");
   const [tenantChoices, setTenantChoices] = useState([]);
-  const [showSubdomainHint, setShowSubdomainHint] = useState(false);
+  const [showBusinessChoice, setShowBusinessChoice] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
@@ -42,9 +42,9 @@ function LoginForm() {
     const qpEmail = searchParams.get("email");
     if (err === "multi_tenant_google" && qpEmail) {
       setEmail(qpEmail);
-      setShowSubdomainHint(true);
+      setShowBusinessChoice(true);
       setError(
-        "This Google account’s email is linked to more than one business. Enter your company subdomain below, then sign in again with Google or email."
+        "This Google account’s email is linked to more than one business. Sign in with your password below to choose the business you want to access."
       );
     }
   }, [searchParams]);
@@ -64,9 +64,7 @@ function LoginForm() {
         body: JSON.stringify({
           email,
           password,
-          ...(businessSubdomain.trim()
-            ? { subdomain: businessSubdomain.trim() }
-            : {}),
+          ...(selectedTenantId ? { tenantId: selectedTenantId } : {}),
         })
       });
       
@@ -74,9 +72,11 @@ function LoginForm() {
       
       if (!response.ok) {
         if (response.status === 409 && data.code === "MULTI_TENANT_EMAIL") {
-          setTenantChoices(Array.isArray(data.tenants) ? data.tenants : []);
-          setShowSubdomainHint(true);
-          setError(data.error || "Choose your business and enter its subdomain, then try again.");
+          const tenants = Array.isArray(data.tenants) ? data.tenants : [];
+          setTenantChoices(tenants);
+          setSelectedTenantId(tenants[0]?.id || "");
+          setShowBusinessChoice(true);
+          setError(data.error || "Choose the business you want to access, then try again.");
           setIsLoading(false);
           return;
         }
@@ -108,6 +108,13 @@ function LoginForm() {
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    setTenantChoices([]);
+    setSelectedTenantId("");
+    setShowBusinessChoice(false);
   };
 
   return (
@@ -177,34 +184,47 @@ function LoginForm() {
           )}
 
           <form onSubmit={handleSubmit}>
-            {showSubdomainHint && (
-              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900">
-                <p className="font-medium text-amber-950 mb-2">Company subdomain</p>
-                <p className="mb-2 text-amber-900/90">
-                  Use the subdomain from your sign-up link (e.g. <code className="bg-amber-100 px-1 rounded">acme</code> in{" "}
-                  <code className="bg-amber-100 px-1 rounded">acme.insightbooksafrica.com</code>).
+            {showBusinessChoice && tenantChoices.length > 0 && (
+              <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-950">
+                <p className="font-medium mb-2">Choose your business</p>
+                <p className="mb-3 text-indigo-900/80">
+                  Your email is linked to more than one business. Select where you want to log in.
                 </p>
-                <input
-                  id="subdomain"
-                  type="text"
-                  className="w-full p-2 border border-amber-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  placeholder="your-subdomain"
-                  value={businessSubdomain}
-                  onChange={(e) => setBusinessSubdomain(e.target.value)}
-                  autoComplete="organization"
-                />
-                {tenantChoices.length > 0 && (
-                  <ul className="mt-3 space-y-1 text-xs text-amber-950/80">
-                    {tenantChoices.map((t) => (
-                      <li key={t.id}>
-                        <span className="font-medium">{t.name || "Business"}</span>
-                        {t.subdomain ? (
-                          <span className="text-amber-800"> — subdomain: {t.subdomain}</span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <fieldset className="space-y-2">
+                  <legend className="sr-only">Business</legend>
+                  {tenantChoices.map((tenant) => (
+                    <label
+                      key={tenant.id}
+                      htmlFor={`tenant-${tenant.id}`}
+                      className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors ${
+                        selectedTenantId === tenant.id
+                          ? "border-indigo-500 bg-white"
+                          : "border-indigo-100 bg-indigo-50/40 hover:bg-white"
+                      }`}
+                    >
+                      <input
+                        id={`tenant-${tenant.id}`}
+                        type="radio"
+                        name="tenantId"
+                        value={tenant.id}
+                        checked={selectedTenantId === tenant.id}
+                        onChange={() => setSelectedTenantId(tenant.id)}
+                        className="h-4 w-4 border-gray-300 text-indigo-700 focus:ring-indigo-500"
+                        required
+                      />
+                      <span className="font-medium text-gray-900">{tenant.name || "Business"}</span>
+                    </label>
+                  ))}
+                </fieldset>
+              </div>
+            )}
+
+            {showBusinessChoice && tenantChoices.length === 0 && (
+              <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-950">
+                <p className="font-medium mb-1">Choose your business</p>
+                <p className="text-indigo-900/80">
+                  Enter your password and continue. If this email belongs to multiple businesses, we will show them here for selection.
+                </p>
               </div>
             )}
 
@@ -222,7 +242,7 @@ function LoginForm() {
                   className="w-full p-3 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="you@company.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   required
                 />
               </div>

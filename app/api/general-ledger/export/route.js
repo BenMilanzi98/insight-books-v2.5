@@ -4,6 +4,12 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { getParallelGoodsReceiptTransactionIds } from '@/lib/generalLedgerGoodsReceiptDedup';
+import {
+  getSourceDocumentLabel,
+  humanizeSourceType,
+  resolveReversedEntryLabelsBatch,
+  resolveSourceDocumentLabelsBatch,
+} from '@/lib/userFacingLabels';
 
 const toDateRange = (startDate, endDate) => {
   const range = {};
@@ -229,6 +235,17 @@ export async function GET(request) {
       })),
     ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 
+    const sourceLabels = await resolveSourceDocumentLabelsBatch(
+      prisma,
+      tenantId,
+      combined.map((l) => ({ sourceType: l.sourceType, sourceId: l.sourceId }))
+    );
+    const reversedLabels = await resolveReversedEntryLabelsBatch(
+      prisma,
+      tenantId,
+      combined.map((l) => l.reversedTransactionId).filter(Boolean)
+    );
+
     const exportData = combined.map((l) => {
       let balance = '';
       if (accountId && accountId !== 'all') {
@@ -251,13 +268,14 @@ export async function GET(request) {
         Credit: l.credit > 0 ? l.credit.toFixed(2) : '',
         Balance: balance,
         'Record kind': l.recordKind || '',
-        'GL transaction ID': l.transactionId || '',
-        'Source type': l.sourceType || '',
-        'Source ID': l.sourceId != null ? String(l.sourceId) : '',
+        'Source': getSourceDocumentLabel(sourceLabels, l.sourceType, l.sourceId, l.reference || ''),
+        'Source type': humanizeSourceType(l.sourceType),
         'Entry type': l.entryType || '',
         'Is reversal': l.isReversal ? 'Yes' : 'No',
         'Reversal reason': l.reversalReason || '',
-        'Reversed transaction ID': l.reversedTransactionId || '',
+        'Reverses': l.reversedTransactionId
+          ? reversedLabels.get(l.reversedTransactionId) || 'Original entry'
+          : '',
         Notes: l.reversalNotes || '',
       };
     });
@@ -277,13 +295,12 @@ export async function GET(request) {
           { id: 'Credit', title: 'Credit' },
           { id: 'Balance', title: 'Balance' },
           { id: 'Record kind', title: 'Record kind' },
-          { id: 'GL transaction ID', title: 'GL transaction ID' },
+          { id: 'Source', title: 'Source' },
           { id: 'Source type', title: 'Source type' },
-          { id: 'Source ID', title: 'Source ID' },
           { id: 'Entry type', title: 'Entry type' },
           { id: 'Is reversal', title: 'Is reversal' },
           { id: 'Reversal reason', title: 'Reversal reason' },
-          { id: 'Reversed transaction ID', title: 'Reversed transaction ID' },
+          { id: 'Reverses', title: 'Reverses' },
           { id: 'Notes', title: 'Notes' },
         ]
       });

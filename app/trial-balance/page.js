@@ -596,7 +596,8 @@ const TrialBalance = () => {
                                 className="block text-xs text-amber-800 mt-1"
                                 title={[
                                   transaction.reversalReason,
-                                  transaction.reversedTransactionId && `Reverses journal: ${transaction.reversedTransactionId}`,
+                                  transaction.reversedEntryLabel &&
+                                    `Reverses: ${transaction.reversedEntryLabel}`,
                                 ]
                                   .filter(Boolean)
                                   .join(' · ')}
@@ -604,9 +605,9 @@ const TrialBalance = () => {
                                 {transaction.reversalReason
                                   ? `Reversal: ${transaction.reversalReason.length > 80 ? `${transaction.reversalReason.slice(0, 80)}…` : transaction.reversalReason}`
                                   : 'Reversal entry'}
-                                {transaction.reversedTransactionId && (
-                                  <span className="block text-[11px] text-amber-700/90 mt-0.5 font-mono">
-                                    Reverses JE: {transaction.reversedTransactionId}
+                                {(transaction.reversedEntryLabel || transaction.reversedTransactionId) && (
+                                  <span className="block text-[11px] text-amber-700/90 mt-0.5">
+                                    Reverses: {transaction.reversedEntryLabel || 'Original entry'}
                                   </span>
                                 )}
                               </span>
@@ -619,10 +620,11 @@ const TrialBalance = () => {
                             {transaction.credit && transaction.credit > 0 ? formatCurrency(transaction.credit, "", 2) : '-'}
                           </td>
                           <td className="p-3">
-                            <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800" title={transaction.sourceType || ''}>
-                              {transaction.sourceType
-                                ? `${transaction.source} · ${transaction.sourceType}`
-                                : transaction.source || 'Transaction'}
+                            <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800" title={transaction.sourceLabel || transaction.sourceType || ''}>
+                              {transaction.sourceLabel ||
+                                (transaction.sourceType
+                                  ? `${transaction.source} · ${transaction.sourceTypeLabel || transaction.sourceType}`
+                                  : transaction.source || 'Transaction')}
                             </span>
                           </td>
                           <td className="p-3">

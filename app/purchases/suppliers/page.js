@@ -434,7 +434,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                             <td className="px-4 py-2 text-sm text-gray-600">
                               {new Date(payment.paymentDate).toLocaleDateString()}
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">{payment.paymentMethod || '-'}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">{payment.paymentMethodName || payment.paymentMethod || '-'}</td>
                             <td className="px-4 py-2 text-sm text-right text-green-600 font-semibold">{formatMoney(payment.totalAmount)}</td>
                             <td className="px-4 py-2 text-sm text-gray-600">
                               {payment.allocations && payment.allocations.length > 0 ? (
@@ -3339,7 +3339,7 @@ export default function SuppliersPage() {
                         <td className="px-4 py-2 text-gray-700">
                           {payment.paymentDate ? formatDateDDMMYYYY(payment.paymentDate) : "—"}
                         </td>
-                        <td className="px-4 py-2 text-gray-700">{payment.paymentMethod}</td>
+                        <td className="px-4 py-2 text-gray-700">{payment.paymentMethodName || payment.paymentMethod}</td>
                         <td className="px-4 py-2 text-right text-gray-900">
                           MWK {Number(payment.totalAmount || 0).toLocaleString()}
                         </td>
@@ -3588,7 +3588,7 @@ export default function SuppliersPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <div className="text-xs uppercase text-gray-500">Payment Method</div>
-                  <div className="mt-1 text-gray-900">{viewingPayment.paymentMethod}</div>
+                  <div className="mt-1 text-gray-900">{viewingPayment.paymentMethodName || viewingPayment.paymentMethod}</div>
                 </div>
                 <div>
                   <div className="text-xs uppercase text-gray-500">Reference</div>

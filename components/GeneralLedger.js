@@ -880,19 +880,19 @@ const GeneralLedger = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     {[
                       { label: "Entry type", value: entryDetails.entryType },
-                      { label: "Entry ID", value: entryDetails.entryId },
+                      { label: "Entry", value: entryDetails.entryLabel || entryDetails.reference || "—" },
                       { label: "Classification", value: entryDetails.entryTypeDetail || "—" },
                       {
                         label: "Reversal",
                         value: entryDetails.isReversal
-                          ? `Yes${entryDetails.reversedTransactionId ? ` (reverses ${entryDetails.reversedTransactionId})` : ""}`
+                          ? `Yes${entryDetails.reversedEntryLabel ? ` (reverses ${entryDetails.reversedEntryLabel})` : ""}`
                           : "No",
                       },
                       { label: "Reversal reason", value: entryDetails.reversalReason || "—" },
                       { label: "Notes", value: entryDetails.notes || "—" },
-                      { label: "Source type", value: entryDetails.sourceType || "N/A" },
-                      { label: "Source ID", value: entryDetails.sourceId || "N/A" },
-                      { label: "Reference", value: entryDetails.reference || "N/A" },
+                      { label: "Source", value: entryDetails.sourceLabel || entryDetails.sourceTypeLabel || "—" },
+                      { label: "Source type", value: entryDetails.sourceTypeLabel || entryDetails.sourceType || "—" },
+                      { label: "Reference", value: entryDetails.reference || "—" },
                       { label: "Date", value: formatDateDisplay(entryDetails.date) },
                     ].map(({ label, value }) => (
                       <div key={label} className="p-3 rounded-xl bg-slate-50 border border-slate-100">

@@ -805,7 +805,7 @@ const handleDeleteEntry = async (entryId) => {
                       <tr key={`${entry.id}-${line.id || index}`} className="border-t border-slate-100 hover:bg-indigo-50/30 transition-colors">
                         {index === 0 && (
                           <>
-                            <td className="p-3 text-blue-600" rowSpan={rowSpan}>{entry.id ? entry.id.substring(0, 8) : 'N/A'}</td>
+                            <td className="p-3 text-blue-600" rowSpan={rowSpan}>{entry.referenceNumber || '—'}</td>
                             <td className="p-3" rowSpan={rowSpan}>{entry.date ? (() => {
                               const date = new Date(entry.date);
                               const day = String(date.getDate()).padStart(2, '0');

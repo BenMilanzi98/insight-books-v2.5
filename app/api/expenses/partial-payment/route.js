@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 
 // POST - Add partial payment to an expense
 export async function POST(request) {
@@ -233,16 +234,19 @@ export async function GET(request) {
       orderBy: { paymentDate: 'desc' }
     });
 
-    // Format payments data
-    let formattedPayments = payments.map(payment => ({
-      id: payment.id,
-      amount: payment.amount,
-      paymentMethod: payment.paymentMethod,
-      paymentDate: payment.paymentDate.toISOString().split('T')[0],
-      reference: payment.reference,
-      notes: payment.notes,
-      status: payment.status
-    }));
+    let formattedPayments = await enrichPaymentsWithMethodNames(
+      prisma,
+      user.tenantId,
+      payments.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        paymentDate: payment.paymentDate.toISOString().split('T')[0],
+        reference: payment.reference,
+        notes: payment.notes,
+        status: payment.status,
+      }))
+    );
 
     // Handle legacy expenses that don't have payment records but are marked as fully paid
     if (payments.length === 0 && expense.paymentStatus === 'Fully paid' && expense.paidAmount > 0) {

@@ -123,7 +123,7 @@ export const InventoryLossReport = ({
                       {expandedRowId === item.id && (
                         <tr className="bg-slate-50/60">
                           <td colSpan={5} className="px-4 py-3 text-xs text-slate-600">
-                            Reference: {item.reference || 'N/A'} | Source ID: {item.sourceId || 'N/A'} | Submitted by:{' '}
+                            Reference: {item.reference || 'N/A'} | Source: {item.sourceLabel || item.sourceId || 'N/A'} | Submitted by:{' '}
                             {item.submittedBy || 'Unknown'} | Notes: {item.notes || 'N/A'}
                           </td>
                         </tr>

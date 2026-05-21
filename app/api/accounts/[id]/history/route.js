@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  getSourceDocumentLabel,
+  humanizeSourceType,
+  resolveReversedEntryLabelsBatch,
+  resolveSourceDocumentLabelsBatch,
+} from '@/lib/userFacingLabels';
 
 /**
  * GET - Fetch account transaction history
@@ -149,9 +155,29 @@ export async function GET(request, { params }) {
       return dateB - dateA;
     });
 
+    const sourceLabels = await resolveSourceDocumentLabelsBatch(
+      prisma,
+      user.tenantId,
+      allTransactions.map((t) => ({ sourceType: t.sourceType, sourceId: t.sourceId }))
+    );
+    const reversedLabels = await resolveReversedEntryLabelsBatch(
+      prisma,
+      user.tenantId,
+      allTransactions.map((t) => t.reversedTransactionId).filter(Boolean)
+    );
+
+    const transactions = allTransactions.map((t) => ({
+      ...t,
+      sourceTypeLabel: humanizeSourceType(t.sourceType),
+      sourceLabel: getSourceDocumentLabel(sourceLabels, t.sourceType, t.sourceId, t.reference || ''),
+      reversedEntryLabel: t.reversedTransactionId
+        ? reversedLabels.get(t.reversedTransactionId) || 'Original entry'
+        : null,
+    }));
+
     return NextResponse.json({
-      transactions: allTransactions,
-      totalCount: allTransactions.length,
+      transactions,
+      totalCount: transactions.length,
     });
   } catch (error) {
     console.error('Error fetching account history:', error);
