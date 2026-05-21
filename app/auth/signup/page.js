@@ -166,10 +166,6 @@ const Signup = () => {
           <div>
             <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 shadow-2xl backdrop-blur">
               <img src="/logo.png" alt="InsightBooks" className="h-9 w-auto rounded-lg object-contain" />
-              <div>
-                <p className="text-sm font-semibold tracking-wide">InsightBooks</p>
-                <p className="text-xs text-indigo-100">Business cockpit</p>
-              </div>
             </div>
 
             <div className="mt-16 max-w-xl">
