@@ -224,7 +224,7 @@ const navigationByPermission = {
         { href: "/expenses", icon: "expenses", text: "Expense Tracking" },
         { href: "/stock", icon: "stock", text: "Stock Management" },
         { href: "/clients", icon: "users", text: "Customer Management" },
-        { href: "/reports", icon: "reports", text: "Financial Reporting" },
+        { href: "/asset-management", icon: "reports", text: "Assets & Liabilities" },
         {
           href: "/purchases/suppliers",
           icon: "purchases",
@@ -239,6 +239,7 @@ const navigationByPermission = {
           ],
         },
         { href: "/payments", icon: "payments", text: "Payment Accounts" },
+        { href: "/reports", icon: "reports", text: "Financial Reporting" },
       ],
     },
     {
@@ -273,7 +274,6 @@ const navigationByPermission = {
             { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
           ],
         },
-        { href: "/asset-management", icon: "reports", text: "Assets & Liabilities" },
         {
           href: "/rentals",
           icon: "rental",
@@ -645,11 +645,12 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "reports.view")) {
+    // Assets & Liabilities should be permission-gated (deny-by-default).
+    if (userHasPermission(user, "assets.view")) {
       coreItems.push({
-        href: "/reports",
+        href: "/asset-management",
         icon: "reports",
-        text: "Financial Reporting"
+        text: "Assets & Liabilities"
       });
     }
 
@@ -674,6 +675,14 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         href: "/payments",
         icon: "payments",
         text: "Payment Accounts"
+      });
+    }
+
+    if (userHasPermission(user, "reports.view")) {
+      coreItems.push({
+        href: "/reports",
+        icon: "reports",
+        text: "Financial Reporting"
       });
     }
     
@@ -720,15 +729,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           { href: "/budget-forecast/budgets", text: "Expense budgets" },
           { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
         ],
-      });
-    }
-
-    // Assets & Liabilities should be permission-gated (deny-by-default).
-    if (userHasPermission(user, "assets.view")) {
-      additionalItems.push({
-        href: "/asset-management",
-        icon: "reports",
-        text: "Assets & Liabilities"
       });
     }
 
