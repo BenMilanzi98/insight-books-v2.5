@@ -392,7 +392,7 @@ body{
 .itbl td.d{width:58%}
 .itbl td.r{text-align:right;width:32%}
 .itbl tr.ir td{border-bottom:1px dotted #ccc}
-/* Sub-lines (unit price, tax, discount) — smallest readable size */
+/* Sub-lines (Selling Price, tax, discount) — smallest readable size */
 .isub{font-size:12px;margin-top:1px;line-height:1.3;display:flex;justify-content:space-between;gap:4px}
 /* ── Totals (Font A, 11 px; grand total 14 px bold) ────── */
 .trow{display:flex;align-items:baseline;gap:4px;margin:3px 0}

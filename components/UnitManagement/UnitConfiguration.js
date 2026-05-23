@@ -243,12 +243,12 @@ const UnitConfiguration = ({
               {/* Auto-calculated Configuration Display */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Unit Price:</span>
+                    <span className="text-gray-500">Selling Price:</span>
                     <p className="font-medium text-green-600">MWK {config.unitPrice || '0.00'}</p>
                     <p className="text-xs text-gray-400">Auto-calculated</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Cost Price:</span>
+                    <span className="text-gray-500">Order Price:</span>
                     <p className="font-medium text-green-600">MWK {config.costPrice || '0.00'}</p>
                     <p className="text-xs text-gray-400">Auto-calculated</p>
                   </div>

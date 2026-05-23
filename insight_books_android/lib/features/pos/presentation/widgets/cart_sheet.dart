@@ -253,7 +253,7 @@ class CartSheet extends ConsumerWidget {
               controller: priceCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
-                labelText: 'Unit Price',
+                labelText: 'Selling Price',
                 border: OutlineInputBorder(),
                 prefixText: 'MWK ',
               ),

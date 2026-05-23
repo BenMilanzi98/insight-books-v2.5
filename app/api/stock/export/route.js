@@ -237,7 +237,7 @@ async function generateCsvResponse(products, tenantId) {
       { id: 'stockLevel', title: 'Quantity in Stock' },
       { id: 'reorderPoint', title: 'Reorder Point' },
       { id: 'price', title: 'Selling Price (MWK)' },
-      { id: 'cost', title: 'Cost Price (MWK)' },
+      { id: 'cost', title: 'Order Price (MWK)' },
       { id: 'location', title: 'Location' },
       { id: 'status', title: 'Status' },
       { id: 'profit', title: 'Profit Margin %' },

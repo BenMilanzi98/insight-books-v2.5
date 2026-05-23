@@ -232,11 +232,11 @@ function validateTransaction(transaction, rowNumber, applyDefaults = false) {
   };
 
   // Get field values (support variations; deny-by-default on missing required fields).
-  // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
+  // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Selling Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
   const transactionDateRaw = getColumnValue(transaction, ['Transaction Date', 'Recorded Date', 'Sale Date', 'Date']);
   const productDescriptionRaw = getColumnValue(transaction, ['Product/Service Description', 'Product Description', 'Description', 'Item']);
   const quantityRaw = getColumnValue(transaction, ['Quantity', 'Qty']);
-  const unitPriceRaw = getColumnValue(transaction, ['Unit Price', 'Price', 'UnitPrice']);
+  const unitPriceRaw = getColumnValue(transaction, ['Selling Price', 'Price', 'UnitPrice']);
   const taxRate = getColumnValue(transaction, ['Tax Rate (%)', 'Tax Rate', 'Tax %']) || '';
   const discountAmount = getColumnValue(transaction, ['Discount Amount', 'Discount', 'Discount (Amount)']) || '';
   const paymentMethodRaw = getColumnValue(transaction, ['Payment Method', 'Payment']) || '';
@@ -267,7 +267,7 @@ function validateTransaction(transaction, rowNumber, applyDefaults = false) {
       console.log(`Row ${rowNumber}: Using default Quantity: ${quantity}`);
     }
     
-    // Note: Unit Price cannot have a default - it must be provided
+    // Note: Selling Price cannot have a default - it must be provided
     // If empty, it will still be flagged as an error
     
     // Default payment method to cash if empty
@@ -304,21 +304,21 @@ function validateTransaction(transaction, rowNumber, applyDefaults = false) {
     }
   }
   
-  // Validate Unit Price
+  // Validate Selling Price
   // Check if unitPrice is undefined (field not found) vs empty string (field exists but empty)
   if (unitPrice === undefined) {
     // Field not found - this shouldn't happen if CSV has the column
     const availableFields = Object.keys(transaction).filter(k => k !== 'rowNumber').join(', ');
-    errors.push(`Row ${rowNumber}: Unit Price column not found. Available columns: ${availableFields}`);
+    errors.push(`Row ${rowNumber}: Selling Price column not found. Available columns: ${availableFields}`);
   } else {
     const unitPriceStr = parseNumericValue(unitPrice);
     if (!unitPriceStr || unitPriceStr === '') {
-      // Field exists but is empty - Unit Price cannot have a default, it's required
-      errors.push(`Row ${rowNumber}: Unit Price is required but is empty. Please provide a valid unit price for this row.`);
+      // Field exists but is empty - Selling Price cannot have a default, it's required
+      errors.push(`Row ${rowNumber}: Selling Price is required but is empty. Please provide a valid Selling Price for this row.`);
     } else {
       const unitPriceNum = parseFloat(unitPriceStr);
       if (isNaN(unitPriceNum) || unitPriceNum < 0) {
-        errors.push(`Row ${rowNumber}: Unit Price must be a valid number >= 0 (found: "${unitPrice}")`);
+        errors.push(`Row ${rowNumber}: Selling Price must be a valid number >= 0 (found: "${unitPrice}")`);
       }
     }
   }
@@ -525,10 +525,10 @@ export async function POST(request) {
           const transactionDate = transaction.transactionDate || getColumnValue(transaction, ['Transaction Date', 'Recorded Date', 'Sale Date', 'Date']) || '';
           const productDescription = transaction.productDescription || getColumnValue(transaction, ['Product/Service Description', 'Product Description', 'Description', 'Item']) || '';
           const quantity = transaction.quantity || getColumnValue(transaction, ['Quantity', 'Qty']) || '';
-          const unitPrice = transaction.unitPrice || getColumnValue(transaction, ['Unit Price', 'Price', 'UnitPrice']) || '';
-          // Validate Unit Price is not empty (should have been caught in validation, but double-check)
+          const unitPrice = transaction.unitPrice || getColumnValue(transaction, ['Selling Price', 'Price', 'UnitPrice']) || '';
+          // Validate Selling Price is not empty (should have been caught in validation, but double-check)
           if (!unitPrice || unitPrice.trim() === '') {
-            throw new Error(`Row ${transaction.rowNumber}: Unit Price is required but is empty. This row should have been skipped during validation.`);
+            throw new Error(`Row ${transaction.rowNumber}: Selling Price is required but is empty. This row should have been skipped during validation.`);
           }
           const taxRate = transaction.taxRate || getColumnValue(transaction, ['Tax Rate (%)', 'Tax Rate', 'Tax %']) || '0';
           const discountAmount = transaction.discountAmount || getColumnValue(transaction, ['Discount Amount', 'Discount', 'Discount (Amount)']) || '0';

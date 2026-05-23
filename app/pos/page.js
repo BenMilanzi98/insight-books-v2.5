@@ -1116,7 +1116,7 @@ const POSPage = () => {
       }
       showCartAddedToast(detailedProduct.name);
     } else {
-      // Determine initial price (base unit price for unit-managed)
+      // Determine initial price (base Selling Price for unit-managed)
       let initialPrice = detailedProduct.price;
       if (isUnitManaged) {
         const baseUnit = (detailedProduct.units || []).find(u => u.isBaseUnit);
@@ -1143,7 +1143,7 @@ const POSPage = () => {
       console.log("Product taxes:", productTaxes);
       console.log("Taxes count:", productTaxes.length);
       console.log("Quantity:", parsedQty);
-      console.log("Unit price:", initialPrice);
+      console.log("Selling Price:", initialPrice);
       
       const taxCalculation = calculateSaleItemTaxes({
         quantity: parsedQty,

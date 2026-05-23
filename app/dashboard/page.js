@@ -2017,7 +2017,7 @@ const BusinessOwnerDashboard = () => {
                           <th className="py-2.5 px-3 font-medium">Product</th>
                           <th className="py-2.5 px-3 font-medium">SKU</th>
                           <th className="py-2.5 px-3 font-medium text-right">Qty</th>
-                          <th className="py-2.5 px-3 font-medium text-right">Unit price</th>
+                          <th className="py-2.5 px-3 font-medium text-right">Selling Price</th>
                           <th className="py-2.5 px-3 font-medium text-right">Line total</th>
                           <th className="py-2.5 px-3 font-medium text-right">Cost basis</th>
                         </tr>
@@ -2043,7 +2043,7 @@ const BusinessOwnerDashboard = () => {
                     </table>
                   </div>
                   <p className="text-xs text-gray-500 mt-3">
-                    Unit price reflects the product record in this business after receipt. Cost basis is the
+                    Selling Price reflects the product record in this business after receipt. Cost basis is the
                     recorded product cost when available.
                   </p>
                   <div className="mt-6 flex justify-end">

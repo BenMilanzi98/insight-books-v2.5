@@ -216,45 +216,34 @@ const navigationByPermission = {
       ],
     },
     {
-      label: "Core Features",
+      label: "Features",
       items: [
         { href: "/pos", icon: "pos", text: "POS" },
         { href: "/quotations", icon: "quotations", text: "Quotations" },
         { href: "/invoice", icon: "invoicing", text: "Invoicing", badge: "3" },
         { href: "/expenses", icon: "expenses", text: "Expense Tracking" },
-        { href: "/payments", icon: "payments", text: "Payment Accounts" },
+        { href: "/stock", icon: "stock", text: "Stock Management" },
+        { href: "/clients", icon: "users", text: "Customer Management" },
         { href: "/reports", icon: "reports", text: "Financial Reporting" },
-        { href: "/clients", icon: "users", text: "Client Management" },
+        {
+          href: "/purchases/suppliers",
+          icon: "purchases",
+          text: "Purchases",
+          expandable: true,
+          subItems: [
+            { href: "/purchases/suppliers", text: "Suppliers" },
+            { href: "/purchases/orders", text: "Orders" },
+            { href: "/purchases/receipts", text: "Receipts" },
+            { href: "/purchases/bills", text: "Bills" },
+            { href: "/purchases/payments", text: "Payments" },
+          ],
+        },
+        { href: "/payments", icon: "payments", text: "Payment Accounts" },
       ],
     },
-      {
-        label: "Additional Modules",
-        items: [
-          { href: "/stock", icon: "stock", text: "Stock Management" },
-          {
-            href: "/rentals",
-            icon: "rental",
-            text: "Rental & Hiring",
-            expandable: true,
-            subItems: [
-              { href: "/rentals", text: "Rentals" },
-              { href: "/rentals/hiring", text: "Hiring" },
-            ],
-          },
-          {
-            href: "/purchases/suppliers",
-            icon: "purchases",
-            text: "Purchases",
-            expandable: true,
-            subItems: [
-              { href: "/purchases/suppliers", text: "Suppliers" },
-              { href: "/purchases/orders", text: "Orders" },
-              { href: "/purchases/receipts", text: "Receipts" },
-              { href: "/purchases/bills", text: "Bills" },
-              { href: "/purchases/payments", text: "Payments" },
-            ],
-          },
-        // HR Module temporarily commented out
+    {
+      label: "Additional Features",
+      items: [
         {
           href: "/hr",
           icon: "hr",
@@ -273,9 +262,29 @@ const navigationByPermission = {
             { href: "/hr/reports", text: "HR Reports" }
           ]
         },
-        // { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
-        { href: "/affiliate", icon: "affiliate", text: "Affiliate System" },
-        { href: "/tax-types", icon: "reports", text: "Tax Types" },
+        {
+          href: "/budget-forecast/reports",
+          icon: "reports",
+          text: "Budget & Forecast",
+          expandable: true,
+          subItems: [
+            { href: "/budget-forecast/reports", text: "Variance reports" },
+            { href: "/budget-forecast/budgets", text: "Expense budgets" },
+            { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
+          ],
+        },
+        { href: "/asset-management", icon: "reports", text: "Assets & Liabilities" },
+        {
+          href: "/rentals",
+          icon: "rental",
+          text: "Rental & Hiring",
+          expandable: true,
+          subItems: [
+            { href: "/rentals", text: "Rentals" },
+            { href: "/rentals/hiring", text: "Hiring" },
+          ],
+        },
+        { href: "/tax-types", icon: "reports", text: "Tax Management" },
       ],
     },
     {
@@ -312,7 +321,7 @@ const navigationByPermission = {
   clients: {
     label: "Clients",
     items: [
-      { href: "/clients", icon: "users", text: "Client Management", permission: "clients.view" },
+      { href: "/clients", icon: "users", text: "Customer Management", permission: "clients.view" },
     ]
   },
   expenses: {
@@ -577,8 +586,13 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       sections.push(navigationByPermission.dashboard);
     }
 
-    // Create a Core Features section based on permissions
+    // Create a Features section based on permissions
     const coreItems = [];
+    const canViewPurchases =
+      userHasPermission(user, "purchases.view") ||
+      userHasPermission(user, "suppliers.view") ||
+      userHasPermission(user, "inventory.view") ||
+      userHasPermission(user, "stock.view");
     
     // Add items based on permissions
     if (userHasPermission(user, "sales.view")) {
@@ -615,11 +629,19 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "payments.view")) {
+    if (userHasPermission(user, "stock.view")) {
       coreItems.push({
-        href: "/payments",
-        icon: "payments",
-        text: "Payment Accounts"
+        href: "/stock",
+        icon: "stock",
+        text: "Stock Management"
+      });
+    }
+
+    if (userHasPermission(user, "clients.view")) {
+      coreItems.push({
+        href: "/clients",
+        icon: "users",
+        text: "Customer Management"
       });
     }
 
@@ -631,25 +653,43 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "clients.view")) {
+    if (canViewPurchases) {
       coreItems.push({
-        href: "/clients",
-        icon: "users",
-        text: "Client Management"
+        href: "/purchases/suppliers",
+        icon: "purchases",
+        text: "Purchases",
+        expandable: true,
+        subItems: [
+          { href: "/purchases/suppliers", text: "Suppliers" },
+          { href: "/purchases/orders", text: "Orders" },
+          { href: "/purchases/receipts", text: "Receipts" },
+          { href: "/purchases/bills", text: "Bills" },
+          { href: "/purchases/payments", text: "Payments" },
+        ],
       });
     }
 
-    // Assets & Liabilities should be permission-gated (deny-by-default).
-    if (userHasPermission(user, "assets.view")) {
+    if (userHasPermission(user, "payments.view")) {
       coreItems.push({
-        href: "/asset-management",
-        icon: "reports",
-        text: "Assets & Liabilities"
+        href: "/payments",
+        icon: "payments",
+        text: "Payment Accounts"
       });
     }
-
+    
+    // Add Features section if there are any items
+    if (coreItems.length > 0) {
+      sections.push({
+        label: "Features",
+        items: coreItems
+      });
+    }
+    
+    // Create an Additional Features section based on permissions
+    const additionalItems = [];
+    
     if (userHasPermission(user, "hr.view")) {
-      coreItems.push({
+      additionalItems.push({
         href: "/hr",
         icon: "users",
         text: "HR & Payroll",
@@ -668,23 +708,27 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         ]
       });
     }
-    
-    // Add Core Features section if there are any items
-    if (coreItems.length > 0) {
-      sections.push({
-        label: "Core Features",
-        items: coreItems
+
+    if (userHasPermission(user, "budgets.view")) {
+      additionalItems.push({
+        href: "/budget-forecast/reports",
+        icon: "reports",
+        text: "Budget & Forecast",
+        expandable: true,
+        subItems: [
+          { href: "/budget-forecast/reports", text: "Variance reports" },
+          { href: "/budget-forecast/budgets", text: "Expense budgets" },
+          { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
+        ],
       });
     }
-    
-    // Create an Additional Modules section based on permissions
-    const additionalItems = [];
-    
-    if (userHasPermission(user, "stock.view")) {
+
+    // Assets & Liabilities should be permission-gated (deny-by-default).
+    if (userHasPermission(user, "assets.view")) {
       additionalItems.push({
-        href: "/stock",
-        icon: "stock",
-        text: "Stock Management"
+        href: "/asset-management",
+        icon: "reports",
+        text: "Assets & Liabilities"
       });
     }
 
@@ -706,57 +750,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "budgets.view")) {
-      additionalItems.push({
-        href: "/budget-forecast/reports",
-        icon: "reports",
-        text: "Budget & Forecast",
-        expandable: true,
-        subItems: [
-          { href: "/budget-forecast/reports", text: "Variance reports" },
-          { href: "/budget-forecast/budgets", text: "Expense budgets" },
-          { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
-        ],
-      });
-    }
-
-    
-    // Add Purchases if user has inventory or purchases permission
-    const canViewPurchases =
-      userHasPermission(user, "purchases.view") ||
-      userHasPermission(user, "suppliers.view") ||
-      userHasPermission(user, "inventory.view") ||
-      userHasPermission(user, "stock.view");
-    if (canViewPurchases) {
-      additionalItems.push({
-        href: "/purchases/suppliers",
-        icon: "purchases",
-        text: "Purchases",
-        expandable: true,
-        subItems: [
-          { href: "/purchases/suppliers", text: "Suppliers" },
-          { href: "/purchases/orders", text: "Orders" },
-          { href: "/purchases/receipts", text: "Receipts" },
-          { href: "/purchases/bills", text: "Bills" },
-          { href: "/purchases/payments", text: "Payments" },
-        ],
-      });
-    }
-    
-    // Asset Management moved to Core Features section
-    
-    // HR Module temporarily commented out
-
-
-    
-    // // Add more additional modules based on permissions
-    // if (userHasPermission(user, "invoices.view")) {
-    //   additionalItems.push({
-    //     href: "/pos",
-    //     icon: "🧾",
-    //     text: "Point of Sale (POS)"
-    //   });
-    // }
     
     // Tax Types - allow if user has accounting or reports view permission
     if (userHasPermission(user, "accounting.view") || 
@@ -769,10 +762,10 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
     
-    // Add Additional Modules section if there are any items
+    // Add Additional Features section if there are any items
     if (additionalItems.length > 0) {
       sections.push({
-        label: "Additional Modules",
+        label: "Additional Features",
         items: additionalItems
       });
     }

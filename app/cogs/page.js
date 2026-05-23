@@ -240,7 +240,7 @@ const COGSManagement = () => {
                       </div>
                       <div className="flex items-center space-x-4">
                         <div className="text-right min-w-0">
-                          <p className="text-xs text-gray-500 truncate">Cost Price</p>
+                          <p className="text-xs text-gray-500 truncate">Order Price</p>
                           <p className="text-sm font-medium truncate">{formatCurrency(product.cost)}</p>
                         </div>
                         <div className="text-right min-w-0">

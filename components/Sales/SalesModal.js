@@ -209,7 +209,7 @@ const SalesModal = ({
       }
       
       if (item.unitPrice < 0) {
-        newErrors[`items.${index}.unitPrice`] = "Unit price cannot be negative";
+        newErrors[`items.${index}.unitPrice`] = "Selling Price cannot be negative";
       }
       
       if (item.taxRate < 0 || item.taxRate > 100) {
@@ -397,7 +397,7 @@ const SalesModal = ({
                         Quantity
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Unit Price
+                        Selling Price
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Tax Rate (%)

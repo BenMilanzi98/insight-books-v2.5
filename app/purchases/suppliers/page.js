@@ -1118,7 +1118,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                 value={item.unitCost}
                 onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
                 required
-                placeholder="Cost Price"
+                placeholder="Order Price"
               />
               <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                 <span>
@@ -1392,7 +1392,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600">Cost Price</label>
+                <label className="block text-xs font-medium text-gray-600">Order Price</label>
                 <input
                   type="number"
                   min="0"
@@ -1457,7 +1457,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
           <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
             <div>
               <p className="text-xs uppercase tracking-wide text-indigo-700">Subtotal</p>
-              <p className="text-sm text-indigo-900">Products × cost price</p>
+              <p className="text-sm text-indigo-900">Products × Order Price</p>
             </div>
             <div className="text-lg font-semibold text-indigo-900">
               MWK {subtotal.toLocaleString()}
@@ -1725,7 +1725,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
                 value={item.unitCost}
                 onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
                 required
-                placeholder="Cost Price"
+                placeholder="Order Price"
               />
               <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                 <span>
@@ -2703,7 +2703,7 @@ export default function SuppliersPage() {
                 <th>#</th>
                 <th>Product</th>
                 <th style="text-align:right;">Qty Ordered</th>
-                <th style="text-align:right;">Cost Price</th>
+                <th style="text-align:right;">Order Price</th>
                 <th style="text-align:right;">Line Total</th>
               </tr>
             </thead>
@@ -3490,7 +3490,7 @@ export default function SuppliersPage() {
                       <tr>
                         <th className="px-4 py-2">Product</th>
                         <th className="px-4 py-2 text-right">Qty Ordered</th>
-                        <th className="px-4 py-2 text-right">Cost Price</th>
+                        <th className="px-4 py-2 text-right">Order Price</th>
                         <th className="px-4 py-2 text-right">Line Total</th>
                       </tr>
                     </thead>
@@ -3812,7 +3812,7 @@ export default function SuppliersPage() {
                         <tr>
                           <th className="px-4 py-2">Product</th>
                           <th className="px-4 py-2 text-right">Quantity</th>
-                          <th className="px-4 py-2 text-right">Unit Price</th>
+                          <th className="px-4 py-2 text-right">Selling Price</th>
                           <th className="px-4 py-2 text-right">Total</th>
                         </tr>
                       </thead>
@@ -3917,7 +3917,7 @@ export default function SuppliersPage() {
                         <tr>
                           <th className="px-4 py-2">Product</th>
                           <th className="px-4 py-2 text-right">Quantity</th>
-                          <th className="px-4 py-2 text-right">Unit Price</th>
+                          <th className="px-4 py-2 text-right">Selling Price</th>
                           <th className="px-4 py-2 text-right">Total</th>
                         </tr>
                       </thead>

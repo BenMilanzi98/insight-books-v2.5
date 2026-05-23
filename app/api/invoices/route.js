@@ -385,7 +385,7 @@ export async function POST(request) {
     for (const item of body.items) {
       if (!item.description || item.quantity <= 0 || item.unitPrice < 0) {
         return NextResponse.json(
-          { error: 'All items must have valid description, quantity, and unit price' },
+          { error: 'All items must have valid description, quantity, and Selling Price' },
           { status: 400 }
         );
       }
@@ -397,7 +397,7 @@ export async function POST(request) {
         );
       }
       
-      // Validate per-item discount amount (should be non-negative and not exceed unit price)
+      // Validate per-item discount amount (should be non-negative and not exceed Selling Price)
       if (item.discountAmount && item.discountAmount < 0) {
         return NextResponse.json(
           { error: 'Discount amount must be positive' },
@@ -407,7 +407,7 @@ export async function POST(request) {
       
       if (item.discountAmount && item.discountAmount > item.unitPrice) {
         return NextResponse.json(
-          { error: 'Per-item discount cannot exceed unit price' },
+          { error: 'Per-item discount cannot exceed Selling Price' },
           { status: 400 }
         );
       }

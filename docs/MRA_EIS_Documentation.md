@@ -361,7 +361,7 @@ Every completed sale is submitted to MRA immediately after the database transact
 
 - `saleNumber` becomes the invoice number
 - `saleDate` becomes the invoice date
-- Sale items are mapped with descriptions, quantities, unit prices, and tax rates
+- Sale items are mapped with descriptions, quantities, Selling Prices, and tax rates
 - The tenant's TPIN and business details are included as the seller
 - The client name (or "Walk-in Customer") is included as the buyer
 - The payment method from the sale is passed through

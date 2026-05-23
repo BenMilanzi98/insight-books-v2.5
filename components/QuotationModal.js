@@ -92,7 +92,7 @@ const QuotationModal = ({
     setFormData({ ...formData, items: updatedItems });
   };
 
-  // Handle unit price changes
+  // Handle Selling Price changes
   const handleUnitPriceChange = (itemIndex, newPrice) => {
     const updatedItems = [...formData.items];
     updatedItems[itemIndex] = {
@@ -109,7 +109,7 @@ const QuotationModal = ({
       [itemIndex]: newUnitQuantities
     }));
     
-    // Update the item's quantity and unit price based on unit quantities
+    // Update the item's quantity and Selling Price based on unit quantities
     const item = formData.items[itemIndex];
     if (hasUnitManagement(item.product) && item.product.units) {
       let totalBaseQuantity = 0;
@@ -125,7 +125,7 @@ const QuotationModal = ({
         }
       });
       
-      // Calculate average unit price (total price / total quantity)
+      // Calculate average Selling Price (total price / total quantity)
       const averageUnitPrice = totalBaseQuantity > 0 ? totalPrice / totalBaseQuantity : 0;
       
       // Update the item with calculated values
@@ -133,7 +133,7 @@ const QuotationModal = ({
       updatedItems[itemIndex] = {
         ...updatedItems[itemIndex],
         quantity: totalBaseQuantity,
-        unitPrice: averageUnitPrice // Use average unit price, not total price
+        unitPrice: averageUnitPrice // Use average Selling Price, not total price
       };
       setFormData({ ...formData, items: updatedItems });
     }
@@ -551,7 +551,7 @@ const QuotationModal = ({
       }
       
       if (item.unitPrice < 0) {
-        newErrors[`items.${index}.unitPrice`] = "Unit price cannot be negative";
+        newErrors[`items.${index}.unitPrice`] = "Selling Price cannot be negative";
       }
       
       // Tax is now optional with dropdown - users can select "No Tax"
@@ -559,12 +559,12 @@ const QuotationModal = ({
       //   newErrors[`items.${index}.taxRate"] = "Tax rate must be between 0 and 100";
       // }
       
-      // Validate that per-item discount doesn't exceed unit price (only if discount is provided)
+      // Validate that per-item discount doesn't exceed Selling Price (only if discount is provided)
       if (item.discountAmount && item.discountAmount !== "") {
         const unitPrice = parseFloat(item.unitPrice) || 0;
         const perItemDiscount = parseFloat(item.discountAmount) || 0;
         if (perItemDiscount > unitPrice) {
-          newErrors[`items.${index}.discountAmount`] = "Per-item discount cannot exceed unit price";
+          newErrors[`items.${index}.discountAmount`] = "Per-item discount cannot exceed Selling Price";
         }
       }
     });

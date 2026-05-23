@@ -17,7 +17,7 @@ describe('reportLineNetRevenue', () => {
     })).toBe(190);
   });
 
-  it('falls back to invoice quantity * unit price minus per-item discount', () => {
+  it('falls back to invoice quantity * Selling Price minus per-item discount', () => {
     expect(invoiceItemNetRevenueExTax({
       quantity: 3,
       unitPrice: 50,

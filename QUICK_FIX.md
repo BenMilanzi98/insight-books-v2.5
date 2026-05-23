@@ -347,7 +347,7 @@ page.js:644 Product: Azam energy
 page.js:645 Product taxes: (2) [{…}, {…}]
 page.js:646 Taxes count: 2
 page.js:647 Quantity: 1
-page.js:648 Unit price: 1800
+page.js:648 Selling Price: 1800
 page.js:657 Tax calculation result: {totalTaxAmount: 495, taxBreakdown: Array(2)}
 page.js:658 Total tax amount: 495
 page.js:659 Tax breakdown: (2) [{…}, {…}]
@@ -1477,7 +1477,7 @@ page.js:644 Product: Baking Flour
 page.js:645 Product taxes: [{…}]
 page.js:646 Taxes count: 1
 page.js:647 Quantity: 1
-page.js:648 Unit price: 3800
+page.js:648 Selling Price: 3800
 page.js:657 Tax calculation result: {totalTaxAmount: 665, taxBreakdown: Array(1)}
 page.js:658 Total tax amount: 665
 page.js:659 Tax breakdown: [{…}]
@@ -1610,7 +1610,7 @@ page.js:644 Product: Baking Flour
 page.js:645 Product taxes: [{…}]
 page.js:646 Taxes count: 1
 page.js:647 Quantity: 1
-page.js:648 Unit price: 3800
+page.js:648 Selling Price: 3800
 page.js:657 Tax calculation result: {totalTaxAmount: 665, taxBreakdown: Array(1)}
 page.js:658 Total tax amount: 665
 page.js:659 Tax breakdown: [{…}]

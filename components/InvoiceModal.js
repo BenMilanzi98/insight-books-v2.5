@@ -159,7 +159,7 @@ const InvoiceModal = ({
       [itemIndex]: newUnitQuantities
     }));
     
-    // Update the item's quantity and unit price based on unit quantities
+    // Update the item's quantity and Selling Price based on unit quantities
     const item = formData.items[itemIndex];
     if (hasUnitManagement(item.product) && item.product.units) {
       let totalBaseQuantity = 0;
@@ -175,7 +175,7 @@ const InvoiceModal = ({
         }
       });
       
-      // Calculate average unit price (total price / total quantity)
+      // Calculate average Selling Price (total price / total quantity)
       const averageUnitPrice = totalBaseQuantity > 0 ? totalPrice / totalBaseQuantity : 0;
       
       // Update the item with calculated values
@@ -183,7 +183,7 @@ const InvoiceModal = ({
       updatedItems[itemIndex] = {
         ...updatedItems[itemIndex],
         quantity: totalBaseQuantity,
-        unitPrice: averageUnitPrice // Use average unit price, not total price
+        unitPrice: averageUnitPrice // Use average Selling Price, not total price
       };
       setFormData({ ...formData, items: updatedItems });
     }
@@ -756,7 +756,7 @@ const InvoiceModal = ({
       }
       
       if (item.unitPrice === "") {
-        newErrors[`items.${index}.unitPrice`] = "Unit price is required";
+        newErrors[`items.${index}.unitPrice`] = "Selling Price is required";
       }
       
       // Income account is set from revenueAccount when loaded; only validate per-item if we have revenue account
@@ -764,12 +764,12 @@ const InvoiceModal = ({
         newErrors[`items.${index}.accountId`] = "Income account is required";
       }
       
-      // Validate that per-item discount doesn't exceed unit price (only if discount is provided)
+      // Validate that per-item discount doesn't exceed Selling Price (only if discount is provided)
       if (item.discountAmount && item.discountAmount !== "") {
         const unitPrice = parseFloat(item.unitPrice) || 0;
         const perItemDiscount = parseFloat(item.discountAmount) || 0;
         if (perItemDiscount > unitPrice) {
-          newErrors[`items.${index}.discountAmount`] = "Per-item discount cannot exceed unit price";
+          newErrors[`items.${index}.discountAmount`] = "Per-item discount cannot exceed Selling Price";
         }
       }
     });

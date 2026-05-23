@@ -1847,7 +1847,7 @@ const StockManagement = () => {
         location: locationFilter,
       }).catch(() => {
         // Create CSV content as fallback
-        const headers = ['ID', 'Name', 'SKU', 'Category', 'Quantity', 'Unit Price', 'Cost Price', 'Status', 'Location'];
+        const headers = ['ID', 'Name', 'SKU', 'Category', 'Quantity', 'Selling Price', 'Order Price', 'Status', 'Location'];
         const rows = inventory.map(p => [
           p.id,
           p.name,
@@ -3123,7 +3123,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("unitPrice")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Unit Price</span>
+                            <span>Selling Price</span>
                             {sortField === "unitPrice" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3897,7 +3897,7 @@ const StockManagement = () => {
                   <div className={`grid gap-4 ${selectedItem.isService ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2"}`}>
                     {!selectedItem.isService && (
                     <div>
-                      <span className="text-sm text-gray-500">Cost Price</span>
+                      <span className="text-sm text-gray-500">Order Price</span>
                       <div className="text-lg font-bold">{formatCurrency(selectedItem.costPrice)}</div>
                     </div>
                     )}
@@ -5023,7 +5023,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Cost Price</label>
+                      <label className="block text-xs font-medium text-gray-600">Order Price</label>
                       <input
                         type="number"
                         min="0"
@@ -5088,7 +5088,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                 <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-indigo-700">Subtotal</p>
-                    <p className="text-sm text-indigo-900">Products × cost price</p>
+                    <p className="text-sm text-indigo-900">Products × Order Price</p>
                   </div>
                   <div className="text-lg font-semibold text-indigo-900">
                     MWK {subtotal.toLocaleString()}
@@ -5734,8 +5734,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       newErrors.category = "Category is required";
     }
     
-    if (formData.unitPrice !== '' && formData.unitPrice < 0) newErrors.unitPrice = "Unit price cannot be negative";
-    if (formData.costPrice !== '' && formData.costPrice < 0) newErrors.costPrice = "Cost price cannot be negative";
+    if (formData.unitPrice !== '' && formData.unitPrice < 0) newErrors.unitPrice = "Selling Price cannot be negative";
+    if (formData.costPrice !== '' && formData.costPrice < 0) newErrors.costPrice = "Order Price cannot be negative";
     if (formData.quantityInStock !== '' && formData.quantityInStock < 0) newErrors.quantityInStock = "Quantity cannot be negative";
     if (formData.reorderPoint !== '' && formData.reorderPoint < 0) newErrors.reorderPoint = "Reorder point cannot be negative";
     if (formData.discountAmount !== '' && formData.discountAmount < 0) newErrors.discountAmount = "Discount amount cannot be negative";
@@ -6100,7 +6100,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               
               {/* These fields span 2 columns on larger screens */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price (MWK)*</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (MWK)*</label>
                 <input
                   type="number"
                   name="unitPrice"
@@ -6115,7 +6115,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price (MWK)*</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Order Price (MWK)*</label>
                 <input
                   type="number"
                   name="costPrice"

@@ -16,7 +16,7 @@ export async function GET(request) {
     // Create CSV template content
     const csvContent = [
       // Header row with descriptions
-      'Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes',
+      'Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Selling Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes',
       // Example rows
       '2023-01-15,John Doe,john@example.com,Consulting Services,1,500.00,15,0,cash,INV-2023-001,Historical transaction from old system',
       '2023-01-16,Jane Smith,jane@example.com,Product A,2,25.50,15,5.00,card,REC-2023-002,Migrated from legacy POS',

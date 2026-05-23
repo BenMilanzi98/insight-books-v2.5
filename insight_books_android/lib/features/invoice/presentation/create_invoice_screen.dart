@@ -650,7 +650,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                                   const SizedBox(width: 8),
                                   const Text('×'),
                                   const SizedBox(width: 8),
-                                  // Unit price
+                                  // Selling Price
                                   Expanded(
                                     child: TextField(
                                       controller: item.priceCtrl,
