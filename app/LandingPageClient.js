@@ -103,7 +103,7 @@ function NavigationBar() {
                         href="/auth/signup"
                         className={`border ${scrolled ? 'border-slate-700 text-slate-700 hover:bg-slate-50' : 'border-white text-white hover:bg-white hover:text-indigo-900'} text-sm px-4 py-2 rounded-md transition-all duration-300`}
                       >
-                        Register
+                        Create Account
                       </Link>
                     )}
                   </>
@@ -153,7 +153,7 @@ function NavigationBar() {
                     </Link>
                     {showRegisterAndDemo && (
                       <Link href="/auth/signup" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-                        Register
+                        Create Account
                       </Link>
                     )}
                   </>
@@ -1040,7 +1040,7 @@ function CtaSection() {
             href="/auth/signup"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-blue-950 shadow-lg shadow-blue-950/40 transition-colors hover:bg-sky-50"
           >
-            Register
+            Create Account
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
           <a
