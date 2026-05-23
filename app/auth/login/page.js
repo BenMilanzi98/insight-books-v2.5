@@ -23,7 +23,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(
-    signupSuccess ? "Account created successfully! Please sign in." : ""
+    signupSuccess ? "Account created successfully! Please login." : ""
   );
 
   useEffect(() => {
@@ -171,7 +171,7 @@ function LoginForm() {
                   </p>
                 </div>
                 <Link href="/auth/signup" className="rounded-full border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
-                  Create account
+                  Create Account
                 </Link>
               </div>
 
@@ -179,7 +179,7 @@ function LoginForm() {
                 <div className="grid grid-cols-2 text-center text-sm font-semibold">
                   <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">Login</span>
                   <Link href="/auth/signup" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
-                    Signup
+                    Create Account
                   </Link>
                 </div>
               </div>
@@ -317,7 +317,7 @@ function LoginForm() {
               <p className="mt-5 text-center text-sm text-slate-600">
                 New to InsightBooks?{" "}
                 <Link href="/auth/signup" className="font-bold text-indigo-700 hover:text-indigo-900">
-                  Create an account
+                  Create Account
                 </Link>
               </p>
             </div>

@@ -206,7 +206,7 @@ const Signup = () => {
             <div className="rounded-3xl border border-white/70 bg-white/95 p-4 shadow-2xl shadow-blue-950/50 backdrop-blur-xl sm:p-6 lg:p-7">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Create account</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Create Account</p>
                   <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                     Start your free trial
                   </h2>
@@ -224,7 +224,7 @@ const Signup = () => {
                   <Link href="/auth/login" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
                     Login
                   </Link>
-                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">Signup</span>
+                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">Create Account</span>
                 </div>
               </div>
 
@@ -454,7 +454,7 @@ const Signup = () => {
 
               <p className="mt-6 text-center text-sm text-slate-600">
                 Already have an account?{" "}
-                <Link href="/auth/login" className="font-bold text-indigo-700 hover:text-indigo-900">Sign in</Link>
+                <Link href="/auth/login" className="font-bold text-indigo-700 hover:text-indigo-900">Login</Link>
               </p>
             </div>
           </div>
