@@ -77,15 +77,28 @@ async function getSaleWithValidation(id, userId, tenantId) {
   const actualTaxRate = itemTaxTotal > 0 ? displayTaxRate : sale.taxRate;
 
   // Build items list - use SaleItems if available, otherwise reconstruct from batch consumptions
-  let formattedItems = sale.items.map(item => ({
-    ...item,
-    unitPrice: item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    amount: item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    taxAmount: (item.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    rawUnitPrice: item.unitPrice,
-    rawAmount: item.amount,
-    rawTaxAmount: item.taxAmount || 0
-  }));
+  let formattedItems = sale.items.map(item => {
+    const quantity = Number(item.quantity) || 0;
+    const rawAmount = Number(item.amount) || 0;
+    const discountAmount = Number(item.discountAmount) || 0;
+    const netAmount = Math.max(0, rawAmount - discountAmount);
+    const effectiveUnitPrice = quantity > 0 ? netAmount / quantity : Number(item.unitPrice) || 0;
+
+    return {
+      ...item,
+      unitPrice: item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      amount: rawAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      lineNetAmount: netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      effectiveUnitPrice: effectiveUnitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      taxAmount: (item.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      rawUnitPrice: item.unitPrice,
+      rawAmount,
+      rawLineNetAmount: netAmount,
+      rawEffectiveUnitPrice: effectiveUnitPrice,
+      rawDiscountAmount: discountAmount,
+      rawTaxAmount: item.taxAmount || 0
+    };
+  });
 
   // Fallback: get product names/quantities from batch consumptions for old sales
   let batchProducts = [];

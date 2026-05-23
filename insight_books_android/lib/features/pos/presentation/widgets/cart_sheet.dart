@@ -322,6 +322,9 @@ class _CartItemTile extends StatelessWidget {
     );
     final product = item.product;
     final colorScheme = Theme.of(context).colorScheme;
+    final grossLineTotal = (product.price as num).toDouble() * (item.quantity as num).toDouble();
+    final discountAmount = (item.discountAmount as num).toDouble();
+    final netLineTotal = (grossLineTotal - discountAmount).clamp(0, double.infinity).toDouble();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -343,6 +346,24 @@ class _CartItemTile extends StatelessWidget {
                 Text(
                   currencyFormat.format(product.price),
                   style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                if (discountAmount > 0)
+                  Text(
+                    'Discount: -${currencyFormat.format(discountAmount)}',
+                    style: TextStyle(
+                      color: colorScheme.error,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                Text(
+                  'Line total: ${currencyFormat.format(netLineTotal)}',
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

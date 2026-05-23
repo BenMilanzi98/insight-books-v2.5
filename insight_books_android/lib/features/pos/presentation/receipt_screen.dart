@@ -140,6 +140,12 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     return double.tryParse(s) ?? 0;
   }
 
+  double _lineDiscount(Map<String, dynamic> item) {
+    final discountAmount = _num(item['rawDiscountAmount'] ?? item['discountAmount']);
+    if (discountAmount > 0) return discountAmount;
+    return _num(item['discount']) * _num(item['quantity']);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat.currency(
@@ -419,11 +425,23 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                   : Map<String, dynamic>.from(raw as Map);
               final desc = _lineDescription(item);
               final qty = _num(item['quantity']);
-              final unit = _num(item['rawUnitPrice'] ?? item['unitPrice']);
-              var lineAmt = _num(item['rawAmount'] ?? item['amount']);
+              final unit = _num(
+                item['rawEffectiveUnitPrice'] ??
+                    item['effectiveUnitPrice'] ??
+                    item['rawUnitPrice'] ??
+                    item['unitPrice'],
+              );
+              final lineDiscount = _lineDiscount(item);
+              var lineAmt = _num(
+                item['rawLineNetAmount'] ??
+                    item['lineNetAmount'] ??
+                    item['rawAmount'] ??
+                    item['amount'],
+              );
               if (lineAmt <= 0) {
-                lineAmt = _num(item['quantity']) * _num(item['unitPrice']);
+                lineAmt = (_num(item['quantity']) * _num(item['unitPrice'])) - lineDiscount;
               }
+              lineAmt = lineAmt.clamp(0, double.infinity).toDouble();
               final lineTax = _num(item['taxAmount']);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
@@ -463,6 +481,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                       padding: const EdgeInsets.only(left: 28, top: 4),
                       child: Text(
                         '${currencyFormat.format(unit)} each'
+                        '${lineDiscount > 0 ? ' · Discount ${currencyFormat.format(lineDiscount)}' : ''}'
                         '${lineTax > 0 ? ' · Tax ${currencyFormat.format(lineTax)}' : ''}',
                         style: TextStyle(
                           fontSize: 12,

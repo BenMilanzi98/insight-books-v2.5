@@ -444,6 +444,7 @@ body{
         const unitPrice = parseFloat(item.unitPrice || 0);
         const discAmt = parseFloat(item.discountAmount || 0);
         const subtotal = (qty * unitPrice) - discAmt;
+        const effectiveUnitPrice = qty > 0 ? Math.max(0, subtotal / qty) : unitPrice;
           const itemTaxes = item.itemTaxes || [];
         let itemTaxTotal = 0;
         itemTaxes.forEach(t => { itemTaxTotal += parseFloat(t.taxAmount || 0); });
@@ -456,7 +457,7 @@ body{
         return `<tr class="ir">
           <td class="c">${qtyStr}</td>
           <td class="d">${item.description}
-            <div class="isub"><span>${qtyStr} x ${formatCurrency(unitPrice, cur)}</span><span>${formatCurrency(subtotal, cur)}</span></div>
+            <div class="isub"><span>${qtyStr} x ${formatCurrency(effectiveUnitPrice, cur)}</span><span>${formatCurrency(subtotal, cur)}</span></div>
             ${discAmt > 0 ? `<div class="isub"><span>Disc:</span><span>-${formatCurrency(discAmt, cur)}</span></div>` : ''}
             ${taxSubLines}
           </td>
@@ -622,7 +623,12 @@ ${suppressAutoPrint ? receiptLayoutClampScript : `<script>
           lines.push('');
           lines.push('Items:');
           for (const item of sale.items || []) {
-            lines.push(`- ${item.description || ''}  (${Number(item.quantity || 1)} x ${Number(item.unitPrice || 0)})`);
+            const qty = Number(item.quantity || 1);
+            const gross = qty * Number(item.unitPrice || 0);
+            const discount = Number(item.discountAmount || 0);
+            const net = Math.max(0, gross - discount);
+            const effectiveUnitPrice = qty > 0 ? net / qty : Number(item.unitPrice || 0);
+            lines.push(`- ${item.description || ''}  (${qty} x ${effectiveUnitPrice}) = ${net}`);
           }
           lines.push('');
           lines.push(`Subtotal: ${sale.subtotal}`);

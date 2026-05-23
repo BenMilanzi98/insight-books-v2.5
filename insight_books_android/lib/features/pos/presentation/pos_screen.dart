@@ -60,13 +60,35 @@ String _saleClientLabel(Map<String, dynamic> sale) {
 }
 
 double _lineAmountFromItem(Map<String, dynamic> m) {
-  final raw = m['rawAmount'] ?? m['lineTotal'];
-  if (raw is num) return raw.toDouble();
-  if (raw != null) {
-    final p = double.tryParse(raw.toString());
+  final net = m['rawLineNetAmount'] ?? m['lineNetAmount'];
+  if (net is num) return net.toDouble();
+  if (net != null) {
+    final p = double.tryParse(net.toString().replaceAll(',', ''));
     if (p != null) return p;
   }
-  return _parseLocaleMoney('${m['lineTotal'] ?? m['total'] ?? m['amount'] ?? 0}');
+  final raw = m['rawAmount'] ?? m['lineTotal'];
+  final discount = _lineDiscountFromItem(m);
+  double gross = 0;
+  if (raw is num) gross = raw.toDouble();
+  if (raw != null) {
+    final p = double.tryParse(raw.toString().replaceAll(',', ''));
+    if (p != null) gross = p;
+  } else {
+    gross = _parseLocaleMoney('${m['lineTotal'] ?? m['total'] ?? m['amount'] ?? 0}');
+  }
+  return (gross - discount).clamp(0, double.infinity).toDouble();
+}
+
+double _lineDiscountFromItem(Map<String, dynamic> m) {
+  final rawDiscount = m['rawDiscountAmount'] ?? m['discountAmount'];
+  if (rawDiscount is num) return rawDiscount.toDouble();
+  if (rawDiscount != null) {
+    final p = double.tryParse(rawDiscount.toString().replaceAll(',', ''));
+    if (p != null) return p;
+  }
+  final perUnitDiscount = double.tryParse('${m['discount'] ?? 0}') ?? 0;
+  final qty = double.tryParse('${m['quantity'] ?? 0}') ?? 0;
+  return perUnitDiscount * qty;
 }
 
 int? _cartQuantityForProduct(PosProduct product, List<CartItem> cart) {
