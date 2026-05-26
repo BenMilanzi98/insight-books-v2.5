@@ -14,12 +14,12 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
+# Flutter requires a semantic x.y.z version here. Android release builds can
+# override the public versionName with --build-name, e.g. 1.0.1.0.
 # Android versionCode = the number after + (must be >= InsightBooks admin "Latest build").
 # Every new AAB on Play must use a strictly higher versionCode than any previous upload on this app id.
-# versionName = x.y.z from pubspec; versionCode = +N (see android/app/build.gradle.kts).
-version: 1.0.1+16
+# versionCode = +N unless overridden by --build-number (see android/app/build.gradle.kts).
+version: 1.0.10+10
 
 environment:
   sdk: ^3.11.0
