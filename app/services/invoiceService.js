@@ -142,7 +142,8 @@ export const sendInvoice = async (invoiceId, templateId = null) => {
     });
     
     if (!response.ok) {
-      throw new Error(`Error sending invoice: ${response.statusText}`);
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Error sending invoice: ${response.statusText}`);
     }
     
     const data = await response.json();

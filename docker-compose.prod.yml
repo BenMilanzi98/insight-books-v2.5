@@ -47,6 +47,7 @@ services:
     tmpfs:
       - /tmp
       - /app/.next/cache
+    # Invoice PDFs are written under /tmp (see lib/invoicePdfStorage.js)
 
   db:
     image: postgres:15-alpine

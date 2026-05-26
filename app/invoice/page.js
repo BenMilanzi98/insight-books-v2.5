@@ -400,8 +400,10 @@ const InvoicingPage = () => {
             body: JSON.stringify({ message, templateId: selectedTemplate?.id, otherEmails }),
           });
         }
-        if (!response.ok) throw new Error('Failed to send invoice');
-        const result = await response.json();
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to send invoice');
+        }
         setSendInvoiceModalOpen(false);
         setSendAttachments([]);
         pendingSendMessageRef.current = null;
@@ -413,7 +415,7 @@ const InvoicingPage = () => {
       } catch (error) {
         console.error("Error in post-capture process:", error);
         sendOnceForInvoiceIdRef.current = null;
-        alert("PDF generated but failed to send invoice. Please try again.");
+        alert(error.message || "PDF generated but failed to send invoice. Please try again.");
       } finally {
         setIsSendingInvoice(false);
         setTimeout(() => {

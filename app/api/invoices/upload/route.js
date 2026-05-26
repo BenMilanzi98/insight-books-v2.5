@@ -1,7 +1,12 @@
 // app/api/invoices/upload/route.js
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import path from 'path';
+import {
+  findInvoicePdf,
+  getInvoicePdfDir,
+  invoicePdfFilenames,
+  saveInvoicePdf,
+} from '@/lib/invoicePdfStorage';
 
 export async function GET(request) {
   try {
@@ -13,37 +18,22 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
     }
 
-    // Check for multiple possible filename patterns
-    const possibleFilenames = [
-      `invoice-${id}.pdf`,           // Direct ID format
-      `invoice-INV-${id}.pdf`,      // Invoice number format
-      `invoice-${id}.pdf`           // Fallback
-    ];
+    const found = findInvoicePdf(id, null);
+    const possibleFilenames = invoicePdfFilenames(id, null);
 
-    let foundFile = null;
-    let foundFilename = null;
-
-    for (const filename of possibleFilenames) {
-      const filePath = path.join(process.cwd(), 'tmp', filename);
-      if (fs.existsSync(filePath)) {
-        foundFile = filePath;
-        foundFilename = filename;
-        break;
-      }
-    }
-
-    if (foundFile) {
-      return NextResponse.json({ 
-        exists: true, 
-        filename: foundFilename,
-        size: fs.statSync(foundFile).size 
-      });
-    } else {
-      return NextResponse.json({ 
-        exists: false, 
-        searchedFilenames: possibleFilenames
+    if (found) {
+      return NextResponse.json({
+        exists: true,
+        filename: found.filename,
+        size: fs.statSync(found.filePath).size,
       });
     }
+
+    return NextResponse.json({
+      exists: false,
+      searchedFilenames: possibleFilenames,
+      searchedDirs: [getInvoicePdfDir()],
+    });
   } catch (error) {
     console.error('Error checking invoice file:', error);
     return NextResponse.json({ error: 'Failed to check file' }, { status: 500 });
@@ -61,22 +51,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'File and ID are required' }, { status: 400 });
     }
 
-    // Ensure tmp directory exists
-    const tmpDir = path.join(process.cwd(), 'tmp');
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true });
-    }
-
-    // Use the provided filename if available, otherwise generate one
     const finalFilename = filename || `invoice-${id}.pdf`;
-    const filePath = path.join(tmpDir, finalFilename);
-
-    // Convert file to buffer and save
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
-    // Save the file
-    fs.writeFileSync(filePath, buffer);
+    const { filePath } = saveInvoicePdf(buffer, finalFilename);
 
     console.log(`Invoice PDF saved: ${finalFilename} (${buffer.length} bytes)`);
 

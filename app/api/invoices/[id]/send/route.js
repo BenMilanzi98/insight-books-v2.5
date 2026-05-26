@@ -3,10 +3,17 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { formatCurrency, formatDate } from '@/lib/invoiceCalculations';
-import { createTransport } from '@/lib/emailService';
-import nodemailer from 'nodemailer';
+import {
+  createTransport,
+  getSmtpFromAddress,
+  verifySmtpConnectionOptional,
+} from '@/lib/emailService';
+import {
+  deleteInvoicePdf,
+  findInvoicePdf,
+} from '@/lib/invoicePdfStorage';
 import fs from 'fs';
-import path from 'path';
+import nodemailer from 'nodemailer';
 
 /** Escapes text for safe insertion into HTML email bodies. */
 function escapeHtml(str) {
@@ -157,57 +164,31 @@ export async function POST(request, context) {
       const invoiceHtml = generateInvoiceHtml(invoice, tenant, isPaid);
       
 
-      const transporter = await createTransport();
-      
-      // Test connection first (following your OTP email pattern)
-      try {
-        const connectionTest = await transporter.verify();
-        console.log('SMTP connection verified for invoice email:', connectionTest);
-      } catch (verifyError) {
-        console.error('SMTP verification failed:', verifyError);
-        return NextResponse.json(
-          { error: `SMTP verification failed: ${verifyError.message}` },
-          { status: 500 }
-        );
-      }
-      // 2. Build the filename and read the file - check multiple possible filename patterns
-      const possibleFilenames = [
-        `invoice-${invoiceId}.pdf`,           // Direct ID format
-        `invoice-INV-${invoice.invoiceNumber}.pdf`, // Invoice number format
-        `invoice-${invoice.invoiceNumber}.pdf`      // Fallback
-      ];
-      
-      let filePath = null;
-      let foundFilename = null;
-      
-      for (const filename of possibleFilenames) {
-        const testPath = path.join(process.cwd(), 'tmp', filename);
-        if (fs.existsSync(testPath)) {
-          filePath = testPath;
-          foundFilename = filename;
-          break;
-        }
-      }
-      
-      if (!filePath) {
-        console.error('PDF file not found. Searched for:', possibleFilenames);
-        return NextResponse.json({ 
-          error: 'PDF file not found. Please try generating the invoice again.' 
+      const transporter = createTransport();
+      await verifySmtpConnectionOptional(transporter, 'invoice email');
+
+      const pdfFound = findInvoicePdf(invoiceId, invoice.invoiceNumber);
+      if (!pdfFound) {
+        console.error('PDF file not found for invoice:', invoiceId);
+        return NextResponse.json({
+          error: 'PDF file not found. Please try generating the invoice again.',
         }, { status: 404 });
       }
-      
-      console.log(`Found PDF file: ${foundFilename}`);
-      const pdfBuffer = fs.readFileSync(filePath);
-      // Prepare email
-      const companyName = tenant?.name || 'InsightBooks';
 
-      // Use tenant's business email if available, otherwise fall back to system email
-      const tenantEmail = tenant?.settings?.businessEmail || process.env.EMAIL_FROM || 'insightbooks@insightbooksafrica.com';
-      const fromEmail = `"${companyName}" <${tenantEmail}>`;
+      const { filePath, filename: foundFilename } = pdfFound;
+      console.log(`Found PDF file: ${foundFilename} at ${filePath}`);
+      const pdfBuffer = fs.readFileSync(filePath);
+
+      const companyName = tenant?.name || 'InsightBooks';
+      const fromEmail = getSmtpFromAddress(companyName);
+      const replyTo =
+        tenant?.settings?.businessEmail ||
+        process.env.EMAIL_FROM ||
+        process.env.EMAIL_USER;
 
       const mailOptions = {
         from: fromEmail,
-        replyTo: tenantEmail,
+        replyTo,
         to: clientEmails.join(', '), // Send to all email addresses
         subject: isPaid ? `Payment Confirmation - Invoice #${invoice.invoiceNumber} from ${companyName}` : `Invoice #${invoice.invoiceNumber} from ${companyName}`,
         html: `
@@ -257,6 +238,10 @@ export async function POST(request, context) {
       // Send the email
       const info = await transporter.sendMail(mailOptions);
       
+      if (Array.isArray(info.rejected) && info.rejected.length > 0) {
+        throw new Error(`Email rejected by server: ${info.rejected.join(', ')}`);
+      }
+
       console.log('Invoice email sent successfully:', {
         messageId: info.messageId,
         response: info.response,
@@ -264,26 +249,10 @@ export async function POST(request, context) {
         rejected: info.rejected
       });
       
-      // Clean up the PDF file - check multiple possible filename patterns
       try {
-        const possibleFilenames = [
-          `invoice-${invoiceId}.pdf`,           // Direct ID format
-          `invoice-INV-${invoice.invoiceNumber}.pdf`, // Invoice number format
-          `invoice-${invoice.invoiceNumber}.pdf`      // Fallback
-        ];
-        
-        let fileDeleted = false;
-        for (const filename of possibleFilenames) {
-          const filePath = path.join(process.cwd(), 'tmp', filename);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-            console.log(`PDF file deleted: ${filename}`);
-            fileDeleted = true;
-            break;
-          }
-        }
-        
-        if (!fileDeleted) {
+        if (deleteInvoicePdf(invoiceId, invoice.invoiceNumber)) {
+          console.log(`PDF file deleted for invoice ${invoiceId}`);
+        } else {
           console.log('No PDF file found to delete - this is normal if file was already cleaned up');
         }
       } catch (deleteError) {
@@ -343,8 +312,17 @@ export async function POST(request, context) {
       });
     } catch (error) {
       console.error('Error sending invoice:', error);
+      const message = error?.message || 'Unknown error';
+      const isSmtp =
+        error?.code === 'EAUTH' ||
+        error?.code === 'ESOCKET' ||
+        /smtp|mail|recipient|sender/i.test(message);
       return NextResponse.json(
-        { error: `Failed to send invoice: ${error.message}` },
+        {
+          error: isSmtp
+            ? `Failed to send invoice email: ${message}. Check SMTP settings and that the From address matches your mail account.`
+            : `Failed to send invoice: ${message}`,
+        },
         { status: 500 }
       );
     }
