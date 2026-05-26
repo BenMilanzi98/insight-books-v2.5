@@ -39,7 +39,11 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
   }
 
   String _bannerText(AppUpdateState s) {
-    final buf = StringBuffer('A new version is available.');
+    final buf = StringBuffer(
+      s.lockReason?.isNotEmpty == true
+          ? s.lockReason!
+          : 'A new version is available.',
+    );
     if (s.graceEndsAt != null) {
       try {
         final end = DateTime.parse(s.graceEndsAt!).toLocal();
@@ -59,6 +63,20 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
     return buf.toString();
   }
 
+  String _lockTitle(AppUpdateState s) {
+    if (s.updateStatus == 'revoked') return 'Access revoked';
+    if (s.maintenance) return 'Maintenance';
+    if (s.updateStatus == 'locked') return 'App temporarily locked';
+    return 'Update required';
+  }
+
+  IconData _lockIcon(AppUpdateState s) {
+    if (s.updateStatus == 'revoked') return Icons.person_off_outlined;
+    if (s.maintenance) return Icons.build_circle_outlined;
+    if (s.updateStatus == 'locked') return Icons.security_outlined;
+    return Icons.lock_outline;
+  }
+
   Future<void> _openApkInBrowser(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -70,7 +88,9 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
     if (s.apkUrl == null) return;
     final info = await PackageInfo.fromPlatform();
     final code = int.tryParse(info.buildNumber) ?? 0;
-    await ref.read(apkUpdateInstallerProvider.notifier).downloadAndInstall(
+    await ref
+        .read(apkUpdateInstallerProvider.notifier)
+        .downloadAndInstall(
           apkUrl: s.apkUrl!,
           versionCode: code,
           versionName: info.version,
@@ -100,8 +120,10 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                 color: warningBg,
                 elevation: 6,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -149,14 +171,10 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          s.maintenance ? Icons.build_circle_outlined : Icons.lock_outline,
-                          size: 48,
-                          color: Colors.white,
-                        ),
+                        Icon(_lockIcon(s), size: 48, color: Colors.white),
                         const SizedBox(height: 16),
                         Text(
-                          s.maintenance ? 'Maintenance' : 'Update required',
+                          _lockTitle(s),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -164,18 +182,29 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                           ),
                         ),
                         const SizedBox(height: 12),
-                        if (s.maintenance) ...[
+                        if (s.maintenance ||
+                            s.updateStatus == 'revoked' ||
+                            s.updateStatus == 'locked') ...[
                           Text(
                             s.maintenanceMessage ??
+                                s.lockReason ??
                                 'The app is temporarily unavailable. Please try again later.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70, fontSize: 15),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                            ),
                           ),
                         ] else ...[
-                          const Text(
-                            'This version is no longer supported. Download and install the latest APK to continue.',
+                          Text(
+                            s.lockReason ??
+                                'This version is no longer supported. Download and install the latest APK to continue.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.35),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                              height: 1.35,
+                            ),
                           ),
                           const SizedBox(height: 20),
                           Text(
@@ -189,7 +218,7 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'New Build: Build ${s.latestVersionCode ?? "—"}',
+                            'Latest: ${s.latestVersionName ?? "—"} (build ${s.latestVersionCode ?? "—"})',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
@@ -204,25 +233,33 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                                   ? 'Download is not available from the app. Ask your administrator for an update.'
                                   : 'No download link is configured. Ask your administrator.',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white54, fontSize: 14),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                           if (s.apkUrl != null) ...[
                             const SizedBox(height: 20),
                             if (dl.phase == ApkDownloadPhase.downloading ||
                                 dl.phase == ApkDownloadPhase.queued ||
-                                dl.phase == ApkDownloadPhase.openingInstaller) ...[
+                                dl.phase ==
+                                    ApkDownloadPhase.openingInstaller) ...[
                               Text(
                                 dl.phase == ApkDownloadPhase.openingInstaller
                                     ? 'Opening installer…'
                                     : 'Downloading…',
-                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
-                                  value: dl.phase == ApkDownloadPhase.downloading
+                                  value:
+                                      dl.phase == ApkDownloadPhase.downloading
                                       ? dl.progress.clamp(0.0, 1.0)
                                       : null,
                                   minHeight: 6,
@@ -237,15 +274,20 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                               Text(
                                 dl.errorMessage!,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 14,
+                                ),
                               ),
                             ],
                             const SizedBox(height: 16),
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(
-                                onPressed: (dl.phase == ApkDownloadPhase.downloading ||
-                                        dl.phase == ApkDownloadPhase.openingInstaller)
+                                onPressed:
+                                    (dl.phase == ApkDownloadPhase.downloading ||
+                                        dl.phase ==
+                                            ApkDownloadPhase.openingInstaller)
                                     ? null
                                     : () => _startInAppDownload(s),
                                 child: Text(
@@ -262,7 +304,10 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                                 onPressed: () => _openApkInBrowser(s.apkUrl!),
                                 child: const Text(
                                   'Open in browser',
-                                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 15,
+                                  ),
                                 ),
                               ),
                             ),
@@ -271,7 +316,9 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () {
-                            ref.read(apkUpdateInstallerProvider.notifier).reset();
+                            ref
+                                .read(apkUpdateInstallerProvider.notifier)
+                                .reset();
                             ref.read(appUpdateProvider.notifier).refresh();
                           },
                           child: const Text(

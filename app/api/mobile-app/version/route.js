@@ -83,12 +83,13 @@ export async function GET(request) {
         : storedUrl.endsWith('/api/mobile-app/download'));
 
     let apkDownloadUrl = '';
-    if (websiteDownloadAvailable && base) {
+    if (storedUrl && !storedIsSiteDownload) {
+      // The PHP App Center is the canonical APK host after migration; prefer it
+      // even when an old local release file still exists in public/releases.
+      apkDownloadUrl = storedUrl;
+    } else if (websiteDownloadAvailable && base) {
       apkDownloadUrl = siteApkUrl;
     } else if (!lockedSite) {
-      apkDownloadUrl = storedUrl;
-    } else if (storedUrl && !storedIsSiteDownload) {
-      // Website APK is locked, but admins can still point the app at Play Store / CDN / direct APK URL.
       apkDownloadUrl = storedUrl;
     }
 

@@ -1,0 +1,23 @@
+Options -Indexes
+
+<FilesMatch "(^\.|\.env$|\.sql$|\.log$|\.bak$|\.backup$|\.ini$|\.sh$|\.ps1$|\.zip$|\.tar$|\.gz$)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    DirectoryIndex index.php
+    RewriteRule ^public/?$ / [R=301,L]
+    RewriteRule ^public/index\.php$ / [R=301,L]
+    RewriteRule ^public/download\.php$ download.php [R=301,L]
+    RewriteRule ^public/assets/(.*)$ assets/$1 [R=301,L]
+    RewriteRule ^public/uploads/(.*)$ uploads/$1 [R=301,L]
+    RewriteRule ^$ index.php [L]
+    RewriteRule ^download\.php$ public/download.php [L]
+    RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+    RewriteRule ^uploads/(.*)$ public/uploads/$1 [L]
+    RewriteRule ^public/(.*)$ public/$1 [L]
+    RewriteRule ^admin/(.*)$ admin/$1 [L]
+    RewriteRule ^api/(.*)$ api/$1 [L]
+</IfModule>

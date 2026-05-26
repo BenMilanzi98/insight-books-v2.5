@@ -1,0 +1,54 @@
+[26-May-2026 01:14:19 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:14:22 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:15:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:18:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:19:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:20:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:21:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:22:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29
+[26-May-2026 01:23:27 Africa/Harare] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost' (using password: NO) in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php:29
+Stack trace:
+#0 C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php(29): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\laragon\www\insight-books-v2.0\android-app-center\public\index.php(12): App\Helpers\Database::pdo()
+#2 {main}
+  thrown in C:\laragon\www\insight-books-v2.0\android-app-center\app\Helpers\Database.php on line 29

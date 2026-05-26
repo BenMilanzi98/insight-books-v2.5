@@ -2,15 +2,24 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:insightbooks_android/core/network/api_client.dart';
+import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/core/update/mobile_app_telemetry.dart';
+import 'package:insightbooks_android/core/update/mobile_device_id.dart';
+import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
+import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
+const String appCenterBaseUrl = String.fromEnvironment(
+  'APP_CENTER_BASE_URL',
+  defaultValue: 'https://app.insightinnovationsltd.com',
+);
 
 class AppUpdateState {
   final bool mustLock;
   final bool updateAvailable;
   final bool showGraceBanner;
-  /// Matches server: site-hosted `/api/mobile-app/download` is allowed (not admin-locked).
+
+  /// True when the App Center public APK download is available.
   final bool websiteDownloadAvailable;
   final String? apkUrl;
   final String? graceEndsAt;
@@ -18,7 +27,11 @@ class AppUpdateState {
   final String? broadcastMessage;
   final bool maintenance;
   final String? maintenanceMessage;
+  final String? lockReason;
+  final String? updateStatus;
   final int? latestVersionCode;
+  final String? latestVersionName;
+
   /// From [PackageInfo.buildNumber] — must be >= server [latestVersionCode] (pubspec `+` value).
   final int? clientVersionCode;
   final String? clientVersionName;
@@ -34,7 +47,10 @@ class AppUpdateState {
     this.broadcastMessage,
     this.maintenance = false,
     this.maintenanceMessage,
+    this.lockReason,
+    this.updateStatus,
     this.latestVersionCode,
+    this.latestVersionName,
     this.clientVersionCode,
     this.clientVersionName,
   });
@@ -50,7 +66,10 @@ class AppUpdateState {
     String? broadcastMessage,
     bool? maintenance,
     String? maintenanceMessage,
+    String? lockReason,
+    String? updateStatus,
     int? latestVersionCode,
+    String? latestVersionName,
     int? clientVersionCode,
     String? clientVersionName,
   }) {
@@ -66,15 +85,19 @@ class AppUpdateState {
       broadcastMessage: broadcastMessage ?? this.broadcastMessage,
       maintenance: maintenance ?? this.maintenance,
       maintenanceMessage: maintenanceMessage ?? this.maintenanceMessage,
+      lockReason: lockReason ?? this.lockReason,
+      updateStatus: updateStatus ?? this.updateStatus,
       latestVersionCode: latestVersionCode ?? this.latestVersionCode,
+      latestVersionName: latestVersionName ?? this.latestVersionName,
       clientVersionCode: clientVersionCode ?? this.clientVersionCode,
       clientVersionName: clientVersionName ?? this.clientVersionName,
     );
   }
 }
 
-final appUpdateProvider =
-    NotifierProvider<AppUpdateNotifier, AppUpdateState>(AppUpdateNotifier.new);
+final appUpdateProvider = NotifierProvider<AppUpdateNotifier, AppUpdateState>(
+  AppUpdateNotifier.new,
+);
 
 class AppUpdateNotifier extends Notifier<AppUpdateState> {
   Timer? _pollTimer;
@@ -91,13 +114,65 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     return const AppUpdateState();
   }
 
-  /// When the server omits `apkDownloadUrl` but allows site download, use the same
-  /// base URL as the API client so grace / update-lock screens still offer a link.
+  /// When the server omits a direct APK URL but allows downloads, use the PHP
+  /// App Center download endpoint. The in-app installer needs APK bytes, not
+  /// the HTML landing page.
   static String? _fallbackApkUrl(bool websiteDownloadAllowed) {
     if (!websiteDownloadAllowed) return null;
-    final base = apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
+    final base = appCenterBaseUrl.replaceAll(RegExp(r'/+$'), '');
     if (base.isEmpty) return null;
-    return '$base/api/mobile-app/download';
+    return '$base/download.php';
+  }
+
+  static String? _stringValue(Map<String, dynamic> d, List<String> keys) {
+    for (final key in keys) {
+      final raw = d[key];
+      if (raw == null) continue;
+      final value = raw is String ? raw.trim() : raw.toString().trim();
+      if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  static int? _intValue(Map<String, dynamic> d, List<String> keys) {
+    for (final key in keys) {
+      final raw = d[key];
+      if (raw is num) return raw.toInt();
+      if (raw is String) {
+        final parsed = int.tryParse(raw);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
+  static bool _boolValue(Map<String, dynamic> d, List<String> keys) {
+    for (final key in keys) {
+      final raw = d[key];
+      if (raw is bool) return raw;
+      if (raw is num) return raw != 0;
+      if (raw is String) {
+        final normalized = raw.trim().toLowerCase();
+        if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+          return true;
+        }
+        if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
+  static void _putIfNotBlank(
+    Map<String, dynamic> target,
+    String key,
+    String? value,
+  ) {
+    final trimmed = value?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      target[key] = trimmed;
+    }
   }
 
   void _armGraceDeadlineRefresh({
@@ -143,14 +218,52 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     try {
       final info = await PackageInfo.fromPlatform();
       final code = int.tryParse(info.buildNumber) ?? 0;
-      final dio = ref.read(dioProvider);
+      final deviceId = await ref.read(mobileDeviceIdProvider.future);
+      final account = ref.read(accountProvider);
+      final tenant = ref.read(tenantProvider);
+      final cachedMe = ref.read(storageServiceProvider).cachedMeData;
+      final userFromCache = cachedMe?['user'];
+      final userMap = userFromCache is Map ? userFromCache : cachedMe;
+      final user = account.user;
+      final query = <String, dynamic>{
+        'version_code': code,
+        'version_name': info.version,
+        'device_id': deviceId,
+        'platform': 'android',
+        // Legacy aliases keep older receiver code or proxies harmless.
+        'versionCode': code,
+        'current_version_code': code,
+        // Bust misbehaving HTTP caches so "Update required" clears right after install.
+        '_': DateTime.now().millisecondsSinceEpoch.toString(),
+      };
+      _putIfNotBlank(query, 'user_id', user?.id ?? userMap?['id']?.toString());
+      _putIfNotBlank(
+        query,
+        'email',
+        user?.email ?? userMap?['email']?.toString(),
+      );
+      _putIfNotBlank(
+        query,
+        'phone',
+        user?.phone ?? userMap?['phone']?.toString(),
+      );
+      _putIfNotBlank(query, 'tenant_id', tenant.currentTenantId);
+      _putIfNotBlank(query, 'business_id', tenant.currentTenantId);
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: appCenterBaseUrl,
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
+          headers: const {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
       final res = await dio.get<Map<String, dynamic>>(
-        '/api/mobile-app/version',
-        queryParameters: {
-          'versionCode': code,
-          // Bust misbehaving HTTP caches so "Update required" clears right after install.
-          '_': DateTime.now().millisecondsSinceEpoch.toString(),
-        },
+        '/api/check-update.php',
+        queryParameters: query,
         options: Options(
           headers: <String, dynamic>{
             'Cache-Control': 'no-cache',
@@ -159,40 +272,61 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         ),
       );
       final d = res.data ?? {};
-      final mustLock = d['mustLock'] == true;
-      final updateAvailable = d['updateAvailable'] == true;
-      final websiteDl =
-          d['websiteDownloadAvailable'] == true || d['websiteDownloadAvailable'] == null;
-      final apkRaw = d['apkDownloadUrl'];
-      final apkStr = apkRaw is String
-          ? apkRaw.trim()
-          : (apkRaw != null ? apkRaw.toString().trim() : '');
-      String? apkUrl = apkStr.isNotEmpty ? apkStr : null;
+      final status = _stringValue(d, ['status']);
+      final mustLock =
+          _boolValue(d, ['app_locked', 'mustLock']) ||
+          status == 'locked' ||
+          status == 'update_required' ||
+          status == 'maintenance' ||
+          status == 'revoked';
+      final updateAvailable =
+          _boolValue(d, ['updateAvailable']) ||
+          status == 'optional_update' ||
+          status == 'update_required';
+      final downloadLocked = _boolValue(d, ['website_download_locked']);
+      final websiteDl = downloadLocked
+          ? false
+          : (_boolValue(d, [
+                  'website_download_available',
+                  'websiteDownloadAvailable',
+                ]) ||
+                d['website_download_available'] == null &&
+                    d['websiteDownloadAvailable'] == null);
+      String? apkUrl = _stringValue(d, ['download_url', 'apkDownloadUrl']);
       apkUrl ??= _fallbackApkUrl(websiteDl);
-      final graceRaw = d['graceEndsAt'];
-      final graceEnds =
-          graceRaw is String ? graceRaw : (graceRaw != null ? '$graceRaw' : null);
-      final broadcastRaw = d['broadcastMessage'];
-      final broadcast = broadcastRaw is String && broadcastRaw.trim().isNotEmpty
-          ? broadcastRaw.trim()
-          : (broadcastRaw != null && '$broadcastRaw'.trim().isNotEmpty
-              ? '$broadcastRaw'.trim()
-              : null);
-      final maintenance = d['maintenance'] == true;
-      final maintMsgRaw = d['maintenanceMessage'];
-      final maintenanceMessage = maintMsgRaw is String && maintMsgRaw.trim().isNotEmpty
-          ? maintMsgRaw.trim()
-          : null;
-      final latestVc = (d['latestVersionCode'] as num?)?.toInt();
+      final graceEnds = _stringValue(d, ['graceEndsAt', 'grace_ends_at']);
+      final broadcast = _stringValue(d, [
+        'broadcast_message',
+        'broadcastMessage',
+      ]);
+      final maintenance =
+          _boolValue(d, ['maintenance_mode', 'maintenance']) ||
+          status == 'maintenance';
+      final maintenanceMessage = _stringValue(d, [
+        'maintenance_message',
+        'maintenanceMessage',
+      ]);
+      final lockReason = _stringValue(d, ['lock_reason', 'lockReason']);
+      final latestVc = _intValue(d, [
+        'latest_version_code',
+        'latestVersionCode',
+      ]);
+      final latestVersionName = _stringValue(d, [
+        'latest_version_name',
+        'latestVersionName',
+      ]);
 
-      // Server compares versionCode query param to latestVersionCode. Use the same rule here so
-      // we never stay on "Update required" after installing an APK whose build matches or beats
-      // the server (handles stale responses and fixes label/code mismatches from Gradle).
+      // Version update prompts are only for outdated builds, but administrative
+      // locks/maintenance/revocations must apply even when the build is current.
       final outdated = latestVc != null ? code < latestVc : updateAvailable;
-      final effectiveUpdateAvailable =
-          maintenance ? updateAvailable : (updateAvailable && outdated);
-      final effectiveMustLock =
-          maintenance ? mustLock : (mustLock && outdated);
+      final isAdministrativeLock =
+          status == 'locked' || status == 'maintenance' || status == 'revoked';
+      final effectiveUpdateAvailable = maintenance
+          ? updateAvailable
+          : (updateAvailable && outdated);
+      final effectiveMustLock = isAdministrativeLock || maintenance
+          ? mustLock
+          : (mustLock && (outdated || status == 'update_required'));
 
       state = AppUpdateState(
         mustLock: effectiveMustLock,
@@ -203,12 +337,19 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         graceEndsAt: graceEnds,
         releaseNotes: switch (d['releaseNotes']) {
           final String s when s.trim().isNotEmpty => s,
+          _
+              when d['release_notes'] is String &&
+                  (d['release_notes'] as String).trim().isNotEmpty =>
+            d['release_notes'] as String,
           _ => null,
         },
         broadcastMessage: broadcast,
         maintenance: maintenance,
         maintenanceMessage: maintenanceMessage,
+        lockReason: lockReason,
+        updateStatus: status,
         latestVersionCode: latestVc,
+        latestVersionName: latestVersionName,
         clientVersionCode: code,
         clientVersionName: info.version,
       );

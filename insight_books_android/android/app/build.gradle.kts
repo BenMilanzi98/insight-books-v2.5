@@ -10,7 +10,7 @@ plugins {
 
 // Look for key.properties in project-relative path first, then fallback to absolute.
 val localKeystoreFile = rootProject.file("key.properties")
-val externalKeystoreFile = file("G:/Android Keys/key.properties")
+val externalKeystoreFile = file("H:/Android Keys/key.properties")
 val keystorePropertiesFile = if (localKeystoreFile.exists()) localKeystoreFile else externalKeystoreFile
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
@@ -69,11 +69,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -85,4 +81,15 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+gradle.taskGraph.whenReady {
+    val runsReleaseTask = allTasks.any { task ->
+        task.name.lowercase().contains("release")
+    }
+    if (runsReleaseTask && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "Release builds require key.properties. Refusing to create a debug-signed release APK.",
+        )
+    }
 }

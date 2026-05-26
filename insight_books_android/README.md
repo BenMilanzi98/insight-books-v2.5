@@ -1,17 +1,34 @@
-# insightbooks_android
+# InsightBooks Android
 
-A new Flutter project.
+Flutter Android client for InsightBooks.
 
-## Getting Started
+## App Center Update Checks
 
-This project is a starting point for a Flutter application.
+The app is aligned with the standalone PHP Android App Management Center.
+Update enforcement is handled by `lib/core/update/app_update_provider.dart`,
+which calls:
 
-A few resources to get you started if this is your first Flutter project:
+```text
+{APP_CENTER_BASE_URL}/api/check-update.php
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Build release APKs with both the main API URL and the App Center URL:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://insightbooksafrica.com \
+  --dart-define=APP_CENTER_BASE_URL=https://app.insightinnovationsltd.com
+```
+
+The update gate understands these App Center states:
+
+- `ok` — continue normally
+- `optional_update` — show update banner
+- `update_required` — lock outdated builds and show download prompt
+- `locked` — block access immediately
+- `maintenance` — show maintenance message
+- `revoked` — block the specific user/device/business identifier
+
+The app sends `version_code`, `version_name`, `device_id`, `platform`, and
+legacy aliases to the PHP endpoint. The App Center response supplies the latest
+version, lock reason, maintenance message, and APK download URL.
