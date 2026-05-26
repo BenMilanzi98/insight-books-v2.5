@@ -40,9 +40,9 @@ Standalone PHP 8.1+ / MySQL application for managing InsightBooks Android APK di
    DB_PASSWORD=your-cpanel-db-password
    ```
 
-   The bundled APK `public/uploads/apks/insightbooks-v1.0.1.0.apk` is seeded
+   The bundled APK `public/uploads/apks/insightbooks-v1.0.1.1.apk` is seeded
    as the first active public release. If your database was imported before this
-   APK was bundled, import `database/release-v1.0.1.0.sql` into the selected
+   APK was bundled, import `database/release-v1.0.1.1.sql` into the selected
    database to publish it.
 
 4. **Set document root** to the project folder, or ensure `.htaccess` routes `public/`, `admin/`, and `api/`.

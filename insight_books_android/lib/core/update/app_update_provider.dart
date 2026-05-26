@@ -205,9 +205,9 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     } else if (s.updateAvailable && !s.mustLock) {
       interval = const Duration(seconds: 20);
     } else if (s.mustLock) {
-      interval = const Duration(seconds: 45);
+      interval = const Duration(seconds: 20);
     } else {
-      interval = const Duration(minutes: 1);
+      interval = const Duration(seconds: 15);
     }
     _pollTimer = Timer.periodic(interval, (_) => refresh());
   }

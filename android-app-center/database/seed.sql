@@ -32,7 +32,7 @@ INSERT INTO app_settings (
 );
 
 -- Bundled public release.
--- Upload/copy the APK file to: public/uploads/apks/insightbooks-v1.0.1.0.apk
+-- Upload/copy the APK file to: public/uploads/apks/insightbooks-v1.0.1.1.apk
 -- The app will resolve downloads from file_name at runtime, so this works after
 -- deployment even though cPanel paths differ from local Windows paths.
 INSERT INTO apk_versions (
@@ -55,18 +55,18 @@ INSERT INTO apk_versions (
   created_at,
   updated_at
 ) VALUES (
-  '1.0.1.0',
-  10,
-  'InsightBooks Android release v1.0.1.0 with App Center update and lock enforcement support.',
-  'Improved update checks, faster lock enforcement, and Android App Center download support.',
-  'insightbooks-v1.0.1.0.apk',
-  'public/uploads/apks/insightbooks-v1.0.1.0.apk',
+  '1.0.1.1',
+  11,
+  'InsightBooks Android release v1.0.1.1 with strengthened App Center lock and update enforcement.',
+  'Automatic lock for outdated builds, faster live admin lock polling, and improved update gate.',
+  'insightbooks-v1.0.1.1.apk',
+  'public/uploads/apks/insightbooks-v1.0.1.1.apk',
   80259171,
   '8.0',
   'active',
   1,
-  0,
   1,
+  0,
   0,
   1,
   NOW(),

@@ -44,13 +44,8 @@ class UpdateCheckService
 
         $latestCode = (int) $latest['version_code'];
         if ($clientCode < $latestCode) {
-            $mandatory = !empty($latest['mandatory_update']);
-            if ($mandatory) {
-                return self::response('update_required', $settings, $latest, $clientCode, true,
-                    $settings['update_prompt_message'] ?? 'A new version is available. Please update to continue.');
-            }
-            return self::response('optional_update', $settings, $latest, $clientCode, true,
-                'A new version is available.');
+            return self::response('update_required', $settings, $latest, $clientCode, true,
+                $settings['update_prompt_message'] ?? 'A new version is available. Please update to continue.');
         }
 
         return self::response('ok', $settings, $latest, $clientCode, true);
@@ -132,6 +127,7 @@ class UpdateCheckService
             : null;
 
         $locked = in_array($status, ['locked', 'update_required', 'maintenance', 'revoked'], true);
+        $mandatoryUpdate = $status === 'update_required' || ($latest ? (bool) $latest['mandatory_update'] : false);
 
         return [
             'success' => true,
@@ -139,11 +135,13 @@ class UpdateCheckService
             'latest_version_name' => $latest['version_name'] ?? null,
             'latest_version_code' => $latest ? (int) $latest['version_code'] : null,
             'current_version_allowed' => $allowed && !$locked,
-            'mandatory_update' => $latest ? (bool) $latest['mandatory_update'] : false,
+            'mandatory_update' => $mandatoryUpdate,
+            'mustLock' => $locked,
             'app_locked' => $locked,
             'lock_reason' => $lockReason,
             'download_url' => $downloadUrl,
             'website_download_available' => $websiteDownloadAvailable,
+            'website_download_locked' => !$websiteDownloadAvailable,
             'release_notes' => $latest['release_notes'] ?? null,
             'whats_new' => $latest['whats_new'] ?? null,
             'maintenance_mode' => !empty($settings['maintenance_mode']),

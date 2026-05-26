@@ -26,8 +26,9 @@ class SyncService
                 : '',
             'release_notes' => $latest['release_notes'] ?? null,
             'whats_new' => $latest['whats_new'] ?? null,
-            'mandatory_update' => !empty($latest['mandatory_update']),
-            'force_lock' => !empty($latest['mandatory_update']) || !empty($settings['global_app_lock']) || !empty($settings['security_lock']),
+            // App Center policy: any installed build below latest must lock until updated.
+            'mandatory_update' => $latest !== false,
+            'force_lock' => $latest !== false || !empty($settings['global_app_lock']) || !empty($settings['security_lock']),
             'maintenance_lock' => !empty($settings['maintenance_mode']),
             'maintenance_message' => $settings['maintenance_message'] ?? null,
             'lock_message' => $settings['global_lock_message'] ?? null,
@@ -158,6 +159,9 @@ class SyncService
         }
         if (!$latest) {
             return 'disabled';
+        }
+        if (!empty($latest['is_locked'])) {
+            return 'locked';
         }
         if ($latest['status'] === 'deprecated') {
             return 'deprecated';

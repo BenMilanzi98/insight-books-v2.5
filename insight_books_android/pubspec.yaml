@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Android versionCode = the number after + (must be >= InsightBooks admin "Latest build").
 # Every new AAB on Play must use a strictly higher versionCode than any previous upload on this app id.
 # versionCode = +N unless overridden by --build-number (see android/app/build.gradle.kts).
-version: 1.0.10+10
+version: 1.0.11+11
 
 environment:
   sdk: ^3.11.0

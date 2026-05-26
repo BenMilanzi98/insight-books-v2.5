@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         } elseif ($action === 'deprecate') {
             $pdo->prepare('UPDATE apk_versions SET status = \'deprecated\', is_latest = 0 WHERE id = ?')->execute([$id]);
             audit_log((int) $admin['id'], 'version_deprecate', 'apk_versions', null, ['id' => $id]);
+            SyncService::pushToMainSystem((int) $admin['id']);
             flash_set('success', 'Version deprecated.');
         } elseif ($action === 'mandatory') {
             $pdo->prepare('UPDATE apk_versions SET mandatory_update = 1, optional_update = 0 WHERE id = ?')->execute([$id]);
@@ -34,9 +35,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
             flash_set('success', 'Marked mandatory.');
         } elseif ($action === 'lock') {
             $pdo->prepare('UPDATE apk_versions SET is_locked = 1 WHERE id = ?')->execute([$id]);
+            SyncService::pushToMainSystem((int) $admin['id']);
             flash_set('success', 'Version locked.');
         } elseif ($action === 'unlock') {
             $pdo->prepare('UPDATE apk_versions SET is_locked = 0 WHERE id = ?')->execute([$id]);
+            SyncService::pushToMainSystem((int) $admin['id']);
             flash_set('success', 'Version unlocked.');
         } elseif ($action === 'delete') {
             $row = $pdo->prepare('SELECT * FROM apk_versions WHERE id = ?');
