@@ -403,6 +403,8 @@ export async function GET(request) {
       prisma.invoice.aggregate({
         where: addBranchFilter(userQ, {
           ...tw,
+          isDeleted: false,
+          isReversal: false,
           status: { in: ['Pending', 'Partially Paid'] }
         }),
         _sum: { total: true }
@@ -410,6 +412,8 @@ export async function GET(request) {
       prisma.invoice.aggregate({
         where: addBranchFilter(userQ, {
           ...tw,
+          isDeleted: false,
+          isReversal: false,
           status: { in: ['Pending', 'Partially Paid'] },
           issueDate: { 
             gte: previousPeriodStart,

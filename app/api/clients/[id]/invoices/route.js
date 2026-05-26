@@ -49,7 +49,9 @@ export async function GET(request, { params }) {
     // Build filter object for Prisma
     const where = {
       clientId,
-      tenantId: user.tenantId
+      tenantId: user.tenantId,
+      isDeleted: false,
+      isReversal: false
     };
     
     // Add status filter if provided

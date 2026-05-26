@@ -28,6 +28,8 @@ export async function GET(request) {
     // Build filter object for Prisma
     const where = {
       tenantId: user.tenantId, // Filter by tenant ID for multi-tenancy
+      isDeleted: false,
+      isReversal: false,
     };
     
     // Add status filter if provided

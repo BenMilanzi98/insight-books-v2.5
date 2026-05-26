@@ -447,7 +447,7 @@ const InvoicingPage = () => {
 
   // Handle delete invoice
   const handleDeleteInvoice = async (invoiceId) => {
-    if (!confirm("Are you sure you want to delete this invoice?")) return;
+    if (!confirm("Delete this invoice? Posted invoices will be reversed first and kept in the audit trail.")) return;
     
     try {
       await deleteInvoice(invoiceId);
@@ -456,7 +456,7 @@ const InvoicingPage = () => {
       loadStatistics();
     } catch (error) {
       console.error("Error deleting invoice:", error);
-      alert("Failed to delete invoice. Please try again.");
+      alert(error.message || "Failed to delete invoice. Please try again.");
     }
   };
 

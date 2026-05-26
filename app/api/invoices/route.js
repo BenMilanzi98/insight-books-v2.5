@@ -107,6 +107,8 @@ export async function GET(request) {
     const search = searchParams.get('search');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
+    const includeDeleted = searchParams.get('includeDeleted') === 'true';
+    const includeReversals = searchParams.get('includeReversals') === 'true';
     
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -115,6 +117,14 @@ export async function GET(request) {
     const where = {
       tenantId: user.tenantId
     };
+
+    if (!includeDeleted) {
+      where.isDeleted = false;
+    }
+
+    if (!includeReversals) {
+      where.isReversal = false;
+    }
     
     // Add branch filter if provided
     const branchId = searchParams.get('branchId');

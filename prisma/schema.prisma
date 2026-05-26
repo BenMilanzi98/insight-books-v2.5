@@ -321,6 +321,7 @@ model User {
   goodsReceiptsReceived           GoodsReceipt[]               @relation("GoodsReceiptReceiver")
   inventoryTransactions           InventoryTransaction[]
   createdInvoices                 Invoice[]                    @relation("InvoiceCreator")
+  deletedInvoices                 Invoice[]                    @relation("InvoiceDeletedBy")
   refundedInvoices                Invoice[]                    @relation("InvoiceRefundedBy")
   voidedInvoices                  Invoice[]                    @relation("InvoiceVoidedBy")
   processedRefunds                InvoiceRefund[]              @relation("InvoiceRefundedBy")
@@ -531,6 +532,10 @@ model Invoice {
   voidReason                String?
   voidedAt                  DateTime?
   voidedById                String?
+  deletionReason            String?
+  deletedAt                 DateTime?
+  deletedById               String?
+  isDeleted                 Boolean             @default(false)
   branchId                  String?
   footerPhoneOverride       String? // Override default phone in document footer
   footerBankDetailsOverride String? // Override default bank details in document footer
@@ -545,6 +550,7 @@ model Invoice {
   branch                    Branch?             @relation(fields: [branchId], references: [id])
   client                    Client              @relation(fields: [clientId], references: [id])
   createdBy                 User                @relation("InvoiceCreator", fields: [createdById], references: [id])
+  deletedBy                 User?               @relation("InvoiceDeletedBy", fields: [deletedById], references: [id])
   refundedBy                User?               @relation("InvoiceRefundedBy", fields: [refundedById], references: [id])
   tenant                    Tenant              @relation(fields: [tenantId], references: [id])
   voidedBy                  User?               @relation("InvoiceVoidedBy", fields: [voidedById], references: [id])
@@ -558,6 +564,8 @@ model Invoice {
 
   @@unique([tenantId, invoiceNumber])
   @@index([branchId])
+  @@index([isDeleted])
+  @@index([deletedAt])
   @@index([isReversal])
   @@index([reversedTransactionId])
   @@index([isRentalInvoice])

@@ -30,7 +30,9 @@ export async function GET(request) {
       
       // Base query filter for tenant's invoices
       const baseFilter = {
-        tenantId: user.tenantId
+        tenantId: user.tenantId,
+        isDeleted: false,
+        isReversal: false
       };
       
       // Only add date filter if dates are provided

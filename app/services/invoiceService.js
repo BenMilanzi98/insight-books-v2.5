@@ -121,7 +121,8 @@ export const deleteInvoice = async (invoiceId) => {
     });
     
     if (!response.ok) {
-      throw new Error(`Error deleting invoice: ${response.statusText}`);
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Error deleting invoice: ${response.statusText}`);
     }
     
     return true;

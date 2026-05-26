@@ -130,6 +130,8 @@ export async function GET(request) {
     const invoices = await prisma.invoice.findMany({
       where: addBranchFilter(user, {
         tenantId,
+        isDeleted: false,
+        isReversal: false,
         issueDate: {
           gte: startDate,
           lte: endDate
