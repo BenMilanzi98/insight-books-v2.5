@@ -26,7 +26,11 @@ if (!empty($settings['website_download_locked'])) {
 }
 
 $apkDir = realpath(upload_path('apks'));
-$apkPath = $apk ? realpath((string) $apk['file_path']) : false;
+$storedPath = $apk ? realpath((string) $apk['file_path']) : false;
+$filenamePath = $apk && !empty($apk['file_name'])
+    ? realpath(upload_path('apks') . DIRECTORY_SEPARATOR . $apk['file_name'])
+    : false;
+$apkPath = $storedPath ?: $filenamePath;
 
 if (
     !$apk ||

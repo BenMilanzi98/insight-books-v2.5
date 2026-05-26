@@ -16,8 +16,15 @@ if (!$latest) {
     Response::json(['success' => false, 'error' => 'No active version published'], 404);
 }
 
-$settings = $pdo->query('SELECT website_download_locked FROM app_settings WHERE id = 1 LIMIT 1')->fetch() ?: [];
 $latestId = (int) $pdo->query('SELECT id FROM apk_versions WHERE is_latest = 1 LIMIT 1')->fetchColumn();
+$fileName = $pdo->query('SELECT file_name FROM apk_versions WHERE is_latest = 1 LIMIT 1')->fetchColumn();
+if ($fileName) {
+    $actualApkPath = upload_path('apks') . DIRECTORY_SEPARATOR . $fileName;
+    if (is_file($actualApkPath)) {
+        $latest['file_size'] = filesize($actualApkPath) ?: (int) $latest['file_size'];
+    }
+}
+$settings = $pdo->query('SELECT website_download_locked FROM app_settings WHERE id = 1 LIMIT 1')->fetch() ?: [];
 $downloadAvailable = empty($settings['website_download_locked']);
 $latest['download_url'] = $downloadAvailable
     ? rtrim((string) app_config('app_url'), '/') . '/download.php?id=' . $latestId

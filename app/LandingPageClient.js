@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain, Sparkles, MapPin, Mail, Phone } from 'lucide-react';
+import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain, Sparkles, MapPin, Mail, Phone, Smartphone, Download } from 'lucide-react';
 import { PUBLIC_SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
 
 const WHATSAPP_DEMO_URL = `https://wa.me/265894092494?text=${encodeURIComponent("I'm interested in InsightBooks, Can you please tell me more")}`;
+const ANDROID_APP_DOWNLOAD_URL = 'https://app.insightinnovationsltd.com/';
 
 export default function LandingPageClient() {
   return (
@@ -299,7 +300,7 @@ function HeroSection() {
               businesses.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-10 sm:mb-12 max-w-md mx-auto lg:max-w-none lg:mx-0">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 justify-center lg:justify-start mb-10 sm:mb-12 max-w-md mx-auto lg:max-w-none lg:mx-0">
               <Link
                 href="/auth/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-blue-950 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold shadow-lg shadow-blue-950/50 hover:bg-sky-50 transition-colors w-full sm:w-auto"
@@ -314,6 +315,15 @@ function HeroSection() {
                 className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-blue-950/30 text-sky-50 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold backdrop-blur-sm hover:bg-blue-900/40 transition-colors w-full sm:w-auto"
               >
                 Book a demo
+              </a>
+              <a
+                href={ANDROID_APP_DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/15 text-emerald-50 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold backdrop-blur-sm hover:bg-emerald-500/25 transition-colors w-full sm:w-auto"
+              >
+                <Smartphone className="w-4 h-4" aria-hidden />
+                Download Android App
               </a>
             </div>
 
@@ -1100,6 +1110,15 @@ function Footer() {
               >
                 Book a demo
               </a>
+              <a
+                href={ANDROID_APP_DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition-colors hover:border-emerald-300/60 hover:bg-emerald-500/20"
+              >
+                <Download className="h-4 w-4" aria-hidden />
+                Android App
+              </a>
             </div>
           </div>
 
@@ -1149,8 +1168,19 @@ function Footer() {
             </div>
 
             <div>
-              <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-sky-200/90">Legal</h3>
+              <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-sky-200/90">Links</h3>
               <ul className="space-y-3 text-sm">
+                <li>
+                  <a
+                    href={ANDROID_APP_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-emerald-200 transition-colors hover:text-emerald-100"
+                  >
+                    <Smartphone className="h-4 w-4" aria-hidden />
+                    Download Android App
+                  </a>
+                </li>
                 <li>
                   <Link href="/privacy" className="text-slate-400 transition-colors hover:text-white">
                     Privacy Policy

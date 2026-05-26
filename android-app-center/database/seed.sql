@@ -30,3 +30,47 @@ INSERT INTO app_settings (
     'Secure cloud sync'
   )
 );
+
+-- Bundled public release.
+-- Upload/copy the APK file to: public/uploads/apks/insightbooks-v1.0.0.9.apk
+-- The app will resolve downloads from file_name at runtime, so this works after
+-- deployment even though cPanel paths differ from local Windows paths.
+INSERT INTO apk_versions (
+  version_name,
+  version_code,
+  release_notes,
+  whats_new,
+  file_name,
+  file_path,
+  file_size,
+  min_android_version,
+  status,
+  is_latest,
+  mandatory_update,
+  optional_update,
+  is_locked,
+  uploaded_by,
+  release_date,
+  published_at,
+  created_at,
+  updated_at
+) VALUES (
+  '1.0.0.9',
+  9,
+  'Initial public APK release for InsightBooks Android.',
+  'Official InsightBooks Android APK is now available for direct download.',
+  'insightbooks-v1.0.0.9.apk',
+  'public/uploads/apks/insightbooks-v1.0.0.9.apk',
+  80259171,
+  '8.0',
+  'active',
+  1,
+  0,
+  1,
+  0,
+  1,
+  NOW(),
+  NOW(),
+  NOW(),
+  NOW()
+);

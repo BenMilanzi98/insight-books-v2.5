@@ -12,6 +12,12 @@ use App\Helpers\Validator;
 $pdo = Database::pdo();
 $settings = $pdo->query('SELECT * FROM app_settings WHERE id = 1')->fetch() ?: [];
 $latest = $pdo->query('SELECT * FROM apk_versions WHERE is_latest = 1 AND status = \'active\' LIMIT 1')->fetch();
+if ($latest && !empty($latest['file_name'])) {
+    $actualApkPath = upload_path('apks') . DIRECTORY_SEPARATOR . $latest['file_name'];
+    if (is_file($actualApkPath)) {
+        $latest['file_size'] = filesize($actualApkPath) ?: (int) $latest['file_size'];
+    }
+}
 $versions = $pdo->query('SELECT version_name, version_code, release_notes, published_at, download_count FROM apk_versions WHERE status IN (\'active\',\'deprecated\') ORDER BY version_code DESC LIMIT 10')->fetchAll();
 $screenshots = $pdo->query('SELECT * FROM apk_screenshots WHERE is_active = 1 ORDER BY sort_order ASC')->fetchAll();
 $reviews = $pdo->query('SELECT * FROM app_reviews WHERE status = \'approved\' ORDER BY created_at DESC LIMIT 20')->fetchAll();
