@@ -74,8 +74,20 @@ export async function POST(request) {
       select: { latestVersionCode: true, publishedAt: true },
     });
 
+    const appStatus = String(payload.app_status || '').toLowerCase();
     const forceLock = !!payload.force_lock || !!payload.mandatory_update;
-    const maintenanceLock = !!payload.maintenance_lock || payload.app_status === 'maintenance';
+    const maintenanceLock =
+      !!payload.maintenance_lock ||
+      appStatus === 'maintenance' ||
+      appStatus === 'locked' ||
+      appStatus === 'disabled';
+    const maintenanceMessage =
+      payload.maintenance_message ||
+      payload.lock_message ||
+      payload.broadcast_message ||
+      (appStatus === 'locked'
+        ? 'The app is temporarily locked. Please contact support.'
+        : null);
     const publishedAtFromPayload = validDateOrNull(payload.published_at);
     if (payload.published_at && !publishedAtFromPayload) {
       return NextResponse.json(
@@ -97,7 +109,7 @@ export async function POST(request) {
       websiteDownloadLocked: !!payload.website_download_locked,
       broadcastMessage: payload.broadcast_message || null,
       maintenanceLock,
-      maintenanceMessage: payload.maintenance_message || null,
+      maintenanceMessage,
       // Legacy /api/mobile-app/version has grace-based locking semantics.
       // Optional PHP updates should stay optional, so give them a practically
       // non-expiring grace window instead of the old 24h default.

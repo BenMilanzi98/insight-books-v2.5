@@ -30,8 +30,9 @@ class SyncService
             'force_lock' => !empty($latest['mandatory_update']) || !empty($settings['global_app_lock']) || !empty($settings['security_lock']),
             'maintenance_lock' => !empty($settings['maintenance_mode']),
             'maintenance_message' => $settings['maintenance_message'] ?? null,
+            'lock_message' => $settings['global_lock_message'] ?? null,
             'website_download_locked' => !empty($settings['website_download_locked']),
-            'broadcast_message' => $settings['emergency_notice'] ?? $settings['update_prompt_message'] ?? null,
+            'broadcast_message' => $settings['emergency_notice'] ?? $settings['global_lock_message'] ?? $settings['update_prompt_message'] ?? null,
             'published_at' => $latest['published_at'] ?? null,
         ];
 
