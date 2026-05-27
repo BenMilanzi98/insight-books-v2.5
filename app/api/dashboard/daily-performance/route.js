@@ -19,6 +19,7 @@ import {
 } from '@/lib/dashboardTenantScope';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { addMoney, parseMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -410,7 +411,7 @@ export async function GET(request) {
             _sum: { amount: true }
           });
 
-          return invoices?._sum?.amount || 0; // Only actual payments received
+          return parseMoney(invoices?._sum?.amount); // Only actual payments received
         } catch (e) {
           console.error('daily-performance weeklyRevenue day failed:', e?.message || e);
           return 0;
@@ -546,8 +547,8 @@ export async function GET(request) {
             : { _sum: { amount: 0 } };
           const cogsAmount = cogsSettled.status === 'fulfilled' ? cogsSettled.value : 0;
 
-          const expenseAmount = expenses?._sum?.amount || 0;
-          return expenseAmount + cogsAmount;
+          const expenseAmount = parseMoney(expenses?._sum?.amount);
+          return addMoney(expenseAmount, cogsAmount);
         } catch (e) {
           console.error('daily-performance weeklyExpenses day failed:', e?.message || e);
           return 0;
@@ -556,15 +557,15 @@ export async function GET(request) {
     );
 
     // Calculate revenue: sales + invoice payments (avoid double counting sales that have payments)
-    const saleRevenue = (todaySales._sum.total || 0);
-    const invoicePaymentRevenue = (todayInvoices._sum.amount || 0);
+    const saleRevenue = parseMoney(todaySales._sum.total);
+    const invoicePaymentRevenue = parseMoney(todayInvoices._sum.amount);
     // Total revenue is sales + invoice payments (they don't overlap)
-    const todayRevenue = saleRevenue + invoicePaymentRevenue;
+    const todayRevenue = addMoney(saleRevenue, invoicePaymentRevenue);
     
-    const yesterdayRevenue = (yesterdayInvoices._sum.amount || 0);
+    const yesterdayRevenue = parseMoney(yesterdayInvoices._sum.amount);
 
-    const todayExpensesTotal = (todayExpenses._sum.amount || 0) + Number(todayCOGSAmount || 0);
-    const yesterdayExpensesTotal = (yesterdayExpenses._sum.amount || 0) + Number(yesterdayCOGSAmount || 0);
+    const todayExpensesTotal = addMoney(todayExpenses._sum.amount, todayCOGSAmount);
+    const yesterdayExpensesTotal = addMoney(yesterdayExpenses._sum.amount, yesterdayCOGSAmount);
 
     return NextResponse.json({
       dailyMetrics: {

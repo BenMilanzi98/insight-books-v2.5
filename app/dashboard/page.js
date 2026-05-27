@@ -40,6 +40,7 @@ import SetupWizardReminderBanner from "@/components/SetupWizardReminderBanner";
 import SetupWizardWelcomeModal from "@/components/SetupWizardWelcomeModal";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import { formatCurrency, formatDate, getDateRange, toYmdLocal } from "@/lib/dateUtils";
+import { addMoney, parseMoney } from "@/lib/money";
 
 // Animated Counter Component
 const CountUp = ({ end, duration = 2000, format = (val) => val }) => {
@@ -113,6 +114,28 @@ const SkeletonElement = ({ className = "" }) => (
   <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
 );
 
+const chartMoney = (value) => {
+  const n = parseMoney(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const sumChartMoney = (values) =>
+  Array.isArray(values) ? values.reduce((sum, value) => addMoney(sum, value), 0) : 0;
+
+const clampBarHeight = (value, maxValue) => {
+  if (!Number.isFinite(value) || !Number.isFinite(maxValue) || maxValue <= 0) return 0;
+  return Math.max(0, Math.min(100, (value / maxValue) * 100));
+};
+
+const formatAxisCurrency = (value) => {
+  const n = chartMoney(value);
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000_000) return `MWK ${(n / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `MWK ${(n / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `MWK ${(n / 1_000).toFixed(2)}K`;
+  return formatCurrency(n);
+};
+
 const ANDROID_APP_RELEASE_NOTICE = {
   id: "android-app-release-2026-05-27",
   startDate: "2026-05-27",
@@ -132,7 +155,10 @@ const DashboardBarChart = ({ data }) => {
   
   if (!data || !data.income || !data.expenses || !data.months) return null;
 
-  const maxValue = Math.max(...data.income, ...data.expenses) * 1.1 || 100;
+  const safeIncome = data.income.map(chartMoney);
+  const safeExpenses = data.expenses.map(chartMoney);
+  const rawMaxValue = Math.max(...safeIncome, ...safeExpenses, 0);
+  const maxValue = rawMaxValue > 0 ? rawMaxValue * 1.1 : 100;
   const totalItems = data.months.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const showNavigation = totalPages > 1;
@@ -142,8 +168,8 @@ const DashboardBarChart = ({ data }) => {
   const endIndex = startIndex + itemsPerPage;
   const currentData = {
     months: data.months.slice(startIndex, endIndex),
-    income: data.income.slice(startIndex, endIndex),
-    expenses: data.expenses.slice(startIndex, endIndex)
+    income: safeIncome.slice(startIndex, endIndex),
+    expenses: safeExpenses.slice(startIndex, endIndex)
   };
 
   const handlePrevious = () => {
@@ -196,31 +222,33 @@ const DashboardBarChart = ({ data }) => {
       </div>
 
       {/* Chart Area */}
-      <div className="flex h-64 relative">
+      <div className="flex h-72 relative overflow-hidden">
         {/* Y-Axis Labels */}
-        <div className="flex flex-col justify-between pr-2 text-right flex-shrink-0">
+        <div className="flex flex-col justify-between pr-2 text-right flex-shrink-0 w-20">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="text-xs text-gray-500 h-[20%]">
-              {formatCurrency((maxValue * (4 - i)) / 4)}
+            <div key={i} className="text-[10px] text-gray-500 h-[20%] leading-tight">
+              {formatAxisCurrency((maxValue * (4 - i)) / 4)}
             </div>
           ))}
         </div>
 
         {/* Chart Container */}
-        <div className="flex-1 relative">
-          <div className="flex items-end border-l border-b border-gray-200 h-full">
+        <div className="flex-1 relative overflow-hidden">
+          <div className="flex items-end border-l border-b border-gray-200 h-64 overflow-hidden">
             {currentData.months.map((period, index) => {
               const barWidth = 'w-5';
               const containerWidth = 'w-12';
+              const incomeHeight = clampBarHeight(currentData.income[index], maxValue);
+              const expenseHeight = clampBarHeight(currentData.expenses[index], maxValue);
               
               return (
                 <div key={period} className={`flex flex-col items-center space-y-1 ${containerWidth}`}>
-                  <div className="flex items-end space-x-1 h-full">
+                  <div className="flex items-end space-x-1 h-64 overflow-hidden">
                     {/* Income Bar */}
                     <div className={`${barWidth} flex justify-center group relative h-64`}>
                       <div
                         className={`${barWidth} bg-indigo-500 rounded-t transition-all duration-300 group-hover:bg-indigo-600 self-end`}
-                        style={{ height: `${(currentData.income[index] / maxValue) * 100}%` }}
+                        style={{ height: `${incomeHeight}%` }}
                       >
                         <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
                           {formatCurrency(currentData.income[index])}
@@ -232,7 +260,7 @@ const DashboardBarChart = ({ data }) => {
                     <div className={`${barWidth} flex justify-center group relative h-64`}>
                       <div
                         className={`${barWidth} bg-red-400 rounded-t transition-all duration-300 group-hover:bg-red-500 self-end`}
-                        style={{ height: `${(currentData.expenses[index] / maxValue) * 100}%` }}
+                        style={{ height: `${expenseHeight}%` }}
                       >
                         <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
                           {formatCurrency(currentData.expenses[index])}
@@ -1532,7 +1560,7 @@ const BusinessOwnerDashboard = () => {
                   <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse ring-2 ring-green-200"></div>
                 </div>
                 <div className="text-3xl font-bold text-gray-900 mb-3">
-                  {incomeExpenses ? formatCurrency(incomeExpenses.income.reduce((sum, val) => sum + val, 0)) : <SkeletonElement className="h-10 w-40" />}
+                  {incomeExpenses ? formatCurrency(sumChartMoney(incomeExpenses.income)) : <SkeletonElement className="h-10 w-40" />}
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg font-semibold border border-green-200">
@@ -1558,7 +1586,7 @@ const BusinessOwnerDashboard = () => {
                   <div className="w-3 h-3 bg-orange-400 rounded-full animate-pulse ring-2 ring-orange-200"></div>
                 </div>
                 <div className="text-3xl font-bold text-gray-900 mb-3">
-                  {incomeExpenses ? formatCurrency(incomeExpenses.expenses.reduce((sum, val) => sum + val, 0)) : <SkeletonElement className="h-10 w-40" />}
+                  {incomeExpenses ? formatCurrency(sumChartMoney(incomeExpenses.expenses)) : <SkeletonElement className="h-10 w-40" />}
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-lg font-semibold border border-orange-200">

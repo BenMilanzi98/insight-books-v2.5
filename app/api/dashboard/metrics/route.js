@@ -21,6 +21,7 @@ import {
 } from '@/lib/dashboardTenantScope';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -425,14 +426,14 @@ export async function GET(request) {
     ]);
 
     // Revenue totals (invoice payments + POS sales)
-    const currentRevenue = (currentInvoices._sum.amount || 0) + (currentSales._sum.total || 0);
-    const previousRevenue = (previousInvoices._sum.amount || 0) + (previousSales._sum.total || 0);
+    const currentRevenue = addMoney(currentInvoices._sum.amount, currentSales._sum.total);
+    const previousRevenue = addMoney(previousInvoices._sum.amount, previousSales._sum.total);
     
     // Include net COGS in expenses (credits from void/refund reversals reduce the total)
-    const currentExpenses = (currentExpensesData._sum.amount || 0) + Number(currentCOGS || 0);
-    const previousExpenses = (previousExpensesData._sum.amount || 0) + Number(previousCOGS || 0);
-    const currentProfit = currentRevenue - currentExpenses;
-    const previousProfit = previousRevenue - previousExpenses;
+    const currentExpenses = addMoney(currentExpensesData._sum.amount, currentCOGS);
+    const previousExpenses = addMoney(previousExpensesData._sum.amount, previousCOGS);
+    const currentProfit = subtractMoney(currentRevenue, currentExpenses);
+    const previousProfit = subtractMoney(previousRevenue, previousExpenses);
     
     // Get budget information for the current period (single business only)
     let budgetInfo = null;
@@ -638,13 +639,13 @@ export async function GET(request) {
       ])
     ]);
 
-    const currentCashIn = currentCashFlow[0]._sum.amount || 0;
-    const currentCashOut = currentCashFlow[1]._sum.amount || 0;
-    const currentNetCashFlow = currentCashIn - currentCashOut;
+    const currentCashIn = parseMoney(currentCashFlow[0]._sum.amount);
+    const currentCashOut = parseMoney(currentCashFlow[1]._sum.amount);
+    const currentNetCashFlow = subtractMoney(currentCashIn, currentCashOut);
     
-    const previousCashIn = previousCashFlow[0]._sum.amount || 0;
-    const previousCashOut = previousCashFlow[1]._sum.amount || 0;
-    const previousNetCashFlow = previousCashIn - previousCashOut;
+    const previousCashIn = parseMoney(previousCashFlow[0]._sum.amount);
+    const previousCashOut = parseMoney(previousCashFlow[1]._sum.amount);
+    const previousNetCashFlow = subtractMoney(previousCashIn, previousCashOut);
 
     // Calculate percentage changes
     const calculateChange = (current, previous) => {

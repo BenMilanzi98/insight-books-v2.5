@@ -18,6 +18,7 @@ import {
   dashboardLocalTodayBounds,
   dashboardLocalYesterdayBounds,
 } from '@/lib/dashboardDatePeriods';
+import { addMoney, parseMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -335,13 +336,13 @@ export async function GET(request) {
               },
             })
           : 0;
-      const loanPaymentAmount = Number(loanPayments._sum.amount || 0);
-      const totalExpenses = (expenses._sum.amount || 0) + loanPaymentAmount + cogsAmount;
+      const loanPaymentAmount = parseMoney(loanPayments._sum.amount);
+      const totalExpenses = addMoney(expenses._sum.amount, loanPaymentAmount, cogsAmount);
 
-      const invoiceIncome = Number(invoiceRevenue?._sum?.amount || 0);
-      const posIncome = Number(salesRevenue?._sum?.total || 0);
+      const invoiceIncome = parseMoney(invoiceRevenue?._sum?.amount);
+      const posIncome = parseMoney(salesRevenue?._sum?.total);
       return {
-        income: invoiceIncome + posIncome,
+        income: addMoney(invoiceIncome, posIncome),
         expenses: totalExpenses
       };
     };
@@ -361,8 +362,8 @@ export async function GET(request) {
     if (dateRange === 'custom') {
       console.log('📊 Custom date range data:', {
         months: months.map(m => m.name),
-        totalIncome: data.reduce((sum, d) => sum + d.income, 0),
-        totalExpenses: data.reduce((sum, d) => sum + d.expenses, 0),
+        totalIncome: data.reduce((sum, d) => addMoney(sum, d.income), 0),
+        totalExpenses: data.reduce((sum, d) => addMoney(sum, d.expenses), 0),
         dataPoints: data.length
       });
     }
