@@ -1,4 +1,5 @@
 // app/services/salesService.js - Complete Enhanced Version
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // Fetch sales with optional filters, sorting, and pagination
 export const fetchSales = async (params = {}) => {
@@ -940,10 +941,10 @@ export const deleteDraftSale = async (draftId) => {
 
 // Calculate sale totals (for preview before saving)
 export const calculateSaleTotals = (items) => {
-  const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-  const totalTaxAmount = items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
-  const totalDiscountAmount = items.reduce((sum, item) => sum + (item.discountAmount || 0), 0);
-  const total = subtotal + totalTaxAmount - totalDiscountAmount;
+  const subtotal = items.reduce((sum, item) => addMoney(sum, multiplyMoney(item.quantity, item.unitPrice)), 0);
+  const totalTaxAmount = items.reduce((sum, item) => addMoney(sum, item.taxAmount || 0), 0);
+  const totalDiscountAmount = items.reduce((sum, item) => addMoney(sum, item.discountAmount || 0), 0);
+  const total = subtractMoney(addMoney(subtotal, totalTaxAmount), totalDiscountAmount);
 
   return {
     subtotal,
@@ -1001,10 +1002,10 @@ export const validateProductData = (product) => {
 
 // Helper function to calculate item totals
 export const calculateItemTotals = (item) => {
-  const subtotal = item.quantity * item.unitPrice;
-  const taxAmount = subtotal * ((item.taxRate || 0) / 100);
-  const discountAmount = item.discount || 0; // Direct amount, not percentage
-  const total = subtotal + taxAmount - discountAmount;
+  const subtotal = multiplyMoney(item.quantity, item.unitPrice);
+  const taxAmount = percentOfMoney(subtotal, item.taxRate || 0);
+  const discountAmount = roundMoney(item.discount || 0); // Direct amount, not percentage
+  const total = subtractMoney(addMoney(subtotal, taxAmount), discountAmount);
 
   return {
     subtotal,

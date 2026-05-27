@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { multiplyMoney, percentOfMoney, roundMoney } from '@/lib/money';
 
 /**
  * GET /api/tax-types/[id]/reports
@@ -174,11 +175,12 @@ export async function GET(request, { params }) {
         // Convert sale items to saleItemTax format for consistent display
         // Calculate tax amount from sale item's taxAmount or taxRate
         saleItemTaxes = saleItems.map(saleItem => {
-          const taxableAmount = saleItem.quantity * saleItem.unitPrice;
+          const taxableAmount = multiplyMoney(saleItem.quantity, saleItem.unitPrice);
           // Use taxAmount if available, otherwise calculate from taxRate
-          const calculatedTaxAmount = saleItem.taxAmount > 0 
-            ? saleItem.taxAmount 
-            : (taxableAmount * (taxType.taxRate / 100));
+          const storedTaxAmount = roundMoney(saleItem.taxAmount || 0);
+          const calculatedTaxAmount = storedTaxAmount > 0
+            ? storedTaxAmount
+            : percentOfMoney(taxableAmount, taxType.taxRate);
           
           return {
             id: `fallback-${saleItem.id}`,

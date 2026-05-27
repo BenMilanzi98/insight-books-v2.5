@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter , useParams } from "next/navigation";
+import { addMoney, percentOfMoney, subtractMoney } from "@/lib/money";
 import { 
   ArrowLeft,
   PlusCircle, 
@@ -462,24 +463,24 @@ const loadSale = async (productList) => {
   // };
   const updateDiscount = (selectedDiscount) => {
     // Clamp discount: not less than 0, not more than subtotal
-    const subtotal = selectedProducts.reduce((sum, product) => sum + product.subtotal, 0);
+    const subtotal = selectedProducts.reduce((sum, product) => addMoney(sum, product.subtotal), 0);
     let validDiscount = Math.max(0, Math.min(selectedDiscount, subtotal));
     setDiscount(validDiscount);
   };
 
   const calculateSubtotal = () => {
-    const subtotal = selectedProducts.reduce((sum, product) => sum + product.subtotal, 0);
-    return subtotal - discount;
+    const subtotal = selectedProducts.reduce((sum, product) => addMoney(sum, product.subtotal), 0);
+    return subtractMoney(subtotal, discount);
   };
   
   // Calculate tax amount
   const calculateTaxAmount = () => {
-    return calculateSubtotal() * (taxRate / 100);
+    return percentOfMoney(calculateSubtotal(), taxRate);
   };
   
   // Calculate total
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTaxAmount();
+    return addMoney(calculateSubtotal(), calculateTaxAmount());
   };
   
   // Start editing tax rate

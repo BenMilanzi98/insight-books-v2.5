@@ -7,6 +7,7 @@ import {
   buildPhysicalInventoryWhere,
   sumPhysicalInventoryProductLines,
 } from '@/lib/stockValuationAggregate';
+import { roundMoney } from '@/lib/money';
 
 // GET - Fetch inventory statistics with fallbacks
 export async function GET(request) {
@@ -93,10 +94,7 @@ export async function GET(request) {
     return NextResponse.json({
       totalItems,
       serviceCount,
-      totalValue: totalValueNum.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
+      totalValue: roundMoney(totalValueNum),
       lowStock,
       outOfStock,
       nearingReorder,

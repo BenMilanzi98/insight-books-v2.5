@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 import ProductSearchSelect from "@/components/ProductSearchSelect";
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 
 const statusColors = {
   Draft: "bg-gray-100 text-gray-800",
@@ -580,33 +581,31 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
     );
   }, [initialData]);
 
-  const round2 = (n) => Math.round(Number(n) * 100) / 100;
-
   const { subtotal, totalTax, totalAmount } = useMemo(() => {
     const pricesIncludeTax = form.pricesIncludeTax;
     let sub = 0;
     let tax = 0;
     items.forEach((item) => {
       const qty = Number(item.quantityOrdered || 0);
-      const unitCost = Number(item.unitCost || 0);
+      const unitCost = roundMoney(item.unitCost || 0);
       const taxRatePct = Number(item.taxRate || 0);
       let lineSub;
-      let lineTax = Number(item.taxAmount || 0);
+      let lineTax = roundMoney(item.taxAmount || 0);
       if (pricesIncludeTax && taxRatePct > 0) {
-        const lineTotalInclusive = qty * unitCost;
-        lineSub = lineTotalInclusive / (1 + taxRatePct / 100);
-        lineTax = lineTotalInclusive - lineSub;
+        const lineTotalInclusive = multiplyMoney(qty, unitCost);
+        lineSub = roundMoney(lineTotalInclusive / (1 + taxRatePct / 100));
+        lineTax = subtractMoney(lineTotalInclusive, lineSub);
       } else {
-        lineSub = qty * unitCost;
-        if (lineTax === 0 && taxRatePct > 0) lineTax = lineSub * (taxRatePct / 100);
+        lineSub = multiplyMoney(qty, unitCost);
+        if (lineTax === 0 && taxRatePct > 0) lineTax = percentOfMoney(lineSub, taxRatePct);
       }
-      sub += round2(lineSub);
-      tax += round2(lineTax);
+      sub = addMoney(sub, lineSub);
+      tax = addMoney(tax, lineTax);
     });
     return {
-      subtotal: round2(sub),
-      totalTax: round2(tax),
-      totalAmount: round2(sub + tax),
+      subtotal: roundMoney(sub),
+      totalTax: roundMoney(tax),
+      totalAmount: addMoney(sub, tax),
     };
   }, [items, form.pricesIncludeTax]);
 
@@ -739,17 +738,17 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
       const pricesIncludeTax = form.pricesIncludeTax;
       const normalizedItems = items.map((item) => {
         const qty = Number(item.quantityOrdered || 0);
-        const unitCost = Number(item.unitCost || 0);
+        const unitCost = roundMoney(item.unitCost || 0);
         const taxRatePct = Number(item.taxRate || 0);
         let lineSub;
-        let taxAmount = Number(item.taxAmount || 0);
+        let taxAmount = roundMoney(item.taxAmount || 0);
         if (pricesIncludeTax && taxRatePct > 0) {
-          const lineTotalInclusive = qty * unitCost;
-          lineSub = lineTotalInclusive / (1 + taxRatePct / 100);
-          taxAmount = lineTotalInclusive - lineSub;
+          const lineTotalInclusive = multiplyMoney(qty, unitCost);
+          lineSub = roundMoney(lineTotalInclusive / (1 + taxRatePct / 100));
+          taxAmount = subtractMoney(lineTotalInclusive, lineSub);
         } else {
-          lineSub = qty * unitCost;
-          if (taxAmount === 0 && taxRatePct > 0) taxAmount = lineSub * (taxRatePct / 100);
+          lineSub = multiplyMoney(qty, unitCost);
+          if (taxAmount === 0 && taxRatePct > 0) taxAmount = percentOfMoney(lineSub, taxRatePct);
         }
         const lineType = form.orderType === "assets" ? "asset"
           : form.orderType === "goods" ? "goods"
@@ -764,7 +763,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           unitCost,
           taxTypeId: item.taxTypeId || undefined,
           taxRate: taxRatePct,
-          taxAmount: round2(taxAmount),
+          taxAmount: roundMoney(taxAmount),
         };
       });
       await onSave({ ...form, orderType: form.orderType, pricesIncludeTax: form.pricesIncludeTax, items: normalizedItems });
@@ -911,21 +910,21 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
 
             const pricesIncludeTax = form.pricesIncludeTax;
             const qty = Number(item.quantityOrdered || 0);
-            const unitCost = Number(item.unitCost || 0);
+            const unitCost = roundMoney(item.unitCost || 0);
             const taxRatePct = Number(item.taxRate || 0);
             let lineSub;
-            let lineTax = Number(item.taxAmount || 0);
+            let lineTax = roundMoney(item.taxAmount || 0);
             if (pricesIncludeTax && taxRatePct > 0) {
-              const lineTotalInclusive = qty * unitCost;
-              lineSub = lineTotalInclusive / (1 + taxRatePct / 100);
-              lineTax = lineTotalInclusive - lineSub;
+              const lineTotalInclusive = multiplyMoney(qty, unitCost);
+              lineSub = roundMoney(lineTotalInclusive / (1 + taxRatePct / 100));
+              lineTax = subtractMoney(lineTotalInclusive, lineSub);
             } else {
-              lineSub = qty * unitCost;
-              if (lineTax === 0 && taxRatePct > 0) lineTax = lineSub * (taxRatePct / 100);
+              lineSub = multiplyMoney(qty, unitCost);
+              if (lineTax === 0 && taxRatePct > 0) lineTax = percentOfMoney(lineSub, taxRatePct);
             }
-            const lineSubR = round2(lineSub);
-            const lineTaxR = round2(lineTax);
-            const lineTotal = lineSubR + lineTaxR;
+            const lineSubR = roundMoney(lineSub);
+            const lineTaxR = roundMoney(lineTax);
+            const lineTotal = addMoney(lineSubR, lineTaxR);
             return (
               <div
                 key={idx}

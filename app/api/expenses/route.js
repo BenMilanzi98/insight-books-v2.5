@@ -612,8 +612,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    const taxAmount = body.taxAmount != null ? Number(body.taxAmount) : 0;
-    const taxRate = body.taxRate != null ? Number(body.taxRate) : 0;
+    amount = roundMoney(amount);
+    const taxAmount = body.taxAmount != null ? roundMoney(body.taxAmount) : 0;
+    const taxRate = body.taxRate != null ? roundMoney(body.taxRate) : 0;
 
     let journalBase;
     let journalTax;
@@ -795,7 +796,7 @@ export async function POST(request) {
     // Base create data (required and commonly supported fields)
     const expenseCreateData = {
       description: description || 'Expense',
-      amount: amount,
+      amount: grossAmount,
       taxAmount: taxAmount,
       taxRate: taxRate,
       date: expenseDate,

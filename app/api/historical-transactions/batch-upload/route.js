@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { updateAccountBalance } from '@/lib/core';
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // Helper function to normalize column names (case-insensitive, handle variations)
 function normalizeColumnName(name) {
@@ -579,9 +580,9 @@ export async function POST(request) {
           const taxRateNum = parseFloat(parseNumericValue(taxRate));
           const discountAmountNum = parseFloat(parseNumericValue(discountAmount));
           
-          const subtotal = quantityNum * unitPriceNum;
-          const taxAmount = subtotal * (taxRateNum / 100);
-          const total = subtotal + taxAmount - discountAmountNum;
+          const subtotal = multiplyMoney(quantityNum, unitPriceNum);
+          const taxAmount = percentOfMoney(subtotal, taxRateNum);
+          const total = subtractMoney(addMoney(subtotal, taxAmount), roundMoney(discountAmountNum));
 
           // Parse transaction date using robust date parser
           let parsedTransactionDate = parseDate(transactionDate);

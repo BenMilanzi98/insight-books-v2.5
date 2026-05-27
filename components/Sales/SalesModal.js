@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2, Info, Loader } from "lucide-react";
 import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations";
+import { multiplyMoney } from "@/lib/money";
 import ClientModal from "../ClientModal";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
@@ -499,7 +500,7 @@ const SalesModal = ({
                           )}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-right font-medium">
-                          {formatCurrency((item.quantity || 0) * (parseFloat(item.unitPrice) || 0))}
+                          {formatCurrency(multiplyMoney(item.quantity || 0, item.unitPrice || 0))}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-right">
                           <button

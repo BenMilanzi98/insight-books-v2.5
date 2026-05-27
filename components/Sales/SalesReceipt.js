@@ -13,6 +13,7 @@ import {
   Clock
 } from 'lucide-react';
 import { getPaymentMethodIcon, getPaymentMethodName } from '@/lib/paymentMethods';
+import { multiplyMoney } from '@/lib/money';
 
 const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSettings = null }) => {
   const receiptRef = useRef(null);
@@ -297,7 +298,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px' }}>
                     <span style={{ fontWeight: 'bold' }}>{item.quantity} x MK {Number(item.unitPrice).toFixed(2)}</span>
                     <span style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                      MK {(item.quantity * item.unitPrice).toFixed(2)}
+                      MK {multiplyMoney(item.quantity, item.unitPrice).toFixed(2)}
                     </span>
                   </div>
                 </div>

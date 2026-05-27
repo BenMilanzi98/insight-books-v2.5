@@ -11,6 +11,8 @@ import {
   buildProductUnitPayloadRows,
   ensureOneDefaultUnit,
 } from '@/lib/productUnitSavePayload';
+import { productLineValue } from '@/lib/stockValuationAggregate';
+import { roundMoney } from '@/lib/money';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -273,13 +275,12 @@ export async function GET(request) {
           };
         });
       
-      const costPrice = resolveProductCostPriceForDisplay(productFields);
-      // Use stored totalStockValue only when it is set and positive; otherwise compute from cost × stock so
-      // inventory value is correct when cost was added later or totalStockValue was never synced
-      const totalStockValueStored = productFields.totalStockValue != null ? Number(productFields.totalStockValue) : null;
-      const totalStockValue = (totalStockValueStored != null && totalStockValueStored > 0)
-        ? totalStockValueStored
-        : (stockLevel * costPrice);
+      const costPrice = roundMoney(resolveProductCostPriceForDisplay(productFields));
+      const totalStockValue = productLineValue({
+        ...productFields,
+        stockLevel,
+        cost: costPrice,
+      });
 
       // Build barcodes array: ProductBarcode records (if loaded) + legacy Product.barcode (dedupe)
       const barcodeSet = new Set();
@@ -304,7 +305,7 @@ export async function GET(request) {
         taxes: formattedTaxes,
         // Computed fields
         quantityInStock: stockLevel,
-        unitPrice: productFields.price,
+        unitPrice: roundMoney(productFields.price),
         costPrice,
         totalStockValue,
         status,
@@ -567,7 +568,9 @@ export async function POST(request) {
     if (body.isService) {
       initialStock = 0;
     }
-    const productCost = body.isService ? 0 : parseFloat(body.costPrice || body.cost || 0);
+    const productCost = body.isService
+      ? 0
+      : roundMoney(body.costPrice ?? body.cost ?? 0);
     let normalizedAllocations = [];
     if (!body.isService) {
       try {
@@ -638,7 +641,7 @@ export async function POST(request) {
       stockLevel: body.isService ? 0 : (initialStock > 0 && productCost > 0) ? 0 : initialStock, // Set to 0 if FIFO batch will be created
       reorderPoint: body.isService ? null : parseInt(body.reorderPoint || 10),
       location: body.location || 'Default Location',
-      price: parseFloat(body.unitPrice || body.price || 0),
+      price: roundMoney(body.unitPrice ?? body.price ?? 0),
       cost: productCost,
       taxRate: computedTaxRate,
       image: imagePath,
@@ -654,7 +657,7 @@ export async function POST(request) {
           : null,
       discountAmount:
         body.discountAmount !== undefined && body.discountAmount !== null && body.discountAmount !== ''
-          ? parseFloat(body.discountAmount)
+          ? roundMoney(body.discountAmount)
           : null,
       weight:
         body.weight !== undefined && body.weight !== null && body.weight !== ''

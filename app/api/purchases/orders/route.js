@@ -13,7 +13,7 @@ import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequ
 import { attachQuantityReceivedEffective } from '@/lib/poLineReceivedFromReceipts';
 import { syncProductCostsFromPurchaseOrderItems } from '@/lib/syncProductCostFromPurchaseOrder';
 import { resolvePurchaseOrderLineProductUnit } from '@/lib/resolvePurchaseOrderLineProductUnit';
-import { roundMoney } from '@/lib/money';
+import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -296,28 +296,26 @@ export async function POST(request) {
     }
 
     const pricesIncludeTax = Boolean(body.pricesIncludeTax);
-    const round2 = roundMoney;
-
     // Build items with per-line tax: taxTypeId, taxRate (editable), taxAmount (auto), support pricesIncludeTax
     const itemRows = body.items.map((item, index) => {
       const lineType = getLineType(item);
-      const qty = Number(item.quantityOrdered ?? 0);
-      const unitCost = Number(item.unitCost ?? 0);
-      const taxRatePct = Number(item.taxRate ?? 0);
+      const qty = parseMoney(item.quantityOrdered ?? 0);
+      const unitCost = roundMoney(item.unitCost ?? 0);
+      const taxRatePct = parseMoney(item.taxRate ?? 0);
       let lineSubtotal;
-      let lineTaxAmount = Number(item.taxAmount ?? 0);
+      let lineTaxAmount = roundMoney(item.taxAmount ?? 0);
       if (pricesIncludeTax && taxRatePct > 0) {
-        const lineTotalInclusive = qty * unitCost;
-        lineSubtotal = lineTotalInclusive / (1 + taxRatePct / 100);
-        lineTaxAmount = lineTotalInclusive - lineSubtotal;
+        const lineTotalInclusive = multiplyMoney(qty, unitCost);
+        lineSubtotal = roundMoney(lineTotalInclusive / (1 + taxRatePct / 100));
+        lineTaxAmount = subtractMoney(lineTotalInclusive, lineSubtotal);
       } else {
-        lineSubtotal = qty * unitCost;
+        lineSubtotal = multiplyMoney(qty, unitCost);
         if (lineTaxAmount === 0 && taxRatePct > 0) {
-          lineTaxAmount = lineSubtotal * (taxRatePct / 100);
+          lineTaxAmount = percentOfMoney(lineSubtotal, taxRatePct);
         }
       }
-      lineSubtotal = round2(lineSubtotal);
-      lineTaxAmount = round2(lineTaxAmount);
+      lineSubtotal = roundMoney(lineSubtotal);
+      lineTaxAmount = roundMoney(lineTaxAmount);
       const resolvedExpCatId = item.expenseCategoryId ? (resolvedExpCatMap.get(item.expenseCategoryId) || item.expenseCategoryId) : null;
       return {
         lineNumber: index + 1,
@@ -334,12 +332,13 @@ export async function POST(request) {
       };
     });
 
-    let subtotal = itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0);
-    let taxAmount = itemRows.reduce((sum, row) => sum + row.taxAmount, 0);
-    subtotal = round2(subtotal);
-    taxAmount = round2(taxAmount);
-    const totalAmount = round2(subtotal + taxAmount);
-    const headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
+    const subtotal = itemRows.reduce(
+      (sum, row) => addMoney(sum, row._lineSubtotal ?? multiplyMoney(row.quantityOrdered, row.unitCost)),
+      0
+    );
+    const taxAmount = itemRows.reduce((sum, row) => addMoney(sum, row.taxAmount), 0);
+    const totalAmount = addMoney(subtotal, taxAmount);
+    const headerTaxRate = subtotal > 0 ? roundMoney((taxAmount / subtotal) * 100) : roundMoney(body.taxRate ?? 0);
 
     const purchaseOrder = await prisma.$transaction(async (tx) => {
       let poNumber;

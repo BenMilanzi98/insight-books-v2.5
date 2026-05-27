@@ -155,12 +155,12 @@ const InvoiceModal = ({
           const conversionRate = parseFloat(unit.conversionToBase);
           const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
           totalBaseQuantity += convertedToBase;
-          totalPrice += qty * parseFloat(unit.unitPrice || 0);
+          totalPrice = addMoney(totalPrice, multiplyMoney(qty, unit.unitPrice || 0));
         }
       });
       
       // Calculate average Selling Price (total price / total quantity)
-      const averageUnitPrice = totalBaseQuantity > 0 ? totalPrice / totalBaseQuantity : 0;
+      const averageUnitPrice = totalBaseQuantity > 0 ? roundMoney(totalPrice / totalBaseQuantity) : 0;
       
       // Update the item with calculated values
       const updatedItems = [...formData.items];

@@ -3230,7 +3230,7 @@ export default function SuppliersPage() {
             />
             <SummaryCard
               label="Average Payment"
-              value={`MWK ${(paymentsStats.totalPaid / (paymentsStats.total || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+              value={`MWK ${(paymentsStats.totalPaid / (paymentsStats.total || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             />
           </div>
 

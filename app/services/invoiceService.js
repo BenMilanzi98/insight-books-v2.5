@@ -1,6 +1,7 @@
 // app/services/invoiceService.js
 import { generateInvoicePdf } from '@/lib/jspdfUtils';
 import { captureInvoiceAsPDF, saveInvoiceAsPDF } from '@/lib/invoiceCapture';
+import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 // Fetch invoices with optional filters, sorting, and pagination
 export const fetchInvoices = async (params = {}) => {
   try {
@@ -295,20 +296,12 @@ export const exportInvoices = async (filters = {}, format = 'csv') => {
 // Calculate invoice calculations
 export const calculateInvoice = (items = []) => {
   try {
-    const subtotal = items.reduce((total, item) => {
-      return total + (item.quantity * item.unitPrice);
-    }, 0);
-    
-    const taxAmount = items.reduce((total, item) => {
-      return total + (item.quantity * item.unitPrice * (item.taxRate / 100));
-    }, 0);
-    
-    const total = subtotal + taxAmount;
+    const totals = calculateInvoiceTotals(items);
     
     return {
-      subtotal,
-      taxAmount,
-      total
+      subtotal: totals.subtotal,
+      taxAmount: totals.taxAmount,
+      total: totals.total
     };
   } catch (error) {
     console.error('Error calculating invoice:', error);

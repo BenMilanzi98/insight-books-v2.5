@@ -5,6 +5,7 @@ import { Save, AlertCircle, Loader, ChevronDown, Plus, X } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
 import SupplierExpenseSelect from '@/components/purchases/SupplierExpenseSelect';
+import { percentOfMoney } from '@/lib/money';
 
 // Expense Form Component used for both creating and editing expenses
 const ExpenseForm = ({
@@ -104,10 +105,10 @@ const ExpenseForm = ({
     setFormData(prev => {
       const next = { ...prev, taxRate: rate };
       if (typeof prev.amount === 'number' && prev.amount > 0 && rate > 0) {
-        next.taxAmount = Math.round((prev.amount * rate / 100) * 100) / 100;
+        next.taxAmount = percentOfMoney(prev.amount, rate);
       } else if (prev.amount !== '' && prev.amount !== undefined && rate > 0) {
         const amt = Number(prev.amount);
-        if (!Number.isNaN(amt) && amt > 0) next.taxAmount = Math.round((amt * rate / 100) * 100) / 100;
+        if (!Number.isNaN(amt) && amt > 0) next.taxAmount = percentOfMoney(amt, rate);
       }
       return next;
     });
@@ -187,7 +188,7 @@ const ExpenseForm = ({
     setFormData(prev => {
       const next = { ...prev, taxRate: rate };
       if (typeof prev.amount === 'number' && prev.amount > 0 && rate > 0) {
-        next.taxAmount = Math.round((prev.amount * rate / 100) * 100) / 100;
+        next.taxAmount = percentOfMoney(prev.amount, rate);
       } else {
         next.taxAmount = '';
       }
@@ -275,10 +276,10 @@ const ExpenseForm = ({
       const next = { ...prev, [name]: processedValue };
       // If total (amount) or tax rate changed, optionally sync tax amount from rate (tax-inclusive)
       if (name === 'amount' && typeof processedValue === 'number' && processedValue > 0 && prev.taxRate !== '' && typeof prev.taxRate === 'number' && prev.taxRate > 0) {
-        next.taxAmount = Math.round((processedValue * prev.taxRate / 100) * 100) / 100;
+        next.taxAmount = percentOfMoney(processedValue, prev.taxRate);
       }
       if (name === 'taxRate' && typeof processedValue === 'number' && processedValue > 0 && typeof prev.amount === 'number' && prev.amount > 0) {
-        next.taxAmount = Math.round((prev.amount * processedValue / 100) * 100) / 100;
+        next.taxAmount = percentOfMoney(prev.amount, processedValue);
       }
       return next;
     });

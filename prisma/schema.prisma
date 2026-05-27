@@ -1168,8 +1168,8 @@ model Product {
   name                  String
   description           String?
   sku                   String?
-  price                 Float
-  cost                  Float?
+  price                 Decimal                @db.Decimal(18, 2)
+  cost                  Decimal?               @db.Decimal(18, 2)
   stockLevel            Decimal?               @db.Decimal(15, 6)
   isService             Boolean                @default(false)
   /// Billing unit for sellable services: fixed | hourly | daily
@@ -1193,7 +1193,7 @@ model Product {
   deletedBy             String?
   deletionReason        String?
   dimensions            String?
-  discountAmount        Float?
+  discountAmount        Decimal?               @db.Decimal(18, 2)
   expiryDate            DateTime?
   inventoryAccountId    String?
   isDeleted             Boolean                @default(false)

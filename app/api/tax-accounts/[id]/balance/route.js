@@ -7,6 +7,7 @@ import {
   applyPostedJournalSweepOnAccount,
   applyTaxInvoicePostedLines,
 } from '@/lib/taxAccountPostedJournalAggregation';
+import { multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 /**
  * GET /api/tax-accounts/[id]/balance
@@ -186,20 +187,20 @@ export async function GET(request, { params }) {
           if (productTaxForThisType && productTaxForThisType.taxType) {
             const taxTypeData = productTaxForThisType.taxType;
             // Calculate tax amount based on calculation type
-            const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-            const itemBaseAmount = itemSubtotal - (item.discountAmount || 0);
+            const itemSubtotal = multiplyMoney(item.quantity || 0, item.unitPrice || 0);
+            const itemBaseAmount = subtractMoney(itemSubtotal, item.discountAmount || 0);
             
             if (taxTypeData.calculationType === 'Fixed') {
-              taxAmountForThisType = Number(taxTypeData.taxRate || 0) * (item.quantity || 1);
+              taxAmountForThisType = multiplyMoney(taxTypeData.taxRate || 0, item.quantity || 1);
             } else {
               // Percentage calculation
-              taxAmountForThisType = itemBaseAmount * (Number(taxTypeData.taxRate || 0) / 100);
+              taxAmountForThisType = percentOfMoney(itemBaseAmount, taxTypeData.taxRate || 0);
             }
           }
         } else {
           // Fallback: If there's only one active tax type, assume all tax belongs to this one
           if (activeTaxTypeCount === 1 && item.taxAmount > 0) {
-            taxAmountForThisType = Number(item.taxAmount || 0);
+            taxAmountForThisType = roundMoney(item.taxAmount || 0);
           }
         }
 

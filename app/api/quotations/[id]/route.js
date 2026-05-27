@@ -2,68 +2,26 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 
 // Enhanced helper function to calculate quotation totals with discounts
 function calculateQuotationTotals(items, globalDiscount = 0) {
-  let subtotal = 0;
-  let totalDiscountAmount = 0;
-  
-  const processedItems = items.map(item => {
-    // Calculate line total before discount
-    const lineTotal = item.quantity * item.unitPrice;
-    
-    // Interpret discountAmount as per-item discount; convert to line discount
-    const perItemDiscount = item.discountAmount || 0;
-    const lineDiscountAmount = perItemDiscount * item.quantity;
-    
-    // Calculate net amount after discount
-    const netLineAmount = lineTotal - lineDiscountAmount;
-    
-    // Calculate tax on net amount
-    const lineTaxAmount = netLineAmount * ((item.taxRate || 0) / 100);
-    
-    // Calculate final amount including tax
-    const finalAmount = netLineAmount + lineTaxAmount;
-    
-    // Add to totals
-    subtotal += lineTotal;
-    totalDiscountAmount += lineDiscountAmount;
-    
-    return {
-      ...item,
-      // Persist per-item discount for each item
-      discountAmount: Number(perItemDiscount.toFixed(2)),
-      netAmount: Number(netLineAmount.toFixed(2)),
-      amount: Number(finalAmount.toFixed(2))
-    };
-  });
-  
-  // Apply global discount to the net subtotal (after line item discounts)
-  const netSubtotalBeforeGlobal = subtotal - totalDiscountAmount;
-  const validGlobalDiscount = Math.max(0, Math.min(globalDiscount || 0, netSubtotalBeforeGlobal));
-  
-  // Calculate tax on the net amount after global discount
-  const finalNetSubtotal = netSubtotalBeforeGlobal - validGlobalDiscount;
-  
-  // Calculate total tax from processed items (this should already include line item taxes)
-  let totalTaxAmount = 0;
-  processedItems.forEach(item => {
-    const lineTotal = item.quantity * item.unitPrice;
-    const perItemDiscount = item.discountAmount || 0;
-    const lineDiscountAmount = perItemDiscount * item.quantity;
-    const netLineAmount = lineTotal - lineDiscountAmount;
-    totalTaxAmount += netLineAmount * ((item.taxRate || 0) / 100);
-  });
-  
-  const total = finalNetSubtotal + totalTaxAmount;
-  
+  const totals = calculateInvoiceTotals(items, globalDiscount);
+  const processedItems = totals.processedItems.map((item, index) => ({
+    ...items[index],
+    discountAmount: item.discountAmount,
+    netAmount: item.netAmount,
+    amount: item.amount,
+    taxAmount: item.taxAmount,
+  }));
+
   return {
     processedItems,
-    subtotal: Number(subtotal.toFixed(2)),
-    totalDiscountAmount: Number(totalDiscountAmount.toFixed(2)),
-    globalDiscount: Number(validGlobalDiscount.toFixed(2)),
-    taxAmount: Number(totalTaxAmount.toFixed(2)),
-    total: Number(total.toFixed(2))
+    subtotal: totals.subtotal,
+    totalDiscountAmount: totals.totalDiscountAmount,
+    globalDiscount: totals.globalDiscount,
+    taxAmount: totals.taxAmount,
+    total: totals.total
   };
 }
 

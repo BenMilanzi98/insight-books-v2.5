@@ -113,6 +113,13 @@ const SkeletonElement = ({ className = "" }) => (
   <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
 );
 
+const ANDROID_APP_RELEASE_NOTICE = {
+  id: "android-app-release-2026-05-27",
+  startDate: "2026-05-27",
+  endDateExclusive: "2026-06-01",
+  downloadUrl: "/download-app",
+};
+
 // Dashboard Bar Chart component
 const DashboardBarChart = ({ data }) => {
   const [currentPage, setCurrentPage] = useState(0);
@@ -461,6 +468,10 @@ const BusinessOwnerDashboard = () => {
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
   const [showBusinessSetupReminder, setShowBusinessSetupReminder] = useState(false);
   const [tenantInfo, setTenantInfo] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [authContextLoaded, setAuthContextLoaded] = useState(false);
+  const [showAndroidAppNotice, setShowAndroidAppNotice] = useState(false);
+  const [androidAppNoticeSeenCount, setAndroidAppNoticeSeenCount] = useState(0);
   const [userTenants, setUserTenants] = useState([]);
   const [hasMultipleBusinesses, setHasMultipleBusinesses] = useState(false);
 
@@ -626,6 +637,7 @@ const BusinessOwnerDashboard = () => {
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
+          setCurrentUserId(data.id || null);
           setTenantInfo(data.tenant);
           
           // Show reminder if business name is generic (like "My Business")
@@ -639,6 +651,8 @@ const BusinessOwnerDashboard = () => {
       } catch (error) {
         console.error('Error checking business setup:', error);
         // Don't set fallback - let it remain null to show loading state
+      } finally {
+        setAuthContextLoaded(true);
       }
     };
 
@@ -692,6 +706,56 @@ const BusinessOwnerDashboard = () => {
       /* ignore */
     }
   }, [dashboardBusinessScope, dashboardCustomTenantIds, userTenants.length]);
+
+  useEffect(() => {
+    if (!dashboardPermissionResolved || !pagePermissions.canViewDashboard || !authContextLoaded) return;
+    if (typeof window === "undefined") return;
+
+    const today = toYmdLocal(new Date());
+    if (
+      today < ANDROID_APP_RELEASE_NOTICE.startDate ||
+      today >= ANDROID_APP_RELEASE_NOTICE.endDateExclusive
+    ) {
+      return;
+    }
+
+    const userScope = currentUserId || "anonymous";
+    const storageBase = `insightbooks:${ANDROID_APP_RELEASE_NOTICE.id}:${userScope}`;
+    try {
+      if (localStorage.getItem(`${storageBase}:installed`) === "true") return;
+      if (localStorage.getItem(`${storageBase}:last-shown-date`) === today) return;
+
+      const seenCount = Number(localStorage.getItem(`${storageBase}:seen-count`) || "0");
+      setAndroidAppNoticeSeenCount(Number.isFinite(seenCount) ? seenCount : 0);
+      setShowAndroidAppNotice(true);
+      localStorage.setItem(`${storageBase}:last-shown-date`, today);
+      localStorage.setItem(`${storageBase}:seen-count`, String((Number.isFinite(seenCount) ? seenCount : 0) + 1));
+    } catch {
+      setAndroidAppNoticeSeenCount(0);
+      setShowAndroidAppNotice(true);
+    }
+  }, [
+    dashboardPermissionResolved,
+    pagePermissions.canViewDashboard,
+    authContextLoaded,
+    currentUserId,
+  ]);
+
+  const closeAndroidAppNotice = () => {
+    setShowAndroidAppNotice(false);
+  };
+
+  const markAndroidAppInstalled = () => {
+    const userScope = currentUserId || "anonymous";
+    const storageBase = `insightbooks:${ANDROID_APP_RELEASE_NOTICE.id}:${userScope}`;
+    try {
+      localStorage.setItem(`${storageBase}:installed`, "true");
+      localStorage.setItem(`${storageBase}:installed-at`, new Date().toISOString());
+    } catch {
+      /* ignore */
+    }
+    setShowAndroidAppNotice(false);
+  };
 
   // Fetch dashboard data when date range, branch, or business scope changes (only if user may view dashboard)
   useEffect(() => {
@@ -1042,6 +1106,88 @@ const BusinessOwnerDashboard = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
         <SetupWizardWelcomeModal />
+        {showAndroidAppNotice && (
+          <div
+            className="fixed inset-0 z-[220] flex items-center justify-center bg-gray-900/55 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="android-app-release-title"
+            onClick={closeAndroidAppNotice}
+          >
+            <div
+              className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 px-6 py-6 text-white">
+                <button
+                  type="button"
+                  onClick={closeAndroidAppNotice}
+                  className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/70"
+                  aria-label="Close Android app announcement"
+                >
+                  <span className="block text-xl leading-none">&times;</span>
+                </button>
+                <div className="flex items-start gap-4 pr-10">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20">
+                    <Download className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100">
+                      New release
+                    </p>
+                    <h2 id="android-app-release-title" className="mt-1 text-2xl font-bold">
+                      Insight Books Android App is now available
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-blue-50">
+                      Download and install the Android app to access Insight Books from your phone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  This notice will appear once per day for five days. After it appears again, you can stop future reminders by confirming that you have downloaded and installed the app.
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <a
+                    href={ANDROID_APP_RELEASE_NOTICE.downloadUrl}
+                    className="inline-flex flex-1 items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  >
+                    Go to download page
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={closeAndroidAppNotice}
+                    className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {androidAppNoticeSeenCount >= 1 && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-medium text-emerald-900">
+                      Already installed it?
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-800">
+                      Select this only after you have downloaded and installed the Android app. We will not show this announcement again.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={markAndroidAppInstalled}
+                      className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 sm:w-auto"
+                    >
+                      I have downloaded and installed the app
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Dashboard Header */}
           <div className="mb-6 sm:mb-8">

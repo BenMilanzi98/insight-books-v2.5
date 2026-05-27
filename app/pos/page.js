@@ -59,7 +59,8 @@ import {
   voidSale,
   refundSale
 } from "@/app/services/salesService";
-import { calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
+import { calculateProductTaxes, calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 import ClientModal from "@/components/ClientModal";
 import ClientSearchCombobox from "@/components/ClientSearchCombobox";
 import PermissionGuard from "@/components/PermissionGuard";
@@ -1214,18 +1215,19 @@ const POSPage = () => {
           calculationType: defaultTaxTypeForInflow.calculationType || 'Percentage'
         }]
       : [];
+    const customPrice = roundMoney(price);
     const customTaxCalc = defaultTaxes.length > 0
-      ? calculateSaleItemTaxes({ quantity, unitPrice: parseFloat(price), discountAmount: 0, taxes: defaultTaxes })
+      ? calculateSaleItemTaxes({ quantity, unitPrice: customPrice, discountAmount: 0, taxes: defaultTaxes })
       : { totalTaxAmount: 0, taxBreakdown: [] };
     const customProd = {
       id: `custom-${Date.now()}`,
       name: name.trim(),
       description: description.trim(),
-      price: parseFloat(price),
+      price: customPrice,
       stockLevel: null,
       isCustom: true,
       quantity: quantity,
-      subtotal: parseFloat(price) * quantity,
+      subtotal: multiplyMoney(customPrice, quantity),
       taxes: defaultTaxes,
       taxRate: defaultTaxes[0]?.taxRate ?? 0,
       taxAmount: customTaxCalc.totalTaxAmount,
@@ -1248,10 +1250,10 @@ const POSPage = () => {
   const updateProductTax = (productId, taxRate, taxDescription) => {
     setSelectedProducts(selectedProducts.map(product => {
       if (product.id === productId) {
-        const newTaxAmount = product.subtotal * (parseFloat(taxRate) / 100);
+        const newTaxAmount = percentOfMoney(product.subtotal, taxRate);
         return {
           ...product,
-          taxRate: parseFloat(taxRate) || 0,
+          taxRate: roundMoney(taxRate),
           taxAmount: newTaxAmount,
           taxDescription: taxDescription || ""
         };
@@ -1271,8 +1273,8 @@ const POSPage = () => {
     setSelectedProducts(selectedProducts.map(product => {
       if (product.id === productId) {
         // Treat entered discount as per-unit discount; total discount scales with quantity
-        const perUnitDiscount = parseFloat(discount) || 0;
-        const newDiscountAmount = perUnitDiscount * (product.quantity || 1);
+        const perUnitDiscount = roundMoney(discount);
+        const newDiscountAmount = multiplyMoney(perUnitDiscount, product.quantity || 1);
         
         // Recalculate taxes after discount change
         const productTaxes = product.taxes || [];
@@ -1289,7 +1291,7 @@ const POSPage = () => {
           perUnitDiscount,
           discountAmount: newDiscountAmount,
           taxAmount: taxCalculation.totalTaxAmount,
-          newTotal: product.subtotal + taxCalculation.totalTaxAmount - newDiscountAmount
+          newTotal: subtractMoney(addMoney(product.subtotal, taxCalculation.totalTaxAmount), newDiscountAmount)
         });
         
         return {
@@ -1448,8 +1450,7 @@ const POSPage = () => {
               const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
               totalBaseQuantity += convertedToBase;
               
-              const unitPrice = parseFloat(unit.unitPrice || 0);
-              totalPrice += qty * unitPrice;
+              totalPrice = addMoney(totalPrice, multiplyMoney(qty, unit.unitPrice || 0));
             }
           });
         }
@@ -1460,30 +1461,12 @@ const POSPage = () => {
         let taxBreakdown = product.taxBreakdown || [];
         
         if (productTaxes.length > 0 && totalPrice > 0) {
-          const baseAmount = totalPrice - (product.discountAmount || 0);
+          const baseAmount = subtractMoney(totalPrice, product.discountAmount || 0);
           const quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : (product.quantity || 1);
           
-          // Calculate taxes directly on baseAmount
-          taxBreakdown = productTaxes.map(tax => {
-            let calculatedTaxAmount = 0;
-            if (tax.calculationType === 'Fixed') {
-              calculatedTaxAmount = (tax.taxRate || 0) * quantityForTax;
-            } else {
-              calculatedTaxAmount = baseAmount * ((tax.taxRate || 0) / 100);
-            }
-            
-            return {
-              taxTypeId: tax.id,
-              taxId: tax.taxId,
-              taxName: tax.taxName,
-              taxCode: tax.taxCode,
-              taxRate: tax.taxRate,
-              calculationType: tax.calculationType,
-              taxAmount: Number(calculatedTaxAmount.toFixed(2))
-            };
-          });
-          
-          taxAmount = Number(taxBreakdown.reduce((sum, tax) => sum + tax.taxAmount, 0).toFixed(2));
+          const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
+          taxBreakdown = taxCalculation.taxBreakdown;
+          taxAmount = taxCalculation.totalTaxAmount;
           
           console.log(`🔍 Recalculating tax after unit quantities change for ${product.name}:`, {
             unitQuantities,
@@ -1500,7 +1483,7 @@ const POSPage = () => {
           ...product,
           unitQuantities: unitQuantities,
           quantity: totalBaseQuantity > 0 ? totalBaseQuantity : product.quantity,
-          subtotal: totalPrice > 0 ? totalPrice : product.subtotal,
+          subtotal: totalPrice > 0 ? roundMoney(totalPrice) : product.subtotal,
           taxAmount: taxAmount,
           taxBreakdown: taxBreakdown
         };
@@ -1518,7 +1501,7 @@ const POSPage = () => {
         // newPrice is the total price already calculated by UnitBasedQuantityInput from all unit quantities
         // We should use it directly as subtotal
         const currentQuantity = product.quantity || 1;
-        const avgUnitPrice = currentQuantity > 0 ? newPrice / currentQuantity : newPrice;
+        const avgUnitPrice = currentQuantity > 0 ? roundMoney(newPrice / currentQuantity) : roundMoney(newPrice);
         
         // Recalculate taxes based on the new subtotal (which already includes all quantities)
         const productTaxes = product.taxes || [];
@@ -1540,32 +1523,12 @@ const POSPage = () => {
           }
           
           // Use newPrice directly as the base amount (it already includes all quantities)
-          const baseAmount = newPrice - (product.discountAmount || 0);
+          const baseAmount = subtractMoney(newPrice, product.discountAmount || 0);
           const quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : currentQuantity;
           
-          // Calculate taxes directly on baseAmount (which is the total price for all quantities)
-          taxBreakdown = productTaxes.map(tax => {
-            let calculatedTaxAmount = 0;
-            if (tax.calculationType === 'Fixed') {
-              // Fixed tax: multiply rate by total base quantity
-              calculatedTaxAmount = (tax.taxRate || 0) * quantityForTax;
-            } else {
-              // Percentage tax: apply to baseAmount (which is already total price for all quantities)
-              calculatedTaxAmount = baseAmount * ((tax.taxRate || 0) / 100);
-            }
-            
-            return {
-              taxTypeId: tax.id,
-              taxId: tax.taxId,
-              taxName: tax.taxName,
-              taxCode: tax.taxCode,
-              taxRate: tax.taxRate,
-              calculationType: tax.calculationType,
-              taxAmount: Number(calculatedTaxAmount.toFixed(2))
-            };
-          });
-          
-          taxAmount = Number(taxBreakdown.reduce((sum, tax) => sum + tax.taxAmount, 0).toFixed(2));
+          const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
+          taxBreakdown = taxCalculation.taxBreakdown;
+          taxAmount = taxCalculation.totalTaxAmount;
           
           console.log(`🔍 Recalculating tax for unit-based product ${product.name} (price update):`, {
             newPrice,
@@ -1599,29 +1562,31 @@ const POSPage = () => {
   // };
   const updateDiscount = (selectedDiscount) => {
     // Clamp discount: not less than 0, not more than subtotal
-    const subtotal = selectedProducts.reduce((sum, product) => sum + product.subtotal, 0);
+    const subtotal = selectedProducts.reduce((sum, product) => addMoney(sum, product.subtotal), 0);
     let validDiscount = Math.max(0, Math.min(selectedDiscount, subtotal));
     // setDiscount(validDiscount); // This line is removed
   };
 
   const calculateSubtotal = () => {
-    const subtotal = selectedProducts.reduce((sum, product) => sum + product.subtotal, 0);
-    return subtotal;
+    return selectedProducts.reduce((sum, product) => addMoney(sum, product.subtotal), 0);
   };
   
   // Calculate tax amount
   const calculateTaxAmount = () => {
-    return selectedProducts.reduce((sum, product) => sum + (product.taxAmount || 0), 0);
+    return selectedProducts.reduce((sum, product) => addMoney(sum, product.taxAmount || 0), 0);
   };
   
   // Calculate total discount amount
   const calculateDiscountAmount = () => {
-    return selectedProducts.reduce((sum, product) => sum + (product.discountAmount || 0), 0);
+    return selectedProducts.reduce((sum, product) => addMoney(sum, product.discountAmount || 0), 0);
   };
   
   // Calculate total
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTaxAmount() - calculateDiscountAmount() - globalDiscount;
+    return subtractMoney(
+      addMoney(calculateSubtotal(), calculateTaxAmount()),
+      addMoney(calculateDiscountAmount(), globalDiscount)
+    );
   };
   
   // Start editing tax rate
@@ -2021,8 +1986,8 @@ const POSPage = () => {
           setIsSubmitting(false);
           return;
         }
-        posTenderPayload = Number(paidNum.toFixed(2));
-        posChangePayload = Number((paidNum - total).toFixed(2));
+        posTenderPayload = roundMoney(paidNum);
+        posChangePayload = subtractMoney(paidNum, total);
       }
       
       // Prepare sale data
@@ -2071,38 +2036,15 @@ const POSPage = () => {
               });
             } else {
               // Regular product: quantity × unitPrice
-              lineTotal = (product.quantity || 1) * (product.price || 0);
+              lineTotal = multiplyMoney(product.quantity || 1, product.price || 0);
               quantityForTax = product.quantity || 1;
             }
             
-            const baseAmount = lineTotal - (product.discountAmount || 0);
+            const baseAmount = subtractMoney(lineTotal, product.discountAmount || 0);
             
-            // Calculate taxes directly on baseAmount (which already includes quantity for unit-based products)
-            const recalculatedTaxBreakdown = productTaxes.map(tax => {
-              let calculatedTaxAmount = 0;
-              if (tax.calculationType === 'Fixed') {
-                // Fixed tax: multiply rate by quantity
-                calculatedTaxAmount = (tax.taxRate || 0) * quantityForTax;
-              } else {
-                // Percentage tax: apply to baseAmount (which is already lineTotal - discount)
-                calculatedTaxAmount = baseAmount * ((tax.taxRate || 0) / 100);
-              }
-              
-              return {
-                taxTypeId: tax.id,
-                taxId: tax.taxId,
-                taxName: tax.taxName,
-                taxCode: tax.taxCode,
-                taxRate: tax.taxRate,
-                calculationType: tax.calculationType,
-                taxAmount: Number(calculatedTaxAmount.toFixed(2))
-              };
-            });
-            
-            const recalculatedTotalTax = recalculatedTaxBreakdown.reduce((sum, tax) => sum + tax.taxAmount, 0);
-            
-            taxBreakdown = recalculatedTaxBreakdown;
-            taxAmount = Number(recalculatedTotalTax.toFixed(2));
+            const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
+            taxBreakdown = taxCalculation.taxBreakdown;
+            taxAmount = taxCalculation.totalTaxAmount;
             
             console.log(`🔍 Recalculating tax for ${product.name}:`, {
               isUnitManaged,
@@ -3344,7 +3286,9 @@ const POSPage = () => {
                             />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">{formatCurrency(product.subtotal + (product.taxAmount || 0) - (product.discountAmount || 0))}</td>
+                        <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">
+                          {formatCurrency(subtractMoney(addMoney(product.subtotal, product.taxAmount || 0), product.discountAmount || 0))}
+                        </td>
                         <td className="px-4 py-3 text-sm text-center">
                           <button 
                             className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors"

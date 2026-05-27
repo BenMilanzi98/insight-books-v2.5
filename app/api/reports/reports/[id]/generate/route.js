@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateDateRange } from '@/lib/dateUtils';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
+import { addMoney, multiplyMoney } from '@/lib/money';
 
 // POST - Generate a specific report
 export async function POST(request, context) {
@@ -141,7 +142,7 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
         if (!itemsByType[itemType]) {
           itemsByType[itemType] = 0;
         }
-        itemsByType[itemType] += item.quantity * item.unitPrice;
+        itemsByType[itemType] = addMoney(itemsByType[itemType], multiplyMoney(item.quantity, item.unitPrice));
       });
     });
     

@@ -17,7 +17,9 @@ import {
 } from '@/lib/saleItemBaseQuantity';
 import {
   addMoney,
+  multiplyMoney,
   percentOfMoney,
+  parseMoney,
   roundMoney,
   subtractMoney,
   sumMoney,
@@ -580,21 +582,34 @@ export async function POST(request) {
     const lineSubtotals = [];
     const lineTaxes = [];
     const lineDiscounts = [];
+    const computedLineAmounts = [];
 
-    data.items.forEach((item) => {
-      let itemSubtotal = roundMoney(Number(item.quantity) * Number(item.unitPrice));
+    data.items.forEach((item, index) => {
+      let itemSubtotal = multiplyMoney(item.quantity, item.unitPrice);
       if (!item.isCustom && item.productId && productMapForSubtotal[item.productId]) {
         const p = productMapForSubtotal[item.productId];
         try {
           const baseQ = resolveSaleItemBaseQuantity(item, p);
           itemSubtotal = roundMoney(resolveSaleLineAmount(item, p, baseQ));
         } catch {
-          itemSubtotal = roundMoney(Number(item.quantity) * Number(item.unitPrice));
+          itemSubtotal = multiplyMoney(item.quantity, item.unitPrice);
         }
       }
+      const lineDiscount = roundMoney(item.discountAmount || 0);
+      const taxableAmount = subtractMoney(itemSubtotal, lineDiscount);
+      let lineTax = roundMoney(item.taxAmount || 0);
+      if (lineTax === 0 && parseMoney(item.taxRate) > 0) {
+        lineTax = percentOfMoney(taxableAmount, item.taxRate);
+      }
       lineSubtotals.push(itemSubtotal);
-      lineTaxes.push(roundMoney(item.taxAmount || 0));
-      lineDiscounts.push(roundMoney(item.discountAmount || 0));
+      lineTaxes.push(lineTax);
+      lineDiscounts.push(lineDiscount);
+      computedLineAmounts[index] = {
+        subtotal: itemSubtotal,
+        discountAmount: lineDiscount,
+        taxableAmount,
+        taxAmount: lineTax,
+      };
     });
 
     const subtotal = roundMoney(sumMoney(lineSubtotals));
@@ -953,13 +968,13 @@ export async function POST(request) {
           data.posAmountTendered != null &&
           data.posAmountTendered !== '' &&
           !Number.isNaN(Number(data.posAmountTendered))
-            ? Number(data.posAmountTendered)
+            ? roundMoney(data.posAmountTendered)
             : null;
         const posChangeNum =
           data.posChangeGiven != null &&
           data.posChangeGiven !== '' &&
           !Number.isNaN(Number(data.posChangeGiven))
-            ? Number(data.posChangeGiven)
+            ? roundMoney(data.posChangeGiven)
             : null;
         // Only pass POS tender fields when set — omitting avoids "Unknown argument"
         // if deploy has not run migration `20260405140000_sale_pos_tender_change` + prisma generate.
@@ -981,7 +996,7 @@ export async function POST(request) {
             subtotal,
             // Enhanced: Store individual tax amounts
             totalTaxAmount: finalTaxAmount,
-            totalDiscountAmount: totalDiscountAmount + globalDiscount,
+            totalDiscountAmount: addMoney(totalDiscountAmount, globalDiscount),
             total: finalTotal,
             status: saleStatus,
             paymentMethod: paymentMethodInput,
@@ -989,7 +1004,7 @@ export async function POST(request) {
             ...posTenderPayload,
             // Backward compatibility: keep legacy taxRate and taxAmount
             taxRate: legacyTaxRate,
-            taxAmount: legacyTaxAmount,
+            taxAmount: finalTaxAmount,
             // Historical transaction fields
             isHistorical: data.isHistorical || false,
             historicalDate: data.isHistorical && data.historicalDate ? new Date(data.historicalDate) : null,
@@ -1019,10 +1034,10 @@ export async function POST(request) {
         
         // Create sale items with enhanced fields
         const items = await Promise.all(
-          data.items.map(async (item) => {
+          data.items.map(async (item, index) => {
             let saleQuantity = Number(item.quantity) || 0;
             let saleUnitPrice = Number(item.unitPrice) || 0;
-            let amount = saleQuantity * saleUnitPrice;
+            let amount = computedLineAmounts[index]?.subtotal ?? multiplyMoney(saleQuantity, saleUnitPrice);
 
             if (!item.isCustom && item.productId) {
               const productForLine = await tx.product.findUnique({
@@ -1034,11 +1049,13 @@ export async function POST(request) {
               }
               saleQuantity = resolveSaleItemBaseQuantity(item, productForLine);
               const grossLine = resolveSaleLineAmount(item, productForLine, saleQuantity);
-              amount = Math.round(grossLine * 100) / 100;
+              amount = roundMoney(grossLine);
               if (saleQuantity > 0) {
-                saleUnitPrice = Math.round((amount / saleQuantity) * 1000000) / 1000000;
+                saleUnitPrice = roundMoney(amount / saleQuantity);
               }
             }
+            const computedTaxAmount = computedLineAmounts[index]?.taxAmount ?? roundMoney(item.taxAmount || 0);
+            const computedDiscountAmount = computedLineAmounts[index]?.discountAmount ?? roundMoney(item.discountAmount || 0);
             
             // Base fields for sale item (no account yet - try both shapes for Prisma client compatibility)
             const baseSaleItemData = {
@@ -1047,11 +1064,11 @@ export async function POST(request) {
               quantity: saleQuantity,
               unitPrice: saleUnitPrice,
               amount: amount,
-              taxRate: item.taxRate || 0,
-              taxAmount: item.taxAmount || 0,
+              taxRate: roundMoney(item.taxRate || 0),
+              taxAmount: computedTaxAmount,
               taxDescription: item.taxDescription || null,
-              discount: item.discount || 0,
-              discountAmount: item.discountAmount || 0,
+              discount: roundMoney(item.discount || 0),
+              discountAmount: computedDiscountAmount,
               isCustom: item.isCustom || false,
               customProductData: item.customProductData || null
             };
@@ -1091,14 +1108,14 @@ export async function POST(request) {
             }
             
             // Create individual tax records from taxBreakdown, or fallback from item taxAmount
-            const itemTaxAmount = Number(item.taxAmount || 0);
-            const itemTaxRate = Number(item.taxRate || 0);
+            const itemTaxAmount = computedTaxAmount;
+            const itemTaxRate = roundMoney(item.taxRate || 0);
             try {
               if (item.taxBreakdown && Array.isArray(item.taxBreakdown) && item.taxBreakdown.length > 0) {
                 const creates = [];
                 for (const tax of item.taxBreakdown) {
                   const taxTypeId = (tax.taxTypeId || tax.id || '').toString().trim();
-                  const taxAmt = Number(tax.taxAmount);
+                  const taxAmt = roundMoney(tax.taxAmount);
                   if (!taxTypeId || !(taxAmt > 0)) continue;
                   const taxCode = (tax.taxCode != null && String(tax.taxCode).trim() !== '') ? String(tax.taxCode) : '';
                   creates.push(
@@ -1108,7 +1125,7 @@ export async function POST(request) {
                         taxTypeId,
                         taxName: tax.taxName || 'Tax',
                         taxCode,
-                        taxRate: Number(tax.taxRate) || 0,
+                        taxRate: roundMoney(tax.taxRate || 0),
                         taxAmount: taxAmt
                       }
                     })
@@ -1135,7 +1152,7 @@ export async function POST(request) {
                       taxTypeId: chosenTaxType.id,
                       taxName: chosenTaxType.taxName,
                       taxCode,
-                      taxRate: Number(chosenTaxType.taxRate) || 0,
+                      taxRate: roundMoney(chosenTaxType.taxRate || 0),
                       taxAmount: itemTaxAmount
                     }
                   });

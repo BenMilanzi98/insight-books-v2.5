@@ -54,7 +54,7 @@ const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColo
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-        <p className="text-2xl font-bold text-gray-900">MWK {value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+        <p className="text-2xl font-bold text-gray-900">MWK {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         <p className="text-xs text-gray-500 mt-1">{count || 0} invoice{count !== 1 ? 's' : ''}</p>
       </div>
       <div className={`p-3 rounded-full ${color === 'green' ? 'bg-emerald-100' : color === 'yellow' ? 'bg-amber-100' : color === 'red' ? 'bg-red-100' : 'bg-blue-100'}`}>

@@ -49,7 +49,7 @@ function compactAxisTick(v) {
   const a = Math.abs(n);
   if (a >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (a >= 1000) return `${(n / 1e3).toFixed(0)}k`;
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 export default function BfReportsPage() {

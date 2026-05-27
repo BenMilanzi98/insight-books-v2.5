@@ -1,5 +1,6 @@
 // components/QuotationTemplatePreview.jsx
 import React, { forwardRef, useState } from 'react';
+import { addMoney, multiplyMoney, percentOfMoney, subtractMoney } from '@/lib/money';
 
 const QuotationTemplatePreview = forwardRef(({
   quotation,
@@ -54,15 +55,15 @@ const QuotationTemplatePreview = forwardRef(({
     Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: isPrint ? 0 : 2, maximumFractionDigits: 2 });
 
   // Compute totals from quotation or from line items so tax is always shown on the quotation (not only after convert/sale)
-  const subtotal = quotation?.subtotal ?? quotation?.items?.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0) ?? 0;
-  const totalDiscount = (quotation?.totalDiscountAmount || 0) + (quotation?.discount || 0);
-  const netSubtotal = subtotal - totalDiscount;
+  const subtotal = quotation?.subtotal ?? quotation?.items?.reduce((sum, item) => addMoney(sum, multiplyMoney(item.quantity || 0, item.unitPrice || 0)), 0) ?? 0;
+  const totalDiscount = addMoney(quotation?.totalDiscountAmount || 0, quotation?.discount || 0);
+  const netSubtotal = subtractMoney(subtotal, totalDiscount);
   const taxAmount = quotation?.taxAmount ?? quotation?.items?.reduce((sum, item) => {
-    const lt = (item.quantity || 0) * (item.unitPrice || 0);
-    const da = (item.discountAmount || 0) * (item.quantity || 0);
-    return sum + (lt - da) * ((item.taxRate || 0) / 100);
+    const lt = multiplyMoney(item.quantity || 0, item.unitPrice || 0);
+    const da = multiplyMoney(item.discountAmount || 0, item.quantity || 0);
+    return addMoney(sum, percentOfMoney(subtractMoney(lt, da), item.taxRate || 0));
   }, 0) ?? 0;
-  const total = quotation?.total ?? (netSubtotal + taxAmount);
+  const total = quotation?.total ?? addMoney(netSubtotal, taxAmount);
 
   return (
     <div ref={ref} className={`bg-white ${isPrint ? 'print:shadow-none' : 'border border-gray-200 rounded-xl shadow-sm'} max-w-3xl mx-auto overflow-hidden`} style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -147,12 +148,12 @@ const QuotationTemplatePreview = forwardRef(({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {quotation?.items?.map((item, index) => {
-              const lineTotal = (item.quantity || 0) * (item.unitPrice || 0);
+              const lineTotal = multiplyMoney(item.quantity || 0, item.unitPrice || 0);
               const perItemDiscount = item.discountAmount || 0;
-              const lineDiscount = perItemDiscount * (item.quantity || 0);
-              const netAmount = lineTotal - lineDiscount;
-              const taxAmountItem = netAmount * ((item.taxRate || 0) / 100);
-              const finalAmount = netAmount + taxAmountItem;
+              const lineDiscount = multiplyMoney(perItemDiscount, item.quantity || 0);
+              const netAmount = subtractMoney(lineTotal, lineDiscount);
+              const taxAmountItem = percentOfMoney(netAmount, item.taxRate || 0);
+              const finalAmount = addMoney(netAmount, taxAmountItem);
               return (
                 <tr key={index} className={index % 2 === 1 ? 'bg-gray-50/50' : ''}>
                   <td className="py-3.5 text-gray-900 font-medium">

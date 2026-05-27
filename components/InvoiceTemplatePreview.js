@@ -1,6 +1,7 @@
 // components/InvoiceTemplatePreview.jsx
 import React, { useState } from 'react';
 import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForExport, formatDate } from '@/lib/invoiceCalculations';
+import { addMoney, multiplyMoney, percentOfMoney, subtractMoney } from '@/lib/money';
 
 /**
  * Component to preview an invoice template
@@ -126,15 +127,15 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
     status: invoice.status,
     client: invoice.client,
     items: invoice.items?.map(item => {
-      const lineTotal = item.quantity * item.unitPrice;
+      const lineTotal = multiplyMoney(item.quantity, item.unitPrice);
       const discountAmount = item.discountAmount || 0;
-      const netAmount = lineTotal - discountAmount;
-      const lineTaxAmount = netAmount * ((item.taxRate || 0) / 100);
+      const netAmount = subtractMoney(lineTotal, discountAmount);
+      const lineTaxAmount = percentOfMoney(netAmount, item.taxRate || 0);
       return {
         ...item,
         // Ensure line title: description or product name
         description: (item.description && String(item.description).trim()) || (item.product && item.product.name) || 'Item',
-        amount: lineTotal - discountAmount + lineTaxAmount,
+        amount: addMoney(netAmount, lineTaxAmount),
         lineTotal,
         discountAmount,
         netAmount,
@@ -144,8 +145,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
     // Use the stored discount values from the database
     discount: invoice.discount || 0, // Global discount
     totalDiscountAmount: invoice.totalDiscountAmount || 0, // Total of line item discounts
-    subtotal: invoice.subtotal || invoice.items?.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) || 0,
-    taxAmount: invoice.taxAmount || invoice.items?.reduce((sum, item) => sum + (item.quantity * item.unitPrice * item.taxRate / 100), 0) || 0,
+    subtotal: invoice.subtotal || invoice.items?.reduce((sum, item) => addMoney(sum, multiplyMoney(item.quantity, item.unitPrice)), 0) || 0,
+    taxAmount: invoice.taxAmount || invoice.items?.reduce((sum, item) => addMoney(sum, percentOfMoney(multiplyMoney(item.quantity, item.unitPrice), item.taxRate)), 0) || 0,
     total: invoice.total || 0,
     notes: invoice.notes,
     // Payment information
@@ -260,7 +261,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                 <td className="py-3.5 text-right text-gray-600">{formatAmountDisplay(item.unitPrice)}</td>
                 <td className="py-3.5 text-right">{item.discountAmount > 0 ? <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span> : <span className="text-gray-400">—</span>}</td>
                 <td className="py-3.5 text-right text-gray-600" title={item.taxRate > 0 ? `VAT ${item.taxRate}%` : null}>
-                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * ((item.taxRate || 0) / 100)))}` : '—'}
+                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}` : '—'}
                 </td>
                 <td className="py-3.5 text-right font-medium text-gray-900">{formatAmountDisplay(item.amount)}</td>
               </tr>
@@ -417,7 +418,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
-                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * (item.taxRate / 100)))}` : '—'}
+                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}` : '—'}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
               </tr>
@@ -616,7 +617,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                 )}
               </td>
               <td className="py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
-                {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * (item.taxRate / 100)))}` : '—'}
+                {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}` : '—'}
               </td>
               <td className="py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
             </tr>

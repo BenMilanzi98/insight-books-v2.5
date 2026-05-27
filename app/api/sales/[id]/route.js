@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // Helper function to get sale by ID with validation
 async function getSaleWithValidation(id, userId, tenantId) {
@@ -211,14 +212,15 @@ export async function PUT(request, { params }) {
     // Prepare update data
     const updateData = {};
     // Calculate totals
-    const discountRate= body.discount || 0
-    const subtotal = body.items.reduce(
-      (sum, item) => sum + (item.quantity * item.unitPrice), 
+    const discountRate = roundMoney(body.discount || 0);
+    const grossSubtotal = body.items.reduce(
+      (sum, item) => addMoney(sum, multiplyMoney(item.quantity, item.unitPrice)),
       0
-    ) - discountRate;
-    const taxRate = body.taxRate || 0;
-    const taxAmount = subtotal * (taxRate / 100);
-    const total = subtotal + taxAmount;
+    );
+    const subtotal = subtractMoney(grossSubtotal, discountRate);
+    const taxRate = roundMoney(body.taxRate || 0);
+    const taxAmount = percentOfMoney(subtotal, taxRate);
+    const total = addMoney(subtotal, taxAmount);
     // Only include fields that are provided in the request
     if (body.clientId !== undefined) updateData.clientId = body.clientId;
     if (body.saleDate !== undefined) updateData.saleDate = new Date(body.saleDate);
@@ -263,7 +265,7 @@ export async function PUT(request, { params }) {
         // Upsert incoming items
         await Promise.all(
           body.items.map(async (item) => {
-            const amount = item.quantity * item.unitPrice;
+            const amount = multiplyMoney(item.quantity, item.unitPrice);
             return tx.saleItem.upsert({
               where: {
                 saleId_productId: {

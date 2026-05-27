@@ -935,7 +935,8 @@ const ClientManagement = () => {
     return new Intl.NumberFormat('en-MW', { 
       style: 'currency', 
       currency: 'MWK',
-      maximumFractionDigits: 0
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount || 0);
   };
 

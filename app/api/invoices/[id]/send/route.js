@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { formatCurrency, formatDate } from '@/lib/invoiceCalculations';
+import { multiplyMoney, percentOfMoney } from '@/lib/money';
 import {
   createTransport,
   getSmtpFromAddress,
@@ -341,9 +342,9 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
   }
   // Generate HTML for invoice items with per-line tax breakdown (VAT, withholding, etc. visible)
   const itemsHtml = invoice.items.map(item => {
-    const lineTotal = item.quantity * item.unitPrice;
+    const lineTotal = multiplyMoney(item.quantity, item.unitPrice);
     const taxRate = Number(item.taxRate) || 0;
-    const lineTaxAmount = lineTotal * (taxRate / 100);
+    const lineTaxAmount = percentOfMoney(lineTotal, taxRate);
     const taxLabel = taxRate > 0 ? `Tax (${taxRate}%): ${formatCurrency(lineTaxAmount)}` : '—';
     const title = escapeHtml((item.description && String(item.description).trim()) || 'Item');
     return `

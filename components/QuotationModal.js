@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
 import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations"; // Reuse the same calculations
+import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 import ClientModal from "./ClientModal";
 import ClientSearchCombobox from "./ClientSearchCombobox";
 import { fetchProductsForSaleAll } from "@/app/services/salesService";
@@ -10,23 +11,23 @@ import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
 
 // Enhanced calculation functions with per-item discount support for quotations
 const calculateQuotationItemTotals = (item) => {
-  const quantity = parseFloat(item.quantity) || 0;
-  const unitPrice = parseFloat(item.unitPrice) || 0;
-  const perItemDiscount = parseFloat(item.discountAmount) || 0; // Discount per individual item
-  
-  const lineTotal = quantity * unitPrice;
-  const totalDiscountAmount = quantity * perItemDiscount; // Total discount = per-item discount × quantity
-  const netAmount = lineTotal - totalDiscountAmount;
-  const taxAmount = netAmount * ((item.taxRate || 0) / 100);
-  const finalAmount = netAmount + taxAmount;
+  const quantity = parseMoney(item.quantity);
+  const unitPrice = parseMoney(item.unitPrice);
+  const perItemDiscount = parseMoney(item.discountAmount); // Discount per individual item
+
+  const lineTotal = multiplyMoney(quantity, unitPrice);
+  const totalDiscountAmount = multiplyMoney(quantity, perItemDiscount); // Total discount = per-item discount × quantity
+  const netAmount = subtractMoney(lineTotal, totalDiscountAmount);
+  const taxAmount = percentOfMoney(netAmount, item.taxRate || 0);
+  const finalAmount = addMoney(netAmount, taxAmount);
   
   return {
-    lineTotal: Number(lineTotal.toFixed(2)),
-    discountAmount: Number(totalDiscountAmount.toFixed(2)), // Total discount for the line
-    perItemDiscount: Number(perItemDiscount.toFixed(2)), // Per-item discount amount
-    netAmount: Number(netAmount.toFixed(2)),
-    taxAmount: Number(taxAmount.toFixed(2)),
-    amount: Number(finalAmount.toFixed(2))
+    lineTotal: roundMoney(lineTotal),
+    discountAmount: roundMoney(totalDiscountAmount), // Total discount for the line
+    perItemDiscount: roundMoney(perItemDiscount), // Per-item discount amount
+    netAmount: roundMoney(netAmount),
+    taxAmount: roundMoney(taxAmount),
+    amount: roundMoney(finalAmount)
   };
 };
 
@@ -121,12 +122,12 @@ const QuotationModal = ({
           const conversionRate = parseFloat(unit.conversionToBase);
           const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
           totalBaseQuantity += convertedToBase;
-          totalPrice += qty * parseFloat(unit.unitPrice || 0);
+          totalPrice = addMoney(totalPrice, multiplyMoney(qty, unit.unitPrice || 0));
         }
       });
       
       // Calculate average Selling Price (total price / total quantity)
-      const averageUnitPrice = totalBaseQuantity > 0 ? totalPrice / totalBaseQuantity : 0;
+      const averageUnitPrice = totalBaseQuantity > 0 ? roundMoney(totalPrice / totalBaseQuantity) : 0;
       
       // Update the item with calculated values
       const updatedItems = [...formData.items];

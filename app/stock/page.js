@@ -62,6 +62,13 @@ import { fetchStockMovement, exportReport } from "@/app/services/financialReport
 import { StockMovementReport } from "@/components/FinancialReportComponents";
 import { ReportDateRangeModals } from "@/components/ReportDateRangeModals";
 import { useReportTimeframe } from "@/hooks/useReportTimeframe";
+import { formatCurrency } from "@/lib/invoiceCalculations";
+import { addMoney, multiplyMoney, parseMoney, roundMoney } from "@/lib/money";
+
+/** Line stock value = qty × unit cost, 2 dp. */
+function stockLineValue(quantity, unitCost) {
+  return multiplyMoney(parseMoney(quantity), parseMoney(unitCost));
+}
 
 // Main Stock Management Component
 const StockManagement = () => {
@@ -851,8 +858,8 @@ const StockManagement = () => {
                   stockLevel: parseInt(String(product.stockLevel || product.quantityInStock || 0), 10),
                   reorderPoint: parseInt(String(product.reorderPoint || 10), 10),
                   location: (product.location || 'Default Location').trim(),
-                  price: parseFloat(String(product.price || product.unitPrice || 0)),
-                  cost: parseFloat(String(product.cost || product.costPrice || 0)),
+                  price: roundMoney(product.price || product.unitPrice || 0),
+                  cost: roundMoney(product.cost || product.costPrice || 0),
                   isService: Boolean(product.isService),
                   // Explicitly set unitManagementEnabled to false to avoid unit processing
                   unitManagementEnabled: false,
@@ -1000,13 +1007,11 @@ const StockManagement = () => {
           totalItems: activeInventory.length,
           serviceCount: 0,
           totalValue: activeInventory.reduce((sum, item) => {
-            const quantity = item.quantityInStock || 0;
-            const cost = item.costPrice || 0;
-            return sum + (quantity * cost);
-          }, 0).toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          }),
+            return addMoney(
+              sum,
+              stockLineValue(item.quantityInStock || 0, item.costPrice || 0)
+            );
+          }, 0),
           lowStock: activeInventory.filter(item => item.status === "Low Stock").length,
           outOfStock: activeInventory.filter(item => item.status === "Out of Stock").length,
           nearingReorder: activeInventory.filter(item => {
@@ -1988,36 +1993,6 @@ const StockManagement = () => {
     }
   }, [applyStockMovementSingleDay]);
 
-  // Format currency in Malawi Kwacha
-  const formatCurrency = (amount) => {
-    // Check if amount is a number
-    // if (amount === null || amount === undefined || isNaN(Number(amount))) {
-    //   return 'MWK 0'; // Return a default value instead of NaN
-    // }
-    if (amount === null || amount === undefined) {
-      return 'MWK 0';
-    }
-
-    // Remove commas if it's a string with formatted number
-    const numericAmount = typeof amount === 'string'
-      ? Number(amount.replace(/,/g, ''))
-      : Number(amount);
-
-    if (isNaN(numericAmount)) {
-      return 'MWK 0';
-    }
-    
-    try {
-      return new Intl.NumberFormat('en-MW', { 
-        style: 'currency', 
-        currency: 'MWK',
-        maximumFractionDigits: 0
-      }).format(Number(numericAmount));
-    } catch (error) {
-      console.error('Error formatting currency:', error);
-      return `MWK ${Number(numericAmount).toLocaleString() || 0}`;
-    }
-  };
   
   // Format date (DD-MM-YYYY)
   const formatDate = (dateString) => {
@@ -3256,8 +3231,8 @@ const StockManagement = () => {
                           <td className="px-4 py-4 text-sm font-bold text-gray-900">
                             {formatCurrency(
                               item.totalStockValue != null && !isNaN(Number(item.totalStockValue))
-                                ? Number(item.totalStockValue)
-                                : (item.quantityInStock * (item.costPrice || 0))
+                                ? roundMoney(item.totalStockValue)
+                                : stockLineValue(item.quantityInStock, item.costPrice || 0)
                             )}
                           </td>
                         </>
@@ -3432,7 +3407,7 @@ const StockManagement = () => {
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-gray-500">Stock Value</span>
-                      <span className="text-sm font-bold text-gray-900">{formatCurrency(item.quantityInStock * item.costPrice)}</span>
+                      <span className="text-sm font-bold text-gray-900">{formatCurrency(stockLineValue(item.quantityInStock, item.costPrice))}</span>
                     </div>
                   </div>
                 </div>
@@ -3933,7 +3908,7 @@ const StockManagement = () => {
                         {formatCurrency(
                           selectedItem.totalStockValue != null && !isNaN(Number(selectedItem.totalStockValue))
                             ? Number(selectedItem.totalStockValue)
-                            : (selectedItem.quantityInStock * (selectedItem.costPrice || 0))
+                            : stockLineValue(selectedItem.quantityInStock, selectedItem.costPrice || 0)
                         )}
                       </div>
                     </div>
@@ -4729,7 +4704,7 @@ const getDefaultProductCost = (product) => {
   const price = toNumber(product.price);
   
   const value = lastPurchaseCost || cost || averageCost || costPrice || purchasePrice || unitCost || price || 0;
-  return value;
+  return roundMoney(value);
 };
 
 // Form Section Component
@@ -4813,7 +4788,10 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
     () =>
       items.reduce(
         (sum, item) =>
-          sum + Number(item.quantityOrdered || 0) * Number(item.unitCost || 0),
+          addMoney(
+            sum,
+            stockLineValue(item.quantityOrdered || 0, item.unitCost || 0)
+          ),
         0
       ),
     [items]
@@ -5046,10 +5024,9 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                     </div>
                     <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                       <span>
-                        MWK{" "}
-                        {(
-                          Number(item.quantityOrdered || 0) * Number(item.unitCost || 0)
-                        ).toLocaleString()}
+                        {formatCurrency(
+                          stockLineValue(item.quantityOrdered || 0, item.unitCost || 0)
+                        )}
                       </span>
                       {items.length > 1 && (
                         <button
@@ -5091,7 +5068,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                     <p className="text-sm text-indigo-900">Products × Order Price</p>
                   </div>
                   <div className="text-lg font-semibold text-indigo-900">
-                    MWK {subtotal.toLocaleString()}
+                    {formatCurrency(subtotal)}
                   </div>
                 </div>
               </div>
@@ -5818,7 +5795,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         }
         const n =
           typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/,/g, ''));
-        if (Number.isFinite(n)) return n;
+        if (Number.isFinite(n)) return roundMoney(n);
         return isEdit ? undefined : 0;
       };
       // Prepare product data
@@ -5831,9 +5808,9 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         // Convert empty strings to null for database
         quantityInStock: formData.quantityInStock === '' ? null : parseFloat(formData.quantityInStock),
         reorderPoint: formData.reorderPoint === '' ? null : parseFloat(formData.reorderPoint),
-        unitPrice: formData.unitPrice === '' ? null : parseFloat(formData.unitPrice),
+        unitPrice: formData.unitPrice === '' ? null : roundMoney(formData.unitPrice),
         costPrice: parseCostForApi(),
-        discountAmount: formData.discountAmount === '' ? null : parseFloat(formData.discountAmount),
+        discountAmount: formData.discountAmount === '' ? null : roundMoney(formData.discountAmount),
         weight: formData.weight === '' ? null : parseFloat(formData.weight),
         // Catalog-wide for this business (all locations)
         branchId: null,
@@ -6707,7 +6684,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
                   {errors.unitCost && <p className="mt-1 text-sm text-red-500">{errors.unitCost}</p>}
                   <p className="mt-1 text-xs text-gray-500">
                     {formData.unitCost ? 
-                      `Total: MWK ${(parseFloat(formData.quantity || 0) * parseFloat(formData.unitCost || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}` :
+                      `Total: ${formatCurrency(stockLineValue(formData.quantity || 0, formData.unitCost || 0))}` :
                       `⚠️ Will use product's current cost (${product?.cost || product?.costPrice || 0}) - Enter cost for accurate FIFO tracking`}
                   </p>
                 </div>

@@ -8,6 +8,8 @@ import {
   buildProductUnitPayloadRows,
   ensureOneDefaultUnit,
 } from '@/lib/productUnitSavePayload';
+import { productLineValue } from '@/lib/stockValuationAggregate';
+import { roundMoney } from '@/lib/money';
 
 /** Only finite numeric costs from the body override DB; null/NaN/omit keep existing (avoid wiping cost → fallback to average cost). */
 function resolveIncomingProductCost(body, existingCost) {
@@ -16,9 +18,9 @@ function resolveIncomingProductCost(body, existingCost) {
     if (c === undefined || c === null) continue;
     if (typeof c === 'string' && String(c).trim() === '') continue;
     const n = Number(c);
-    if (Number.isFinite(n)) return n;
+    if (Number.isFinite(n)) return roundMoney(n);
   }
-  return existingCost;
+  return existingCost != null ? roundMoney(existingCost) : existingCost;
 }
 
 // Helper function to get product by ID with validation
@@ -177,11 +179,12 @@ async function getProductWithValidation(id, tenantId) {
       };
     });
   
-  const costPrice = resolveProductCostPriceForDisplay(product);
-  const totalStockValueStored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
-  const totalStockValue = (totalStockValueStored != null && totalStockValueStored > 0)
-    ? totalStockValueStored
-    : (effectiveStockLevel * costPrice);
+  const costPrice = roundMoney(resolveProductCostPriceForDisplay(product));
+  const totalStockValue = productLineValue({
+    ...product,
+    stockLevel: effectiveStockLevel,
+    cost: costPrice,
+  });
 
   // Build barcodes array (ProductBarcode + legacy Product.barcode)
   const barcodeSet = new Set();
@@ -198,7 +201,7 @@ async function getProductWithValidation(id, tenantId) {
       location: product.location || 'Default Location',
       quantityInStock: effectiveStockLevel, // For display purposes
       originalStockLevel: stockLevel, // Original product stock level for editing
-      unitPrice: product.price,
+      unitPrice: roundMoney(product.price),
       costPrice,
       totalStockValue,
       status,
@@ -467,7 +470,12 @@ export async function PUT(request, { params }) {
             ? body.reorderPoint
             : result.product.reorderPoint,
       location: body.location !== undefined ? body.location : result.product.location,
-      price: body.unitPrice !== undefined ? body.unitPrice : (body.price !== undefined ? body.price : result.product.price),
+      price:
+        body.unitPrice !== undefined
+          ? roundMoney(body.unitPrice)
+          : body.price !== undefined
+            ? roundMoney(body.price)
+            : result.product.price,
       cost: resolvedCostForUpdate,
       taxRate: computedTaxRate,
       isService: body.isService !== undefined ? body.isService : result.product.isService,
@@ -489,7 +497,7 @@ export async function PUT(request, { params }) {
           : result.product.supplier,
       discountAmount:
         body.discountAmount !== undefined
-          ? (body.discountAmount === null || body.discountAmount === '' ? null : Number(body.discountAmount))
+          ? (body.discountAmount === null || body.discountAmount === '' ? null : roundMoney(body.discountAmount))
           : result.product.discountAmount,
       weight:
         body.weight !== undefined

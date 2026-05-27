@@ -460,7 +460,7 @@ export default function SupplierPaymentsPage() {
         <SummaryCard label="This Month" value={`MWK ${stats.monthAmount.toLocaleString()}`} />
         <SummaryCard
           label="Average Payment"
-          value={`MWK ${stats.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+          value={`MWK ${stats.avg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         />
       </div>
 

@@ -9,6 +9,7 @@ import { createFifoBatch } from '@/lib/fifoCosting';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { finalizeExpenseBill } from '@/lib/supplierBillExpenseFinalize';
+import { addMoney, multiplyMoney, roundMoney } from '@/lib/money';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense', 'stock'];
@@ -196,17 +197,17 @@ export async function POST(request) {
     let subtotal = 0;
     if (billType === 'inventory') {
       subtotal = body.items.reduce(
-        (sum, item) => sum + (Number(item.quantity || 0) * Number(item.unitCost || 0)),
+        (sum, item) => addMoney(sum, multiplyMoney(item.quantity || 0, item.unitCost || 0)),
         0
       );
     } else {
       subtotal = body.items.reduce(
-        (sum, item) => sum + Number(item.amount || 0),
+        (sum, item) => addMoney(sum, item.amount || 0),
         0
       );
     }
-    const taxAmount = body.taxAmount ?? 0;
-    const totalAmount = subtotal + taxAmount;
+    const taxAmount = roundMoney(body.taxAmount ?? 0);
+    const totalAmount = addMoney(subtotal, taxAmount);
 
     // Generate bill number
     const billNumber = body.billNumber?.trim() || body.supplierInvoiceNumber?.trim() || `BILL-${Date.now()}`;

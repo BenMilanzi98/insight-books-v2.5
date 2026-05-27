@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Package, ArrowRight, Check, RefreshCw, Building2, Plus, Trash2 } from "lucide-react";
+import { formatCurrency } from "@/lib/invoiceCalculations";
 
 /**
  * Transfer stock between businesses (tenants) — same list as /switch-tenant via /api/tenant/list.
@@ -597,31 +598,6 @@ export const StockPerBusiness = ({
   loading = false,
 }) => {
   const rows = businesses ?? branches ?? [];
-  // Format currency in Malawi Kwacha
-  const formatCurrency = (amount) => {
-    if (amount === null || amount === undefined || isNaN(Number(amount))) {
-      return 'MWK 0';
-    }
-
-    const numericAmount = typeof amount === 'string'
-      ? Number(amount.replace(/,/g, ''))
-      : Number(amount);
-
-    if (isNaN(numericAmount)) {
-      return 'MWK 0';
-    }
-    
-    try {
-      return new Intl.NumberFormat('en-MW', { 
-        style: 'currency', 
-        currency: 'MWK',
-        maximumFractionDigits: 0
-      }).format(Number(numericAmount));
-    } catch (error) {
-      return `MWK ${Number(numericAmount).toLocaleString() || 0}`;
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">

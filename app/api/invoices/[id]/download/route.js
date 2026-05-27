@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { multiplyMoney } from '@/lib/money';
 
 /**
  * GET handler for downloading invoice data for client-side PDF generation
@@ -154,7 +155,7 @@ export async function GET(request, { params }) {
       items: invoice.items.map(item => ({
         ...item,
         description: item.description || (item.product ? item.product.name : ''),
-        amount: parseFloat((item.quantity * item.unitPrice).toFixed(2))
+        amount: multiplyMoney(item.quantity, item.unitPrice)
       })),
       paymentInfo: {
         totalPaid,

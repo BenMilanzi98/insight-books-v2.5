@@ -13,6 +13,7 @@ import {
   roundReportAmount,
   saleItemNetRevenueExTax,
 } from '@/lib/reportLineNetRevenue';
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney } from '@/lib/money';
 
 export async function GET(request) {
   try {
@@ -162,10 +163,10 @@ export async function GET(request) {
       const taxableAmount = invoiceItemNetRevenueExTax(item);
       if (taxableAmount <= 0) return;
       // Ensure we're using a valid number for tax calculation
-      const taxAmount = taxableAmount * (item.taxRate / 100);
+      const taxAmount = percentOfMoney(taxableAmount, item.taxRate);
       
-      collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
-      collectedTaxesByRate[taxRate].taxAmount += taxAmount;
+      collectedTaxesByRate[taxRate].taxableAmount = addMoney(collectedTaxesByRate[taxRate].taxableAmount, taxableAmount);
+      collectedTaxesByRate[taxRate].taxAmount = addMoney(collectedTaxesByRate[taxRate].taxAmount, taxAmount);
       
       collectedTaxesByRate[taxRate].items.push({
         type: 'invoice',
@@ -299,13 +300,13 @@ export async function GET(request) {
               // Calculate tax amount based on calculation type
               let calculatedTaxAmount = 0;
               if (taxType.calculationType === 'Fixed') {
-                calculatedTaxAmount = taxType.taxRate * (item.quantity || 1);
+                calculatedTaxAmount = multiplyMoney(taxType.taxRate, item.quantity || 1);
               } else {
-                calculatedTaxAmount = taxableAmount * (taxType.taxRate / 100);
+                calculatedTaxAmount = percentOfMoney(taxableAmount, taxType.taxRate);
               }
               
-              collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
-              collectedTaxesByRate[taxRate].taxAmount += calculatedTaxAmount;
+              collectedTaxesByRate[taxRate].taxableAmount = addMoney(collectedTaxesByRate[taxRate].taxableAmount, taxableAmount);
+              collectedTaxesByRate[taxRate].taxAmount = addMoney(collectedTaxesByRate[taxRate].taxAmount, calculatedTaxAmount);
               
               collectedTaxesByRate[taxRate].items.push({
                 type: 'sale',
@@ -352,11 +353,11 @@ export async function GET(request) {
           }
           
           // Use individual item tax data if available, otherwise calculate from rate
-          const itemTaxAmount = item.taxAmount || 0;
-          const finalTaxAmount = itemTaxAmount > 0 ? itemTaxAmount : (taxableAmount * (taxRateValue / 100));
+          const itemTaxAmount = roundMoney(item.taxAmount || 0);
+          const finalTaxAmount = itemTaxAmount > 0 ? itemTaxAmount : percentOfMoney(taxableAmount, taxRateValue);
           
-          collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
-          collectedTaxesByRate[taxRate].taxAmount += finalTaxAmount;
+          collectedTaxesByRate[taxRate].taxableAmount = addMoney(collectedTaxesByRate[taxRate].taxableAmount, taxableAmount);
+          collectedTaxesByRate[taxRate].taxAmount = addMoney(collectedTaxesByRate[taxRate].taxAmount, finalTaxAmount);
           
           collectedTaxesByRate[taxRate].items.push({
             type: 'sale',
