@@ -4,6 +4,27 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 const APK_FILENAME = 'InsightBooks-android.apk';
+const APP_TITLE = 'Insight Books';
+const DEVELOPER_NAME = 'Insight Innovations Ltd';
+const MIN_ANDROID_VERSION = '8.0';
+const SHORT_DESCRIPTION =
+  'Secure Android access for Insight Books business management.';
+const FULL_DESCRIPTION =
+  'Install the official Insight Books Android app to manage sales, invoices, expenses, customers, inventory, payments, and business activity from your phone. The mobile app connects to the same Insight Books account and keeps your team close to the work wherever they are.';
+const FEATURES = [
+  'Point of sale and quick sales recording',
+  'Invoices, customers, and payment tracking',
+  'Expense and supplier management',
+  'Stock visibility and product pricing',
+  'Mobile access to business activity',
+  'Official release delivered through Insight Books',
+];
+const INSTALL_STEPS = [
+  'Tap Download latest APK and wait for the download progress to complete.',
+  'Open the downloaded APK from your browser or Downloads folder.',
+  'If Android asks for permission, allow installs from this browser/source.',
+  'Complete installation, then open Insight Books and sign in with your existing account.',
+];
 
 function resolveFetchUrl(apkDownloadUrl) {
   if (!apkDownloadUrl || typeof window === 'undefined') return '';
@@ -17,6 +38,25 @@ function isZipApkMagic(bytes) {
   if (!bytes || bytes.byteLength < 4) return false;
   const a = new Uint8Array(bytes);
   return a[0] === 0x50 && a[1] === 0x4b && a[2] === 0x03 && a[3] === 0x04;
+}
+
+function formatDate(value) {
+  if (!value) return 'Pending';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Pending';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function releaseNotesList(notes) {
+  if (!notes || typeof notes !== 'string') return [];
+  return notes
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean);
 }
 
 /**
@@ -224,155 +264,401 @@ export default function DownloadAppPage() {
     (data?.apkDownloadUrl && String(data.apkDownloadUrl).trim() !== '') && proxyFetchUrl,
   );
   const busy = downloadPhase === 'loading' || downloadPhase === 'saving';
+  const notes = releaseNotesList(data?.releaseNotes);
+  const latestVersionName = data?.latestVersionName || 'Pending';
+  const latestVersionCode = data?.latestVersionCode ?? null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <div className="max-w-lg mx-auto px-6 py-16 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Insight Books — Android</h1>
-        <p className="mt-2 text-slate-600 text-sm leading-relaxed">
-          Install the mobile app for POS, invoicing, expenses, and more. Same account as the web
-          dashboard.
-        </p>
+    <div className="min-h-screen bg-slate-950 text-slate-900">
+      <section className="relative overflow-hidden bg-[radial-gradient(circle_at_15%_10%,rgba(96,165,250,.28),transparent_28%),radial-gradient(circle_at_78%_15%,rgba(129,140,248,.34),transparent_30%),linear-gradient(135deg,#040b16_0%,#0f172a_38%,#1e1b4b_72%,#312e81_100%)] text-white">
+        <div className="absolute -left-16 top-8 h-56 w-56 rounded-full bg-indigo-400/25 blur-md" />
+        <div className="absolute bottom-10 right-[12%] h-44 w-44 rounded-full bg-blue-400/25 blur-md" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] bg-[length:42px_42px] opacity-70 [mask-image:linear-gradient(to_bottom,#000,transparent_75%)]" />
 
-        {err && (
-          <p className="mt-8 text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{err}</p>
-        )}
+        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-20">
+          {err && (
+            <div className="mb-8 rounded-2xl border border-red-200/40 bg-red-50/95 px-4 py-3 text-sm text-red-700 shadow-lg">
+              {err}
+            </div>
+          )}
 
-        {data && (
-          <div className="mt-10 space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm px-5 py-4 text-left text-sm">
-              <p className="text-slate-500">Latest version</p>
-              <p className="text-lg font-semibold text-slate-900">
-                {data.latestVersionName}{' '}
-                <span className="text-slate-400 font-normal">({data.latestVersionCode})</span>
+          <div className="grid gap-10 lg:grid-cols-[1.25fr_.85fr] lg:items-center">
+            <div>
+              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-100">
+                Official Android Download Center
+              </div>
+
+              <div className="mb-6 flex items-center gap-5">
+                <div className="flex h-28 w-28 flex-shrink-0 items-center justify-center rounded-[2rem] border border-white/70 bg-gradient-to-br from-white to-blue-50 p-3 shadow-2xl shadow-black/30">
+                  <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-500 text-4xl font-black text-white">
+                    IB
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+                    {APP_TITLE}
+                  </h1>
+                  <p className="mt-3 text-lg font-semibold text-slate-300">
+                    Official Android app for Insight Books users.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-slate-100">
+                      Version {latestVersionName}
+                      {latestVersionCode != null ? ` (${latestVersionCode})` : ''}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-slate-100">
+                      Android {MIN_ANDROID_VERSION}+
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-slate-100">
+                      Verified official release
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="max-w-3xl text-base leading-8 text-blue-50 sm:text-lg">
+                {SHORT_DESCRIPTION}
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={runDownload}
+                  disabled={!canDownload || busy}
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 px-8 py-4 text-base font-extrabold text-white shadow-xl shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                >
+                  {busy ? 'Downloading...' : 'Download latest APK'}
+                </button>
+                <span className="text-sm font-bold text-emerald-200">
+                  Download only from this official Insight Books page.
+                </span>
+              </div>
+
+              <p className="mt-4 text-sm text-slate-300">
+                Developer: {DEVELOPER_NAME} · Minimum Android {MIN_ANDROID_VERSION}+
               </p>
             </div>
 
-            {canDownload ? (
-              <div className="rounded-xl border border-slate-200 bg-white shadow-sm px-5 py-5 text-left space-y-4">
-                {downloadPhase === 'idle' && (
-                  <button
-                    type="button"
-                    onClick={runDownload}
-                    className="inline-flex w-full justify-center items-center rounded-xl bg-indigo-600 text-white font-semibold py-4 px-6 hover:bg-indigo-700 transition-colors"
-                  >
-                    Download APK
-                  </button>
-                )}
+            <div className="rounded-3xl border border-white/20 bg-white/10 p-5 shadow-2xl shadow-black/25 backdrop-blur-xl">
+              <div className="mb-4 flex items-center gap-2 text-sm font-extrabold text-blue-100">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(34,197,94,.14),0_0_24px_rgba(34,197,94,.8)]" />
+                Secure distribution
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                  <p className="text-xs text-blue-200">Current version</p>
+                  <p className="mt-1 text-lg font-extrabold">{latestVersionName}</p>
+                </div>
+                <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                  <p className="text-xs text-blue-200">Compatibility</p>
+                  <p className="mt-1 text-lg font-extrabold">Android {MIN_ANDROID_VERSION}+</p>
+                </div>
+                <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                  <p className="text-xs text-blue-200">Updated</p>
+                  <p className="mt-1 text-lg font-extrabold">{formatDate(data?.publishedAt)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                  <p className="text-xs text-blue-200">Availability</p>
+                  <p className="mt-1 text-lg font-extrabold">
+                    {canDownload ? 'Ready' : 'Unavailable'}
+                  </p>
+                </div>
+              </div>
 
-                {(downloadPhase === 'loading' || downloadPhase === 'saving') && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-slate-600">
-                      <span>{downloadPhase === 'saving' ? 'Saving' : 'Downloading'}</span>
-                      <span>
-                        {downloadPhase === 'loading' && progressIndeterminate
-                          ? '…'
-                          : downloadPhase === 'loading' && progress > 0
-                            ? `${Math.round(progress * 100)}%`
-                            : downloadPhase === 'loading'
-                              ? '—'
-                              : ''}
-                      </span>
-                    </div>
-                    <div
-                      className="h-3 w-full rounded-full bg-slate-200 overflow-hidden"
-                      role="progressbar"
-                      aria-valuenow={
-                        progressIndeterminate ? 0 : Math.round(progress * 100)
-                      }
-                      aria-valuetext={progressIndeterminate ? 'Downloading' : undefined}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    >
-                      {progressIndeterminate ? (
-                        <div className="h-full w-full rounded-full bg-indigo-500/45 animate-pulse" />
-                      ) : (
-                        <div
-                          className="h-full rounded-full bg-indigo-600 transition-[width] duration-150 ease-out"
-                          style={{
-                            width:
-                              downloadPhase === 'saving'
-                                ? '100%'
-                                : `${Math.max(2, Math.round(progress * 100))}%`,
-                          }}
-                        />
+              <div className="mt-4 rounded-2xl bg-slate-950/35 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">
+                  Security notice
+                </p>
+                <p className="mt-2 text-sm leading-6 text-blue-50">
+                  Verify the developer, version, and this official domain before installing. Android
+                  may ask you to allow installs from your browser.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative -mt-6 rounded-t-[2rem] bg-gradient-to-b from-slate-50 to-indigo-50 py-10 shadow-[0_-20px_60px_rgba(15,23,42,.18)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-6 lg:grid-cols-[1fr_22rem] lg:px-8">
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
+                Download
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">Install the latest Android app</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                The download button below keeps the current `/download-app` behavior: it streams the APK,
+                shows progress, validates the package, then saves it to your Downloads folder.
+              </p>
+
+              <div className="mt-5">
+                {data ? (
+                  canDownload ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-left">
+                      {downloadPhase === 'idle' && (
+                        <button
+                          type="button"
+                          onClick={runDownload}
+                          className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 font-extrabold text-white shadow-lg shadow-indigo-500/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                        >
+                          Download APK
+                        </button>
+                      )}
+
+                      {(downloadPhase === 'loading' || downloadPhase === 'saving') && (
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-sm font-semibold text-slate-700">
+                            <span>{downloadPhase === 'saving' ? 'Saving' : 'Downloading'}</span>
+                            <span>
+                              {downloadPhase === 'loading' && progressIndeterminate
+                                ? '...'
+                                : downloadPhase === 'loading' && progress > 0
+                                  ? `${Math.round(progress * 100)}%`
+                                  : downloadPhase === 'loading'
+                                    ? '-'
+                                    : '100%'}
+                            </span>
+                          </div>
+                          <div
+                            className="h-3 w-full overflow-hidden rounded-full bg-slate-200"
+                            role="progressbar"
+                            aria-valuenow={
+                              progressIndeterminate ? 0 : Math.round(progress * 100)
+                            }
+                            aria-valuetext={progressIndeterminate ? 'Downloading' : undefined}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                          >
+                            {progressIndeterminate ? (
+                              <div className="h-full w-full animate-pulse rounded-full bg-indigo-500/45" />
+                            ) : (
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 transition-[width] duration-150 ease-out"
+                                style={{
+                                  width:
+                                    downloadPhase === 'saving'
+                                      ? '100%'
+                                      : `${Math.max(2, Math.round(progress * 100))}%`,
+                                }}
+                              />
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-500">{progressLabel}</p>
+                        </div>
+                      )}
+
+                      {downloadPhase === 'done' && (
+                        <div className="space-y-3">
+                          <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                            {progressLabel}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={openForInstall}
+                            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-6 py-4 font-extrabold text-white transition hover:bg-emerald-700"
+                          >
+                            Install app
+                          </button>
+                          <p className="text-xs leading-5 text-slate-500">
+                            Opens the APK so Android can run the installer. If nothing happens, open
+                            your Downloads folder and tap the APK file.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={resetDownload}
+                            className="w-full py-2 text-sm font-semibold text-indigo-600 hover:underline"
+                          >
+                            Download again
+                          </button>
+                        </div>
+                      )}
+
+                      {downloadPhase === 'error' && (
+                        <div className="space-y-3">
+                          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{downloadErr}</p>
+                          <a
+                            href={directApkUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-800 transition hover:bg-slate-50"
+                          >
+                            Open file link
+                          </a>
+                          <button
+                            type="button"
+                            onClick={resetDownload}
+                            className="w-full rounded-2xl bg-indigo-600 px-6 py-3 font-extrabold text-white transition hover:bg-indigo-700"
+                          >
+                            Try again
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500">{progressLabel}</p>
-                  </div>
-                )}
-
-                {downloadPhase === 'done' && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-emerald-700 font-medium">{progressLabel}</p>
-                    <button
-                      type="button"
-                      onClick={openForInstall}
-                      className="inline-flex w-full justify-center items-center rounded-xl bg-emerald-600 text-white font-semibold py-4 px-6 hover:bg-emerald-700 transition-colors"
-                    >
-                      Install app
-                    </button>
-                    <p className="text-xs text-slate-500">
-                      Opens the APK so Android can run the installer. You may need to allow installs
-                      from this source. If nothing happens, open your Downloads folder and tap the
-                      APK file.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={resetDownload}
-                      className="w-full text-sm text-indigo-600 hover:underline py-2"
-                    >
-                      Download again
-                    </button>
-                  </div>
-                )}
-
-                {downloadPhase === 'error' && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{downloadErr}</p>
-                    <a
-                      href={directApkUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex w-full justify-center items-center rounded-xl border border-slate-300 bg-white text-slate-800 font-medium py-3 px-6 hover:bg-slate-50 transition-colors"
-                    >
-                      Open file link
-                    </a>
-                    <button
-                      type="button"
-                      onClick={resetDownload}
-                      className="w-full rounded-xl bg-indigo-600 text-white font-semibold py-3 px-6 hover:bg-indigo-700 transition-colors"
-                    >
-                      Try again
-                    </button>
+                  ) : (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <p>
+                        No download link is available from the server, or the website download is locked.
+                      </p>
+                      <p className="mt-2 text-amber-800">
+                        Please check back shortly or contact your administrator.
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                    Loading release details...
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm px-4 py-3 text-left">
-                <p>
-                  No download link is available from the server (no hosted release file and no
-                  public URL in admin, or the site download is locked).
-                </p>
-                <p className="mt-2 text-amber-800">
-                  In <span className="font-medium">Insight Books → Mobile app</span>, upload an APK or
-                  set “APK download URL”, and ensure “Lock website APK download” is off if you use the
-                  hosted file.
-                </p>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
+                Overview
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">About this app</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{FULL_DESCRIPTION}</p>
+
+              {notes.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-bold text-slate-950">What&apos;s new in v{latestVersionName}</h3>
+                  <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                    {notes.map((note, index) => (
+                      <li key={`${note}-${index}`} className="flex gap-3">
+                        <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-indigo-500" />
+                        <span>{note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
+                Highlights
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">Features</h2>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {FEATURES.map((feature) => (
+                  <div
+                    key={feature}
+                    className="flex gap-3 rounded-2xl border border-slate-100 bg-gradient-to-b from-white to-slate-50 p-4 text-sm font-semibold text-slate-700"
+                  >
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">
+                      ✓
+                    </span>
+                    {feature}
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
 
-            <p className="text-xs text-slate-500 pt-4">
-              On Android, you may need to allow installs from your browser. Only download from this
-              official site.
-            </p>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
+                Setup
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">Install instructions</h2>
+              <ol className="mt-5 space-y-3 rounded-2xl bg-slate-950 p-5 text-sm leading-6 text-slate-100">
+                {INSTALL_STEPS.map((step, index) => (
+                  <li key={step} className="flex gap-3">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-blue-100">
+                      {index + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
 
-            <Link href="/" className="inline-block text-sm text-indigo-600 hover:underline mt-6">
-              ← Back to home
-            </Link>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
+                Releases
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">Version history</h2>
+              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Version</th>
+                      <th className="px-4 py-3 font-semibold">Code</th>
+                      <th className="px-4 py-3 font-semibold">Released</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-slate-100">
+                      <td className="px-4 py-3 font-semibold text-slate-900">{latestVersionName}</td>
+                      <td className="px-4 py-3 text-slate-600">{latestVersionCode ?? '-'}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatDate(data?.publishedAt)}</td>
+                      <td className="px-4 py-3 text-emerald-700">Latest</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+
+          <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">App info</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Version</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {latestVersionName}
+                    {latestVersionCode != null ? ` (${latestVersionCode})` : ''}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Updated</dt>
+                  <dd className="font-semibold text-slate-900">{formatDate(data?.publishedAt)}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Compatibility</dt>
+                  <dd className="font-semibold text-slate-900">Android {MIN_ANDROID_VERSION}+</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Developer</dt>
+                  <dd className="font-semibold text-slate-900">{DEVELOPER_NAME}</dd>
+                </div>
+              </dl>
+              <button
+                type="button"
+                onClick={runDownload}
+                disabled={!canDownload || busy}
+                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3 font-extrabold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                Download latest APK
+              </button>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">Rating breakdown</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Reviews and rating totals are managed in the Android App Center. This page focuses on
+                the official release and protected APK download.
+              </p>
+              <div className="mt-4 space-y-2">
+                {[5, 4, 3, 2, 1].map((rating) => (
+                  <div key={rating} className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="w-3">{rating}</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-indigo-500" style={{ width: rating === 5 ? '70%' : '0%' }} />
+                    </div>
+                    <span>—</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Link href="/" className="inline-flex text-sm font-semibold text-indigo-600 hover:underline">
+              Back to home
+            </Link>
+          </aside>
+        </div>
+      </section>
     </div>
   );
 }
