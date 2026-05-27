@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+import { getExpenseGrossAmount } from '@/lib/expenseAmounts';
+import {
+  addMoney,
+  moneyGreaterOrEqual,
+  MONEY_TOLERANCE,
+  parseMoney,
+  roundMoney,
+} from '@/lib/money';
 
 // POST - Add partial payment to an expense
 export async function POST(request) {
@@ -41,11 +49,10 @@ export async function POST(request) {
       );
     }
 
-    const paymentAmount = parseFloat(amount);
-    const currentPaidAmount = expense.paidAmount || 0;
-    const newPaidAmount = currentPaidAmount + paymentAmount;
-    const totalDue =
-      Number(expense.amount) + Number(expense.taxAmount != null ? expense.taxAmount : 0);
+    const paymentAmount = roundMoney(amount);
+    const currentPaidAmount = roundMoney(expense.paidAmount || 0);
+    const newPaidAmount = addMoney(currentPaidAmount, paymentAmount);
+    const totalDue = getExpenseGrossAmount(expense);
 
     // Validate payment amount
     if (paymentAmount <= 0) {
@@ -55,7 +62,7 @@ export async function POST(request) {
       );
     }
 
-    if (newPaidAmount > totalDue + 1e-6) {
+    if (newPaidAmount > totalDue + MONEY_TOLERANCE) {
       return NextResponse.json(
         { error: 'Total payments cannot exceed expense amount (including tax)' },
         { status: 400 }
@@ -64,7 +71,7 @@ export async function POST(request) {
 
     // Determine new payment status
     let newPaymentStatus;
-    if (newPaidAmount >= totalDue - 1e-6) {
+    if (moneyGreaterOrEqual(newPaidAmount, totalDue)) {
       newPaymentStatus = 'Fully paid';
     } else {
       newPaymentStatus = 'Partially';

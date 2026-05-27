@@ -15,6 +15,13 @@ import {
   resolveSaleItemBaseQuantity,
   resolveSaleLineAmount,
 } from '@/lib/saleItemBaseQuantity';
+import {
+  addMoney,
+  percentOfMoney,
+  roundMoney,
+  subtractMoney,
+  sumMoney,
+} from '@/lib/money';
 
 /** Local calendar YYYYMMDD for sale number prefix (matches business sale date). */
 function saleNumberDatePrefixFromDate(d) {
@@ -570,39 +577,48 @@ export async function POST(request) {
       productMapForSubtotal = Object.fromEntries(rows.map((p) => [p.id, p]));
     }
 
-    let subtotal = 0;
-    let totalTaxAmount = 0;
-    let totalDiscountAmount = 0;
+    const lineSubtotals = [];
+    const lineTaxes = [];
+    const lineDiscounts = [];
 
     data.items.forEach((item) => {
-      let itemSubtotal = Number(item.quantity) * Number(item.unitPrice);
+      let itemSubtotal = roundMoney(Number(item.quantity) * Number(item.unitPrice));
       if (!item.isCustom && item.productId && productMapForSubtotal[item.productId]) {
         const p = productMapForSubtotal[item.productId];
         try {
           const baseQ = resolveSaleItemBaseQuantity(item, p);
-          itemSubtotal = resolveSaleLineAmount(item, p, baseQ);
+          itemSubtotal = roundMoney(resolveSaleLineAmount(item, p, baseQ));
         } catch {
-          itemSubtotal = Number(item.quantity) * Number(item.unitPrice);
+          itemSubtotal = roundMoney(Number(item.quantity) * Number(item.unitPrice));
         }
       }
-      subtotal += itemSubtotal;
-      totalTaxAmount += item.taxAmount || 0;
-      totalDiscountAmount += item.discountAmount || 0;
+      lineSubtotals.push(itemSubtotal);
+      lineTaxes.push(roundMoney(item.taxAmount || 0));
+      lineDiscounts.push(roundMoney(item.discountAmount || 0));
     });
 
-    // Include optional global discount from payload (fallback to 0)
-    const globalDiscount = Number(data.globalDiscount || 0);
-    const total = subtotal + totalTaxAmount - totalDiscountAmount - globalDiscount;
+    const subtotal = roundMoney(sumMoney(lineSubtotals));
+    const totalTaxAmount = roundMoney(sumMoney(lineTaxes));
+    const totalDiscountAmount = roundMoney(sumMoney(lineDiscounts));
+    const globalDiscount = roundMoney(data.globalDiscount || 0);
 
-    // Backward compatibility: if old taxRate is provided, use it
+    const total = subtractMoney(
+      addMoney(subtotal, totalTaxAmount),
+      addMoney(totalDiscountAmount, globalDiscount)
+    );
+
     const legacyTaxRate = data.taxRate || 0;
-    const legacyTaxAmount = subtotal * (legacyTaxRate / 100);
-    
-    // Use individual item taxes if available, otherwise use legacy tax calculation
-    const finalTaxAmount = totalTaxAmount > 0 ? totalTaxAmount : legacyTaxAmount;
-    const finalTotal = totalTaxAmount > 0 
-      ? total 
-      : (subtotal + legacyTaxAmount - totalDiscountAmount - globalDiscount);
+    const legacyTaxAmount = percentOfMoney(subtotal, legacyTaxRate);
+
+    const finalTaxAmount =
+      totalTaxAmount > 0 ? totalTaxAmount : roundMoney(legacyTaxAmount);
+    const finalTotal =
+      totalTaxAmount > 0
+        ? total
+        : subtractMoney(
+            addMoney(subtotal, finalTaxAmount),
+            addMoney(totalDiscountAmount, globalDiscount)
+          );
     
     try {
       // Log the incoming data

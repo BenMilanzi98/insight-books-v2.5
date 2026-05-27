@@ -2,62 +2,46 @@
 
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
-import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations";
+import { calculateInvoiceTotals as calculateInvoiceTotalsCanonical } from "@/lib/invoiceTotals";
+import { addMoney, percentOfMoney, roundMoney, subtractMoney, multiplyMoney, parseMoney } from "@/lib/money";
 import ClientModal from "./ClientModal";
 import ClientSearchCombobox from "./ClientSearchCombobox";
 import InvoiceReceiptModal from "./InvoiceReceiptModal";
 import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
 import { fetchProductsForSaleAll } from "@/app/services/salesService";
 
-// Enhanced calculation functions with per-item discount support
 const calculateItemTotals = (item) => {
-  const quantity = parseFloat(item.quantity) || 0;
-  const unitPrice = parseFloat(item.unitPrice) || 0;
-  const perItemDiscount = parseFloat(item.discountAmount) || 0; // Discount per individual item
-  
-  // Debug logging removed for production
-  
-  const lineTotal = quantity * unitPrice;
-  const totalDiscountAmount = quantity * perItemDiscount; // Total discount = per-item discount × quantity
-  const netAmount = lineTotal - totalDiscountAmount;
-  const taxAmount = netAmount * ((item.taxRate || 0) / 100);
-  const finalAmount = netAmount + taxAmount;
-  
+  const quantity = parseMoney(item.quantity);
+  const unitPrice = parseMoney(item.unitPrice);
+  const perItemDiscount = parseMoney(item.discountAmount);
+  const lineTotal = multiplyMoney(quantity, unitPrice);
+  const totalDiscountAmount = multiplyMoney(perItemDiscount, quantity);
+  const netAmount = subtractMoney(lineTotal, totalDiscountAmount);
+  const taxAmount = percentOfMoney(netAmount, item.taxRate || 0);
+  const finalAmount = addMoney(netAmount, taxAmount);
   return {
-    lineTotal: Number(lineTotal.toFixed(2)),
-    discountAmount: Number(totalDiscountAmount.toFixed(2)), // Total discount for the line
-    perItemDiscount: Number(perItemDiscount.toFixed(2)), // Per-item discount amount
-    netAmount: Number(netAmount.toFixed(2)),
-    taxAmount: Number(taxAmount.toFixed(2)),
-    amount: Number(finalAmount.toFixed(2))
+    lineTotal: roundMoney(lineTotal),
+    discountAmount: roundMoney(totalDiscountAmount),
+    perItemDiscount: roundMoney(perItemDiscount),
+    netAmount: roundMoney(netAmount),
+    taxAmount: roundMoney(taxAmount),
+    amount: roundMoney(finalAmount),
   };
 };
 
 const calculateInvoiceTotals = (items, globalDiscount = 0) => {
-  let subtotal = 0;
-  let totalDiscountAmount = 0;
-  let taxAmount = 0;
-  
-  items.forEach(item => {
-    const calculations = calculateItemTotals(item);
-    subtotal += calculations.lineTotal;
-    totalDiscountAmount += calculations.discountAmount;
-    taxAmount += calculations.taxAmount;
-  });
-  
-  // Apply global discount to the net subtotal (after line item discounts)
-  const netSubtotalBeforeGlobal = subtotal - totalDiscountAmount;
-  const validGlobalDiscount = Math.max(0, Math.min(globalDiscount || 0, netSubtotalBeforeGlobal));
-  const finalNetSubtotal = netSubtotalBeforeGlobal - validGlobalDiscount;
-  const total = finalNetSubtotal + taxAmount;
-  
+  const t = calculateInvoiceTotalsCanonical(items, globalDiscount);
+  const netSubtotal = subtractMoney(
+    subtractMoney(t.subtotal, t.totalDiscountAmount),
+    t.globalDiscount
+  );
   return {
-    subtotal: Number(subtotal.toFixed(2)),
-    totalDiscountAmount: Number(totalDiscountAmount.toFixed(2)),
-    globalDiscount: Number(validGlobalDiscount.toFixed(2)),
-    netSubtotal: Number(finalNetSubtotal.toFixed(2)),
-    taxAmount: Number(taxAmount.toFixed(2)),
-    total: Number(total.toFixed(2))
+    subtotal: t.subtotal,
+    totalDiscountAmount: t.totalDiscountAmount,
+    globalDiscount: t.globalDiscount,
+    netSubtotal,
+    taxAmount: t.taxAmount,
+    total: t.total,
   };
 };
 

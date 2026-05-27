@@ -13,6 +13,7 @@ import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequ
 import { attachQuantityReceivedEffective } from '@/lib/poLineReceivedFromReceipts';
 import { syncProductCostsFromPurchaseOrderItems } from '@/lib/syncProductCostFromPurchaseOrder';
 import { resolvePurchaseOrderLineProductUnit } from '@/lib/resolvePurchaseOrderLineProductUnit';
+import { roundMoney } from '@/lib/money';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -295,7 +296,7 @@ export async function POST(request) {
     }
 
     const pricesIncludeTax = Boolean(body.pricesIncludeTax);
-    const round2 = (n) => Math.round(Number(n) * 100) / 100;
+    const round2 = roundMoney;
 
     // Build items with per-line tax: taxTypeId, taxRate (editable), taxAmount (auto), support pricesIncludeTax
     const itemRows = body.items.map((item, index) => {

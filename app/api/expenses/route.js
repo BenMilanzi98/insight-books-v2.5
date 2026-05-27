@@ -12,6 +12,7 @@ import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
+import { roundMoney } from '@/lib/money';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -714,15 +715,20 @@ export async function POST(request) {
     const paymentMethod = (body.paymentMethod != null && String(body.paymentMethod).trim() !== '')
       ? String(body.paymentMethod).trim()
       : 'cash';
-    const totalWithTax = amount + (taxAmount || 0);
-    const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount ?? totalWithTax) : totalWithTax;
+    const grossAmount = roundMoney(amount);
+    const paymentAmount =
+      paymentStatus === 'Partially'
+        ? roundMoney(body.paidAmount ?? grossAmount)
+        : grossAmount;
     const paidAmountForExpense =
       paymentStatus === 'Fully paid'
-        ? (body.paidAmount != null && body.paidAmount !== ''
-            ? Number(body.paidAmount)
-            : totalWithTax)
+        ? body.paidAmount != null && body.paidAmount !== ''
+            ? roundMoney(body.paidAmount)
+            : grossAmount
         : paymentStatus === 'Partially'
-          ? (body.paidAmount != null ? Number(body.paidAmount) : null)
+          ? body.paidAmount != null
+            ? roundMoney(body.paidAmount)
+            : null
           : null;
     const rawDate = body.historicalDate ?? body.date;
     const expenseDate = rawDate ? new Date(rawDate) : new Date();

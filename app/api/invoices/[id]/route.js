@@ -5,80 +5,19 @@ import { getUserFromSession } from '@/lib/auth';
 import { createInvoiceJournalEntry } from '@/lib/transactionJournalHelpers';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { reverseAndDeleteInvoiceRecord } from '@/lib/invoiceDeleteService';
+import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
+import { parseMoney, sumMoney } from '@/lib/money';
 
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
-  return payments.reduce((sum, p) => {
-    if (!p || p.isReversal) return sum;
-    // Treat missing status as Completed (older queries omitted status; default in DB is Completed)
+  const amounts = [];
+  for (const p of payments) {
+    if (!p || p.isReversal) continue;
     const st = p.status;
-    if (st != null && String(st) !== 'Completed') return sum;
-    return sum + (parseFloat(p.amount) || 0);
-  }, 0);
-}
-
-// Enhanced helper function to calculate invoice totals with discounts
-function calculateInvoiceTotals(items, globalDiscount = 0) {
-  let subtotal = 0;
-  let totalDiscountAmount = 0;
-  
-  const processedItems = items.map(item => {
-    // Calculate line total before discount
-    const lineTotal = item.quantity * item.unitPrice;
-    
-    // Interpret discountAmount as per-item discount; convert to line discount
-    const perItemDiscount = item.discountAmount || 0;
-    const lineDiscountAmount = perItemDiscount * item.quantity;
-    
-    // Calculate net amount after discount
-    const netLineAmount = lineTotal - lineDiscountAmount;
-    
-    // Calculate tax on net amount
-    const lineTaxAmount = netLineAmount * ((item.taxRate || 0) / 100);
-    
-    // Calculate final amount including tax
-    const finalAmount = netLineAmount + lineTaxAmount;
-    
-    // Add to totals
-    subtotal += lineTotal;
-    totalDiscountAmount += lineDiscountAmount;
-    
-    return {
-      ...item,
-      // Persist per-item discount for each item
-      discountAmount: Number(perItemDiscount.toFixed(2)),
-      netAmount: Number(netLineAmount.toFixed(2)),
-      amount: Number(finalAmount.toFixed(2))
-    };
-  });
-  
-  // Apply global discount to the net subtotal (after line item discounts)
-  const netSubtotalBeforeGlobal = subtotal - totalDiscountAmount;
-  const validGlobalDiscount = Math.max(0, Math.min(globalDiscount || 0, netSubtotalBeforeGlobal));
-  
-  // Calculate tax on the net amount after global discount
-  const finalNetSubtotal = netSubtotalBeforeGlobal - validGlobalDiscount;
-  
-  // Calculate total tax from processed items (this should already include line item taxes)
-  let totalTaxAmount = 0;
-  processedItems.forEach(item => {
-    const lineTotal = item.quantity * item.unitPrice;
-    const perItemDiscount = item.discountAmount || 0;
-    const lineDiscountAmount = perItemDiscount * item.quantity;
-    const netLineAmount = lineTotal - lineDiscountAmount;
-    totalTaxAmount += netLineAmount * ((item.taxRate || 0) / 100);
-  });
-  
-  const total = finalNetSubtotal + totalTaxAmount;
-  
-  return {
-    processedItems,
-    subtotal: Number(subtotal.toFixed(2)),
-    totalDiscountAmount: Number(totalDiscountAmount.toFixed(2)),
-    globalDiscount: Number(validGlobalDiscount.toFixed(2)),
-    taxAmount: Number(totalTaxAmount.toFixed(2)),
-    total: Number(total.toFixed(2))
-  };
+    if (st != null && String(st) !== 'Completed') continue;
+    amounts.push(parseMoney(p.amount));
+  }
+  return sumMoney(amounts);
 }
 
 export async function GET(request, { params }) {

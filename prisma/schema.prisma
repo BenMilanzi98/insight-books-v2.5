@@ -511,24 +511,24 @@ model Invoice {
   createdById               String
   issueDate                 DateTime
   dueDate                   DateTime
-  subtotal                  Float
-  taxAmount                 Float
-  total                     Float
+  subtotal                  Decimal             @db.Decimal(18, 2)
+  taxAmount                 Decimal             @db.Decimal(18, 2)
+  total                     Decimal             @db.Decimal(18, 2)
   status                    String              @default("draft")
   notes                     String?
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt
   tenantId                  String
-  discount                  Float               @default(0)
+  discount                  Decimal             @default(0) @db.Decimal(18, 2)
   lastPaymentDate           DateTime?
-  originalTotal             Float               @default(0)
-  refundAmount              Float               @default(0)
+  originalTotal             Decimal             @default(0) @db.Decimal(18, 2)
+  refundAmount              Decimal             @default(0) @db.Decimal(18, 2)
   refundReason              String?
   refundedAt                DateTime?
   refundedById              String?
-  remainingBalance          Float               @default(0)
-  totalDiscountAmount       Float               @default(0)
-  totalPaid                 Float               @default(0)
+  remainingBalance          Decimal             @default(0) @db.Decimal(18, 2)
+  totalDiscountAmount       Decimal             @default(0) @db.Decimal(18, 2)
+  totalPaid                 Decimal             @default(0) @db.Decimal(18, 2)
   voidReason                String?
   voidedAt                  DateTime?
   voidedById                String?
@@ -688,13 +688,13 @@ model InvoiceItem {
   accountId      String?
   description    String
   quantity       Float
-  unitPrice      Float
+  unitPrice      Decimal  @db.Decimal(18, 2)
   taxRate        Float
-  amount         Float
+  amount         Decimal  @db.Decimal(18, 2)
   productId      String?
-  discountAmount Float    @default(0)
+  discountAmount Decimal  @default(0) @db.Decimal(18, 2)
   discountRate   Float    @default(0)
-  netAmount      Float    @default(0)
+  netAmount      Decimal  @default(0) @db.Decimal(18, 2)
   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product        Product? @relation(fields: [productId], references: [id])
   account        Account? @relation(fields: [accountId], references: [id])
@@ -798,7 +798,7 @@ model DebitNote {
 model Payment {
   id                    String              @id @default(cuid())
   invoiceId             String?
-  amount                Float
+  amount                Decimal             @db.Decimal(18, 2)
   paymentDate           DateTime
   paymentMethod         String
   reference             String?
@@ -983,8 +983,8 @@ model AdminActivityLog {
 model Expense {
   id                      String                    @id @default(cuid())
   description             String
-  amount                  Float // Total (incl. tax)
-  taxAmount               Float?                    @default(0) // Tax component for reporting
+  amount                  Decimal                   @db.Decimal(18, 2) // Total (incl. tax)
+  taxAmount               Decimal?                  @default(0) @db.Decimal(18, 2) // Tax component for reporting
   taxRate                 Float?                    @default(0) // Tax rate % when recorded
   date                    DateTime
   category                String
@@ -1008,7 +1008,7 @@ model Expense {
   isHistorical            Boolean                   @default(false)
   migrationBatch          String?
   originalReference       String?
-  paidAmount              Float?
+  paidAmount              Decimal?                  @db.Decimal(18, 2)
   paymentReference        String?
   paymentStatus           String                    @default("Fully paid")
   branchId                String?
@@ -1075,17 +1075,17 @@ model Sale {
   clientId                   String?
   createdById                String
   saleDate                   DateTime                    @default(now())
-  subtotal                   Float
+  subtotal                   Decimal                     @db.Decimal(18, 2)
   taxRate                    Float                       @default(0)
-  taxAmount                  Float                       @default(0)
-  total                      Float
+  taxAmount                  Decimal                     @default(0) @db.Decimal(18, 2)
+  total                      Decimal                     @db.Decimal(18, 2)
   status                     String                      @default("completed")
   notes                      String?
   paymentMethod              String                      @default("cash")
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   tenantId                   String
-  discount                   Float                       @default(0)
+  discount                   Decimal                     @default(0) @db.Decimal(18, 2)
   historicalDate             DateTime?
   isHistorical               Boolean                     @default(false)
   migrationBatch             String?
@@ -1093,8 +1093,8 @@ model Sale {
   refundReason               String?
   refundedAt                 DateTime?
   refundedById               String?
-  totalDiscountAmount        Float                       @default(0)
-  totalTaxAmount             Float                       @default(0)
+  totalDiscountAmount        Decimal                     @default(0) @db.Decimal(18, 2)
+  totalTaxAmount             Decimal                     @default(0) @db.Decimal(18, 2)
   voidReason                 String?
   voidedAt                   DateTime?
   voidedById                 String?
@@ -1102,9 +1102,9 @@ model Sale {
   footerPhoneOverride        String? // Override default phone in receipt footer
   footerBankDetailsOverride  String? // Override default bank details in receipt footer
   /// Cash / POS: amount customer handed over (optional; for change calculation on receipt)
-  posAmountTendered          Float?
+  posAmountTendered          Decimal?                    @db.Decimal(18, 2)
   /// Cash / POS: change returned (optional)
-  posChangeGiven             Float?
+  posChangeGiven             Decimal?                    @db.Decimal(18, 2)
   // Reversal fields
   isReversal                 Boolean                     @default(false)
   reversedTransactionId      String?
@@ -1143,13 +1143,13 @@ model SaleItem {
   productId         String?
   description       String
   quantity          Float
-  unitPrice         Float
-  amount            Float
+  unitPrice         Decimal       @db.Decimal(18, 2)
+  amount            Decimal       @db.Decimal(18, 2)
   customProductData Json?
-  discount          Float         @default(0)
-  discountAmount    Float         @default(0)
+  discount          Decimal       @default(0) @db.Decimal(18, 2)
+  discountAmount    Decimal       @default(0) @db.Decimal(18, 2)
   isCustom          Boolean       @default(false)
-  taxAmount         Float         @default(0)
+  taxAmount         Decimal       @default(0) @db.Decimal(18, 2)
   taxDescription    String?
   taxRate           Float         @default(0)
   product           Product?      @relation("ProductSales", fields: [productId], references: [id])
@@ -1435,10 +1435,10 @@ model SupplierBill {
   dueDate               DateTime
   billType              String                      @default("inventory")
   supplierInvoiceNumber String?
-  subtotal              Float?
-  taxAmount             Float?
-  totalAmount           Float?
-  amountPaid            Float?                      @default(0)
+  subtotal              Decimal?                    @db.Decimal(18, 2)
+  taxAmount             Decimal?                    @db.Decimal(18, 2)
+  totalAmount           Decimal?                    @db.Decimal(18, 2)
+  amountPaid            Decimal?                    @default(0) @db.Decimal(18, 2)
   status                String                      @default("Draft")
   paymentTerms          Int?
   currency              String?                     @default("MWK")
@@ -2032,8 +2032,8 @@ model TransactionLine {
   transactionId String
   lineNumber    Int
   accountId     String
-  debitAmount   Float       @default(0)
-  creditAmount  Float       @default(0)
+  debitAmount   Decimal     @default(0) @db.Decimal(18, 2)
+  creditAmount  Decimal     @default(0) @db.Decimal(18, 2)
   description   String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -2059,7 +2059,7 @@ model Account {
   code                     String?                 @map("code")
   name                     String?                 @map("name")
   type                     String?                 @map("type")
-  balance                  Float                   @default(0)
+  balance                  Decimal                 @default(0) @db.Decimal(18, 2)
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   tenantId                 String?
@@ -2246,8 +2246,8 @@ model JournalEntryLine {
   journalEntryId String
   lineNumber     Int
   accountId      String
-  debitAmount    Float        @default(0)
-  creditAmount   Float        @default(0)
+  debitAmount    Decimal      @default(0) @db.Decimal(18, 2)
+  creditAmount   Decimal      @default(0) @db.Decimal(18, 2)
   description    String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

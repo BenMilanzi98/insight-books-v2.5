@@ -10,78 +10,7 @@ import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
-
-// Enhanced helper function to calculate invoice totals with discounts
-function calculateInvoiceTotals(items, globalDiscount = 0) {
-  let subtotal = 0;
-  let totalDiscountAmount = 0;
-  
-  const processedItems = items.map(item => {
-    // Calculate line total before discount
-    const lineTotal = item.quantity * item.unitPrice;
-    
-    // Interpret discountAmount as per-item discount; convert to line discount
-    const perItemDiscount = item.discountAmount || 0;
-    const lineDiscountAmount = perItemDiscount * item.quantity;
-    
-    // Calculate net amount after discount
-    const netLineAmount = lineTotal - lineDiscountAmount;
-    
-    // Calculate tax on net amount
-    const lineTaxAmount = netLineAmount * ((item.taxRate || 0) / 100);
-    
-    // Calculate final amount including tax
-    const finalAmount = netLineAmount + lineTaxAmount;
-    
-    // Add to totals
-    subtotal += lineTotal;
-    totalDiscountAmount += lineDiscountAmount;
-    
-    return {
-      // Only include fields needed for database
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      taxRate: item.taxRate || 0,
-      discountAmount: Number(perItemDiscount.toFixed(2)),
-      netAmount: Number(netLineAmount.toFixed(2)),
-      amount: Number(finalAmount.toFixed(2)),
-      taxAmount: Number(lineTaxAmount.toFixed(2)),
-      productId: item.productId || null,
-      accountId: item.accountId,
-      selectedTaxTypeId: item.selectedTaxTypeId || null,
-      productTaxes: item.productTaxes || [],
-    };
-  });
-  
-  // Apply global discount to the net subtotal (after line item discounts)
-  const netSubtotalBeforeGlobal = subtotal - totalDiscountAmount;
-  const validGlobalDiscount = Math.max(0, Math.min(globalDiscount || 0, netSubtotalBeforeGlobal));
-  
-  // Calculate tax on the net amount after global discount
-  const finalNetSubtotal = netSubtotalBeforeGlobal - validGlobalDiscount;
-  
-  // Calculate total tax from processed items (this should already include line item taxes)
-  let totalTaxAmount = 0;
-  processedItems.forEach(item => {
-    const lineTotal = item.quantity * item.unitPrice;
-    const perItemDiscount = item.discountAmount || 0;
-    const lineDiscountAmount = perItemDiscount * item.quantity;
-    const netLineAmount = lineTotal - lineDiscountAmount;
-    totalTaxAmount += netLineAmount * ((item.taxRate || 0) / 100);
-  });
-  
-  const total = finalNetSubtotal + totalTaxAmount;
-  
-  return {
-    processedItems,
-    subtotal: Number(subtotal.toFixed(2)),
-    totalDiscountAmount: Number(totalDiscountAmount.toFixed(2)),
-    globalDiscount: Number(validGlobalDiscount.toFixed(2)),
-    taxAmount: Number(totalTaxAmount.toFixed(2)),
-    total: Number(total.toFixed(2))
-  };
-}
+import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {

@@ -10,6 +10,8 @@ import {
   prismaWhereExpenseRegisterOverlapsGlCogs,
 } from '@/lib/expenseRegisterGlCogsOverlap';
 import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
+import { getExpenseGrossAmount } from '@/lib/expenseAmounts';
+import { addMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // GET - Fetch expense statistics
 export async function GET(request) {
@@ -162,10 +164,12 @@ export async function GET(request) {
     });
     let outstandingPaymentSum = 0;
     for (const row of outstandingPaymentRows) {
-      const totalDue =
-        Number(row.amount) + Number(row.taxAmount != null ? row.taxAmount : 0);
-      const paid = Number(row.paidAmount != null ? row.paidAmount : 0);
-      outstandingPaymentSum += Math.max(0, totalDue - paid);
+      const totalDue = getExpenseGrossAmount(row);
+      const paid = roundMoney(row.paidAmount != null ? row.paidAmount : 0);
+      outstandingPaymentSum = addMoney(
+        outstandingPaymentSum,
+        Math.max(0, subtractMoney(totalDue, paid))
+      );
     }
     
     // Get expenses by category (only categories that have at least one expense)
