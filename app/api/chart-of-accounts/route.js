@@ -1,7 +1,7 @@
 // app/api/chart-of-accounts/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import {
   canViewChartOfAccounts,
   canCreateChartOfAccount,
@@ -164,6 +164,9 @@ function mergeDuplicateAccountCodeRows(accounts) {
 // GET - List all accounts with filtering and search
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'accounts.view');
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -680,6 +683,9 @@ export async function GET(request) {
 // POST - Create new account
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'accounts.create');
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(

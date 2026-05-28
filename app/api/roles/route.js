@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
+import { sanitizePermissions } from '@/lib/permissionUtils';
 
 // GET - Fetch roles with filtering
 export async function GET(request) {
@@ -130,7 +131,7 @@ export async function POST(request) {
       data: {
         name: body.name,
         description: body.description,
-        permissions: body.permissions || {},
+        permissions: sanitizePermissions(body.permissions || {}),
         tenantId: tenantId // Ensure tenant association
       }
     });

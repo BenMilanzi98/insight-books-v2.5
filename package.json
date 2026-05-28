@@ -39,7 +39,8 @@
     "consolidate-salary-accounts": "node scripts/consolidate-salary-accounts.js",
     "consolidate-salary-accounts:dry-run": "node scripts/consolidate-salary-accounts.js --dry-run",
     "coa:snapshot": "node scripts/coa-snapshot-export.cjs",
-    "audit:gl": "node scripts/audit-gl.cjs"
+    "audit:gl": "node scripts/audit-gl.cjs",
+    "audit:rbac": "node scripts/rbac-audit.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",

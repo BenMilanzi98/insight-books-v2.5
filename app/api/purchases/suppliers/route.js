@@ -1,7 +1,7 @@
 // app/api/purchases/suppliers/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 
 /**
@@ -28,6 +28,9 @@ async function generateSupplierCode() {
  */
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'suppliers.view');
+    if (perm) return perm;
+
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
 
@@ -165,6 +168,9 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'suppliers.create');
+    if (perm) return perm;
+
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
 

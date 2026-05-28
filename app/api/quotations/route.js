@@ -1,7 +1,7 @@
 // app/api/quotations/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 
@@ -29,6 +29,9 @@ function calculateQuotationTotals(items, globalDiscount = 0) {
 // GET - Fetch quotations with filtering, sorting, and pagination
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'quotations.view');
+    if (perm) return perm;
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {
@@ -209,6 +212,9 @@ export async function GET(request) {
 // POST - Create a new quotation
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'quotations.create');
+    if (perm) return perm;
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {

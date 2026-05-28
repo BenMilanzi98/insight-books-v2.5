@@ -6,7 +6,7 @@
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
 import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequences';
@@ -61,6 +61,9 @@ function buildOrderBy(searchParams) {
 
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'purchases.view');
+    if (perm) return perm;
+
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
 
@@ -174,6 +177,9 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'purchases.create');
+    if (perm) return perm;
+
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
 

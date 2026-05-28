@@ -1,7 +1,7 @@
 // app/api/payments/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { updateAccountBalance, processCapitalTransfer } from '@/lib/core';
 import {
   createInvoicePaymentJournalEntry,
@@ -217,6 +217,9 @@ async function recordPaymentTransaction({
 // GET - Fetch payments with filtering, sorting, and pagination
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'payments.view');
+    if (perm) return perm;
+
     const { searchParams } = new URL(request.url);
     
     // Get user from session
@@ -380,6 +383,9 @@ export async function GET(request) {
 }
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'payments.create');
+    if (perm) return perm;
+
     const body = await request.json();
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

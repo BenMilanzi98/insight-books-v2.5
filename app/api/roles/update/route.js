@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { sanitizePermissions } from '@/lib/permissionUtils';
 
 // PUT - Update an existing role
 export async function PUT(request) {
@@ -76,7 +77,7 @@ export async function PUT(request) {
       data: {
         name: updateData.name,
         description: updateData.description,
-        permissions: updateData.permissions || existingRole.permissions,
+        permissions: sanitizePermissions(updateData.permissions || existingRole.permissions),
         updatedAt: new Date()
       }
     });

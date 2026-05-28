@@ -1,7 +1,7 @@
 // app/api/expenses/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
@@ -17,6 +17,9 @@ import { roundMoney } from '@/lib/money';
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'expenses.view');
+    if (perm) return perm;
+
     // Check for standard access
     const accessError = await requireStandardAccess(request);
     if (accessError) {
@@ -577,6 +580,9 @@ export async function GET(request) {
 // POST - Create a new expense
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'expenses.create');
+    if (perm) return perm;
+
     // Check for standard access
     const accessError = await requireStandardAccess(request);
     if (accessError) {

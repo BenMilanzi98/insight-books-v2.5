@@ -73,6 +73,7 @@ export async function PUT(request) {
 
     // Prepare update data
     const dataToUpdate = {};
+    let selectedRoleId = null;
 
     // Only include fields that are provided in the request
     if (updateData.name !== undefined) dataToUpdate.name = updateData.name;
@@ -98,6 +99,7 @@ export async function PUT(request) {
           { status: 400 }
         );
       }
+      selectedRoleId = roleId;
       dataToUpdate.role = { connect: { id: roleId } };
     }
     if (updateData.department !== undefined) dataToUpdate.department = updateData.department;
@@ -141,6 +143,10 @@ export async function PUT(request) {
         if (ok) byTenant.set(tId, { tenantId: tId, roleId: rId });
       }
       const finalMemberships = [...byTenant.values()];
+      const fallbackRoleId = selectedRoleId || existingUser.roleId;
+      if (!finalMemberships.some((m) => m.tenantId === user.tenantId) && fallbackRoleId) {
+        finalMemberships.unshift({ tenantId: user.tenantId, roleId: fallbackRoleId });
+      }
 
       for (const m of finalMemberships) {
         const role = await prisma.role.findFirst({
@@ -179,6 +185,26 @@ export async function PUT(request) {
           },
           select: { id: true },
         });
+      });
+    } else if (selectedRoleId) {
+      // When only role is changed, keep tenant membership role aligned for active tenant.
+      await prisma.tenantMembership.upsert({
+        where: {
+          userId_tenantId: {
+            userId,
+            tenantId: user.tenantId,
+          },
+        },
+        update: {
+          roleId: selectedRoleId,
+          status: 'active',
+        },
+        create: {
+          userId,
+          tenantId: user.tenantId,
+          roleId: selectedRoleId,
+          status: 'active',
+        },
       });
     }
 

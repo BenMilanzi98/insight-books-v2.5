@@ -1,7 +1,7 @@
 // app/api/invoices/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { createInvoiceJournalEntry, createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { calculateCOGS } from '@/lib/inventoryCosting';
@@ -15,6 +15,9 @@ import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'invoices.view');
+    if (perm) return perm;
+
     const { searchParams } = new URL(request.url);
     
     // Get user from session
@@ -298,6 +301,9 @@ export async function GET(request) {
 // POST - Create a new invoice
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'invoices.create');
+    if (perm) return perm;
+
     const body = await request.json();
     
     console.log("🔥 INVOICE API POST ENDPOINT CALLED");

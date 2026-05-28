@@ -1,7 +1,7 @@
 // app/api/sales/route.js - Enhanced with Project B's business logic
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { updateAccountBalance } from '@/lib/core';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
@@ -96,6 +96,9 @@ const normalizePaymentMethod = (method) => {
 // GET - Fetch sales with filtering, sorting, and pagination
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'sales.view');
+    if (perm) return perm;
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {
@@ -426,6 +429,9 @@ export async function GET(request) {
 export async function POST(request) {
   console.log('🔥 SALES API POST ENDPOINT CALLED');
   try {
+    const perm = await requirePermission(request, 'sales.create');
+    if (perm) return perm;
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {

@@ -29,6 +29,12 @@ import AssignUsersModal from '@/components/AssignUsersModal';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { permissionModules } from "@/lib/permissionsMap";
+import {
+  buildPermissionSchema,
+  flattenPermissions,
+  sanitizePermissions,
+  toNestedPermissions,
+} from "@/lib/permissionUtils";
 
 // Components
 const Skeleton = ({ className = "", ...props }) => {
@@ -67,6 +73,11 @@ const formatTimeAgo = (timestamp) => {
   if (diffSeconds < 604800) return `${Math.floor(diffSeconds / 86400)} days ago`;
   
   return formatDate(timestamp);
+};
+
+const getEnabledPermissionKeys = (permissions) => {
+  const flat = flattenPermissions(permissions);
+  return Object.keys(flat).filter((key) => flat[key] === true);
 };
 
 // Status badge component
@@ -568,37 +579,8 @@ const RolesTable = ({
   onAddRole,
   onRefresh
 }) => {
-    // Helper function to get display-friendly permission names
-const getDisplayPermissions = (permissions) => {
-  if (!permissions) return [];
-  
-  const permArray = [];
-  
-  try {
-    // Handle string format permissions (JSON)
-    if (typeof permissions === 'string') {
-      const parsedPermissions = JSON.parse(permissions);
-      Object.keys(parsedPermissions).forEach(perm => {
-        if (parsedPermissions[perm] === true) {
-          permArray.push(perm);
-        }
-      });
-    } 
-    // Handle object format
-    else if (typeof permissions === 'object') {
-      Object.keys(permissions).forEach(perm => {
-        if (permissions[perm] === true) {
-          permArray.push(perm);
-        }
-      });
-    }
-  } catch (e) {
-    console.error("Error parsing permissions:", e);
-    return [];
-  }
-  
-  return permArray;
-};
+  // Helper function to get display-friendly permission names
+  const getDisplayPermissions = (permissions) => getEnabledPermissionKeys(permissions);
   if (loading && rolesData.length === 0) {
     return (
       <div className="w-full min-w-0 rounded-xl border border-gray-200 bg-white overflow-x-auto md:overflow-visible">
@@ -701,63 +683,9 @@ const getDisplayPermissions = (permissions) => {
                     </td>
                   );
                 } else if (column.key === "permissions") {
-                  // Safely handle permissions
-                  const permissions = role.permissions || {};
-                  let permissionCount = 0;
-                  const displayedPermissions = getDisplayPermissions(role.permissions);
-                
-                  // Parse permissions - handle both object of objects and flat object structures
-                  try {
-                    if (typeof permissions === 'string') {
-                      // If permissions is a JSON string, parse it
-                      const parsedPermissions = JSON.parse(permissions);
-                      
-                      Object.entries(parsedPermissions).forEach(([category, perms]) => {
-                        if (typeof perms === 'object') {
-                          // Handle nested structure {category: {action: boolean}}
-                          Object.entries(perms).forEach(([action, enabled]) => {
-                            if (enabled && permissionCount < 4) {
-                              displayedPermissions.push(`${action} ${category}`);
-                            }
-                            if (enabled) permissionCount++;
-                          });
-                        } else if (perms) {
-                          // Handle flat structure {permission: boolean}
-                          if (permissionCount < 4) {
-                            displayedPermissions.push(category);
-                          }
-                          permissionCount++;
-                        }
-                      });
-                    } else if (typeof permissions === 'object') {
-                      // Direct object handling
-                      Object.entries(permissions).forEach(([category, perms]) => {
-                        if (typeof perms === 'object') {
-                          // Handle nested structure {category: {action: boolean}}
-                          Object.entries(perms).forEach(([action, enabled]) => {
-                            if (enabled && permissionCount < 4) {
-                              displayedPermissions.push(`${action} ${category}`);
-                            }
-                            if (enabled) permissionCount++;
-                          });
-                        } else if (perms) {
-                          // Handle flat structure {permission: boolean}
-                          if (permissionCount < 4) {
-                            displayedPermissions.push(category);
-                          }
-                          permissionCount++;
-                        }
-                      });
-                    }
-                  } catch (e) {
-                    console.error("Error parsing permissions:", e);
-                    // In case of error, show a default message
-                    return (
-                      <td key={column.key} className="px-4 py-4">
-                        <span className="text-sm text-gray-500">Permission data unavailable</span>
-                      </td>
-                    );
-                  }
+                  const allEnabledKeys = getDisplayPermissions(role.permissions);
+                  const permissionCount = allEnabledKeys.length;
+                  const displayedPermissions = allEnabledKeys.slice(0, 4);
                   
                   return (
                     <td key={column.key} className="px-4 py-4">
@@ -1227,14 +1155,7 @@ const defaultConfig = {
 // Initialize permissions for role form
 useEffect(() => {
   const initializePermissions = () => {
-    const permissions = {};
-    
-    // Initialize all permissions as false
-    Object.entries(permissionModules).forEach(([module, { actions }]) => {
-      actions.forEach(action => {
-        permissions[`${module}.${action}`] = false;
-      });
-    });
+    const permissions = flattenPermissions(buildPermissionSchema(false));
     
     setRoleFormData(prev => ({
       ...prev,
@@ -1416,8 +1337,8 @@ useEffect(() => {
         
         return {
           ...role,
-          // Ensure permissions is always an object
-          permissions: role.permissions || {},
+          // UI state uses flat permission keys for stable checkboxes.
+          permissions: flattenPermissions(role.permissions || {}),
           // Set users count
           users: usersCount
         };
@@ -1553,7 +1474,7 @@ useEffect(() => {
       
       const processedRole = {
         ...roleData,
-        permissions: processedPermissions || {},
+        permissions: flattenPermissions(processedPermissions || {}),
         assignedUsers: assignedUsers,
         // Ensure users count is available
         users: typeof roleData.users === 'number' ? roleData.users : assignedUsers.length
@@ -1984,7 +1905,10 @@ const toggleModulePermissions = (module) => {
       setLoading(true);
       
       // Create role
-      const response = await api.createRole(roleFormData);
+      const response = await api.createRole({
+        ...roleFormData,
+        permissions: sanitizePermissions(roleFormData.permissions),
+      });
       
       // Show success message
       setToast({
@@ -1995,19 +1919,10 @@ const toggleModulePermissions = (module) => {
       // Close modal and reset form
       setShowAddRoleModal(false);
       
-      // Reset form but preserve permissions structure
-      const resetPermissions = {};
-      Object.keys(roleFormData.permissions).forEach(category => {
-        resetPermissions[category] = {};
-        Object.keys(roleFormData.permissions[category]).forEach(action => {
-          resetPermissions[category][action] = false;
-        });
-      });
-      
       setRoleFormData({
         name: "",
         description: "",
-        permissions: resetPermissions
+        permissions: flattenPermissions(buildPermissionSchema(false))
       });
       
       // Refresh roles
@@ -2169,7 +2084,7 @@ const toggleModulePermissions = (module) => {
         id: roleData.id,
         name: roleData.name || '',
         description: roleData.description || '',
-        permissions: roleData.permissions || {}
+        permissions: flattenPermissions(roleData.permissions || {})
       });
       
       // Show edit modal
@@ -2216,7 +2131,10 @@ const toggleModulePermissions = (module) => {
       setLoading(true);
       
       // Update role
-      const response = await api.updateRole(editingRole.id, editingRole);
+      const response = await api.updateRole(editingRole.id, {
+        ...editingRole,
+        permissions: sanitizePermissions(editingRole.permissions),
+      });
       
       // Show success message
       setToast({
@@ -3323,7 +3241,7 @@ const toggleModulePermissions = (module) => {
             // Parse permissions if they're stored as a string
             if (typeof selectedRole.permissions === 'string') {
               try {
-                permissionsObj = JSON.parse(selectedRole.permissions);
+                permissionsObj = toNestedPermissions(JSON.parse(selectedRole.permissions));
               } catch (e) {
                 return (
                   <div className="text-sm text-gray-500">
@@ -3332,7 +3250,7 @@ const toggleModulePermissions = (module) => {
                 );
               }
             } else {
-              permissionsObj = selectedRole.permissions;
+              permissionsObj = toNestedPermissions(selectedRole.permissions);
             }
             
             // Render permissions table

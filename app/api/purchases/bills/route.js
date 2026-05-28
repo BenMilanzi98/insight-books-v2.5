@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { createFifoBatch } from '@/lib/fifoCosting';
@@ -22,6 +22,9 @@ function parsePagination(searchParams) {
 
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'purchases.view');
+    if (perm) return perm;
+
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
 
@@ -127,6 +130,9 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'purchases.create');
+    if (perm) return perm;
+
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
 

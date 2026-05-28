@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { parseSessionPayload } from '@/lib/sessionCookie';
+import { isApiPublicPath } from '@/lib/tenantApiAccess';
 
 async function finishTenantRouteAccess(request, sessionCookie, pathname, requestHeaders) {
   try {
@@ -29,13 +30,37 @@ async function finishTenantRouteAccess(request, sessionCookie, pathname, request
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
+async function finishApiRouteAccess(request, sessionCookie, pathname, requestHeaders) {
+  if (isApiPublicPath(pathname) || pathname === '/api/auth/api-guard') {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+  try {
+    const guardUrl = new URL('/api/auth/api-guard', request.nextUrl.origin);
+    guardUrl.searchParams.set('path', pathname);
+    const gr = await fetch(guardUrl.toString(), {
+      headers: { cookie: `session=${sessionCookie}` },
+      cache: 'no-store',
+    });
+    if (!gr.ok) {
+      return NextResponse.json({ error: 'Permission denied' }, { status: gr.status || 403 });
+    }
+    const j = await gr.json();
+    if (j.allowed === false) {
+      return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+    }
+  } catch (e) {
+    console.warn('api-guard middleware fetch failed:', e?.message || e);
+    return NextResponse.json({ error: 'Authorization guard failed' }, { status: 500 });
+  }
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export async function middleware(request) {
   const pathname = request.nextUrl.pathname;
 
   // Skip middleware for static files, api routes, etc.
   if (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
     pathname.startsWith('/static') ||
     pathname.startsWith('/uploads') ||
     pathname === '/favicon.ico' ||
@@ -43,6 +68,18 @@ export async function middleware(request) {
     pathname === '/sitemap.xml'
   ) {
     return NextResponse.next();
+  }
+
+  if (pathname.startsWith('/api')) {
+    const sessionCookie = request.cookies.get('session')?.value;
+    const requestHeaders = new Headers(request.headers);
+    if (!sessionCookie && !isApiPublicPath(pathname)) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    if (!sessionCookie) {
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+    return finishApiRouteAccess(request, sessionCookie, pathname, requestHeaders);
   }
 
   // Redirect old /admin paths to /insightbooks (admin panel moved)
@@ -199,6 +236,6 @@ export async function middleware(request) {
 // Specify paths that should trigger this middleware
 export const config = {
   matcher: [
-    '/((?!api|_next|static|favicon.ico|sitemap.xml).*)',
+    '/((?!_next|static|favicon.ico|sitemap.xml).*)',
   ],
 };

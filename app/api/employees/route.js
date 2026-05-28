@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { sendEmail } from '@/lib/emailService';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
@@ -26,6 +26,9 @@ function sumBenefitPayloadAmounts(benefits) {
 
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'hr.create');
+    if (perm) return perm;
+
     const data = await request.json();
     
     // Debug: Log the incoming email
@@ -415,6 +418,9 @@ export async function POST(request) {
 
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'hr.view');
+    if (perm) return perm;
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
