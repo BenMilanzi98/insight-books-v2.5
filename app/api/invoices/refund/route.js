@@ -7,6 +7,7 @@ import { generateReferenceNumber } from '@/lib/journalService';
 import { getStandardAccounts } from '@/lib/transactionJournalHelpers';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 
 export async function POST(request) {
   try {
@@ -21,6 +22,7 @@ export async function POST(request) {
 
     const body = await request.json();
     const { invoiceId, refundAmount, refundReason, refundMethod, notes } = body;
+    const refundAmountNum = parseMoney(refundAmount);
 
     if (!invoiceId) {
       return NextResponse.json(
@@ -29,7 +31,7 @@ export async function POST(request) {
       );
     }
 
-    if (!refundAmount || refundAmount <= 0) {
+    if (refundAmountNum <= 0) {
       return NextResponse.json(
         { success: false, error: 'Valid refund amount is required' },
         { status: 400 }
@@ -99,9 +101,9 @@ export async function POST(request) {
     }
 
     // Calculate total paid and already refunded
-    const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const totalRefunded = invoice.refunds.reduce((sum, refund) => sum + refund.refundAmount, 0);
-    const availableForRefund = totalPaid - totalRefunded;
+    const totalPaid = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+    const totalRefunded = invoice.refunds.reduce((sum, refund) => addMoney(sum, refund.refundAmount), 0);
+    const availableForRefund = subtractMoney(totalPaid, totalRefunded);
 
     console.log('Refund validation:', {
       invoiceId,
@@ -109,7 +111,7 @@ export async function POST(request) {
       totalPaid,
       totalRefunded,
       availableForRefund,
-      requestedRefund: refundAmount,
+      requestedRefund: refundAmountNum,
       payments: invoice.payments.length,
       refunds: invoice.refunds.length
     });
@@ -121,9 +123,9 @@ export async function POST(request) {
       );
     }
 
-    if (refundAmount > availableForRefund) {
+    if (refundAmountNum > availableForRefund) {
       return NextResponse.json(
-        { success: false, error: `Refund amount cannot exceed available amount. Available: ${availableForRefund}, Requested: ${refundAmount}` },
+        { success: false, error: `Refund amount cannot exceed available amount. Available: ${availableForRefund}, Requested: ${refundAmountNum}` },
         { status: 400 }
       );
     }
@@ -138,7 +140,7 @@ export async function POST(request) {
         data: {
           invoiceId: invoiceId,
           refundedById: user.id,
-          refundAmount: refundAmount,
+          refundAmount: refundAmountNum,
           refundReason: refundReason.trim(),
           refundMethod: refundMethod,
           notes: notes?.trim() || null,
@@ -149,11 +151,11 @@ export async function POST(request) {
       });
 
       // Calculate new refund total
-      const newTotalRefunded = totalRefunded + refundAmount;
+      const newTotalRefunded = addMoney(totalRefunded, refundAmountNum);
 
       // Determine new invoice status
       let newStatus = invoice.status;
-      if (newTotalRefunded >= totalPaid) {
+      if (moneyGreaterOrEqual(newTotalRefunded, totalPaid)) {
         newStatus = 'refunded';
       } else if (newTotalRefunded > 0) {
         newStatus = 'partially_refunded';
@@ -174,7 +176,7 @@ export async function POST(request) {
       });
 
       // Update payment records to reflect refunds
-      let remainingRefundAmount = refundAmount;
+      let remainingRefundAmount = refundAmountNum;
       const updatedPayments = [];
       const paymentRefundMap = new Map(); // Track refund amounts per payment method
 
@@ -226,7 +228,7 @@ export async function POST(request) {
       transactionLines.push({
         lineNumber: lineNumber++,
         accountId: accounts.accountsReceivable.id,
-        debitAmount: refundAmount,
+        debitAmount: refundAmountNum,
         creditAmount: 0,
         description: `Accounts Receivable restored for refund of Invoice ${invoice.invoiceNumber}`,
       });
@@ -250,8 +252,8 @@ export async function POST(request) {
       }
 
       // Validate transaction balance
-      const totalDebit = transactionLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
-      const totalCreditCalculated = transactionLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
+      const totalDebit = transactionLines.reduce((sum, line) => addMoney(sum, line.debitAmount), 0);
+      const totalCreditCalculated = transactionLines.reduce((sum, line) => addMoney(sum, line.creditAmount), 0);
       
       if (Math.abs(totalDebit - totalCreditCalculated) > 0.01) {
         throw new Error(`Transaction does not balance. Debits: ${totalDebit}, Credits: ${totalCreditCalculated}`);
@@ -321,7 +323,7 @@ export async function POST(request) {
             if (!taxType) continue;
 
             // Scale reversal if partial refund
-            const refundRatio = refundAmount / invoice.total;
+            const refundRatio = refundAmountNum / parseMoney(invoice.total);
             const reversalAmount = Number((taxAmt * refundRatio).toFixed(2));
             if (reversalAmount <= 0) continue;
 
@@ -355,7 +357,7 @@ export async function POST(request) {
             clientName: invoice.client.name,
             originalTotal: originalTotal,
             totalPaid: totalPaid,
-            refundAmount: refundAmount,
+            refundAmount: refundAmountNum,
             totalRefunded: newTotalRefunded,
             refundReason: refundReason.trim(),
             refundMethod: refundMethod,

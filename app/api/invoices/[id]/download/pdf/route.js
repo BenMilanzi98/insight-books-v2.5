@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generatePdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 function findPreRenderedPdf(invoiceId, invoiceNumber) {
   try {
@@ -124,22 +125,22 @@ export async function GET(request, { params }) {
       (p) => p && !p.isReversal && (p.status == null || String(p.status) === 'Completed')
     );
     const totalPaidPdf = eligiblePayments.reduce(
-      (sum, p) => sum + (parseFloat(p.amount) || 0),
+      (sum, p) => addMoney(sum, p.amount),
       0
     );
-    const invTotalPdf = parseFloat(invoice.total) || 0;
-    const outstandingPdf = Math.max(0, invTotalPdf - totalPaidPdf);
+    const invTotalPdf = parseMoney(invoice.total);
+    const outstandingPdf = Math.max(0, subtractMoney(invTotalPdf, totalPaidPdf));
     const inv = {
       ...invoice,
-      subtotal: parseFloat(invoice.subtotal) || 0,
-      taxAmount: parseFloat(invoice.taxAmount) || 0,
+      subtotal: parseMoney(invoice.subtotal),
+      taxAmount: parseMoney(invoice.taxAmount),
       total: invTotalPdf,
       items: invoice.items.map((item) => ({
         ...item,
-        quantity: parseFloat(item.quantity) || 0,
-        unitPrice: parseFloat(item.unitPrice) || 0,
-        taxRate: parseFloat(item.taxRate) || 0,
-        discountAmount: parseFloat(item.discountAmount) || 0,
+        quantity: parseMoney(item.quantity),
+        unitPrice: parseMoney(item.unitPrice),
+        taxRate: parseMoney(item.taxRate),
+        discountAmount: parseMoney(item.discountAmount),
         description: item.description || (item.product ? item.product.name : ''),
       })),
       payments: eligiblePayments,

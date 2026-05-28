@@ -11,7 +11,7 @@ import eisService from '@/lib/eisService';
 import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
-import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {
@@ -154,7 +154,8 @@ export async function GET(request) {
           },
           payments: {
             where: {
-              status: 'Completed'
+              status: 'Completed',
+              isReversal: false
             },
             select: {
               id: true,
@@ -162,7 +163,8 @@ export async function GET(request) {
               paymentDate: true,
               paymentMethod: true,
               reference: true,
-              status: true
+              status: true,
+              isReversal: true
             }
           }
         }
@@ -233,9 +235,13 @@ export async function GET(request) {
     
     // Calculate amount due for each invoice and format response
     const invoicesWithAmountDue = invoicesWithFilteredItems.map(invoice => {
-      const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
-      const outstandingAmount = invoice.total - totalPaid;
-      const isFullyPaid = totalPaid >= invoice.total;
+      const total = parseMoney(invoice.total);
+      const subtotal = parseMoney(invoice.subtotal);
+      const taxAmount = parseMoney(invoice.taxAmount);
+      const totalDiscountAmount = parseMoney(invoice.totalDiscountAmount);
+      const totalPaid = invoice.payments?.reduce((sum, payment) => addMoney(sum, payment.amount), 0) || 0;
+      const outstandingAmount = subtractMoney(total, totalPaid);
+      const isFullyPaid = moneyGreaterOrEqual(totalPaid, total);
       const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
       
       return {
@@ -249,16 +255,17 @@ export async function GET(request) {
         createdAt: invoice.createdAt, // Include creation timestamp
         issueDate: invoice.issueDate,
         dueDate: invoice.dueDate,
-        discount: invoice.discount,
-        subtotal: invoice.subtotal,
-        taxAmount: invoice.taxAmount,
-        totalDiscountAmount: invoice.totalDiscountAmount || 0, // Enhanced: Total discount amount
-        total: invoice.total,
+        discount: parseMoney(invoice.discount),
+        subtotal,
+        taxAmount,
+        totalDiscountAmount, // Enhanced: Total discount amount
+        total,
         status: invoice.status,
         notes: invoice.notes,
         items: invoice.items,
         payments: invoice.payments,
         amountDue: Math.max(0, outstandingAmount),
+        remainingBalance: Math.max(0, outstandingAmount),
         totalPaid,
         paymentInfo: {
           totalPaid,

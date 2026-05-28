@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { addMoney } from '@/lib/money';
 
 export async function POST(request) {
   try {
@@ -72,7 +73,7 @@ export async function POST(request) {
     }
 
     // Check if there are completed payments
-    const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalPaid = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
     if (totalPaid > 0) {
       return NextResponse.json(
         { success: false, error: 'Cannot void invoice with payments. Process refund instead.' },

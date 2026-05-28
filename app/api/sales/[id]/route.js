@@ -395,7 +395,7 @@ export async function PUT(request, { params }) {
                         quantitySold: item.quantity,
                         tx,
                       });
-                      totalCOGS += cogsData.cogsAmount;
+                      totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
                     }
                   } catch (cogsError) {
                     console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);

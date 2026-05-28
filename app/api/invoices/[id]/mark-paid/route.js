@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { POST as postPartialPayment } from '../../partial-payment/route.js';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 /**
  * POST /api/invoices/:id/mark-paid
@@ -32,8 +33,8 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
-    const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-    const remainingBalance = invoice.total - totalPaid;
+    const totalPaid = invoice.payments.reduce((sum, p) => addMoney(sum, p.amount), 0);
+    const remainingBalance = subtractMoney(parseMoney(invoice.total), totalPaid);
     if (remainingBalance <= 0) {
       return NextResponse.json(
         { error: 'Invoice is already fully paid' },

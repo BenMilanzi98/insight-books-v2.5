@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addMoney, parseMoney } from '@/lib/money';
 
 export async function POST(request) {
   try {
@@ -96,7 +97,7 @@ export async function POST(request) {
         if (invoice) {
           const totalRefunded = invoice.refunds
             .filter(r => r.status === 'completed')
-            .reduce((sum, r) => sum + r.refundAmount, 0);
+            .reduce((sum, r) => addMoney(sum, r.refundAmount), 0);
           
           const totalPaid = await tx.payment.aggregate({
             where: { 
@@ -106,7 +107,7 @@ export async function POST(request) {
             _sum: { amount: true }
           });
 
-          const paidAmount = totalPaid._sum.amount || 0;
+          const paidAmount = parseMoney(totalPaid._sum.amount);
           let newStatus = invoice.status;
 
           if (totalRefunded >= paidAmount) {

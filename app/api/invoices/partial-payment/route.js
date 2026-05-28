@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
 import { createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // POST - Process a partial payment for an invoice
 export async function POST(request) {
@@ -11,8 +12,8 @@ export async function POST(request) {
     const body = await request.json();
     const { invoiceId, amount, paymentMethod, paymentDate, reference, notes } = body;
     
-    // Convert amount to number
-    const numericAmount = parseFloat(amount);
+    // Convert amount to a safe 2-decimal money number
+    const numericAmount = parseMoney(amount);
     
     // Get user from session
     const user = await getUserFromSession(request);
@@ -77,11 +78,11 @@ export async function POST(request) {
 
     // Calculate remaining balance (only completed, non-reversal payments)
     const totalPaid = invoice.payments.reduce(
-      (sum, payment) => sum + (parseFloat(payment.amount) || 0),
+      (sum, payment) => addMoney(sum, payment.amount),
       0
     );
-    const invTotal = parseFloat(invoice.total) || 0;
-    const remainingBalance = invTotal - totalPaid;
+    const invTotal = parseMoney(invoice.total);
+    const remainingBalance = subtractMoney(invTotal, totalPaid);
 
     // Validate payment amount
     if (numericAmount > remainingBalance) {
@@ -111,8 +112,8 @@ export async function POST(request) {
       });
 
       // Update invoice payment totals
-      const newTotalPaid = totalPaid + numericAmount;
-      const newRemainingBalance = invTotal - newTotalPaid;
+      const newTotalPaid = addMoney(totalPaid, numericAmount);
+      const newRemainingBalance = subtractMoney(invTotal, newTotalPaid);
       const lastPaymentDate = paymentDateObj;
 
       // Determine new status

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { multiplyMoney } from '@/lib/money';
+import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 /**
  * GET handler for downloading invoice data for client-side PDF generation
@@ -139,11 +139,11 @@ export async function GET(request, { params }) {
         (p.status == null || String(p.status) === 'Completed')
     );
     const totalPaid = eligiblePayments.reduce(
-      (sum, payment) => sum + (parseFloat(payment.amount) || 0),
+      (sum, payment) => addMoney(sum, payment.amount),
       0
     );
-    const invTotal = parseFloat(invoice.total) || 0;
-    const outstandingAmount = Math.max(0, invTotal - totalPaid);
+    const invTotal = parseMoney(invoice.total);
+    const outstandingAmount = Math.max(0, subtractMoney(invTotal, totalPaid));
     const isFullyPaid = totalPaid >= invTotal - 0.005;
     const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
     

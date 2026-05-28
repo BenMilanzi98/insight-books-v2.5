@@ -66,6 +66,9 @@ const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColo
   );
 };
 
+const formatInvoiceMoney = (amount) =>
+  parseMoney(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 // Status badge component with improved styling
 const StatusBadge = ({ status }) => {
   const statusConfig = {
@@ -1015,12 +1018,12 @@ const InvoicingPage = () => {
                           <div className="text-xs text-gray-500">{invoice.client.email}</div>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-bold text-gray-900">MWK {invoice.total.toLocaleString()}</div>
-                          {invoice.totalPaid > 0 && (
-                            <div className="text-xs text-emerald-600">Paid: MWK {invoice.totalPaid.toLocaleString()}</div>
+                          <div className="text-sm font-bold text-gray-900">MWK {formatInvoiceMoney(invoice.total)}</div>
+                          {parseMoney(invoice.totalPaid) > 0 && (
+                            <div className="text-xs text-emerald-600">Paid: MWK {formatInvoiceMoney(invoice.totalPaid)}</div>
                           )}
-                          {invoice.remainingBalance > 0 && (
-                            <div className="text-xs text-red-500">Balance: MWK {invoice.remainingBalance.toLocaleString()}</div>
+                          {parseMoney(invoice.remainingBalance) > 0 && (
+                            <div className="text-xs text-red-500">Balance: MWK {formatInvoiceMoney(invoice.remainingBalance)}</div>
                           )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center hidden sm:table-cell">

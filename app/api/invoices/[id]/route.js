@@ -6,7 +6,7 @@ import { createInvoiceJournalEntry } from '@/lib/transactionJournalHelpers';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { reverseAndDeleteInvoiceRecord } from '@/lib/invoiceDeleteService';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
-import { parseMoney, sumMoney } from '@/lib/money';
+import { parseMoney, subtractMoney, sumMoney } from '@/lib/money';
 
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
@@ -80,8 +80,8 @@ export async function GET(request, { params }) {
     
     // Calculate payment information
     const totalPaid = sumEligibleInvoicePayments(invoice.payments);
-    const invTotal = parseFloat(invoice.total) || 0;
-    const outstandingAmount = Math.max(0, invTotal - totalPaid);
+    const invTotal = parseMoney(invoice.total);
+    const outstandingAmount = Math.max(0, subtractMoney(invTotal, totalPaid));
     const isFullyPaid = outstandingAmount <= 0.005;
     const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
     

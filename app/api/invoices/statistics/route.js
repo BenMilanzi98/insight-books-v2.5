@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { parseMoney } from '@/lib/money';
 
 export async function GET(request) {
     try {
@@ -99,27 +100,26 @@ export async function GET(request) {
       });
       
       // Return statistics with numeric amounts (frontend formats for display)
-      const num = (v) => (v != null && !Number.isNaN(v) ? Number(v) : 0);
       return NextResponse.json({
         paid: {
           count: paidInvoices._count,
-          amount: num(paidInvoices._sum?.total)
+          amount: parseMoney(paidInvoices._sum?.total)
         },
         pending: {
           count: pendingInvoices._count,
-          amount: num(pendingInvoices._sum?.total)
+          amount: parseMoney(pendingInvoices._sum?.total)
         },
         overdue: {
           count: overdueInvoices._count,
-          amount: num(overdueInvoices._sum?.total)
+          amount: parseMoney(overdueInvoices._sum?.total)
         },
         partial: {
           count: partialInvoices._count,
-          amount: num(partialInvoices._sum?.total)
+          amount: parseMoney(partialInvoices._sum?.total)
         },
         draft: {
           count: draftInvoices._count,
-          amount: num(draftInvoices._sum?.total)
+          amount: parseMoney(draftInvoices._sum?.total)
         }
       });
     } catch (error) {
