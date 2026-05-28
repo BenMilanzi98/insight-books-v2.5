@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addMoney, moneyGreaterOrEqual, subtractMoney } from '@/lib/money';
 
 // GET - Fetch invoices for a specific client
 export async function GET(request, { params }) {
@@ -88,13 +89,13 @@ export async function GET(request, { params }) {
     // Process invoices to add payment information
     const processedInvoices = invoices.map(invoice => {
       // Calculate total paid amount
-      const paidAmount = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+      const paidAmount = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
       
       // Calculate outstanding amount
-      const outstandingAmount = invoice.total - paidAmount;
+      const outstandingAmount = subtractMoney(invoice.total, paidAmount);
       
       // Determine if fully paid
-      const isFullyPaid = paidAmount >= invoice.total;
+      const isFullyPaid = moneyGreaterOrEqual(paidAmount, invoice.total);
       
       // Check if overdue
       const isOverdue = !isFullyPaid && new Date(invoice.dueDate) < new Date() && invoice.status !== 'paid';

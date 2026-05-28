@@ -7,7 +7,7 @@ import {
   applyPostedJournalSweepOnAccount,
   applyTaxInvoicePostedLines,
 } from '@/lib/taxAccountPostedJournalAggregation';
-import { multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
+import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 /**
  * GET /api/tax-accounts/[id]/balance
@@ -179,7 +179,7 @@ export async function GET(request, { params }) {
           // Has SaleItemTax records - use the specific tax amount for this tax type
           const taxForThisType = item.itemTaxes.find(it => it.taxTypeId === taxType.id);
           if (taxForThisType) {
-            taxAmountForThisType = Number(taxForThisType.taxAmount || 0);
+            taxAmountForThisType = parseMoney(taxForThisType.taxAmount);
           }
         } else if (item.product && item.product.productTaxes && item.product.productTaxes.length > 0) {
           // Check ProductTax link - calculate tax amount proportionally
@@ -205,7 +205,7 @@ export async function GET(request, { params }) {
         }
 
         if (taxAmountForThisType > 0) {
-          totalCollected += taxAmountForThisType;
+          totalCollected = addMoney(totalCollected, taxAmountForThisType);
           salesAccountedFor.add(sale.id);
 
           // Create a virtual transaction entry for display
@@ -237,9 +237,9 @@ export async function GET(request, { params }) {
         const rateMatches = Math.abs(saleTaxRate - taxTypeRate) < 0.01;
 
         if (rateMatches || isOnlyNonPaye) {
-          const taxAmt = Number(sale.taxAmount || 0);
+          const taxAmt = parseMoney(sale.taxAmount);
           if (taxAmt > 0) {
-            totalCollected += taxAmt;
+            totalCollected = addMoney(totalCollected, taxAmt);
             salesAccountedFor.add(sale.id);
             const debitAmt = isAsset ? taxAmt : 0;
             const creditAmt = isLiability ? taxAmt : 0;
@@ -269,7 +269,7 @@ export async function GET(request, { params }) {
       invoicesAccountedFor,
       pushHistory: (row) => glJournalHistory.push(row),
     });
-    totalCollected += taxInvoiceBucket.totalCollected;
+    totalCollected = addMoney(totalCollected, taxInvoiceBucket.totalCollected);
 
     // Include tax collected from paid/completed invoices
     if (isOnlyNonPaye || isFirstNonPaye) {
@@ -287,9 +287,9 @@ export async function GET(request, { params }) {
       });
       for (const inv of invoicesWithTax) {
         if (invoicesAccountedFor.has(inv.id)) continue;
-        const amt = Number(inv.taxAmount || 0);
+        const amt = parseMoney(inv.taxAmount);
         if (amt <= 0) continue;
-        totalCollected += amt;
+        totalCollected = addMoney(totalCollected, amt);
         const debitAmt = isAsset ? amt : 0;
         const creditAmt = isLiability ? amt : 0;
         salesTransactions.push({
@@ -332,9 +332,9 @@ export async function GET(request, { params }) {
       for (const poItem of poItemsWithTax) {
         const po = poItem.purchaseOrder;
         if (!po) continue;
-        const taxAmt = Number(poItem.taxAmount || 0);
+        const taxAmt = parseMoney(poItem.taxAmount);
         if (taxAmt > 0) {
-          totalPaid += taxAmt;
+          totalPaid = addMoney(totalPaid, taxAmt);
           const debitAmt = isLiability ? taxAmt : 0;
           const creditAmt = isAsset ? taxAmt : 0;
           poTransactions.push({
@@ -379,14 +379,14 @@ export async function GET(request, { params }) {
       for (const ex of expensesWithTax) {
         if (isPAYE) continue;
         const expTaxRate = Number(ex.taxRate || 0);
-        const expTaxAmount = Number(ex.taxAmount || 0);
+        const expTaxAmount = parseMoney(ex.taxAmount);
         if (expTaxAmount <= 0) continue;
 
         const rateMatches = taxTypeRate > 0 && Math.abs(expTaxRate - taxTypeRate) < 0.01;
         const isLegacyData = expTaxRate === 0 && expTaxAmount > 0;
 
         if (rateMatches || isOnlyNonPayeType || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
-          totalPaid += expTaxAmount;
+          totalPaid = addMoney(totalPaid, expTaxAmount);
           const debitAmt = isLiability ? expTaxAmount : 0;
           const creditAmt = isAsset ? expTaxAmount : 0;
           expenseTransactions.push({
@@ -416,7 +416,7 @@ export async function GET(request, { params }) {
         });
         payePaidFromExpensesTotal = paidPayeExpenses.total;
         for (const row of paidPayeExpenses.rows) {
-          totalPaid += row.amount;
+          totalPaid = addMoney(totalPaid, row.amount);
           expenseTransactions.push({
             id: `paye-expense-paid-${row.id}`,
             reference: `EXP-${row.id}`,
@@ -448,9 +448,9 @@ export async function GET(request, { params }) {
       payeTaxPaymentRows: glPayeTaxPaymentRows,
       payePayrollIdsCoveredByGl,
     });
-    totalCollected += sweepTotals.totalCollected;
-    totalPaid += sweepTotals.totalPaid;
-    totalRefunded += sweepTotals.totalRefunded;
+    totalCollected = addMoney(totalCollected, sweepTotals.totalCollected);
+    totalPaid = addMoney(totalPaid, sweepTotals.totalPaid);
+    totalRefunded = addMoney(totalRefunded, sweepTotals.totalRefunded);
 
     const payrollFallbackTransactions = [];
     if (isPAYE) {
@@ -478,11 +478,11 @@ export async function GET(request, { params }) {
 
         for (const p of payrolls) {
           if (payePayrollIdsCoveredByGl.has(p.id)) continue;
-          const amt = Number(p.payeAmount || 0);
+          const amt = parseMoney(p.payeAmount);
           if (amt <= 0) continue;
           if (p.status === 'Reversed') continue;
           const d = p.paymentDate || p.periodEnd;
-          totalCollected += amt;
+          totalCollected = addMoney(totalCollected, amt);
           const creditAmt = isLiability ? amt : 0;
           const debitAmt = isAsset ? amt : 0;
           payrollFallbackTransactions.push({
@@ -507,8 +507,8 @@ export async function GET(request, { params }) {
 
     const paymentTransactions = [];
     if (isPAYE && glPayeTaxPaymentRows.length > 0) {
-      const payeTaxPaymentTotal = glPayeTaxPaymentRows.reduce((sum, row) => sum + row.amount, 0);
-      let unappliedTaxPaymentAmount = Math.max(0, payeTaxPaymentTotal - payePaidFromExpensesTotal);
+      const payeTaxPaymentTotal = glPayeTaxPaymentRows.reduce((sum, row) => addMoney(sum, row.amount), 0);
+      let unappliedTaxPaymentAmount = Math.max(0, subtractMoney(payeTaxPaymentTotal, payePaidFromExpensesTotal));
 
       for (const row of glPayeTaxPaymentRows) {
         if (unappliedTaxPaymentAmount <= 0.005) break;
@@ -516,7 +516,7 @@ export async function GET(request, { params }) {
         const debitAmount = isLiability ? amountToAdd : 0;
         const creditAmount = isAsset ? amountToAdd : 0;
         const netAmount = creditAmount - debitAmount;
-        totalPaid += amountToAdd;
+        totalPaid = addMoney(totalPaid, amountToAdd);
         const tx = row.tx;
         const line0 = tx.lines?.[0];
         paymentTransactions.push({
@@ -533,7 +533,7 @@ export async function GET(request, { params }) {
           createdBy: tx.createdBy?.name || 'System',
           runningBalance: 0,
         });
-        unappliedTaxPaymentAmount -= amountToAdd;
+        unappliedTaxPaymentAmount = subtractMoney(unappliedTaxPaymentAmount, amountToAdd);
       }
     }
 
@@ -563,14 +563,14 @@ export async function GET(request, { params }) {
       // Balance before this transaction
       const balanceBefore = runningBalance;
       // Update balance after this transaction
-      runningBalance += isAsset ? -tx.netAmount : tx.netAmount;
+      runningBalance = addMoney(runningBalance, isAsset ? -tx.netAmount : tx.netAmount);
       return {
         ...tx,
         runningBalance: balanceBefore,
       };
     }).reverse(); // Reverse to show most recent first
 
-    const netPayable = totalCollected - totalPaid - totalRefunded;
+    const netPayable = subtractMoney(subtractMoney(totalCollected, totalPaid), totalRefunded);
     const netDueInPeriod = Math.max(0, netPayable);
     const periodReversalOverhang =
       netPayable < 0 ? Number((-netPayable).toFixed(2)) : 0;

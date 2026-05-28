@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Save, Edit, Receipt, Clipboard, Trash2, Check, Download } from "lucide-react";
 import ExpenseForm from "./ExpenseForm";
+import { addMoney, parseMoney } from "@/lib/money";
 
 // Modal component for viewing, creating, and editing expenses
 const ExpenseModal = ({
@@ -34,6 +35,9 @@ const ExpenseModal = ({
       day: "numeric"
     });
   };
+
+  const formatMoney = (amount) =>
+    parseMoney(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
   // Format status with icon
   const renderStatus = (status) => {
@@ -97,10 +101,10 @@ const ExpenseModal = ({
                       <p className="text-gray-500">{formatDate(expense.date)}</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-xl font-bold">MK {expense.amount}</div>
-                      {(expense.taxAmount != null && Number(expense.taxAmount) > 0) && (
+                      <div className="text-xl font-bold">MK {formatMoney(expense.amount)}</div>
+                      {(expense.taxAmount != null && parseMoney(expense.taxAmount) > 0) && (
                         <div className="text-sm text-gray-600 mt-1">
-                          Tax: MK {Number(expense.taxAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{expense.taxRate != null && Number(expense.taxRate) > 0 ? ` (${Number(expense.taxRate).toFixed(1)}%)` : ''} · Total: MK {((typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)) + (Number(expense.taxAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          Tax: MK {formatMoney(expense.taxAmount)}{expense.taxRate != null && Number(expense.taxRate) > 0 ? ` (${Number(expense.taxRate).toFixed(1)}%)` : ''} · Total: MK {formatMoney(addMoney(expense.amount, expense.taxAmount))}
                         </div>
                       )}
                       {renderStatus(expense.status)}
@@ -115,13 +119,13 @@ const ExpenseModal = ({
                     <div>
                       <span className="text-gray-500">Amount</span>
                       <p className="font-medium text-gray-900">
-                        MK {(typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        MK {formatMoney(expense.amount)}
                       </p>
                     </div>
                     <div>
                       <span className="text-gray-500">Tax</span>
                       <p className="font-medium text-gray-900">
-                        MK {(Number(expense.taxAmount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        MK {formatMoney(expense.taxAmount)}
                         {expense.taxRate != null && Number(expense.taxRate) > 0 && (
                           <span className="text-gray-500 font-normal ml-1">({Number(expense.taxRate).toFixed(1)}%)</span>
                         )}
@@ -130,7 +134,7 @@ const ExpenseModal = ({
                     <div>
                       <span className="text-gray-500">Total (incl. tax)</span>
                       <p className="font-semibold text-gray-900">
-                        MK {((typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)) + (Number(expense.taxAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        MK {formatMoney(addMoney(expense.amount, expense.taxAmount))}
                       </p>
                     </div>
                   </div>

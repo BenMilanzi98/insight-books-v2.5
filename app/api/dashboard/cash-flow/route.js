@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 export async function GET(request) {
   try {
@@ -335,24 +336,28 @@ export async function GET(request) {
     ]);
     
     // Calculate totals
-    const totalCashIn = invoicePayments.reduce((sum, p) => sum + p.amount, 0) +
-                       salesPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalCashIn = addMoney(
+      invoicePayments.reduce((sum, p) => addMoney(sum, p.amount), 0),
+      salesPayments.reduce((sum, p) => addMoney(sum, p.amount), 0)
+    );
     
-    const totalCashOut = expensePayments.reduce((sum, p) => sum + p.amount, 0) +
-                        supplierPayments.reduce((sum, p) => sum + p.totalAmount, 0);
+    const totalCashOut = addMoney(
+      expensePayments.reduce((sum, p) => addMoney(sum, p.amount), 0),
+      supplierPayments.reduce((sum, p) => addMoney(sum, p.totalAmount), 0)
+    );
     
     const totalReceivables = outstandingReceivables.reduce((sum, inv) => 
-      sum + (inv.remainingBalance || (inv.total - (inv.totalPaid || 0))), 0);
+      addMoney(sum, parseMoney(inv.remainingBalance) || subtractMoney(inv.total, inv.totalPaid)), 0);
     
     const totalPayables = outstandingPayables.reduce((sum, exp) => {
       if (exp.paymentStatus === 'Partially' && exp.paidAmount) {
-        return sum + (exp.amount - exp.paidAmount);
+        return addMoney(sum, subtractMoney(exp.amount, exp.paidAmount));
       }
-      return sum + exp.amount;
+      return addMoney(sum, exp.amount);
     }, 0);
     
     // Calculate net cash flow
-    const netCashFlow = totalCashIn - totalCashOut;
+    const netCashFlow = subtractMoney(totalCashIn, totalCashOut);
     
     // Group payments by day for cash flow chart
     const cashFlowByDay = {};
@@ -376,9 +381,9 @@ export async function GET(request) {
       }
       
       if (payment.type === 'inflow') {
-        cashFlowByDay[date].inflow += payment.amount;
+        cashFlowByDay[date].inflow = addMoney(cashFlowByDay[date].inflow, payment.amount);
       } else {
-        cashFlowByDay[date].outflow += payment.amount;
+        cashFlowByDay[date].outflow = addMoney(cashFlowByDay[date].outflow, payment.amount);
       }
     });
     
@@ -387,7 +392,7 @@ export async function GET(request) {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .map(day => ({
         ...day,
-        netFlow: day.inflow - day.outflow
+        netFlow: subtractMoney(day.inflow, day.outflow)
       }));
     
     return NextResponse.json({

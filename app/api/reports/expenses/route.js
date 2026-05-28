@@ -10,6 +10,7 @@ import {
   expenseOverlapsGlCogsForDedup,
   isGlCogsWindowActive,
 } from '@/lib/expenseRegisterGlCogsOverlap';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 function monthKeyFromDate(d) {
   const date = new Date(d);
@@ -184,13 +185,11 @@ export async function GET(request) {
       cogsTransactionCount = cogsLines.length;
 
       for (const line of cogsLines) {
-        const debit = Number(line.debitAmount) || 0;
-        const credit = Number(line.creditAmount) || 0;
-        const net = debit - credit;
+        const net = subtractMoney(line.debitAmount, line.creditAmount);
         if (Math.abs(net) < 1e-9) continue;
         const txDate = line.transaction.date;
         const mk = monthKeyFromDate(txDate);
-        cogsByMonth.set(mk, (cogsByMonth.get(mk) || 0) + net);
+        cogsByMonth.set(mk, addMoney(cogsByMonth.get(mk) || 0, net));
       }
     }
 
@@ -204,11 +203,11 @@ export async function GET(request) {
         ? expenses.filter((e) => !expenseOverlapsGlCogsForDedup(e, cogsIdSet, glCogsActive))
         : expenses;
 
-    const registerSumAll = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const registerSumNonCogsGl = forAggregation.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const totalExpenses = includeCogsInReport ? registerSumNonCogsGl + cogsTotal : registerSumAll;
+    const registerSumAll = expenses.reduce((s, e) => addMoney(s, e.amount), 0);
+    const registerSumNonCogsGl = forAggregation.reduce((s, e) => addMoney(s, e.amount), 0);
+    const totalExpenses = includeCogsInReport ? addMoney(registerSumNonCogsGl, cogsTotal) : registerSumAll;
     const registerGlCogsOverlapAmount =
-      glCogsActive && includeCogsInReport ? registerSumAll - registerSumNonCogsGl : 0;
+      glCogsActive && includeCogsInReport ? subtractMoney(registerSumAll, registerSumNonCogsGl) : 0;
 
     const expensesByCategory = {};
     for (const expense of forAggregation) {
@@ -221,7 +220,7 @@ export async function GET(request) {
           items: [],
         };
       }
-      expensesByCategory[key].total += expense.amount;
+      expensesByCategory[key].total = addMoney(expensesByCategory[key].total, expense.amount);
       expensesByCategory[key].items.push(expense);
     }
 
@@ -236,7 +235,7 @@ export async function GET(request) {
         .map((line) => {
           const debit = Number(line.debitAmount) || 0;
           const credit = Number(line.creditAmount) || 0;
-          const net = debit - credit;
+          const net = subtractMoney(debit, credit);
           if (Math.abs(net) < 1e-9) return null;
           const ref = line.transaction.reference || '';
           return {
@@ -275,7 +274,7 @@ export async function GET(request) {
           total: 0,
         };
       }
-      expensesByMonth[mk].total += expense.amount;
+      expensesByMonth[mk].total = addMoney(expensesByMonth[mk].total, expense.amount);
     }
 
     for (const [mk, net] of cogsByMonth.entries()) {
@@ -287,7 +286,7 @@ export async function GET(request) {
           total: 0,
         };
       }
-      expensesByMonth[mk].total += net;
+      expensesByMonth[mk].total = addMoney(expensesByMonth[mk].total, net);
     }
 
     const availableCategories = Object.values(expensesByCategory)

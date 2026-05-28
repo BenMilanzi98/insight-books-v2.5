@@ -9,6 +9,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -356,15 +357,15 @@ export async function GET(request) {
             try {
               // Prefer totalStockValue only when it is positive.
               // It can become stale if FIFO consumption fails or legacy adjustments occurred.
-              const stored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+              const stored = product.totalStockValue != null ? parseMoney(product.totalStockValue) : null;
               if (stored != null && !isNaN(stored) && stored > 0) {
-                return sum + stored;
+                return addMoney(sum, stored);
               } else if (product.cost != null && product.stockLevel != null && 
-                         !isNaN(Number(product.cost)) && !isNaN(Number(product.stockLevel))) {
-                return sum + (Number(product.cost) * Number(product.stockLevel));
+                         !isNaN(parseMoney(product.cost)) && !isNaN(parseMoney(product.stockLevel))) {
+                return addMoney(sum, parseMoney(product.cost) * parseMoney(product.stockLevel));
               } else if (product.averageCost != null && product.stockLevel != null &&
-                         !isNaN(Number(product.averageCost)) && !isNaN(Number(product.stockLevel))) {
-                return sum + (Number(product.averageCost) * Number(product.stockLevel));
+                         !isNaN(parseMoney(product.averageCost)) && !isNaN(parseMoney(product.stockLevel))) {
+                return addMoney(sum, parseMoney(product.averageCost) * parseMoney(product.stockLevel));
               }
               return sum;
             } catch (e) {
@@ -385,33 +386,35 @@ export async function GET(request) {
     
     // Calculate totals
     const totalReceivables = outstandingInvoices.reduce((sum, inv) => 
-      sum + (inv.remainingBalance || (inv.total - (inv.totalPaid || 0))), 0);
+      addMoney(sum, parseMoney(inv.remainingBalance) || subtractMoney(inv.total, inv.totalPaid)), 0);
     
     const totalPotentialReceivables = pendingQuotations.reduce((sum, quote) => 
-      sum + quote.total, 0);
+      addMoney(sum, quote.total), 0);
     
-    const totalPayables = outstandingExpenses.reduce((sum, exp) => {
+    const expensePayables = outstandingExpenses.reduce((sum, exp) => {
       if (exp.paymentStatus === 'Partially' && exp.paidAmount) {
-        return sum + (exp.amount - exp.paidAmount);
+        return addMoney(sum, subtractMoney(exp.amount, exp.paidAmount));
       }
-      return sum + exp.amount;
-    }, 0) + outstandingSupplierBills.reduce((sum, bill) => {
-      const balanceDue = (bill.totalAmount || 0) - (bill.amountPaid || 0);
-      return sum + Math.max(0, balanceDue);
+      return addMoney(sum, exp.amount);
     }, 0);
+    const supplierBillPayables = outstandingSupplierBills.reduce((sum, bill) => {
+      const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid);
+      return addMoney(sum, Math.max(0, balanceDue));
+    }, 0);
+    const totalPayables = addMoney(expensePayables, supplierBillPayables);
     
     const totalCashIn = recentPayments
       .filter(p => p.type === 'invoice' || p.type === 'sale')
-      .reduce((sum, p) => sum + p.amount, 0);
+      .reduce((sum, p) => addMoney(sum, p.amount), 0);
     
     const totalCashOut = recentPayments
       .filter(p => p.type === 'expense')
-      .reduce((sum, p) => sum + p.amount, 0);
+      .reduce((sum, p) => addMoney(sum, p.amount), 0);
     
-    const netCashFlow = totalCashIn - totalCashOut;
+    const netCashFlow = subtractMoney(totalCashIn, totalCashOut);
     
     const totalAccountBalances = Array.isArray(accountBalances)
-      ? accountBalances.reduce((sum, acc) => sum + (acc.balance || 0), 0)
+      ? accountBalances.reduce((sum, acc) => addMoney(sum, acc.balance), 0)
       : 0;
     
     // Calculate aging for receivables
@@ -425,18 +428,18 @@ export async function GET(request) {
     
     outstandingInvoices.forEach(invoice => {
       const daysOverdue = Math.floor((now - new Date(invoice.dueDate)) / (1000 * 60 * 60 * 24));
-      const amount = invoice.remainingBalance || (invoice.total - (invoice.totalPaid || 0));
+      const amount = parseMoney(invoice.remainingBalance) || subtractMoney(invoice.total, invoice.totalPaid);
       
       if (daysOverdue <= 0) {
-        receivablesAging.current += amount;
+        receivablesAging.current = addMoney(receivablesAging.current, amount);
       } else if (daysOverdue <= 30) {
-        receivablesAging.overdue30 += amount;
+        receivablesAging.overdue30 = addMoney(receivablesAging.overdue30, amount);
       } else if (daysOverdue <= 60) {
-        receivablesAging.overdue60 += amount;
+        receivablesAging.overdue60 = addMoney(receivablesAging.overdue60, amount);
       } else if (daysOverdue <= 90) {
-        receivablesAging.overdue90 += amount;
+        receivablesAging.overdue90 = addMoney(receivablesAging.overdue90, amount);
       } else {
-        receivablesAging.overdue90Plus += amount;
+        receivablesAging.overdue90Plus = addMoney(receivablesAging.overdue90Plus, amount);
       }
     });
     
@@ -454,41 +457,41 @@ export async function GET(request) {
       dueDate.setDate(dueDate.getDate() + 30); // Assume 30-day payment terms
       const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
       
-      let amount = expense.amount;
+      let amount = parseMoney(expense.amount);
       if (expense.paymentStatus === 'Partially' && expense.paidAmount) {
-        amount = expense.amount - expense.paidAmount;
+        amount = subtractMoney(expense.amount, expense.paidAmount);
       }
       
       if (daysOverdue <= 0) {
-        payablesAging.current += amount;
+        payablesAging.current = addMoney(payablesAging.current, amount);
       } else if (daysOverdue <= 30) {
-        payablesAging.overdue30 += amount;
+        payablesAging.overdue30 = addMoney(payablesAging.overdue30, amount);
       } else if (daysOverdue <= 60) {
-        payablesAging.overdue60 += amount;
+        payablesAging.overdue60 = addMoney(payablesAging.overdue60, amount);
       } else if (daysOverdue <= 90) {
-        payablesAging.overdue90 += amount;
+        payablesAging.overdue90 = addMoney(payablesAging.overdue90, amount);
       } else {
-        payablesAging.overdue90Plus += amount;
+        payablesAging.overdue90Plus = addMoney(payablesAging.overdue90Plus, amount);
       }
     });
     
     // Process supplier bills aging
     outstandingSupplierBills.forEach(bill => {
-      const balanceDue = (bill.totalAmount || 0) - (bill.amountPaid || 0);
+      const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid);
       if (balanceDue > 0) {
         const dueDate = new Date(bill.dueDate || bill.billDate);
         const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
         
         if (daysOverdue <= 0) {
-          payablesAging.current += balanceDue;
+          payablesAging.current = addMoney(payablesAging.current, balanceDue);
         } else if (daysOverdue <= 30) {
-          payablesAging.overdue30 += balanceDue;
+          payablesAging.overdue30 = addMoney(payablesAging.overdue30, balanceDue);
         } else if (daysOverdue <= 60) {
-          payablesAging.overdue60 += balanceDue;
+          payablesAging.overdue60 = addMoney(payablesAging.overdue60, balanceDue);
         } else if (daysOverdue <= 90) {
-          payablesAging.overdue90 += balanceDue;
+          payablesAging.overdue90 = addMoney(payablesAging.overdue90, balanceDue);
         } else {
-          payablesAging.overdue90Plus += balanceDue;
+          payablesAging.overdue90Plus = addMoney(payablesAging.overdue90Plus, balanceDue);
         }
       }
     });
@@ -499,7 +502,7 @@ export async function GET(request) {
           totalReceivables,
           totalPotentialReceivables,
           totalPayables,
-          netPosition: totalReceivables - totalPayables,
+          netPosition: subtractMoney(totalReceivables, totalPayables),
           totalCashIn,
           totalCashOut,
           netCashFlow,

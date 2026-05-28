@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addMoney, moneyLessOrEqual, subtractMoney } from '@/lib/money';
 
 // GET - Fetch client statistics
 export async function GET(request) {
@@ -49,17 +50,17 @@ export async function GET(request) {
     });
     
     // Calculate total billed amount (invoices + sales)
-    const totalBilledFromInvoices = invoices.reduce((sum, invoice) => sum + invoice.total, 0);
-    const totalBilledFromSales = sales.reduce((sum, sale) => sum + sale.total, 0);
-    const totalBilled = totalBilledFromInvoices + totalBilledFromSales;
+    const totalBilledFromInvoices = invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0);
+    const totalBilledFromSales = sales.reduce((sum, sale) => addMoney(sum, sale.total), 0);
+    const totalBilled = addMoney(totalBilledFromInvoices, totalBilledFromSales);
     
     // Calculate total paid amount
     const totalPaid = invoices.reduce((sum, invoice) => {
-      return sum + invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0);
+      return addMoney(sum, invoice.payments.reduce((paymentSum, payment) => addMoney(paymentSum, payment.amount), 0));
     }, 0);
     
     // Calculate outstanding amount
-    const totalOutstanding = totalBilled - totalPaid;
+    const totalOutstanding = subtractMoney(totalBilled, totalPaid);
     
     // Get clients and their invoice + sales statistics
     const clients = await prisma.client.findMany({
@@ -92,23 +93,23 @@ export async function GET(request) {
     // Calculate statistics for each client
     const clientStats = clients.map(client => {
       // Total billed amount (invoices + sales)
-      const clientTotalBilledFromInvoices = client.invoices.reduce((sum, invoice) => sum + invoice.total, 0);
-      const clientTotalBilledFromSales = client.sales.reduce((sum, sale) => sum + sale.total, 0);
-      const clientTotalBilled = clientTotalBilledFromInvoices + clientTotalBilledFromSales;
+      const clientTotalBilledFromInvoices = client.invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0);
+      const clientTotalBilledFromSales = client.sales.reduce((sum, sale) => addMoney(sum, sale.total), 0);
+      const clientTotalBilled = addMoney(clientTotalBilledFromInvoices, clientTotalBilledFromSales);
       
       // Total paid amount (only from invoices)
       const clientTotalPaid = client.invoices.reduce((sum, invoice) => {
-        return sum + invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0);
+        return addMoney(sum, invoice.payments.reduce((paymentSum, payment) => addMoney(paymentSum, payment.amount), 0));
       }, 0);
       
       // Outstanding amount (only from invoices, as sales are typically paid immediately)
-      const clientOutstanding = clientTotalBilledFromInvoices - clientTotalPaid;
+      const clientOutstanding = subtractMoney(clientTotalBilledFromInvoices, clientTotalPaid);
       
       // Has overdue invoices
       const hasOverdueInvoices = client.invoices.some(invoice => 
         invoice.status === 'overdue' || 
         (invoice.status === 'sent' && new Date(invoice.dueDate) < new Date() && 
-         invoice.payments.reduce((sum, payment) => sum + payment.amount, 0) < invoice.total)
+         !moneyLessOrEqual(invoice.total, invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0)))
       );
       
       // Has active invoices

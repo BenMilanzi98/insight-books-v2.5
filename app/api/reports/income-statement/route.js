@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
 import { getCOGSSummary } from '@/lib/cogsIntegration';
 import { stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
+import { addMoney, parseMoney } from '@/lib/money';
 
 /**
  * Professional Income Statement (Profit & Loss Statement) API
@@ -89,9 +90,9 @@ export async function GET(request) {
       }
       
       // Validate totals (COGS excludes shipping per incomeStatementService spec)
-      const totalRevenue = currentPeriod.totalRevenue || 0;
-      const totalCOGS = Number(currentPeriod.cogs?.costOfProductsSold || 0);
-      const totalExpenses = currentPeriod.totalOperatingExpenses || 0;
+      const totalRevenue = parseMoney(currentPeriod.totalRevenue);
+      const totalCOGS = parseMoney(currentPeriod.cogs?.costOfProductsSold);
+      const totalExpenses = parseMoney(currentPeriod.totalOperatingExpenses);
       
       console.log('✅ Income Statement Generated:', {
         revenue: totalRevenue,
@@ -139,7 +140,8 @@ export async function GET(request) {
     const transformResponse = (data) => {
       if (!data) return null;
       
-      const totalRevenue = data.totalRevenue || 0;
+      const totalRevenue = parseMoney(data.totalRevenue);
+      const pct = (value) => totalRevenue > 0 ? (parseMoney(value) / totalRevenue) * 100 : 0;
       
       return {
         ...data,
@@ -154,46 +156,46 @@ export async function GET(request) {
           // Dynamic revenue lines (per revenue account)
           lineItems: (data.revenue?.lineItems || []).map(li => ({
             ...li,
-            percentage: totalRevenue > 0 ? ((li.amount || 0) / totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? (parseMoney(li.amount) / totalRevenue) * 100 : 0
           })),
           // Legacy buckets (for fallback views)
           salesRevenue: {
-            amount: data.revenue?.salesRevenue || 0,
-            percentage: totalRevenue > 0 ? ((data.revenue?.salesRevenue || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.revenue?.salesRevenue),
+            percentage: totalRevenue > 0 ? (parseMoney(data.revenue?.salesRevenue) / totalRevenue) * 100 : 0
           },
           serviceRevenue: {
-            amount: data.revenue?.serviceRevenue || 0,
-            percentage: totalRevenue > 0 ? ((data.revenue?.serviceRevenue || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.revenue?.serviceRevenue),
+            percentage: totalRevenue > 0 ? (parseMoney(data.revenue?.serviceRevenue) / totalRevenue) * 100 : 0
           },
           otherIncome: {
-            amount: data.revenue?.otherIncome || 0,
-            percentage: totalRevenue > 0 ? ((data.revenue?.otherIncome || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.revenue?.otherIncome),
+            percentage: totalRevenue > 0 ? (parseMoney(data.revenue?.otherIncome) / totalRevenue) * 100 : 0
           }
         },
         cogs: {
           ...data.cogs,
-          total: (data.cogs?.costOfProductsSold || 0) + (data.cogs?.freightShippingCosts || 0),
+          total: addMoney(data.cogs?.costOfProductsSold, data.cogs?.freightShippingCosts),
           // Dynamic COGS lines
           lineItems: (data.cogs?.lineItems || []).map(li => ({
             ...li,
-            percentage: totalRevenue > 0 ? ((li.amount || 0) / totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? (parseMoney(li.amount) / totalRevenue) * 100 : 0
           })),
           costOfProductsSold: {
-            amount: data.cogs?.costOfProductsSold || 0,
-            percentage: totalRevenue > 0 ? ((data.cogs?.costOfProductsSold || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.cogs?.costOfProductsSold),
+            percentage: totalRevenue > 0 ? (parseMoney(data.cogs?.costOfProductsSold) / totalRevenue) * 100 : 0
           },
           freightShippingCosts: {
-            amount: data.cogs?.freightShippingCosts || 0,
-            percentage: totalRevenue > 0 ? ((data.cogs?.freightShippingCosts || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.cogs?.freightShippingCosts),
+            percentage: totalRevenue > 0 ? (parseMoney(data.cogs?.freightShippingCosts) / totalRevenue) * 100 : 0
           }
         },
         grossProfit: {
-          amount: data.grossProfit || 0,
-          percentage: totalRevenue > 0 ? ((data.grossProfit || 0) / totalRevenue) * 100 : 0
+          amount: parseMoney(data.grossProfit),
+          percentage: totalRevenue > 0 ? (parseMoney(data.grossProfit) / totalRevenue) * 100 : 0
         },
         operatingExpenses: {
           ...data.operatingExpenses,
-          total: data.totalOperatingExpenses || data.operatingExpenses?.total || 0,
+          total: parseMoney(data.totalOperatingExpenses || data.operatingExpenses?.total),
           // Operating expenses: rolled up to Chart of Accounts main lines (same as lib/incomeStatementService)
           categories: (data.operatingExpenses?.categories || []).map((cat) => {
             const cleanName = stripEmbeddedPeriodFromReportLabel(
@@ -203,8 +205,8 @@ export async function GET(request) {
               category: cleanName || cat.category,
               accountName: cleanName || cat.accountName,
               accountCode: cat.accountCode,
-              amount: cat.amount,
-              percentage: totalRevenue > 0 ? (cat.amount / totalRevenue) * 100 : 0,
+              amount: parseMoney(cat.amount),
+              percentage: totalRevenue > 0 ? (parseMoney(cat.amount) / totalRevenue) * 100 : 0,
               details: (cat.details || []).map((d) => ({
                 ...d,
                 category: d.category
@@ -218,7 +220,8 @@ export async function GET(request) {
             return {
               ...line,
               accountName: cleanName || line.accountName,
-              percentage: totalRevenue > 0 ? (line.amount / totalRevenue) * 100 : 0,
+              amount: parseMoney(line.amount),
+              percentage: totalRevenue > 0 ? (parseMoney(line.amount) / totalRevenue) * 100 : 0,
               details: (line.details || []).map((d) => ({
                 ...d,
                 category: d.category
@@ -229,73 +232,73 @@ export async function GET(request) {
           }),
           // Keep legacy fields for backward compatibility (will be empty if using dynamic categories)
           salariesWages: {
-            amount: data.operatingExpenses?.salaries || 0,
-            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.salaries || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.operatingExpenses?.salaries),
+            percentage: pct(data.operatingExpenses?.salaries)
           },
           rentExpense: {
-            amount: data.operatingExpenses?.rent || 0,
-            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.rent || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.operatingExpenses?.rent),
+            percentage: pct(data.operatingExpenses?.rent)
           },
           utilitiesExpense: {
-            amount: data.operatingExpenses?.utilities || 0,
-            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.utilities || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.operatingExpenses?.utilities),
+            percentage: pct(data.operatingExpenses?.utilities)
           },
           officeSupplies: {
             amount: 0,
             percentage: 0
           },
           marketingAdvertising: {
-            amount: data.operatingExpenses?.marketing || 0,
-            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.marketing || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.operatingExpenses?.marketing),
+            percentage: pct(data.operatingExpenses?.marketing)
           },
           insurance: {
             amount: 0,
             percentage: 0
           },
           depreciation: {
-            amount: data.operatingExpenses?.depreciation || 0,
-            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.depreciation || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.operatingExpenses?.depreciation),
+            percentage: pct(data.operatingExpenses?.depreciation)
           },
           loanPayments: {
             amount: 0,
             percentage: 0
           },
           otherOperatingExpenses: {
-            amount: data.operatingExpenses?.otherOperatingExpenses || 0,
-            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.otherOperatingExpenses || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.operatingExpenses?.otherOperatingExpenses),
+            percentage: pct(data.operatingExpenses?.otherOperatingExpenses)
           }
         },
         operatingIncome: {
-          amount: data.operatingIncome || 0,
-          percentage: totalRevenue > 0 ? ((data.operatingIncome || 0) / totalRevenue) * 100 : 0
+          amount: parseMoney(data.operatingIncome),
+          percentage: pct(data.operatingIncome)
         },
         otherIncomeExpenses: {
           interestIncome: {
-            amount: data.otherIncomeExpenses?.interestIncome || 0,
-            percentage: totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestIncome || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.otherIncomeExpenses?.interestIncome),
+            percentage: pct(data.otherIncomeExpenses?.interestIncome)
           },
           interestExpense: {
-            amount: data.otherIncomeExpenses?.interestExpense || 0,
-            percentage: totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestExpense || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.otherIncomeExpenses?.interestExpense),
+            percentage: pct(data.otherIncomeExpenses?.interestExpense)
           },
           gainLossOnAssetSales: {
-            amount: data.otherIncomeExpenses?.otherIncome || 0,
-            percentage: totalRevenue > 0 ? ((data.otherIncomeExpenses?.otherIncome || 0) / totalRevenue) * 100 : 0
+            amount: parseMoney(data.otherIncomeExpenses?.otherIncome),
+            percentage: pct(data.otherIncomeExpenses?.otherIncome)
           },
-          total: data.otherIncomeExpenses?.total || 0
+          total: parseMoney(data.otherIncomeExpenses?.total)
         },
         netIncomeBeforeTax: {
-          amount: data.incomeBeforeTax || 0,
-          percentage: totalRevenue > 0 ? ((data.incomeBeforeTax || 0) / totalRevenue) * 100 : 0
+          amount: parseMoney(data.incomeBeforeTax),
+          percentage: pct(data.incomeBeforeTax)
         },
         incomeTaxExpense: {
           rate: 0,
-          amount: data.taxExpense || 0,
-          percentage: totalRevenue > 0 ? ((data.taxExpense || 0) / totalRevenue) * 100 : 0
+          amount: parseMoney(data.taxExpense),
+          percentage: pct(data.taxExpense)
         },
         netIncome: {
-          amount: data.netIncome || 0,
-          percentage: totalRevenue > 0 ? ((data.netIncome || 0) / totalRevenue) * 100 : 0
+          amount: parseMoney(data.netIncome),
+          percentage: pct(data.netIncome)
         }
       };
     };
@@ -380,16 +383,16 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
   
   // Process invoices
   invoices.forEach(invoice => {
-    const invoiceTotal = invoice.total || 0;
+    const invoiceTotal = parseMoney(invoice.total);
     // Check if invoice has service items
     const hasServices = invoice.items.some(item => 
       item.product?.isService || !item.productId
     );
     
     if (hasServices) {
-      revenue.serviceRevenue += invoiceTotal;
+      revenue.serviceRevenue = addMoney(revenue.serviceRevenue, invoiceTotal);
     } else {
-      revenue.salesRevenue += invoiceTotal;
+      revenue.salesRevenue = addMoney(revenue.salesRevenue, invoiceTotal);
     }
     
     revenue.details.push({
@@ -405,15 +408,15 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
   
   // Process sales
   sales.forEach(sale => {
-    const saleTotal = sale.total || 0;
+    const saleTotal = parseMoney(sale.total);
     const hasServices = sale.items.some(item => 
       item.product?.isService || !item.productId
     );
     
     if (hasServices) {
-      revenue.serviceRevenue += saleTotal;
+      revenue.serviceRevenue = addMoney(revenue.serviceRevenue, saleTotal);
     } else {
-      revenue.salesRevenue += saleTotal;
+      revenue.salesRevenue = addMoney(revenue.salesRevenue, saleTotal);
     }
     
     revenue.details.push({
@@ -427,7 +430,7 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
     });
   });
   
-  const totalRevenue = revenue.salesRevenue + revenue.serviceRevenue + revenue.otherIncome;
+  const totalRevenue = addMoney(revenue.salesRevenue, revenue.serviceRevenue, revenue.otherIncome);
   
   // ========== COGS SECTION ==========
   const cogs = {
@@ -458,27 +461,25 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
             // Try FIFO COGS first
             if (customData.fifoCogs && customData.fifoCogs.cogsAmount !== undefined) {
               const fifoCogs = customData.fifoCogs.cogsAmount;
-              itemCOGS = typeof fifoCogs === 'object' && fifoCogs?.toNumber 
-                ? fifoCogs.toNumber() 
-                : Number(fifoCogs);
-              productCost = itemCOGS / item.quantity; // Average cost per unit
+              itemCOGS = parseMoney(fifoCogs);
+              productCost = parseMoney(item.quantity) > 0 ? itemCOGS / parseMoney(item.quantity) : 0; // Average cost per unit
             }
             // Fallback to stored cost at sale time
             else if (customData.productCostAtSale !== undefined) {
-              productCost = Number(customData.productCostAtSale);
-              itemCOGS = item.quantity * productCost;
+              productCost = parseMoney(customData.productCostAtSale);
+              itemCOGS = parseMoney(item.quantity) * productCost;
             }
           }
         }
         
         // Priority 2: Use current product cost (last resort)
         if (itemCOGS === 0 && item.product.cost) {
-          productCost = Number(item.product.cost);
-          itemCOGS = item.quantity * productCost;
+          productCost = parseMoney(item.product.cost);
+          itemCOGS = parseMoney(item.quantity) * productCost;
         }
         
         if (itemCOGS > 0) {
-          cogs.costOfProductsSold += itemCOGS;
+          cogs.costOfProductsSold = addMoney(cogs.costOfProductsSold, itemCOGS);
           cogs.details.push({
             saleId: sale.id,
             saleNumber: sale.saleNumber,
@@ -515,27 +516,25 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
             // Try FIFO COGS first
             if (customData.fifoCogs && customData.fifoCogs.cogsAmount !== undefined) {
               const fifoCogs = customData.fifoCogs.cogsAmount;
-              itemCOGS = typeof fifoCogs === 'object' && fifoCogs?.toNumber 
-                ? fifoCogs.toNumber() 
-                : Number(fifoCogs);
-              productCost = itemCOGS / item.quantity;
+              itemCOGS = parseMoney(fifoCogs);
+              productCost = parseMoney(item.quantity) > 0 ? itemCOGS / parseMoney(item.quantity) : 0;
             }
             // Fallback to stored cost at invoice time
             else if (customData.productCostAtSale !== undefined) {
-              productCost = Number(customData.productCostAtSale);
-              itemCOGS = item.quantity * productCost;
+              productCost = parseMoney(customData.productCostAtSale);
+              itemCOGS = parseMoney(item.quantity) * productCost;
             }
           }
         }
         
         // Last resort: use current product cost
         if (itemCOGS === 0 && item.product.cost) {
-          productCost = Number(item.product.cost);
-          itemCOGS = item.quantity * productCost;
+          productCost = parseMoney(item.product.cost);
+          itemCOGS = parseMoney(item.quantity) * productCost;
         }
         
         if (itemCOGS > 0) {
-          cogs.costOfProductsSold += itemCOGS;
+          cogs.costOfProductsSold = addMoney(cogs.costOfProductsSold, itemCOGS);
           cogs.details.push({
             invoiceId: invoice.id,
             invoiceNumber: invoice.invoiceNumber,
@@ -561,11 +560,11 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
   });
   
   freightExpenses.forEach(expense => {
-    cogs.freightShippingCosts += expense.amount || 0;
+    cogs.freightShippingCosts = addMoney(cogs.freightShippingCosts, expense.amount);
   });
   
-  const totalCOGS = cogs.costOfProductsSold + cogs.freightShippingCosts;
-  const grossProfit = totalRevenue - totalCOGS;
+  const totalCOGS = addMoney(cogs.costOfProductsSold, cogs.freightShippingCosts);
+  const grossProfit = parseMoney(totalRevenue) - parseMoney(totalCOGS);
   
   // ========== OPERATING EXPENSES SECTION ==========
   const operatingExpenses = {
@@ -626,7 +625,7 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
   };
   
   expenses.forEach(expense => {
-    const amount = expense.amount || 0;
+    const amount = parseMoney(expense.amount);
     const category = expense.category || '';
     const normalizedCategory = category.toLowerCase();
     
@@ -636,14 +635,14 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
     
     for (const key of sortedKeys) {
       if (normalizedCategory.includes(key.toLowerCase())) {
-        operatingExpenses[expenseCategoryMap[key]] += amount;
+        operatingExpenses[expenseCategoryMap[key]] = addMoney(operatingExpenses[expenseCategoryMap[key]], amount);
         mapped = true;
         break;
       }
     }
     
     if (!mapped) {
-      operatingExpenses.otherOperatingExpenses += amount;
+      operatingExpenses.otherOperatingExpenses = addMoney(operatingExpenses.otherOperatingExpenses, amount);
     }
     
     operatingExpenses.details.push({
@@ -683,9 +682,9 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
     if (overlapStart <= overlapEnd) {
       const daysInPeriod = Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
       const daysInSchedule = Math.ceil((scheduleEnd - scheduleStart) / (1000 * 60 * 60 * 24)) + 1;
-      const proratedDepreciation = (schedule.depreciationAmount / daysInSchedule) * daysInPeriod;
+      const proratedDepreciation = (parseMoney(schedule.depreciationAmount) / daysInSchedule) * daysInPeriod;
       
-      operatingExpenses.depreciation += proratedDepreciation;
+      operatingExpenses.depreciation = addMoney(operatingExpenses.depreciation, proratedDepreciation);
       operatingExpenses.details.push({
         id: `depreciation-${schedule.id}`,
         date: schedule.periodStart,
@@ -697,18 +696,19 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
     }
   });
   
-  const totalOperatingExpenses = 
-    operatingExpenses.salariesWages +
-    operatingExpenses.rentExpense +
-    operatingExpenses.utilitiesExpense +
-    operatingExpenses.officeSupplies +
-    operatingExpenses.marketingAdvertising +
-    operatingExpenses.insurance +
-    operatingExpenses.depreciation +
-    operatingExpenses.loanPayments +
-    operatingExpenses.otherOperatingExpenses;
+  const totalOperatingExpenses = addMoney(
+    operatingExpenses.salariesWages,
+    operatingExpenses.rentExpense,
+    operatingExpenses.utilitiesExpense,
+    operatingExpenses.officeSupplies,
+    operatingExpenses.marketingAdvertising,
+    operatingExpenses.insurance,
+    operatingExpenses.depreciation,
+    operatingExpenses.loanPayments,
+    operatingExpenses.otherOperatingExpenses
+  );
   
-  const operatingIncome = grossProfit - totalOperatingExpenses;
+  const operatingIncome = parseMoney(grossProfit) - parseMoney(totalOperatingExpenses);
   
   // ========== OTHER INCOME/(EXPENSES) SECTION ==========
   const otherIncomeExpenses = {
@@ -725,18 +725,18 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
   
   interestExpenses.forEach(expense => {
     if (expense.category?.toLowerCase().includes('income')) {
-      otherIncomeExpenses.interestIncome += expense.amount || 0;
+      otherIncomeExpenses.interestIncome = addMoney(otherIncomeExpenses.interestIncome, expense.amount);
     } else {
-      otherIncomeExpenses.interestExpense += expense.amount || 0;
+      otherIncomeExpenses.interestExpense = addMoney(otherIncomeExpenses.interestExpense, expense.amount);
     }
   });
   
-  const totalOtherIncomeExpenses = 
-    otherIncomeExpenses.interestIncome -
-    otherIncomeExpenses.interestExpense +
-    otherIncomeExpenses.gainLossOnAssetSales;
+  const totalOtherIncomeExpenses = addMoney(
+    parseMoney(otherIncomeExpenses.interestIncome) - parseMoney(otherIncomeExpenses.interestExpense),
+    otherIncomeExpenses.gainLossOnAssetSales
+  );
   
-  const netIncomeBeforeTax = operatingIncome + totalOtherIncomeExpenses;
+  const netIncomeBeforeTax = addMoney(operatingIncome, totalOtherIncomeExpenses);
   // Tax is only calculated on profits, not losses
   const incomeTaxExpense = netIncomeBeforeTax > 0 ? (netIncomeBeforeTax * taxRate) / 100 : 0;
   const netIncome = netIncomeBeforeTax - incomeTaxExpense;

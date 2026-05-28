@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Calendar, FileText, DollarSign, CheckCircle, Clock, Download, Receipt, Printer } from 'lucide-react';
 import ReceiptTemplateCapture from '@/components/ReceiptTemplateCapture';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
   const [payments, setPayments] = useState([]);
@@ -47,21 +48,10 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
       return 'MWK 0.00';
     }
     
-    // Ensure amount is a number
-    let numericAmount;
-    if (typeof amount === 'string') {
-      // Remove commas and parse
-      const cleaned = amount.replace(/,/g, '').trim();
-      numericAmount = parseFloat(cleaned);
-    } else if (typeof amount === 'number') {
-      numericAmount = amount;
-    } else {
-      console.warn('Unexpected amount type for formatting:', typeof amount, amount);
-      return 'MWK 0.00';
-    }
+    const numericAmount = parseMoney(amount);
     
     // Handle NaN or invalid amounts
-    if (isNaN(numericAmount)) {
+    if (!Number.isFinite(numericAmount)) {
       console.warn('Invalid amount for formatting:', amount, 'parsed as:', numericAmount);
       return 'MWK 0.00';
     }
@@ -205,8 +195,8 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
 
   const calculateProgress = () => {
     if (!expense) return 0;
-    const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const expenseAmount = typeof expense.amount === 'string' ? parseFloat(expense.amount) : expense.amount;
+    const totalPaid = payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+    const expenseAmount = parseMoney(expense.amount);
     
     if (isNaN(expenseAmount) || expenseAmount <= 0) {
       console.warn('Invalid expense amount for progress calculation:', expense.amount);
@@ -219,12 +209,12 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
   };
 
   const getTotalPaid = () => {
-    return payments.reduce((sum, payment) => sum + payment.amount, 0);
+    return payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
   };
 
   const getRemainingBalance = () => {
     if (!expense) return 0;
-    const expenseAmount = typeof expense.amount === 'string' ? parseFloat(expense.amount) : expense.amount;
+    const expenseAmount = parseMoney(expense.amount);
     const totalPaid = getTotalPaid();
     
     if (isNaN(expenseAmount)) {
@@ -232,7 +222,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
       return 0;
     }
     
-    return Math.max(0, expenseAmount - totalPaid);
+    return Math.max(0, subtractMoney(expenseAmount, totalPaid));
   };
 
   const isFullyPaid = () => {

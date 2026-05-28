@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
+import { addMoney, parseMoney } from '@/lib/money';
 
 export async function GET(request) {
   try {
@@ -39,14 +40,14 @@ export async function GET(request) {
       null,
       user.currentBranchId || null
     );
-    const totalRevenue = Number(statement?.totalRevenue ?? 0);
-    const cogsAmount = Number(
+    const totalRevenue = parseMoney(statement?.totalRevenue);
+    const cogsAmount = parseMoney(
       statement?.cogs?.total ?? statement?.cogs?.costOfProductsSold ?? 0
     );
-    const operatingExpenses = Number(statement?.totalOperatingExpenses ?? 0);
+    const operatingExpenses = parseMoney(statement?.totalOperatingExpenses);
     /** Operating + COGS — matches what net profit subtracts from revenue. */
-    const totalCosts = Math.round((cogsAmount + operatingExpenses) * 100) / 100;
-    const profit = Number(statement?.netIncome ?? statement?.operatingIncome ?? 0);
+    const totalCosts = addMoney(cogsAmount, operatingExpenses);
+    const profit = parseMoney(statement?.netIncome ?? statement?.operatingIncome);
     
     // Count outstanding invoices - filter by branch
     const outstandingInvoices = await prisma.invoice.aggregate({
@@ -102,7 +103,7 @@ export async function GET(request) {
       profitMargin: profitMargin,
       outstandingInvoices: {
         count: outstandingInvoices._count,
-        total: (outstandingInvoices._sum.total || 0).toFixed(2)
+        total: parseMoney(outstandingInvoices._sum.total).toFixed(2)
       },
       recentSales: recentSales,
       lowStockProducts: lowStockProducts,

@@ -9,6 +9,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -130,7 +131,7 @@ export async function GET(request) {
     // Process supplier bills from posted receipts
     postedReceipts.forEach(receipt => {
       receipt.supplierBills.forEach(bill => {
-        const balanceDue = (bill.totalAmount || 0) - (bill.amountPaid || 0);
+        const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid);
         if (balanceDue > 0) {
           if (!bill.dueDate) {
             console.warn(`Bill ${bill.billNumber} has no due date, skipping aging calculation`);
@@ -144,23 +145,23 @@ export async function GET(request) {
           
           const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
           
-          total += balanceDue;
+          total = addMoney(total, balanceDue);
           
           if (daysDiff < 0) {
-            notDue += balanceDue;
-            aging[0].amount += balanceDue; // Not yet due goes into 0-30 days bucket
+            notDue = addMoney(notDue, balanceDue);
+            aging[0].amount = addMoney(aging[0].amount, balanceDue); // Not yet due goes into 0-30 days bucket
           } else {
-            overdue += balanceDue;
+            overdue = addMoney(overdue, balanceDue);
             
             // Add to appropriate aging bucket
             if (daysDiff <= 30) {
-              aging[0].amount += balanceDue;
+              aging[0].amount = addMoney(aging[0].amount, balanceDue);
             } else if (daysDiff <= 60) {
-              aging[1].amount += balanceDue;
+              aging[1].amount = addMoney(aging[1].amount, balanceDue);
             } else if (daysDiff <= 90) {
-              aging[2].amount += balanceDue;
+              aging[2].amount = addMoney(aging[2].amount, balanceDue);
             } else {
-              aging[3].amount += balanceDue;
+              aging[3].amount = addMoney(aging[3].amount, balanceDue);
             }
           }
         }
@@ -170,9 +171,9 @@ export async function GET(request) {
     // Process expenses
     expenses.forEach(expense => {
       // Calculate the amount owed (total amount minus amount already paid)
-      let amountOwed = parseFloat(expense.amount || 0);
+      let amountOwed = parseMoney(expense.amount);
       if (expense.paymentStatus === 'Partially' && expense.paidAmount) {
-        amountOwed = parseFloat(expense.amount || 0) - parseFloat(expense.paidAmount || 0);
+        amountOwed = subtractMoney(expense.amount, expense.paidAmount);
       }
       
       if (amountOwed <= 0) {
@@ -196,23 +197,23 @@ export async function GET(request) {
       
       const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
       
-      total += amountOwed;
+      total = addMoney(total, amountOwed);
       
       if (daysDiff < 0) {
-        notDue += amountOwed;
-        aging[0].amount += amountOwed; // Not yet due goes into 0-30 days bucket
+        notDue = addMoney(notDue, amountOwed);
+        aging[0].amount = addMoney(aging[0].amount, amountOwed); // Not yet due goes into 0-30 days bucket
       } else {
-        overdue += amountOwed;
+        overdue = addMoney(overdue, amountOwed);
         
         // Add to appropriate aging bucket
         if (daysDiff <= 30) {
-          aging[0].amount += amountOwed;
+          aging[0].amount = addMoney(aging[0].amount, amountOwed);
         } else if (daysDiff <= 60) {
-          aging[1].amount += amountOwed;
+          aging[1].amount = addMoney(aging[1].amount, amountOwed);
         } else if (daysDiff <= 90) {
-          aging[2].amount += amountOwed;
+          aging[2].amount = addMoney(aging[2].amount, amountOwed);
         } else {
-          aging[3].amount += amountOwed;
+          aging[3].amount = addMoney(aging[3].amount, amountOwed);
         }
       }
     });
@@ -223,7 +224,7 @@ export async function GET(request) {
     // Add supplier bills from posted receipts
     postedReceipts.forEach(receipt => {
       receipt.supplierBills.forEach(bill => {
-        const balanceDue = (bill.totalAmount || 0) - (bill.amountPaid || 0);
+        const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid);
         if (balanceDue > 0) {
           if (!bill.dueDate) {
             return;
@@ -267,9 +268,9 @@ export async function GET(request) {
     
     // Add expenses
     expenses.forEach(expense => {
-      let amountOwed = parseFloat(expense.amount || 0);
+      let amountOwed = parseMoney(expense.amount);
       if (expense.paymentStatus === 'Partially' && expense.paidAmount) {
-        amountOwed = parseFloat(expense.amount || 0) - parseFloat(expense.paidAmount || 0);
+        amountOwed = subtractMoney(expense.amount, expense.paidAmount);
       }
       
       if (amountOwed <= 0) {

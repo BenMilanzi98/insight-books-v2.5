@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle, Loader } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
+import { parseMoney, subtractMoney } from '@/lib/money';
 
 const ExpensePartialPaymentModal = ({ 
   isOpen, 
@@ -28,16 +29,7 @@ const ExpensePartialPaymentModal = ({
       console.log('ExpensePartialPaymentModal - expense data:', expense);
       
       // Parse amounts more robustly
-      const parseAmount = (value) => {
-        if (value === null || value === undefined) return 0;
-        if (typeof value === 'number') return value;
-        if (typeof value === 'string') {
-          const cleaned = value.replace(/,/g, '').trim();
-          const parsed = parseFloat(cleaned);
-          return isNaN(parsed) ? 0 : parsed;
-        }
-        return 0;
-      };
+      const parseAmount = parseMoney;
       
       // Calculate remaining balance based on payment status
       let remaining = 0;
@@ -54,7 +46,7 @@ const ExpensePartialPaymentModal = ({
         remaining = expenseAmount;
       } else if (expense.paymentStatus === 'Partially') {
         const paidAmount = parseAmount(expense.paidAmount);
-        remaining = expenseAmount - paidAmount;
+        remaining = subtractMoney(expenseAmount, paidAmount);
       }
       // If fully paid, remaining should be 0
       

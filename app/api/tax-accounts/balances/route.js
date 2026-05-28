@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { isPayeTaxType, sumPaidPayeExpenses } from '@/lib/payeExpenseSettlement';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 /**
  * GET /api/tax-accounts/balances
@@ -78,7 +79,8 @@ export async function GET(request) {
         if (!breakdownMap.has(dateKey)) {
           breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
         }
-        breakdownMap.get(dateKey)[field] += amount;
+        const bucket = breakdownMap.get(dateKey);
+        bucket[field] = addMoney(bucket[field], amount);
       };
 
       // ========== TAX COLLECTED FROM SALES (SaleItemTax) ==========
@@ -116,9 +118,9 @@ export async function GET(request) {
           if (Number.isNaN(saleDate.getTime())) continue;
           if (saleDate < start || saleDate > end) continue;
 
-          const taxAmt = Number(sit.taxAmount || 0);
+          const taxAmt = parseMoney(sit.taxAmount);
           if (taxAmt > 0) {
-            totalCollected += taxAmt;
+            totalCollected = addMoney(totalCollected, taxAmt);
             salesAccountedFor.add(sale.id);
             addToBreakdown(saleDate, 'collected', taxAmt);
           }
@@ -147,7 +149,7 @@ export async function GET(request) {
           if (salesAccountedFor.has(sale.id)) continue;
 
           const saleTaxRate = Number(sale.taxRate || 0);
-          const saleTaxAmount = Number(sale.taxAmount || 0);
+          const saleTaxAmount = parseMoney(sale.taxAmount);
           if (saleTaxAmount <= 0) continue;
 
           const rateMatches = taxTypeRate > 0 && Math.abs(saleTaxRate - taxTypeRate) < 0.01;
@@ -159,7 +161,7 @@ export async function GET(request) {
           if (rateMatches || isOnlyNonPayeTaxType ||
               (isLegacyData && isFirstNonPayeTaxType && taxTypeRate > 0) ||
               (!hasAnyTaxTypeWithMatchingRate && isFirstNonPayeTaxType)) {
-            totalCollected += saleTaxAmount;
+            totalCollected = addMoney(totalCollected, saleTaxAmount);
             addToBreakdown(sale.saleDate, 'collected', saleTaxAmount);
           }
         }
@@ -199,11 +201,11 @@ export async function GET(request) {
           for (const txn of taxInvoiceTxns) {
             const line = txn.lines[0];
             if (!line) continue;
-            const creditAmount = Number(line.creditAmount || 0);
-            const debitAmount = Number(line.debitAmount || 0);
+            const creditAmount = parseMoney(line.creditAmount);
+            const debitAmount = parseMoney(line.debitAmount);
             const taxAmt = isLiability ? creditAmount : debitAmount;
             if (taxAmt > 0) {
-              totalCollected += taxAmt;
+              totalCollected = addMoney(totalCollected, taxAmt);
               addToBreakdown(txn.date, 'collected', taxAmt);
               if (txn.sourceId) invoicesAccountedFor.add(txn.sourceId);
             }
@@ -230,9 +232,9 @@ export async function GET(request) {
 
           for (const inv of invoicesWithTax) {
             if (invoicesAccountedFor.has(inv.id)) continue;
-            const taxAmt = Number(inv.taxAmount || 0);
+            const taxAmt = parseMoney(inv.taxAmount);
             if (taxAmt > 0) {
-              totalCollected += taxAmt;
+              totalCollected = addMoney(totalCollected, taxAmt);
               addToBreakdown(inv.issueDate, 'collected', taxAmt);
             }
           }
@@ -263,9 +265,9 @@ export async function GET(request) {
         for (const poItem of poItemsWithTax) {
           const po = poItem.purchaseOrder;
           if (!po) continue;
-          const taxAmt = Number(poItem.taxAmount || 0);
+          const taxAmt = parseMoney(poItem.taxAmount);
           if (taxAmt > 0) {
-            totalPaid += taxAmt;
+            totalPaid = addMoney(totalPaid, taxAmt);
             addToBreakdown(po.poDate, 'paid', taxAmt);
           }
         }
@@ -292,9 +294,9 @@ export async function GET(request) {
         });
 
         for (const ex of directExpenses) {
-          const expTaxAmount = Number(ex.taxAmount || 0);
+          const expTaxAmount = parseMoney(ex.taxAmount);
           if (!isPAYE && expTaxAmount > 0) {
-            totalPaid += expTaxAmount;
+            totalPaid = addMoney(totalPaid, expTaxAmount);
             addToBreakdown(ex.date, 'paid', expTaxAmount);
             expensesDirectlyLinked.add(ex.id);
           }
@@ -319,14 +321,14 @@ export async function GET(request) {
           if (isPAYE) continue;
           if (expensesDirectlyLinked.has(ex.id)) continue;
           const expTaxRate = Number(ex.taxRate || 0);
-          const expTaxAmount = Number(ex.taxAmount || 0);
+          const expTaxAmount = parseMoney(ex.taxAmount);
           if (expTaxAmount <= 0) continue;
 
           const rateMatches = taxTypeRate > 0 && Math.abs(expTaxRate - taxTypeRate) < 0.01;
           const isLegacyData = expTaxRate === 0 && expTaxAmount > 0;
 
           if (rateMatches || isOnlyNonPaye || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
-            totalPaid += expTaxAmount;
+            totalPaid = addMoney(totalPaid, expTaxAmount);
             addToBreakdown(ex.date, 'paid', expTaxAmount);
           }
         }
@@ -341,7 +343,7 @@ export async function GET(request) {
           });
           payePaidFromExpensesTotal = paidPayeExpenses.total;
           for (const row of paidPayeExpenses.rows) {
-            totalPaid += row.amount;
+            totalPaid = addMoney(totalPaid, row.amount);
             addToBreakdown(row.date, 'paid', row.amount);
           }
         }
@@ -423,8 +425,8 @@ export async function GET(request) {
             const line = tx.lines[0];
             if (!line) continue;
 
-            const debitAmount = Number(line.debitAmount || 0);
-            const creditAmount = Number(line.creditAmount || 0);
+            const debitAmount = parseMoney(line.debitAmount);
+            const creditAmount = parseMoney(line.creditAmount);
 
             // PAYE special-case: payroll processing posts PAYE as a credit to the PAYE liability account
             // inside the Payroll journal (sourceType 'Payroll'). Treat that as "collected/assessed" PAYE
@@ -434,10 +436,10 @@ export async function GET(request) {
               if (tx.sourceId) payePayrollIdsCoveredByGl.add(tx.sourceId);
               if (isLiability) {
                 if (creditAmount > 0) {
-                  totalCollected += creditAmount;
+                  totalCollected = addMoney(totalCollected, creditAmount);
                   addToBreakdown(tx.date, 'collected', creditAmount);
                 } else if (debitAmount > 0) {
-                  totalRefunded += debitAmount;
+                  totalRefunded = addMoney(totalRefunded, debitAmount);
                   addToBreakdown(tx.date, 'refunded', debitAmount);
                 }
               }
@@ -448,12 +450,12 @@ export async function GET(request) {
               const reversedPayrollId = payePayrollTxnIdToPayrollId.get(tx.reversedTransactionId);
               if (reversedPayrollId) payePayrollIdsCoveredByGl.add(reversedPayrollId);
               if (isLiability && debitAmount > 0) {
-                totalRefunded += debitAmount;
+                totalRefunded = addMoney(totalRefunded, debitAmount);
                 addToBreakdown(tx.date, 'refunded', debitAmount);
                 continue;
               }
               if (isAsset && creditAmount > 0) {
-                totalRefunded += creditAmount;
+                totalRefunded = addMoney(totalRefunded, creditAmount);
                 addToBreakdown(tx.date, 'refunded', creditAmount);
                 continue;
               }
@@ -473,7 +475,7 @@ export async function GET(request) {
                 if (isPAYE) {
                   payeTaxPaymentRows.push({ date: tx.date, amount: paymentAmount });
                 } else {
-                  totalPaid += paymentAmount;
+                  totalPaid = addMoney(totalPaid, paymentAmount);
                   addToBreakdown(tx.date, 'paid', paymentAmount);
                 }
               }
@@ -482,7 +484,7 @@ export async function GET(request) {
             else if (tx.sourceType === 'Tax-SupplierPayment') {
               const paidAmt = isLiability ? debitAmount : creditAmount;
               if (paidAmt > 0) {
-                totalPaid += paidAmt;
+                totalPaid = addMoney(totalPaid, paidAmt);
                 addToBreakdown(tx.date, 'paid', paidAmt);
               }
             }
@@ -491,12 +493,12 @@ export async function GET(request) {
               if (tx.sourceId && !salesAccountedFor.has(tx.sourceId)) {
                 if (isLiability) {
                   if (creditAmount > 0) {
-                    totalCollected += creditAmount;
+                    totalCollected = addMoney(totalCollected, creditAmount);
                     addToBreakdown(tx.date, 'collected', creditAmount);
                   }
                 } else if (isAsset) {
                   if (debitAmount > 0) {
-                    totalCollected += debitAmount;
+                    totalCollected = addMoney(totalCollected, debitAmount);
                     addToBreakdown(tx.date, 'collected', debitAmount);
                   }
                 }
@@ -521,12 +523,12 @@ export async function GET(request) {
               // For Asset accounts, credit reduces collected tax
               if (isLiability) {
                 if (debitAmount > 0) {
-                  totalRefunded += debitAmount;
+                  totalRefunded = addMoney(totalRefunded, debitAmount);
                   addToBreakdown(tx.date, 'refunded', debitAmount);
                 }
               } else if (isAsset) {
                 if (creditAmount > 0) {
-                  totalRefunded += creditAmount;
+                  totalRefunded = addMoney(totalRefunded, creditAmount);
                   addToBreakdown(tx.date, 'refunded', creditAmount);
                 }
               }
@@ -541,18 +543,18 @@ export async function GET(request) {
                      tx.sourceType !== 'Tax-Reversal') {
               if (isLiability) {
                 if (creditAmount > 0) {
-                  totalCollected += creditAmount;
+                  totalCollected = addMoney(totalCollected, creditAmount);
                   addToBreakdown(tx.date, 'collected', creditAmount);
                 } else if (debitAmount > 0) {
-                  totalRefunded += debitAmount;
+                  totalRefunded = addMoney(totalRefunded, debitAmount);
                   addToBreakdown(tx.date, 'refunded', debitAmount);
                 }
               } else if (isAsset) {
                 if (debitAmount > 0) {
-                  totalCollected += debitAmount;
+                  totalCollected = addMoney(totalCollected, debitAmount);
                   addToBreakdown(tx.date, 'collected', debitAmount);
                 } else if (creditAmount > 0) {
-                  totalRefunded += creditAmount;
+                  totalRefunded = addMoney(totalRefunded, creditAmount);
                   addToBreakdown(tx.date, 'refunded', creditAmount);
                 }
               }
@@ -564,14 +566,14 @@ export async function GET(request) {
       }
 
       if (isPAYE && payeTaxPaymentRows.length > 0) {
-        const payeTaxPaymentTotal = payeTaxPaymentRows.reduce((sum, row) => sum + row.amount, 0);
-        let unappliedTaxPaymentAmount = Math.max(0, payeTaxPaymentTotal - payePaidFromExpensesTotal);
+        const payeTaxPaymentTotal = payeTaxPaymentRows.reduce((sum, row) => addMoney(sum, row.amount), 0);
+        let unappliedTaxPaymentAmount = Math.max(0, subtractMoney(payeTaxPaymentTotal, payePaidFromExpensesTotal));
         for (const row of payeTaxPaymentRows) {
           if (unappliedTaxPaymentAmount <= 0.005) break;
           const amountToAdd = Math.min(row.amount, unappliedTaxPaymentAmount);
-          totalPaid += amountToAdd;
+          totalPaid = addMoney(totalPaid, amountToAdd);
           addToBreakdown(row.date, 'paid', amountToAdd);
-          unappliedTaxPaymentAmount -= amountToAdd;
+          unappliedTaxPaymentAmount = subtractMoney(unappliedTaxPaymentAmount, amountToAdd);
         }
       }
 
@@ -595,11 +597,11 @@ export async function GET(request) {
           });
           for (const p of payrolls) {
             if (payePayrollIdsCoveredByGl.has(p.id)) continue;
-            const amt = Number(p.payeAmount || 0);
+            const amt = parseMoney(p.payeAmount);
             if (amt <= 0) continue;
             if (p.status === 'Reversed') continue;
             const d = p.paymentDate || p.periodEnd;
-            totalCollected += amt;
+            totalCollected = addMoney(totalCollected, amt);
             addToBreakdown(d, 'collected', amt);
           }
         }
@@ -607,7 +609,7 @@ export async function GET(request) {
         console.warn('Tax balances: PAYE payroll fallback failed for', taxType.taxId, err?.message);
       }
 
-      const netPayable = totalCollected - totalPaid - totalRefunded;
+      const netPayable = subtractMoney(subtractMoney(totalCollected, totalPaid), totalRefunded);
       const netDueInPeriod = Math.max(0, netPayable);
       const periodReversalOverhang =
         netPayable < 0 ? Number((-netPayable).toFixed(2)) : 0;
@@ -637,17 +639,17 @@ export async function GET(request) {
 
     const summary = {
       totalTaxAccounts: taxAccountBalances.length,
-      totalCollected: taxAccountBalances.reduce((sum, acc) => sum + acc.totalCollected, 0),
-      totalPaid: taxAccountBalances.reduce((sum, acc) => sum + acc.totalPaid, 0),
-      totalRefunded: taxAccountBalances.reduce((sum, acc) => sum + acc.totalRefunded, 0),
+      totalCollected: taxAccountBalances.reduce((sum, acc) => addMoney(sum, acc.totalCollected), 0),
+      totalPaid: taxAccountBalances.reduce((sum, acc) => addMoney(sum, acc.totalPaid), 0),
+      totalRefunded: taxAccountBalances.reduce((sum, acc) => addMoney(sum, acc.totalRefunded), 0),
       totalNetPayable: 0,
-      totalNetDueInPeriod: taxAccountBalances.reduce((sum, acc) => sum + acc.netDueInPeriod, 0),
+      totalNetDueInPeriod: taxAccountBalances.reduce((sum, acc) => addMoney(sum, acc.netDueInPeriod), 0),
       totalPeriodReversalOverhang: taxAccountBalances.reduce(
-        (sum, acc) => sum + acc.periodReversalOverhang,
+        (sum, acc) => addMoney(sum, acc.periodReversalOverhang),
         0
       ),
     };
-    summary.totalNetPayable = summary.totalCollected - summary.totalPaid - summary.totalRefunded;
+    summary.totalNetPayable = subtractMoney(subtractMoney(summary.totalCollected, summary.totalPaid), summary.totalRefunded);
 
     return NextResponse.json({
       period: {

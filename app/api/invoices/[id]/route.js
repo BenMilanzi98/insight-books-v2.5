@@ -6,7 +6,7 @@ import { createInvoiceJournalEntry } from '@/lib/transactionJournalHelpers';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { reverseAndDeleteInvoiceRecord } from '@/lib/invoiceDeleteService';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
-import { parseMoney, subtractMoney, sumMoney } from '@/lib/money';
+import { addMoney, parseMoney, subtractMoney, sumMoney } from '@/lib/money';
 
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
@@ -366,7 +366,7 @@ export async function PUT(request, { params }) {
                       quantitySold: item.quantity,
                       tx,
                     });
-                    totalCOGS += cogsData.cogsAmount;
+                    totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
                     // Deduct stock when invoice is posted (reversal will restore)
                     const qty = Number(item.quantity) || 0;
                     if (qty > 0) {

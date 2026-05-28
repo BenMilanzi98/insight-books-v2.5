@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateDateRange } from '@/lib/dateUtils';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
-import { addMoney, multiplyMoney } from '@/lib/money';
+import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // POST - Generate a specific report
 export async function POST(request, context) {
@@ -128,7 +128,7 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
     if (!expensesByCategory[expense.category]) {
       expensesByCategory[expense.category] = 0;
     }
-    expensesByCategory[expense.category] += expense.amount;
+    expensesByCategory[expense.category] = addMoney(expensesByCategory[expense.category], expense.amount);
   });
   
   // Calculate revenue breakdown by type if detailed
@@ -153,11 +153,11 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
   }
   
   // Calculate totals
-  const totalRevenue = invoices.reduce((sum, invoice) => sum + invoice.total, 0);
-  const costOfGoodsSold = totalRevenue * 0.4; // Simplified COGS calculation
-  const grossProfit = totalRevenue - costOfGoodsSold;
-  const operatingExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const netProfit = grossProfit - operatingExpenses;
+  const totalRevenue = invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0);
+  const costOfGoodsSold = multiplyMoney(totalRevenue, 0.4); // Simplified COGS calculation
+  const grossProfit = subtractMoney(totalRevenue, costOfGoodsSold);
+  const operatingExpenses = expenses.reduce((sum, expense) => addMoney(sum, expense.amount), 0);
+  const netProfit = subtractMoney(grossProfit, operatingExpenses);
   
   // Return formatted report
   return NextResponse.json({
@@ -200,8 +200,8 @@ async function generateBalanceSheetReport(tenantId, detailed) {
   
   // Calculate accounts receivable
   const accountsReceivable = unpaidInvoices.reduce((total, invoice) => {
-    const paidAmount = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    return total + (invoice.total - paidAmount);
+    const paidAmount = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+    return addMoney(total, subtractMoney(invoice.total, paidAmount));
   }, 0);
   
   // Get inventory value
@@ -214,7 +214,7 @@ async function generateBalanceSheetReport(tenantId, detailed) {
   
   const inventoryValue = products.reduce((total, product) => {
     if (product.stockLevel && product.cost) {
-      return total + (product.stockLevel * product.cost);
+      return addMoney(total, multiplyMoney(product.cost, product.stockLevel));
     }
     return total;
   }, 0);
@@ -298,7 +298,7 @@ async function generateBalanceSheetReport(tenantId, detailed) {
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         clientId: invoice.clientId,
-        amount: invoice.total - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0),
+        amount: subtractMoney(invoice.total, invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0)),
         dueDate: invoice.dueDate
       })),
       inventoryBreakdown: products.map(product => ({
@@ -306,7 +306,7 @@ async function generateBalanceSheetReport(tenantId, detailed) {
         name: product.name,
         stockLevel: product.stockLevel || 0,
         unitCost: product.cost || 0,
-        totalValue: (product.stockLevel || 0) * (product.cost || 0)
+        totalValue: multiplyMoney(product.cost || 0, product.stockLevel || 0)
       }))
     } : null
   });
@@ -387,7 +387,7 @@ async function generateAccountsReceivableReport(tenantId) {
     const dueDate = new Date(invoice.dueDate);
     const daysPastDue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
     
-    const remainingAmount = invoice.total - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const remainingAmount = subtractMoney(invoice.total, invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0));
     
     const item = {
       invoiceId: invoice.id,
@@ -417,13 +417,13 @@ async function generateAccountsReceivableReport(tenantId) {
     reportDate: today.toISOString(),
     summary: {
       totalReceivables: unpaidInvoices.reduce((total, invoice) => {
-        return total + (invoice.total - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0));
+        return addMoney(total, subtractMoney(invoice.total, invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0)));
       }, 0),
-      currentReceivables: current.reduce((sum, item) => sum + item.amount, 0),
-      pastDueReceivables: oneToThirty.reduce((sum, item) => sum + item.amount, 0) +
-                          thirtyOneToSixty.reduce((sum, item) => sum + item.amount, 0) +
-                          sixtyOneToNinety.reduce((sum, item) => sum + item.amount, 0) +
-                          ninetyPlus.reduce((sum, item) => sum + item.amount, 0)
+      currentReceivables: current.reduce((sum, item) => addMoney(sum, item.amount), 0),
+      pastDueReceivables: addMoney(
+        addMoney(oneToThirty.reduce((sum, item) => addMoney(sum, item.amount), 0), thirtyOneToSixty.reduce((sum, item) => addMoney(sum, item.amount), 0)),
+        addMoney(sixtyOneToNinety.reduce((sum, item) => addMoney(sum, item.amount), 0), ninetyPlus.reduce((sum, item) => addMoney(sum, item.amount), 0))
+      )
     },
     aging: {
       current,
@@ -467,7 +467,7 @@ async function generateExpenseReport(tenantId, startDate, endDate, detailed) {
     if (!expensesByCategory[expense.category]) {
       expensesByCategory[expense.category] = 0;
     }
-    expensesByCategory[expense.category] += expense.amount;
+    expensesByCategory[expense.category] = addMoney(expensesByCategory[expense.category], expense.amount);
   });
   
   return NextResponse.json({
@@ -477,7 +477,7 @@ async function generateExpenseReport(tenantId, startDate, endDate, detailed) {
       endDate: endDate.toISOString()
     },
     summary: {
-      totalExpenses: expenses.reduce((sum, expense) => sum + expense.amount, 0),
+      totalExpenses: expenses.reduce((sum, expense) => addMoney(sum, expense.amount), 0),
       byCategory: Object.entries(expensesByCategory).map(([category, amount]) => ({
         category,
         amount
@@ -531,8 +531,10 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
   
   // Combine sales and invoices for total revenue
   const totalRevenue = 
-    sales.reduce((sum, sale) => sum + sale.total, 0) +
-    invoices.reduce((sum, invoice) => sum + invoice.total, 0);
+    addMoney(
+      sales.reduce((sum, sale) => addMoney(sum, sale.total), 0),
+      invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0)
+    );
   
   // Group sales by product
   const salesByProduct = {};
@@ -548,7 +550,7 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
         };
       }
       salesByProduct[productId].quantity += item.quantity;
-      salesByProduct[productId].amount += item.amount;
+      salesByProduct[productId].amount = addMoney(salesByProduct[productId].amount, item.amount);
     });
   });
   
@@ -565,7 +567,7 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
         amount: 0
       };
     }
-    salesByClient[clientId].amount += transaction.total;
+    salesByClient[clientId].amount = addMoney(salesByClient[clientId].amount, transaction.total);
   });
   
   return NextResponse.json({
@@ -578,7 +580,7 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
       totalRevenue,
       totalSales: sales.length,
       totalInvoices: invoices.length,
-      averageTransactionValue: totalRevenue / (sales.length + invoices.length) || 0
+      averageTransactionValue: (parseMoney(totalRevenue) / (sales.length + invoices.length)) || 0
     },
     breakdown: {
       byProduct: Object.values(salesByProduct),

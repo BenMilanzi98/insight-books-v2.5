@@ -246,8 +246,8 @@ export async function GET(request) {
             };
           }
           
-          collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
-          collectedTaxesByRate[taxRate].taxAmount += tax.taxAmount;
+          collectedTaxesByRate[taxRate].taxableAmount = addMoney(collectedTaxesByRate[taxRate].taxableAmount, taxableAmount);
+          collectedTaxesByRate[taxRate].taxAmount = addMoney(collectedTaxesByRate[taxRate].taxAmount, tax.taxAmount);
           
           collectedTaxesByRate[taxRate].items.push({
             type: 'sale',
@@ -376,21 +376,21 @@ export async function GET(request) {
     
     // Calculate totals
     const totalTaxableAmount = roundReportAmount(Object.values(collectedTaxesByRate).reduce(
-      (sum, category) => sum + category.taxableAmount,
+      (sum, category) => addMoney(sum, category.taxableAmount),
       0
     ));
     
     const totalCollectedTax = roundReportAmount(Object.values(collectedTaxesByRate).reduce(
-      (sum, category) => sum + category.taxAmount,
+      (sum, category) => addMoney(sum, category.taxAmount),
       0
     ));
     
     const totalTaxPaid = roundReportAmount(taxExpenses.reduce(
-      (sum, expense) => sum + expense.amount,
+      (sum, expense) => addMoney(sum, expense.amount),
       0
     ));
     
-    const netTaxLiability = roundReportAmount(totalCollectedTax - totalTaxPaid);
+    const netTaxLiability = roundReportAmount(subtractMoney(totalCollectedTax, totalTaxPaid));
 
     // Input VAT: tax on purchases (Supplier Bills + Purchase Order line tax in period)
     const supplierBillsInPeriod = await prisma.supplierBill.findMany({

@@ -27,6 +27,7 @@ import {
   validPurchaseDocumentStatusFilter,
   validSaleReportWhere,
 } from '@/lib/reportingSourceRules';
+import { addMoney, parseMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -49,18 +50,18 @@ function addToBucket(map, label, field, amount) {
   if (!map.has(label)) {
     map.set(label, { label, revenue: 0, expenses: 0 });
   }
-  map.get(label)[field] += amount;
+  map.get(label)[field] = addMoney(map.get(label)[field], amount);
 }
 
 function addToMap(map, key, amount) {
   if (!map.has(key)) {
     map.set(key, 0);
   }
-  map.set(key, map.get(key) + amount);
+  map.set(key, addMoney(map.get(key), amount));
 }
 
 function round2(value) {
-  return Math.round((Number(value) || 0) * 100) / 100;
+  return roundMoney(value);
 }
 
 /** @type {Map<string, string>} */
@@ -338,9 +339,9 @@ export async function GET(request) {
       /** Post-discount net line amounts (ex tax when netAmount is stored); do not use max(net, amount) — that ignored discounts. */
       let sumNet = 0;
       for (const it of lines) {
-        sumNet += invoiceItemNetRevenueExTax(it);
+        sumNet = addMoney(sumNet, invoiceItemNetRevenueExTax(it));
       }
-      const invTotal = Math.max(Number(invoice.total) || 0, 0);
+      const invTotal = Math.max(parseMoney(invoice.total), 0);
       const denom = sumNet > 0 ? sumNet : invTotal;
       if (!(denom > 0)) {
         const key = 'legacy:Uncategorized';
@@ -357,9 +358,9 @@ export async function GET(request) {
         const category = getCategoryDescriptor(item.product);
         categoriesMap.set(category.key, { id: category.id, name: category.name });
         addToMap(revenueByCategoryMap, category.key, alloc);
-        allocated += alloc;
+        allocated = addMoney(allocated, alloc);
       }
-      const remainder = invoiceAmount - allocated;
+      const remainder = subtractMoney(invoiceAmount, allocated);
       if (remainder > 1e-4) {
         const key = 'legacy:Uncategorized';
         categoriesMap.set(key, { id: null, name: 'Uncategorized' });
@@ -393,7 +394,7 @@ export async function GET(request) {
     });
 
     expenses.forEach((expense) => {
-      const amount = Number(expense.amount) || 0;
+      const amount = parseMoney(expense.amount);
       const label = formatLabel(expense.date, groupBy);
       addToBucket(trendMap, label, 'expenses', amount);
       const { key, label: bucketLabel } = expenseBreakdownBucketForExpense(expense);
@@ -401,12 +402,12 @@ export async function GET(request) {
         expenseBreakdownBuckets.set(key, { label: bucketLabel, value: 0 });
       }
       const row = expenseBreakdownBuckets.get(key);
-      row.value += amount;
+      row.value = addMoney(row.value, amount);
     });
 
     /** COGS in trend + totals — aligned with P&L (GL net on COGS accounts, else activity fallback). */
     const operatingExpenseTotal = Array.from(trendMap.values()).reduce(
-      (sum, item) => sum + (Number(item.expenses) || 0),
+      (sum, item) => addMoney(sum, item.expenses),
       0
     );
     let totalCogsApplied = 0;
@@ -438,16 +439,14 @@ export async function GET(request) {
         }
       });
       for (const line of cogsLines) {
-        const net =
-          (Number(line.debitAmount) || 0) - (Number(line.creditAmount) || 0);
-        glPeriodTotal += net;
+        const net = subtractMoney(line.debitAmount, line.creditAmount);
+        glPeriodTotal = addMoney(glPeriodTotal, net);
       }
       glPeriodTotal = round2(glPeriodTotal);
       useGlCogs = Math.abs(glPeriodTotal) > 1e-6;
       if (useGlCogs) {
         for (const line of cogsLines) {
-          const net =
-            (Number(line.debitAmount) || 0) - (Number(line.creditAmount) || 0);
+          const net = subtractMoney(line.debitAmount, line.creditAmount);
           if (Math.abs(net) < 1e-9) continue;
           const label = formatLabel(line.transaction.date, groupBy);
           addToBucket(trendMap, label, 'expenses', net);
@@ -464,11 +463,11 @@ export async function GET(request) {
           endDate,
           plRevenueBranchId || undefined
         );
-        const activityTotal = round2(Number(stats?.totalAmount ?? 0) || 0);
+        const activityTotal = round2(stats?.totalAmount);
         if (activityTotal > 0) {
           const labels = Array.from(trendMap.keys());
-          const revenues = labels.map((lb) => Number(trendMap.get(lb)?.revenue) || 0);
-          const totalRev = revenues.reduce((a, b) => a + b, 0);
+          const revenues = labels.map((lb) => parseMoney(trendMap.get(lb)?.revenue));
+          const totalRev = revenues.reduce((a, b) => addMoney(a, b), 0);
           if (totalRev > 0) {
             for (let i = 0; i < labels.length; i++) {
               const share = revenues[i] / totalRev;
@@ -489,7 +488,7 @@ export async function GET(request) {
         if (!item.product) continue;
         const category = getCategoryDescriptor(item.product);
         categoriesMap.set(category.key, { id: category.id, name: category.name });
-        const lineAmount = Number(item.lineTotal || 0);
+        const lineAmount = parseMoney(item.lineTotal);
         addToMap(expenseByCategoryMap, category.key, lineAmount);
       }
     });
@@ -500,7 +499,7 @@ export async function GET(request) {
         const key = b.referenceId || `legacy:${b.referenceName || 'Uncategorized'}`;
         const name = b.referenceName || 'Uncategorized';
         categoriesMap.set(key, { id: b.referenceId || null, name });
-        addToMap(revenueBudgetMap, key, Number(b.budgetedAmount || 0));
+        addToMap(revenueBudgetMap, key, b.budgetedAmount);
       }
     }
     const latestExpenseBudget = activeBudgets.find((b) => b.budgetType === 'expense');
@@ -509,14 +508,14 @@ export async function GET(request) {
         const key = i.categoryId || `legacy:${i.category || 'Uncategorized'}`;
         const name = i.category || categoriesMap.get(key)?.name || 'Uncategorized';
         categoriesMap.set(key, { id: i.categoryId || null, name });
-        addToMap(expenseBudgetMap, key, Number(i.budgetedAmount || 0));
+        addToMap(expenseBudgetMap, key, i.budgetedAmount);
       }
     }
 
     const trend = Array.from(trendMap.values())
       .map((item) => ({
         ...item,
-        profit: item.revenue - item.expenses
+        profit: subtractMoney(item.revenue, item.expenses)
       }))
       .sort((a, b) => (a.label > b.label ? 1 : -1));
 
@@ -555,9 +554,9 @@ export async function GET(request) {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
 
-    const totalRevenue = trend.reduce((sum, item) => sum + item.revenue, 0);
-    const totalExpenses = trend.reduce((sum, item) => sum + item.expenses, 0);
-    const totalProfit = totalRevenue - totalExpenses;
+    const totalRevenue = trend.reduce((sum, item) => addMoney(sum, item.revenue), 0);
+    const totalExpenses = trend.reduce((sum, item) => addMoney(sum, item.expenses), 0);
+    const totalProfit = subtractMoney(totalRevenue, totalExpenses);
 
     let plSalesRevenueTotal = null;
     if (accessEff !== false) {

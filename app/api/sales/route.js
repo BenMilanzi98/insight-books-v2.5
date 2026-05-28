@@ -1422,7 +1422,7 @@ export async function POST(request) {
                     }
                     
                     // Add to total COGS (either from FIFO or fallback)
-                    totalCOGS += itemCOGS;
+                    totalCOGS = addMoney(totalCOGS, itemCOGS);
                     console.log(`[FIFO Sale] Total COGS after this item: ${totalCOGS} (item COGS: ${itemCOGS})`);
                   }
                 } catch (cogsError) {
@@ -1507,7 +1507,7 @@ export async function POST(request) {
                     taxName: tax.taxName,
                   };
                 }
-                taxesByType[tax.taxTypeId].taxAmount += tax.taxAmount;
+                taxesByType[tax.taxTypeId].taxAmount = addMoney(taxesByType[tax.taxTypeId].taxAmount, tax.taxAmount);
               });
 
               // Post each tax type separately
