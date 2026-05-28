@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession, hasPermission, getDefaultPostLoginPath } from '@/lib/auth';
-import { isPosOnlyShellRoleName } from '@/lib/tenantRoleAccess';
+import { isPathAllowedForPosOnlyShell, isPosOnlyShellRoleName } from '@/lib/tenantRoleAccess';
 import { getRouteRuleForPath } from '@/lib/tenantPageAccess';
 
 /**
@@ -16,7 +16,11 @@ export async function GET(request) {
     }
 
     if (isPosOnlyShellRoleName(user.role?.name)) {
-      return NextResponse.json({ allowed: true, posShell: true });
+      return NextResponse.json({
+        allowed: isPathAllowedForPosOnlyShell(pathname),
+        redirect: '/pos',
+        posShell: true,
+      });
     }
 
     const rule = getRouteRuleForPath(pathname);

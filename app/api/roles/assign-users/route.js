@@ -71,17 +71,60 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    const tenantUserIds = users.map((u) => u.id);
+    if (tenantUserIds.length !== userIds.length) {
+      return NextResponse.json(
+        { error: 'One or more users were not found' },
+        { status: 400 }
+      );
+    }
     
-    // Update users with the new role
-    await prisma.user.updateMany({
-      where: {
-        id: {
-          in: userIds
+    await prisma.$transaction(async (tx) => {
+      // Keep both legacy User.roleId and tenant-scoped membership role aligned.
+      await tx.user.updateMany({
+        where: {
+          id: {
+            in: tenantUserIds
+          },
+          tenantId: user.tenantId
         },
-        tenantId: user.tenantId
-      },
-      data: {
-        roleId: roleId
+        data: {
+          roleId: roleId
+        }
+      });
+
+      const existingMemberships = await tx.tenantMembership.findMany({
+        where: {
+          userId: { in: tenantUserIds },
+          tenantId: user.tenantId,
+        },
+        select: { userId: true },
+      });
+      const existingMembershipUserIds = new Set(existingMemberships.map((m) => m.userId));
+
+      await tx.tenantMembership.updateMany({
+        where: {
+          userId: { in: tenantUserIds },
+          tenantId: user.tenantId,
+        },
+        data: {
+          roleId,
+          status: 'active',
+        },
+      });
+
+      const missingMemberships = tenantUserIds.filter((userId) => !existingMembershipUserIds.has(userId));
+      if (missingMemberships.length > 0) {
+        await tx.tenantMembership.createMany({
+          data: missingMemberships.map((userId) => ({
+            userId,
+            tenantId: user.tenantId,
+            roleId,
+            status: 'active',
+          })),
+          skipDuplicates: true,
+        });
       }
     });
     
@@ -95,8 +138,8 @@ export async function POST(request) {
         tenantId: user.tenantId,
         details: JSON.stringify({
           roleName: existingRole.name,
-          userCount: userIds.length,
-          userIds: userIds
+          userCount: tenantUserIds.length,
+          userIds: tenantUserIds
         })
       }
     });
@@ -104,7 +147,7 @@ export async function POST(request) {
     return NextResponse.json({
       message: 'Users assigned to role successfully',
       role: existingRole.name,
-      userCount: userIds.length
+      userCount: tenantUserIds.length
     });
   } catch (error) {
     console.error('Error assigning users to role:', error);
