@@ -40,6 +40,7 @@ import {
 import { formatDate } from "@/lib/dateUtils";
 import { userHasPermission } from "@/lib/permissions";
 import { isPosDefaultLandingRole } from "@/lib/tenantRoleAccess";
+import { getRouteRuleForPath } from "@/lib/tenantPageAccess";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -580,6 +581,20 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     }
 
     // For other roles, build navigation based on permissions
+    const hasAnyPermission = (permissions) =>
+      permissions.some((permission) => userHasPermission(user, permission));
+
+    const canAccessRoute = (href, fallbackPermissions = []) => {
+      const rule = getRouteRuleForPath(href);
+      const permissions = fallbackPermissions.length > 0 ? fallbackPermissions : rule?.anyOf;
+      return Array.isArray(permissions) && permissions.length > 0 && hasAnyPermission(permissions);
+    };
+
+    const filterSubItems = (subItems = []) =>
+      subItems.filter((subItem) =>
+        canAccessRoute(subItem.href, subItem.permissions || (subItem.permission ? [subItem.permission] : []))
+      );
+
     const sections = [];
 
     if (userHasPermission(user, "dashboard.view")) {
@@ -588,11 +603,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
     // Create a Features section based on permissions
     const coreItems = [];
-    const canViewPurchases =
-      userHasPermission(user, "purchases.view") ||
-      userHasPermission(user, "suppliers.view") ||
-      userHasPermission(user, "inventory.view") ||
-      userHasPermission(user, "stock.view");
     
     // Add items based on permissions
     if (userHasPermission(user, "sales.view")) {
@@ -645,19 +655,21 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (canViewPurchases) {
+    const purchaseSubItems = filterSubItems([
+      { href: "/purchases/suppliers", text: "Suppliers", permission: "suppliers.view" },
+      { href: "/purchases/orders", text: "Orders", permission: "purchases.view" },
+      { href: "/purchases/receipts", text: "Receipts", permission: "purchases.view" },
+      { href: "/purchases/bills", text: "Bills", permission: "purchases.view" },
+      { href: "/purchases/payments", text: "Payments", permission: "purchases.view" },
+    ]);
+
+    if (purchaseSubItems.length > 0) {
       coreItems.push({
-        href: "/purchases/suppliers",
+        href: purchaseSubItems[0].href,
         icon: "purchases",
         text: "Purchases",
         expandable: true,
-        subItems: [
-          { href: "/purchases/suppliers", text: "Suppliers" },
-          { href: "/purchases/orders", text: "Orders" },
-          { href: "/purchases/receipts", text: "Receipts" },
-          { href: "/purchases/bills", text: "Bills" },
-          { href: "/purchases/payments", text: "Payments" },
-        ],
+        subItems: purchaseSubItems,
       });
     }
 
@@ -688,38 +700,42 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Create an Additional Features section based on permissions
     const additionalItems = [];
     
-    if (userHasPermission(user, "hr.view")) {
+    const hrSubItems = filterSubItems([
+      { href: "/hr/employees", text: "Employee Management", permission: "hr.view" },
+      { href: "/hr/leave", text: "Leave Management", permissions: ["leave.view", "leave.create", "hr.view"] },
+      { href: "/hr/attendance", text: "Attendance Tracking", permission: "hr.view" },
+      { href: "/hr/performance", text: "Performance Management", permission: "hr.view" },
+      { href: "/hr/payroll", text: "Payroll Processing", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/benefits", text: "Benefits & Allowances", permission: "hr.view" },
+      { href: "/hr/pension", text: "Pension (NPS)", icon: "pension", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/advances", text: "Salary Advances", icon: "advances", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/reports", text: "HR Reports", permissions: ["hr.view", "reports.view"] },
+    ]);
+
+    if (hrSubItems.length > 0) {
       additionalItems.push({
-        href: "/hr",
+        href: hrSubItems[0].href,
         icon: "users",
         text: "HR & Payroll",
         expandable: true,
-        subItems: [
-          { href: "/hr/employees", text: "Employee Management" },
-          { href: "/hr/leave", text: "Leave Management" },
-          { href: "/hr/attendance", text: "Attendance Tracking" },
-          { href: "/hr/performance", text: "Performance Management" },
-          { href: "/hr/payroll", text: "Payroll Processing" },
-          { href: "/hr/benefits", text: "Benefits & Allowances" },
-          { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
-          { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
-          { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
-          { href: "/hr/reports", text: "HR Reports" }
-        ]
+        subItems: hrSubItems
       });
     }
 
-    if (userHasPermission(user, "budgets.view")) {
+    const budgetSubItems = filterSubItems([
+      { href: "/budget-forecast/reports", text: "Variance reports", permission: "budgets.view" },
+      { href: "/budget-forecast/budgets", text: "Expense budgets", permission: "budgets.view" },
+      { href: "/budget-forecast/forecasts", text: "Revenue forecasts", permission: "budgets.view" },
+    ]);
+
+    if (budgetSubItems.length > 0) {
       additionalItems.push({
-        href: "/budget-forecast/reports",
+        href: budgetSubItems[0].href,
         icon: "reports",
         text: "Budget & Forecast",
         expandable: true,
-        subItems: [
-          { href: "/budget-forecast/reports", text: "Variance reports" },
-          { href: "/budget-forecast/budgets", text: "Expense budgets" },
-          { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
-        ],
+        subItems: budgetSubItems,
       });
     }
 
@@ -732,29 +748,24 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (
-      userHasPermission(user, "rentals.view") ||
-      userHasPermission(user, "rentals.create") ||
-      userHasPermission(user, "invoices.view") ||
-      userHasPermission(user, "invoices.create")
-    ) {
+    const rentalSubItems = filterSubItems([
+      { href: "/rentals", text: "Rentals", permissions: ["rentals.view", "invoices.view"] },
+      { href: "/rentals/hiring", text: "Hiring", permissions: ["rentals.view", "invoices.view"] },
+    ]);
+
+    if (rentalSubItems.length > 0) {
       additionalItems.push({
-        href: "/rentals",
+        href: rentalSubItems[0].href,
         icon: "rental",
         text: "Rental & Hiring",
         expandable: true,
-        subItems: [
-          { href: "/rentals", text: "Rentals" },
-          { href: "/rentals/hiring", text: "Hiring" },
-        ],
+        subItems: rentalSubItems,
       });
     }
 
     
-    // Tax Types - allow if user has accounting or reports view permission
-    if (userHasPermission(user, "accounting.view") || 
-        userHasPermission(user, "reports.view") ||
-        userHasPermission(user, "tax.view")) {
+    // Tax Types - require tax access so reports/accounting-only users do not see tax management.
+    if (userHasPermission(user, "tax.view")) {
       additionalItems.push({
         href: "/tax-types",
         icon: "reports",
