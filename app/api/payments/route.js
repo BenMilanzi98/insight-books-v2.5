@@ -15,6 +15,7 @@ import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 
 /** Payments that count toward invoice balance (completed, not a reversal row). */
 function sumEligibleInvoicePayments(payments) {
@@ -23,7 +24,7 @@ function sumEligibleInvoicePayments(payments) {
     if (!p || p.isReversal) return sum;
     const st = p.status;
     if (st != null && String(st) !== 'Completed') return sum;
-    return sum + (parseFloat(p.amount) || 0);
+    return addMoney(sum, p.amount);
   }, 0);
 }
 
@@ -63,7 +64,7 @@ async function recordPaymentTransaction({
   invoice,
   notes
 }) {
-  const numericAmount = Number(amount || 0);
+  const numericAmount = parseMoney(amount);
   if (!tenantId || !userId || !paymentId || !numericAmount || numericAmount <= 0) {
     return;
   }
@@ -628,10 +629,11 @@ export async function POST(request) {
 
       if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
 
-      const invTotal = parseFloat(invoice.total) || 0;
+      const invTotal = parseMoney(invoice.total);
       const totalPaid = sumEligibleInvoicePayments(invoice.payments);
-      const remaining = invTotal - totalPaid;
-      if (amount > remaining) {
+      const remaining = subtractMoney(invTotal, totalPaid);
+      const paymentAmount = parseMoney(amount);
+      if (paymentAmount > remaining) {
         return NextResponse.json({ error: `Payment exceeds remaining invoice amount (${remaining})` }, { status: 400 });
       }
     }
@@ -689,10 +691,9 @@ export async function POST(request) {
 
     // Update invoice payment totals if this is an invoice payment
     if (invoice && type === "invoice") {
-      const totalPaid =
-        sumEligibleInvoicePayments(invoice.payments) + (parseFloat(amount) || 0);
-      const invTotal = parseFloat(invoice.total) || 0;
-      const remainingBalance = invTotal - totalPaid;
+      const totalPaid = addMoney(sumEligibleInvoicePayments(invoice.payments), amount);
+      const invTotal = parseMoney(invoice.total);
+      const remainingBalance = subtractMoney(invTotal, totalPaid);
       const lastPaymentDate = new Date(paymentDate);
 
       // Align with partial-payment route + invoice list/detail expectations (capitalized statuses)
@@ -869,8 +870,8 @@ export async function OldPOST(request) {
     }
     
     // Calculate total paid and check if payment exceeds invoice amount
-    const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const remainingAmount = invoice.total - totalPaid;
+    const totalPaid = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+    const remainingAmount = subtractMoney(invoice.total, totalPaid);
     
     if (body.amount > remainingAmount) {
       return NextResponse.json(
@@ -909,10 +910,10 @@ export async function OldPOST(request) {
     });
     
     // Update invoice status based on payment
-    const newTotalPaid = totalPaid + body.amount;
+    const newTotalPaid = addMoney(totalPaid, body.amount);
     let newStatus;
     
-    if (newTotalPaid >= invoice.total) {
+    if (moneyGreaterOrEqual(newTotalPaid, invoice.total)) {
       newStatus = 'Paid';
     } else if (newTotalPaid > 0) {
       newStatus = 'Partial';

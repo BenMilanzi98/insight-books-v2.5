@@ -17,6 +17,7 @@ import {
   saleNetRevenueTotalExTax,
   roundReportAmount,
 } from '@/lib/reportLineNetRevenue';
+import { addMoney, multiplyMoney, subtractMoney } from '@/lib/money';
 
 export async function GET(request) {
   try {
@@ -123,8 +124,8 @@ export async function GET(request) {
       }
       
       salesByDate[dateKey].sales += 1;
-      salesByDate[dateKey].totalRevenue += saleNetRevenueTotalExTax(sale);
-      salesByDate[dateKey].totalTax += saleDocumentTaxAmount(sale);
+      salesByDate[dateKey].totalRevenue = addMoney(salesByDate[dateKey].totalRevenue, saleNetRevenueTotalExTax(sale));
+      salesByDate[dateKey].totalTax = addMoney(salesByDate[dateKey].totalTax, saleDocumentTaxAmount(sale));
     });
     
     // Process invoices
@@ -142,8 +143,8 @@ export async function GET(request) {
       }
       
       salesByDate[dateKey].invoices += 1;
-      salesByDate[dateKey].totalRevenue += invoiceNetRevenueTotalExTax(invoice);
-      salesByDate[dateKey].totalTax += invoiceDocumentTaxAmount(invoice);
+      salesByDate[dateKey].totalRevenue = addMoney(salesByDate[dateKey].totalRevenue, invoiceNetRevenueTotalExTax(invoice));
+      salesByDate[dateKey].totalTax = addMoney(salesByDate[dateKey].totalTax, invoiceDocumentTaxAmount(invoice));
     });
     
     // Analyze sales by product
@@ -165,7 +166,7 @@ export async function GET(request) {
         }
         
         salesByProduct[productId].quantity += item.quantity;
-        salesByProduct[productId].revenue += saleItemNetRevenueExTax(item);
+        salesByProduct[productId].revenue = addMoney(salesByProduct[productId].revenue, saleItemNetRevenueExTax(item));
       });
     });
     
@@ -186,7 +187,7 @@ export async function GET(request) {
           }
           
           salesByProduct[productId].quantity += item.quantity;
-          salesByProduct[productId].revenue += invoiceItemNetRevenueExTax(item);
+          salesByProduct[productId].revenue = addMoney(salesByProduct[productId].revenue, invoiceItemNetRevenueExTax(item));
         }
       });
     });
@@ -211,7 +212,10 @@ export async function GET(request) {
         }
         
         salesByCustomer[clientId].salesCount += 1;
-        salesByCustomer[clientId].totalSpent += saleNetRevenueTotalExTax(sale);
+        salesByCustomer[clientId].totalSpent = addMoney(
+          salesByCustomer[clientId].totalSpent,
+          saleNetRevenueTotalExTax(sale)
+        );
       }
     });
     
@@ -231,33 +235,42 @@ export async function GET(request) {
       }
       
       salesByCustomer[clientId].invoiceCount += 1;
-      salesByCustomer[clientId].totalSpent += invoiceNetRevenueTotalExTax(invoice);
+      salesByCustomer[clientId].totalSpent = addMoney(
+        salesByCustomer[clientId].totalSpent,
+        invoiceNetRevenueTotalExTax(invoice)
+      );
     });
     
     // Calculate totals
     const totalSalesCount = sales.length;
     const totalInvoiceCount = invoices.length;
     const totalRevenue = roundReportAmount(
-      sales.reduce((sum, sale) => sum + saleNetRevenueTotalExTax(sale), 0) +
-      invoices.reduce((sum, invoice) => sum + invoiceNetRevenueTotalExTax(invoice), 0)
-    );
-    const grossSales = roundReportAmount(
-      sales.reduce(
-        (sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => itemSum + (Number(item.amount) || 0), 0),
-        0
-      ) +
-      invoices.reduce(
-        (sum, invoice) => sum + (invoice.items || []).reduce(
-          (itemSum, item) => itemSum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
-          0
-        ),
-        0
+      addMoney(
+        sales.reduce((sum, sale) => addMoney(sum, saleNetRevenueTotalExTax(sale)), 0),
+        invoices.reduce((sum, invoice) => addMoney(sum, invoiceNetRevenueTotalExTax(invoice)), 0)
       )
     );
-    const totalDiscounts = roundReportAmount(Math.max(0, grossSales - totalRevenue));
+    const grossSales = roundReportAmount(
+      addMoney(
+        sales.reduce(
+          (sum, sale) => addMoney(sum, (sale.items || []).reduce((itemSum, item) => addMoney(itemSum, item.amount), 0)),
+          0
+        ),
+        invoices.reduce(
+          (sum, invoice) => addMoney(sum, (invoice.items || []).reduce(
+            (itemSum, item) => addMoney(itemSum, multiplyMoney(item.unitPrice, item.quantity)),
+            0
+          )),
+          0
+        )
+      )
+    );
+    const totalDiscounts = roundReportAmount(Math.max(0, subtractMoney(grossSales, totalRevenue)));
     const totalTax = roundReportAmount(
-      sales.reduce((sum, sale) => sum + saleDocumentTaxAmount(sale), 0) +
-      invoices.reduce((sum, invoice) => sum + invoiceDocumentTaxAmount(invoice), 0)
+      addMoney(
+        sales.reduce((sum, sale) => addMoney(sum, saleDocumentTaxAmount(sale)), 0),
+        invoices.reduce((sum, invoice) => addMoney(sum, invoiceDocumentTaxAmount(invoice)), 0)
+      )
     );
     
     // Sort the salesByDate array by date

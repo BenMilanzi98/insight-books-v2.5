@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { getClientOutstandingBalance } from '@/lib/balanceReminderService';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 /**
  * GET - Download client account summary (trading history)
@@ -118,13 +119,13 @@ export async function GET(request, context) {
     // and are not accounts receivable. Only invoices and sales represent actual accounting entries.
 
     // Calculate totals from invoice/payment and sales data (so CSV/PDF match)
-    const totalInvoiced = invoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+    const totalInvoiced = invoices.reduce((sum, inv) => addMoney(sum, inv.total), 0);
     const totalPaid = invoices.reduce((sum, inv) => {
-      const paid = inv.payments.reduce((pSum, p) => pSum + (parseFloat(p.amount) || 0), 0);
-      return sum + paid;
+      const paid = inv.payments.reduce((pSum, p) => addMoney(pSum, p.amount), 0);
+      return addMoney(sum, paid);
     }, 0);
-    const totalOutstanding = Math.max(0, totalInvoiced - totalPaid);
-    const totalSales = sales.reduce((sum, sale) => sum + (parseFloat(sale.total) || 0), 0);
+    const totalOutstanding = Math.max(0, subtractMoney(totalInvoiced, totalPaid));
+    const totalSales = sales.reduce((sum, sale) => addMoney(sum, sale.total), 0);
     const balanceInfo = await getClientOutstandingBalance(clientId, user.tenantId);
 
     // Format transactions
@@ -132,15 +133,15 @@ export async function GET(request, context) {
 
     // Add invoices
     invoices.forEach(invoice => {
-      const paid = invoice.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-      const balance = parseFloat(invoice.total) - paid;
+      const paid = invoice.payments.reduce((sum, p) => addMoney(sum, p.amount), 0);
+      const balance = subtractMoney(invoice.total, paid);
       
       transactions.push({
         type: 'Invoice',
         date: invoice.issueDate,
         reference: invoice.invoiceNumber,
         description: `Invoice #${invoice.invoiceNumber}`,
-        debit: parseFloat(invoice.total) || 0,
+        debit: parseMoney(invoice.total),
         credit: 0,
         balance: balance,
         status: invoice.status,
@@ -155,7 +156,7 @@ export async function GET(request, context) {
           reference: payment.reference || payment.id,
           description: `Payment for Invoice #${invoice.invoiceNumber} (${payment.paymentMethod})`,
           debit: 0,
-          credit: parseFloat(payment.amount) || 0,
+          credit: parseMoney(payment.amount),
           balance: 0,
           status: 'Completed',
           relatedInvoice: invoice.invoiceNumber
@@ -170,7 +171,7 @@ export async function GET(request, context) {
         date: sale.saleDate,
         reference: sale.reference || sale.id,
         description: `POS Sale #${sale.reference || sale.id}`,
-        debit: parseFloat(sale.total) || 0,
+        debit: parseMoney(sale.total),
         credit: 0,
         balance: 0,
         status: sale.status
@@ -184,7 +185,7 @@ export async function GET(request, context) {
           reference: payment.reference || payment.id,
           description: `Payment for Sale (${payment.paymentMethod})`,
           debit: 0,
-          credit: parseFloat(payment.amount) || 0,
+          credit: parseMoney(payment.amount),
           balance: 0,
           status: 'Completed',
           relatedSale: sale.reference || sale.id

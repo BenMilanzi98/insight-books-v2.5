@@ -13,6 +13,7 @@ import {
 } from '@/lib/dashboardTenantScope';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { addMoney, parseMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -169,7 +170,7 @@ export async function GET(request) {
       const byCategory = new Map();
       for (const row of rows) {
         const key = row.category ?? 'Uncategorized';
-        byCategory.set(key, (byCategory.get(key) || 0) + (Number(row.amount) || 0));
+        byCategory.set(key, addMoney(byCategory.get(key) || 0, row.amount));
       }
       expenses = Array.from(byCategory.entries()).map(([category, sum]) => ({
         category,
@@ -204,11 +205,14 @@ export async function GET(request) {
     }
     
     // Calculate the total to get percentages (including COGS); guard against null _sum.amount
-    const totalExpenses = expenses.reduce((sum, expense) => sum + (Number(expense._sum?.amount) || 0), 0) + cogsTotal;
+    const totalExpenses = addMoney(
+      expenses.reduce((sum, expense) => addMoney(sum, expense._sum?.amount), 0),
+      cogsTotal
+    );
     
     // Format the response
     const expensesBreakdown = expenses.map(expense => {
-      const amount = Number(expense._sum?.amount) || 0;
+      const amount = parseMoney(expense._sum?.amount);
       return {
         category: expense.category ?? 'Uncategorized',
         amount,

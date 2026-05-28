@@ -45,10 +45,11 @@ import {
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/dateUtils";
+import { parseMoney } from "@/lib/money";
 
 // Statistics card component — amount is numeric from API (sum of invoice totals)
 const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColor }) => {
-  const value = typeof amount === 'number' ? amount : (parseFloat(String(amount || 0).replace(/,/g, '')) || 0);
+  const value = parseMoney(amount);
   return (
   <div className={`${bgColor} border ${borderColor} rounded-xl p-5 transition-all duration-200 hover:shadow-md`}>
     <div className="flex items-center justify-between">

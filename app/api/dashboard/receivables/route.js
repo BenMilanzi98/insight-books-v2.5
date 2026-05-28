@@ -9,6 +9,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -273,28 +274,28 @@ export async function GET(request) {
       
       // Calculate actual remaining balance from payments (more accurate than stored fields)
       // First, calculate total paid from actual completed payments
-      const actualTotalPaid = invoice.payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+      const actualTotalPaid = invoice.payments?.reduce((sum, p) => addMoney(sum, p.amount), 0) || 0;
       
       // Calculate actual remaining balance
-      const actualRemaining = Math.max(0, parseFloat(invoice.total) - actualTotalPaid);
+      const actualRemaining = Math.max(0, subtractMoney(invoice.total, actualTotalPaid));
       
       // Use the calculated remaining balance, or fall back to stored remainingBalance if available
-      let amountOwed = actualRemaining > 0 ? actualRemaining : (invoice.remainingBalance || 0);
+      let amountOwed = actualRemaining > 0 ? actualRemaining : parseMoney(invoice.remainingBalance);
       
       // Only include invoices with actual money owed
       if (amountOwed <= 0) {
         return; // Skip invoices with no balance owed
       }
       
-      total += amountOwed;
+      total = addMoney(total, amountOwed);
       
       // Categorize as not due or overdue
       if (daysDiff < 0) {
-        notDue += amountOwed;
+        notDue = addMoney(notDue, amountOwed);
         // Invoices not yet due go into the "0-30 days" bucket (current/not overdue)
-        aging[0].amount += amountOwed;
+        aging[0].amount = addMoney(aging[0].amount, amountOwed);
       } else {
-        overdue += amountOwed;
+        overdue = addMoney(overdue, amountOwed);
         
         // Add to appropriate aging bucket based on days past due (only for overdue invoices)
         // 0-30 days: overdue by 0-30 days
@@ -302,13 +303,13 @@ export async function GET(request) {
         // 61-90 days: overdue by 61-90 days
         // >90 days: overdue by more than 90 days
         if (daysDiff <= 30) {
-          aging[0].amount += amountOwed;
+          aging[0].amount = addMoney(aging[0].amount, amountOwed);
         } else if (daysDiff <= 60) {
-          aging[1].amount += amountOwed;
+          aging[1].amount = addMoney(aging[1].amount, amountOwed);
         } else if (daysDiff <= 90) {
-          aging[2].amount += amountOwed;
+          aging[2].amount = addMoney(aging[2].amount, amountOwed);
         } else {
-          aging[3].amount += amountOwed;
+          aging[3].amount = addMoney(aging[3].amount, amountOwed);
         }
       }
     });
@@ -317,9 +318,9 @@ export async function GET(request) {
     const outstandingInvoices = invoices
       .map(invoice => {
         // Calculate actual remaining balance from payments
-        const actualTotalPaid = invoice.payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
-        const actualRemaining = Math.max(0, parseFloat(invoice.total) - actualTotalPaid);
-        const amountOwed = actualRemaining > 0 ? actualRemaining : (invoice.remainingBalance || 0);
+        const actualTotalPaid = invoice.payments?.reduce((sum, p) => addMoney(sum, p.amount), 0) || 0;
+        const actualRemaining = Math.max(0, subtractMoney(invoice.total, actualTotalPaid));
+        const amountOwed = actualRemaining > 0 ? actualRemaining : parseMoney(invoice.remainingBalance);
         
         // Skip if no balance owed
         if (amountOwed <= 0) {

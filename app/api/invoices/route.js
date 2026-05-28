@@ -11,6 +11,7 @@ import eisService from '@/lib/eisService';
 import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {
@@ -562,7 +563,7 @@ export async function POST(request) {
                     remainingQuantity: cogsData.remainingQuantity
                   });
                   
-                  totalCOGS += cogsData.cogsAmount;
+                  totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
                   
                   if (cogsData.cogsAmount === 0 && item.quantity > 0) {
                     productsWithoutCost.push({
@@ -635,11 +636,11 @@ export async function POST(request) {
               const taxTypeId = item.selectedTaxTypeId;
               if (taxTypeId && Number(item.taxAmount) > 0) {
                 if (!taxByType[taxTypeId]) taxByType[taxTypeId] = { taxTypeId, totalTax: 0 };
-                taxByType[taxTypeId].totalTax += Number(item.taxAmount);
+                taxByType[taxTypeId].totalTax = addMoney(taxByType[taxTypeId].totalTax, item.taxAmount);
               }
             }
 
-            const perTypeTaxTotal = Object.values(taxByType).reduce((s, t) => s + t.totalTax, 0);
+            const perTypeTaxTotal = Object.values(taxByType).reduce((s, t) => addMoney(s, t.totalTax), 0);
 
             // Post tax for each identified tax type
             for (const { taxTypeId, totalTax } of Object.values(taxByType)) {
@@ -661,7 +662,7 @@ export async function POST(request) {
             }
 
             // Fallback: if no per-item taxTypeId but invoice has tax, use rate-matching
-            const unmatchedTax = calculations.taxAmount - perTypeTaxTotal;
+            const unmatchedTax = subtractMoney(calculations.taxAmount, perTypeTaxTotal);
             if (unmatchedTax > 0.01) {
               try {
                 const activeTaxTypes = await tx.taxType.findMany({
@@ -768,9 +769,9 @@ export async function POST(request) {
                 unitPrice: item.unitPrice,
                 taxRate: item.taxRate || 0
               })),
-              subtotal: Number(newInvoice.subtotal),
-              taxTotal: Number(newInvoice.taxAmount || 0),
-              total: Number(newInvoice.total),
+              subtotal: parseMoney(newInvoice.subtotal),
+              taxTotal: parseMoney(newInvoice.taxAmount),
+              total: parseMoney(newInvoice.total),
               paymentMethod: 'Bank Transfer'
             }, 'invoice', newInvoice.id);
             console.log('✅ EIS: Invoice submitted to MRA:', eisResult?.submissionId);

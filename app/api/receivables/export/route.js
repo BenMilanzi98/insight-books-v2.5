@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 export async function GET(request) {
   try {
@@ -73,9 +74,9 @@ export async function GET(request) {
     const outstandingInvoices = invoices
       .map(invoice => {
         // Calculate actual remaining balance from payments
-        const actualTotalPaid = invoice.payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
-        const actualRemaining = Math.max(0, parseFloat(invoice.total) - actualTotalPaid);
-        const amountOwed = actualRemaining > 0 ? actualRemaining : (invoice.remainingBalance || 0);
+        const actualTotalPaid = invoice.payments?.reduce((sum, p) => addMoney(sum, p.amount), 0) || 0;
+        const actualRemaining = Math.max(0, subtractMoney(invoice.total, actualTotalPaid));
+        const amountOwed = actualRemaining > 0 ? actualRemaining : parseMoney(invoice.remainingBalance);
 
         if (amountOwed <= 0) {
           return null; // Skip fully paid invoices
@@ -118,7 +119,7 @@ export async function GET(request) {
 
     // Helper function to format currency
     const formatCurrency = (amount) => {
-      return `MWK ${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `MWK ${parseMoney(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     // Helper function to format date (DD-MM-YYYY)
@@ -176,9 +177,9 @@ export async function GET(request) {
     ]);
 
     // Calculate totals
-    const totalOutstanding = filteredInvoices.reduce((sum, inv) => sum + inv.amountOwed, 0);
-    const totalInvoices = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0);
-    const totalPaid = filteredInvoices.reduce((sum, inv) => sum + inv.actualTotalPaid, 0);
+    const totalOutstanding = filteredInvoices.reduce((sum, inv) => addMoney(sum, inv.amountOwed), 0);
+    const totalInvoices = filteredInvoices.reduce((sum, inv) => addMoney(sum, inv.total), 0);
+    const totalPaid = filteredInvoices.reduce((sum, inv) => addMoney(sum, inv.actualTotalPaid), 0);
     const overdueCount = filteredInvoices.filter(inv => inv.invoiceStatus === 'Overdue').length;
     const notDueCount = filteredInvoices.filter(inv => inv.invoiceStatus === 'Not Due').length;
     const pendingCount = filteredInvoices.filter(inv => inv.invoiceStatus === 'Pending').length;

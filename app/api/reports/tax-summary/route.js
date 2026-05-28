@@ -13,7 +13,7 @@ import {
   roundReportAmount,
   saleItemNetRevenueExTax,
 } from '@/lib/reportLineNetRevenue';
-import { addMoney, multiplyMoney, percentOfMoney, roundMoney } from '@/lib/money';
+import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 export async function GET(request) {
   try {
@@ -404,7 +404,7 @@ export async function GET(request) {
       },
       select: { taxAmount: true }
     });
-    const inputVatFromBills = supplierBillsInPeriod.reduce((sum, b) => sum + (Number(b.taxAmount) || 0), 0);
+    const inputVatFromBills = supplierBillsInPeriod.reduce((sum, b) => addMoney(sum, b.taxAmount), 0);
 
     const poItemsInPeriod = await prisma.purchaseOrderItem.findMany({
       where: {
@@ -420,12 +420,12 @@ export async function GET(request) {
       },
       select: { taxAmount: true }
     });
-    const inputVatFromPOs = poItemsInPeriod.reduce((sum, i) => sum + (Number(i.taxAmount) || 0), 0);
-    const inputVat = roundReportAmount(inputVatFromBills + inputVatFromPOs);
+    const inputVatFromPOs = poItemsInPeriod.reduce((sum, i) => addMoney(sum, i.taxAmount), 0);
+    const inputVat = roundReportAmount(addMoney(inputVatFromBills, inputVatFromPOs));
 
     // Output VAT = tax collected on sales/invoices
     const outputVat = roundReportAmount(totalCollectedTax);
-    const netVatPayable = roundReportAmount(outputVat - inputVat);
+    const netVatPayable = roundReportAmount(subtractMoney(outputVat, inputVat));
     
     return NextResponse.json({
       period: {

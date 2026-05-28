@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { canManageAccountingPeriods } from '@/lib/accountingPeriodAccess';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 const FLOAT_TOLERANCE = 0.0001;
 
@@ -116,16 +117,14 @@ export async function POST(request, { params }) {
       }),
     ]);
 
-    const totalDebits =
-      (txnTotals._sum?.debitAmount || 0) + (journalTotals._sum?.debitAmount || 0);
-    const totalCredits =
-      (txnTotals._sum?.creditAmount || 0) + (journalTotals._sum?.creditAmount || 0);
+    const totalDebits = addMoney(txnTotals._sum?.debitAmount, journalTotals._sum?.debitAmount);
+    const totalCredits = addMoney(txnTotals._sum?.creditAmount, journalTotals._sum?.creditAmount);
 
-    if (Math.abs(totalDebits - totalCredits) > FLOAT_TOLERANCE) {
+    if (Math.abs(subtractMoney(totalDebits, totalCredits)) > FLOAT_TOLERANCE) {
       return NextResponse.json(
         {
           error: 'Period does not balance. Debits must equal credits before closing.',
-          details: `Debits: ${totalDebits}, Credits: ${totalCredits}`,
+          details: `Debits: ${parseMoney(totalDebits)}, Credits: ${parseMoney(totalCredits)}`,
         },
         { status: 400 }
       );

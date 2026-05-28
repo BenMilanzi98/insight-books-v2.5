@@ -5,7 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
-import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
+import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // Helper function to get sale by ID with validation
 async function getSaleWithValidation(id, userId, tenantId) {
@@ -69,7 +69,7 @@ async function getSaleWithValidation(id, userId, tenantId) {
   }
   
   // Calculate actual tax information from items
-  const itemTaxTotal = sale.items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+  const itemTaxTotal = sale.items.reduce((sum, item) => addMoney(sum, item.taxAmount), 0);
   const itemTaxRates = [...new Set(sale.items.map(item => item.taxRate || 0).filter(rate => rate > 0))];
   const displayTaxRate = itemTaxRates.length === 1 ? itemTaxRates[0] : (itemTaxRates.length > 1 ? 'Mixed' : sale.taxRate);
   
@@ -80,10 +80,10 @@ async function getSaleWithValidation(id, userId, tenantId) {
   // Build items list - use SaleItems if available, otherwise reconstruct from batch consumptions
   let formattedItems = sale.items.map(item => {
     const quantity = Number(item.quantity) || 0;
-    const rawAmount = Number(item.amount) || 0;
-    const discountAmount = Number(item.discountAmount) || 0;
-    const netAmount = Math.max(0, rawAmount - discountAmount);
-    const effectiveUnitPrice = quantity > 0 ? netAmount / quantity : Number(item.unitPrice) || 0;
+    const rawAmount = parseMoney(item.amount);
+    const discountAmount = parseMoney(item.discountAmount);
+    const netAmount = Math.max(0, subtractMoney(rawAmount, discountAmount));
+    const effectiveUnitPrice = quantity > 0 ? rawAmount / quantity : parseMoney(item.unitPrice);
 
     return {
       ...item,

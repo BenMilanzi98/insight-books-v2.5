@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { generatePaymentReceiptPdfBuffer } from '@/lib/server-pdf-jspdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+import { addMoney, moneyGreaterOrEqual } from '@/lib/money';
 
 async function enrichReceiptData(prisma, tenantId, receiptData) {
   if (!receiptData) return receiptData;
@@ -244,8 +245,8 @@ export async function GET(request) {
         }
       });
 
-      const totalPaid = expense.payments.reduce((sum, payment) => sum + payment.amount, 0);
-      const isFullyPaid = totalPaid >= expense.amount;
+      const totalPaid = expense.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+      const isFullyPaid = moneyGreaterOrEqual(totalPaid, expense.amount);
 
       receiptData = {
         type: 'combined',
@@ -466,8 +467,8 @@ export async function POST(request) {
         }
       });
 
-      const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-      const isFullyPaid = totalPaid >= invoice.total;
+      const totalPaid = invoice.payments.reduce((sum, p) => addMoney(sum, p.amount), 0);
+      const isFullyPaid = moneyGreaterOrEqual(totalPaid, invoice.total);
 
       receiptData = {
         type: 'combined',
