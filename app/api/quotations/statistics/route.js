@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addMoney } from '@/lib/money';
 
 // GET - Get quotation statistics
 export async function GET(request) {
@@ -73,9 +74,9 @@ export async function GET(request) {
     });
     
     // Calculate totals
-    const pendingTotal = pendingQuotations.reduce((sum, item) => sum + item.total, 0);
-    const approvedTotal = approvedQuotations.reduce((sum, item) => sum + item.total, 0);
-    const convertedTotal = convertedQuotations.reduce((sum, item) => sum + item.total, 0);
+    const pendingTotal = pendingQuotations.reduce((sum, item) => addMoney(sum, item.total), 0);
+    const approvedTotal = approvedQuotations.reduce((sum, item) => addMoney(sum, item.total), 0);
+    const convertedTotal = convertedQuotations.reduce((sum, item) => addMoney(sum, item.total), 0);
     
     // Count quotations by status
     const pendingCount = pendingQuotations.length;

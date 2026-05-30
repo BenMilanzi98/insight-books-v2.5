@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { getCOGSTransactionStats } from '@/lib/cogsIntegration';
+import { addMoney, parseMoney } from '@/lib/money';
 
 // GET - Get COGS summary for expenses
 export async function GET(request) {
@@ -83,7 +84,7 @@ export async function GET(request) {
         },
         _sum: { debitAmount: true }
       });
-      totalCOGSFromLedger = Number(ledgerAgg._sum?.debitAmount ?? 0);
+      totalCOGSFromLedger = parseMoney(ledgerAgg._sum?.debitAmount);
     }
 
     // Use ledger total when available so expense tracking matches the books; fallback to calculated
@@ -92,7 +93,7 @@ export async function GET(request) {
       : cogsTransactionStats.totalAmount;
 
     // Calculate totals
-    const totalCOGSExpenses = cogsExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalCOGSExpenses = cogsExpenses.reduce((sum, expense) => addMoney(sum, expense.amount), 0);
 
     // Calculate productCount - count unique products that have COGS transactions in this period
     // Get products from sales that have COGS transactions
@@ -155,7 +156,7 @@ export async function GET(request) {
         };
       }
       acc[category].count += 1;
-      acc[category].amount += expense.amount;
+      acc[category].amount = addMoney(acc[category].amount, expense.amount);
       return acc;
     }, {});
 
@@ -189,7 +190,7 @@ export async function GET(request) {
         }
       });
 
-      const monthTotal = monthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+      const monthTotal = monthExpenses.reduce((sum, expense) => addMoney(sum, expense.amount), 0);
       
       trendsData.push({
         month: monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
