@@ -14,6 +14,7 @@ import { validateCoaAccountCreationRules } from '@/lib/coaAccountCreateRules.js'
 import {
   pickPrimaryAccountForStructure,
 } from '@/lib/coaSystemStructureTree.js';
+import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 import {
   apply3100CapitalBucketAncestorPropagation,
   applyCoaParentRollup,
@@ -323,10 +324,10 @@ export async function GET(request) {
     // Calculate actual remaining balance from payments (more accurate than stored fields)
     const invoicesWithActualBalance = allInvoices.map(inv => {
       // Calculate total paid from actual completed payments
-      const actualTotalPaid = inv.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      const actualTotalPaid = inv.payments.reduce((sum, p) => addMoney(sum, p.amount), 0);
       
       // Calculate actual remaining balance
-      const actualRemaining = Math.max(0, parseFloat(inv.total) - actualTotalPaid);
+      const actualRemaining = Math.max(0, subtractMoney(inv.total, actualTotalPaid));
       
       return {
         ...inv,
@@ -376,7 +377,7 @@ export async function GET(request) {
     });
     
     const totalAccountsReceivable = unpaidInvoices.reduce((sum, inv) => {
-      return sum + Math.max(0, inv.actualRemaining); // Use actual calculated remaining
+      return addMoney(sum, Math.max(0, inv.actualRemaining)); // Use actual calculated remaining
     }, 0);
 
     /** When set, GL transaction lines match branch-scoped registers (e.g. expenses). */

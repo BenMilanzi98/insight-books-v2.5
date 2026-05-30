@@ -161,8 +161,8 @@ export default function RefundInvoiceModal({
                 <h4 className="text-sm font-medium text-blue-800">Payment Summary</h4>
               </div>
               <div className="text-sm text-blue-700">
-                <p><strong>Total Paid:</strong> MWK {invoice.payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</p>
-                <p><strong>Total Refunded:</strong> MWK {(invoice.refunds?.reduce((sum, r) => sum + r.refundAmount, 0) || 0).toFixed(2)}</p>
+                <p><strong>Total Paid:</strong> MWK {invoice.payments.reduce((sum, p) => addMoney(sum, p.amount), 0).toFixed(2)}</p>
+                <p><strong>Total Refunded:</strong> MWK {(invoice.refunds?.reduce((sum, r) => addMoney(sum, r.refundAmount), 0) || 0).toFixed(2)}</p>
                 <p><strong>Available for Refund:</strong> <span className="font-semibold">MWK {availableForRefund.toFixed(2)}</span></p>
               </div>
             </div>

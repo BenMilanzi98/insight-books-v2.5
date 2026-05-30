@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateBalanceSheetFromAccounts } from '@/lib/balanceSheetService';
+import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 /**
  * Professional Balance Sheet (Statement of Financial Position) API
@@ -145,7 +146,7 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   });
   
   const currentCashBalance = accountBalances.reduce(
-    (sum, balance) => sum + (balance.balance || 0), 0
+    (sum, balance) => addMoney(sum, balance.balance), 0
   );
   
   // Calculate net cash flow from transactions AFTER the report date
@@ -183,8 +184,8 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   // Historical cash = current cash - (future inflows - future outflows)
   // If future net is positive (more inflows than outflows), cash was lower in the past
   // If future net is negative (more outflows than inflows), cash was higher in the past
-  const futureNetCashFlow = (futureInflows._sum.amount || 0) - (futureOutflows._sum.amount || 0);
-  assets.currentAssets.cashAndCashEquivalents = Math.max(0, currentCashBalance - futureNetCashFlow);
+  const futureNetCashFlow = subtractMoney(futureInflows._sum.amount, futureOutflows._sum.amount);
+  assets.currentAssets.cashAndCashEquivalents = Math.max(0, subtractMoney(currentCashBalance, futureNetCashFlow));
   
   // Get accounts receivable (unpaid invoices)
   const accountsReceivable = await prisma.invoice.findMany({
@@ -205,9 +206,12 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   });
   
   accountsReceivable.forEach(invoice => {
-    const balanceDue = invoice.remainingBalance || (invoice.total - (invoice.totalPaid || 0));
+    const balanceDue = parseMoney(invoice.remainingBalance) || subtractMoney(invoice.total, invoice.totalPaid);
     if (balanceDue > 0) {
-      assets.currentAssets.accountsReceivable.total += balanceDue;
+      assets.currentAssets.accountsReceivable.total = addMoney(
+        assets.currentAssets.accountsReceivable.total,
+        balanceDue
+      );
       assets.currentAssets.accountsReceivable.items.push({
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
@@ -236,9 +240,9 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   });
   
   inventory.forEach(product => {
-    const productValue = (parseFloat(product.stockLevel) || 0) * (product.cost || 0);
+    const productValue = multiplyMoney(product.stockLevel, product.cost);
     if (productValue > 0) {
-      assets.currentAssets.inventory.total += productValue;
+      assets.currentAssets.inventory.total = addMoney(assets.currentAssets.inventory.total, productValue);
       assets.currentAssets.inventory.items.push({
         id: product.id,
         name: product.name,
@@ -386,11 +390,14 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   });
   
   accountsPayable.forEach(expense => {
-    const amount = Number(expense.amount) || 0;
-    const paid = Number(expense.paidAmount) || 0;
-    const balanceDue = amount - paid;
+    const amount = parseMoney(expense.amount);
+    const paid = parseMoney(expense.paidAmount);
+    const balanceDue = subtractMoney(amount, paid);
     if (balanceDue > 0) {
-      liabilities.currentLiabilities.accountsPayable.total += balanceDue;
+      liabilities.currentLiabilities.accountsPayable.total = addMoney(
+        liabilities.currentLiabilities.accountsPayable.total,
+        balanceDue
+      );
       liabilities.currentLiabilities.accountsPayable.items.push({
         id: expense.id,
         description: expense.description,
@@ -421,11 +428,14 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   });
   
   supplierBills.forEach(bill => {
-    const total = Number(bill.totalAmount) || 0;
-    const paid = Number(bill.amountPaid) || 0;
-    const balanceDue = total - paid;
+    const total = parseMoney(bill.totalAmount);
+    const paid = parseMoney(bill.amountPaid);
+    const balanceDue = subtractMoney(total, paid);
     if (balanceDue > 0) {
-      liabilities.currentLiabilities.accountsPayable.total += balanceDue;
+      liabilities.currentLiabilities.accountsPayable.total = addMoney(
+        liabilities.currentLiabilities.accountsPayable.total,
+        balanceDue
+      );
       liabilities.currentLiabilities.accountsPayable.items.push({
         id: bill.id,
         description: `Supplier Bill ${bill.billNumber}`,
@@ -644,8 +654,10 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   });
   
   // Calculate revenue
-  const yearRevenue = yearInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0) +
-                     yearSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
+  const yearRevenue = addMoney(
+    yearInvoices.reduce((sum, inv) => addMoney(sum, inv.total), 0),
+    yearSales.reduce((sum, sale) => addMoney(sum, sale.total), 0)
+  );
   
   // Calculate COGS
   let yearCOGS = 0;
@@ -674,7 +686,7 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
     }
   });
   
-  const yearExpensesTotal = yearExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  const yearExpensesTotal = yearExpenses.reduce((sum, exp) => addMoney(sum, exp.amount), 0);
   
   // Calculate net income for the year
   equity.currentYearProfitLoss = yearRevenue - yearCOGS - yearExpensesTotal;

@@ -15,6 +15,7 @@ import {
   invoiceNetRevenueTotalExTax,
   saleNetRevenueTotalExTax,
 } from '@/lib/reportLineNetRevenue';
+import { addMoney, parseMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 /**
  * GET handler for exporting various reports
@@ -310,8 +311,8 @@ async function generateIncomeStatementData(tenantId, startDate, endDate) {
   // COGS: One line — Cost of Goods Sold from stock/COGS integration (same source as /stock)
   const { getCOGSTransactionStats } = await import('@/lib/cogsIntegration');
   const cogsStats = await getCOGSTransactionStats(tenantId, start, end, null);
-  const costOfGoodsSold = Math.round(Number(cogsStats?.totalAmount ?? 0) * 100) / 100;
-  const grossProfit = totalRevenue - costOfGoodsSold;
+  const costOfGoodsSold = roundMoney(cogsStats?.totalAmount);
+  const grossProfit = subtractMoney(totalRevenue, costOfGoodsSold);
 
   // Get expense data (operating expenses only)
   const expenses = await prisma.expense.findMany({
@@ -332,10 +333,10 @@ async function generateIncomeStatementData(tenantId, startDate, endDate) {
     if (!expensesByCategory[expense.category]) {
       expensesByCategory[expense.category] = 0;
     }
-    expensesByCategory[expense.category] += expense.amount;
+    expensesByCategory[expense.category] = addMoney(expensesByCategory[expense.category], expense.amount);
   });
-  const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
-  const netIncome = grossProfit - totalExpenses;
+  const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => addMoney(sum, amount), 0);
+  const netIncome = subtractMoney(grossProfit, totalExpenses);
 
   const exportData = [];
 

@@ -660,7 +660,7 @@ export async function POST(request) {
         paymentAllocations = data.paymentAllocations;
         
         // Validate allocations sum equals total
-        const allocationsSum = paymentAllocations.reduce((sum, alloc) => sum + (alloc.amount || 0), 0);
+        const allocationsSum = paymentAllocations.reduce((sum, alloc) => addMoney(sum, alloc.amount), 0);
         if (Math.abs(allocationsSum - finalTotal) > 0.01) {
           return NextResponse.json({ 
             error: `Payment allocations sum (${allocationsSum}) does not match sale total (${finalTotal})` 
