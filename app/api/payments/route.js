@@ -418,7 +418,7 @@ export async function POST(request) {
       paymentAllocationsList = paymentAllocations;
       
       // Validate allocations sum equals amount
-      const allocationsSum = paymentAllocationsList.reduce((sum, alloc) => sum + (alloc.amount || 0), 0);
+      const allocationsSum = paymentAllocationsList.reduce((sum, alloc) => addMoney(sum, alloc.amount), 0);
       if (Math.abs(allocationsSum - amount) > 0.01) {
         return NextResponse.json({ 
           error: `Payment allocations sum (${allocationsSum}) does not match payment amount (${amount})` 
