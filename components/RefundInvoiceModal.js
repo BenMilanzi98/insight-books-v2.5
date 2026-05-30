@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, DollarSign, AlertTriangle, FileText, Calculator } from 'lucide-react';
+import { addMoney, subtractMoney } from '@/lib/money';
 
 export default function RefundInvoiceModal({ 
   invoice, 
@@ -22,9 +23,9 @@ export default function RefundInvoiceModal({
   useEffect(() => {
     if (invoice && isOpen) {
       // Calculate available amount for refund
-      const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
-      const totalRefunded = invoice.refunds?.reduce((sum, refund) => sum + refund.refundAmount, 0) || 0;
-      const available = totalPaid - totalRefunded;
+      const totalPaid = invoice.payments?.reduce((sum, payment) => addMoney(sum, payment.amount), 0) || 0;
+      const totalRefunded = invoice.refunds?.reduce((sum, refund) => addMoney(sum, refund.refundAmount), 0) || 0;
+      const available = subtractMoney(totalPaid, totalRefunded);
       setAvailableForRefund(available);
       
       // Pre-fill refund amount with available amount
