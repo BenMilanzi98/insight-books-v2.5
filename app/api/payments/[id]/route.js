@@ -12,6 +12,7 @@ import {
   findInvoicePaymentJournalTransactionId,
   reverseJournalEntriesLinkedToPaymentId
 } from '@/lib/financialReversalHelpers';
+import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 
 function normalizePaymentMethod(method) {
   const methodStr = (method ?? '').toString().trim();
@@ -163,9 +164,9 @@ export async function PUT(request, { params }) {
       const invoice = existingPayment.invoice;
       const otherPaymentsTotal = invoice.payments
         .filter(p => p.id !== paymentId)
-        .reduce((sum, p) => sum + p.amount, 0);
+        .reduce((sum, p) => addMoney(sum, p.amount), 0);
         
-      const remainingAmount = invoice.total - otherPaymentsTotal;
+      const remainingAmount = subtractMoney(invoice.total, otherPaymentsTotal);
       
       if (body.amount > remainingAmount) {
         return NextResponse.json(
@@ -218,11 +219,11 @@ export async function PUT(request, { params }) {
       });
       
       // Calculate total paid
-      const totalPaid = allPayments.reduce((sum, p) => sum + p.amount, 0);
+      const totalPaid = allPayments.reduce((sum, p) => addMoney(sum, p.amount), 0);
       const invoice = existingPayment.invoice;
       
       let newStatus;
-      if (totalPaid >= invoice.total) {
+      if (moneyGreaterOrEqual(totalPaid, invoice.total)) {
         newStatus = 'Paid';
       } else if (totalPaid > 0) {
         newStatus = 'Partial';
@@ -399,9 +400,9 @@ export async function DELETE(request, { params }) {
           isReversal: false
         }
       });
-      const totalPaid = activePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const totalPaid = activePayments.reduce((sum, p) => addMoney(sum, p.amount), 0);
       const inv = existingPayment.invoice;
-      const remainingBalance = Math.max(0, Number(inv.total || 0) - totalPaid);
+      const remainingBalance = Math.max(0, subtractMoney(inv.total, totalPaid));
       let newStatus = 'Pending';
       if (remainingBalance <= 0.01) newStatus = 'Paid';
       else if (totalPaid > 0) newStatus = 'Partial';

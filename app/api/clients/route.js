@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { addMoney, subtractMoney } from '@/lib/money';
 
 // GET - Fetch clients with optional filtering, sorting, and pagination
 export async function GET(request) {
@@ -104,17 +105,17 @@ export async function GET(request) {
     // Calculate financial metrics for each client
     const clientsWithMetrics = clients.map(client => {
       // Total billed amount (invoices + sales)
-      const totalBilledFromInvoices = client.invoices.reduce((sum, invoice) => sum + invoice.total, 0);
-      const totalBilledFromSales = client.sales.reduce((sum, sale) => sum + sale.total, 0);
-      const totalBilled = totalBilledFromInvoices + totalBilledFromSales;
+      const totalBilledFromInvoices = client.invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0);
+      const totalBilledFromSales = client.sales.reduce((sum, sale) => addMoney(sum, sale.total), 0);
+      const totalBilled = addMoney(totalBilledFromInvoices, totalBilledFromSales);
       
       // Total payments received (only from invoices for now)
       const totalPaid = client.invoices.reduce((sum, invoice) => {
-        return sum + invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0);
+        return addMoney(sum, invoice.payments.reduce((paymentSum, payment) => addMoney(paymentSum, payment.amount), 0));
       }, 0);
       
       // Outstanding amount (only from invoices, as sales are typically paid immediately)
-      const outstandingAmount = totalBilledFromInvoices - totalPaid;
+      const outstandingAmount = subtractMoney(totalBilledFromInvoices, totalPaid);
       
       // Determine client status based on activity (invoices OR sales)
       const hasActiveInvoices = client.invoices.some(invoice => 
