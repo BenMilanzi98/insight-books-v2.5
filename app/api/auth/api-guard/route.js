@@ -22,6 +22,11 @@ export async function GET(request) {
       return NextResponse.json({ allowed: false, reason: 'auth' }, { status: 401 });
     }
 
+    // Layout onboarding gate — any signed-in tenant user may read status
+    if (path === '/api/tenant/onboarding-status') {
+      return NextResponse.json({ allowed: true });
+    }
+
     const rule = getApiRuleForPath(path);
     if (!rule) {
       return NextResponse.json({ allowed: false, reason: 'no_rule' }, { status: 403 });
