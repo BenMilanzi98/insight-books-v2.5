@@ -1,0 +1,21 @@
+---
+description: POS users can access supporting APIs needed by POS workflows
+globs: app/api/**/*.js,app/pos/**/*.js,app/services/**/*.js,lib/tenantApiAccess.js,lib/defaultRoleTemplates.js,lib/permissionsMap.js
+alwaysApply: false
+---
+
+# POS Supporting API Access
+
+Anyone with POS access (`sales.view`, `sales.create`, or `sales.update`) must be able to use the supporting read/config APIs needed inside POS.
+
+When changing RBAC, API guards, or POS data loading, keep POS users able to access:
+
+- clients needed for sale/customer selection
+- stock/products/services needed for item selection
+- tax types and tax default settings needed for VAT/tax calculation
+- payment accounts and payment methods needed for tendering
+- chart of accounts income accounts used by POS item/account mapping
+- tenant list/switch and onboarding status used by the POS shell/layout
+- tenant logo/uploads displayed by the POS UI
+
+Do not require broad dashboard/accounting/admin access for these POS support calls. Prefer adding `sales.view`, `sales.create`, or `sales.update` to the relevant API access rule when the endpoint is used by POS.
