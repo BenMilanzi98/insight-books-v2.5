@@ -100,7 +100,7 @@ export default function PayrollProcessing() {
     
     setFormData((prev) => {
       const updates = { ...prev };
-      // Always set to Salaries Expense account (fixed, cannot be changed)
+      // Always set to 5200 - Salaries & Wages (fixed, cannot be changed)
       const defaultExpense = getDefaultExpenseAccount();
       if (defaultExpense) {
         updates.expenseAccountId = defaultExpense.id;
@@ -124,13 +124,17 @@ export default function PayrollProcessing() {
     try {
       setAccountsLoading(true);
       setAccountsError(null);
-      const response = await fetch('/api/chart-of-accounts/picker?accountType=Expense&isActive=true&postingEligibleOnly=true');
+      const response = await fetch('/api/categories?type=expense');
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to load accounts');
       }
       const data = await response.json();
-      setAccounts(filterCoaAccountsForPostingPicker(data.accounts || []));
+      const categories = Array.isArray(data.categories) ? data.categories : [];
+      setAccounts(filterCoaAccountsForPostingPicker(categories).filter((account) => {
+        const code = account.accountCode || account.code;
+        return String(code || '').trim() === '5200';
+      }));
     } catch (error) {
       console.error('Error loading accounts:', error);
       setAccounts([]);
@@ -169,13 +173,8 @@ export default function PayrollProcessing() {
       const type = normalizeAccountType(account);
       if (type !== 'EXPENSE') return false;
       
-      // Exclude COGS accounts
-      const name = (account.accountName || account.name || '').toLowerCase();
-      if (name.includes('cost of goods') || name.includes('cogs')) {
-        return false;
-      }
-      
-      return true;
+      const code = account.accountCode || account.code;
+      return String(code || '').trim() === '5200';
     });
   }, [accounts]);
 
@@ -192,32 +191,10 @@ export default function PayrollProcessing() {
   }, [paymentAccounts]);
 
   const getDefaultExpenseAccount = () => {
-    // First try to find exact match "Salaries Expense"
-    let account = expenseAccountOptions.find((account) => {
-      const name = (account.accountName || account.name || '').toLowerCase().trim();
-      return name === 'salaries expense' || name === 'salary expense';
-    });
-    
-    // If not found, try partial match (but exclude COGS)
-    if (!account) {
-      account = expenseAccountOptions.find((account) => {
-        const name = (account.accountName || account.name || '').toLowerCase();
-        const isSalary = name.includes('salar');
-        const isCogs = name.includes('cost of goods') || name.includes('cogs');
-        return isSalary && !isCogs;
-      });
-    }
-    
-    // If still not found, try any expense account that's NOT COGS
-    if (!account) {
-      account = expenseAccountOptions.find((account) => {
-        const name = (account.accountName || account.name || '').toLowerCase();
-        return !name.includes('cost of goods') && !name.includes('cogs');
-      });
-    }
-    
-    // Last resort: return first expense account (but this should rarely happen)
-    return account || expenseAccountOptions[0];
+    return expenseAccountOptions.find((account) => {
+      const code = account.accountCode || account.code;
+      return String(code || '').trim() === '5200';
+    }) || null;
   };
 
   const getDefaultPaymentAccount = () => {
@@ -1182,16 +1159,16 @@ export default function PayrollProcessing() {
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
                       {(() => {
                         const selectedAccount = accounts.find(acc => acc.id === formData.expenseAccountId);
-                        return selectedAccount ? formatAccountOption(selectedAccount) : 'Salaries Expense';
+                        return selectedAccount ? formatAccountOption(selectedAccount) : '5200 - Salaries & Wages';
                       })()}
                     </div>
                   ) : (
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
-                      Salaries Expense (Auto-selected)
+                      5200 - Salaries & Wages (required)
                     </div>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
-                    This account is automatically set to "Salaries Expense" for payroll processing
+                    Payroll salary cost is always posted to 5200 - Salaries & Wages.
                   </p>
                   {accountsError && (
                     <p className="text-xs text-red-500 mt-1">Failed to load accounts: {accountsError}</p>

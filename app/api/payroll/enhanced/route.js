@@ -12,6 +12,11 @@ import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveSalaryAdvanceReceivableAccount } from '@/lib/salaryAdvanceGlAccount';
+import {
+  CANONICAL_SALARY_ACCOUNT_CODE,
+  CANONICAL_SALARY_ACCOUNT_NAME,
+  resolveCanonicalSalaryExpenseAccount
+} from '@/lib/accountingMappingRules';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -135,7 +140,7 @@ export async function POST(request) {
       );
     }
 
-    // Get or create required accounts/liabilities (including 5230 - Salaries Expense)
+    // Get or create required payroll accounts/liabilities.
     let payrollAccounts;
     try {
       payrollAccounts = await getOrCreatePayrollAccounts(user.tenantId);
@@ -144,20 +149,28 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error: accountError.message || 'Failed to load or create payroll accounts.',
-          hint: 'Ensure Chart of Accounts includes "Salaries Expense" (code 5230), Cash, PAYE and NPS liability accounts.'
+          hint: `Ensure Chart of Accounts includes "${CANONICAL_SALARY_ACCOUNT_CODE} - ${CANONICAL_SALARY_ACCOUNT_NAME}", Cash, PAYE and NPS liability accounts.`
+        },
+        { status: 400 }
+      );
+    }
+
+    let canonicalSalaryExpenseAccount;
+    try {
+      canonicalSalaryExpenseAccount = await resolveCanonicalSalaryExpenseAccount(user.tenantId, prisma);
+    } catch (salaryAccountError) {
+      return NextResponse.json(
+        {
+          error: salaryAccountError.message || `${CANONICAL_SALARY_ACCOUNT_CODE} - ${CANONICAL_SALARY_ACCOUNT_NAME} is required for payroll.`
         },
         { status: 400 }
       );
     }
 
     const [
-      selectedExpenseAccount,
       selectedCoAPaymentAccount,
       selectedPaymentAccountRecord
     ] = await Promise.all([
-      expenseAccountId
-        ? prisma.account.findFirst({ where: { id: expenseAccountId, tenantId: user.tenantId } })
-        : null,
       paymentAccountId
         ? prisma.account.findFirst({ where: { id: paymentAccountId, tenantId: user.tenantId } })
         : null,
@@ -168,16 +181,11 @@ export async function POST(request) {
         : null
     ]);
 
-    if (expenseAccountId && !selectedExpenseAccount) {
+    if (expenseAccountId && expenseAccountId !== canonicalSalaryExpenseAccount.id) {
       return NextResponse.json(
-        { error: 'Selected salary expense account was not found' },
-        { status: 400 }
-      );
-    }
-
-    if (selectedExpenseAccount && !isExpenseAccount(selectedExpenseAccount)) {
-      return NextResponse.json(
-        { error: 'Selected salary account must be an Expense account' },
+        {
+          error: `Payroll salary expense is fixed to ${CANONICAL_SALARY_ACCOUNT_CODE} - ${CANONICAL_SALARY_ACCOUNT_NAME}.`
+        },
         { status: 400 }
       );
     }
@@ -196,25 +204,10 @@ export async function POST(request) {
           return accName.toLowerCase() === name.toLowerCase();
         }
       );
-      
-      if (!found && name === 'Salaries Expense') {
-        // If Salaries Expense not found, try to find any expense account with "Salary" or "Salaries" in the name
-        const salaryExpense = payrollAccounts.find(
-          (acc) => {
-            const accName = (acc.accountName || acc.name || '').trim().toLowerCase();
-            const accType = (acc.accountType || acc.type || '').toLowerCase();
-            return (accName.includes('salary') || accName.includes('salaries')) && 
-                   (accType.includes('expense') || accType === 'expense');
-          }
-        );
-        return salaryExpense;
-      }
-      
       return found;
     };
 
-    const expenseAccount =
-      selectedExpenseAccount || findAccountByName('Salaries Expense');
+    const expenseAccount = canonicalSalaryExpenseAccount;
     // Resolve payment account selection through the central mapper so structural headers
     // such as 1000 are never used as payroll cash/bank posting accounts.
     let paymentAccount = null;
@@ -397,7 +390,7 @@ export async function POST(request) {
       if (expenseAccountName.includes('cost of goods') || expenseAccountName.includes('cogs')) {
         return NextResponse.json(
           { 
-            error: 'Invalid expense account selected. Payroll must use a Salaries/Salary Expense account, not Cost of Goods Sold. Please select the correct account or ensure "Salaries Expense" account exists.',
+            error: `Invalid expense account selected. Payroll must use ${CANONICAL_SALARY_ACCOUNT_CODE} - ${CANONICAL_SALARY_ACCOUNT_NAME}, not Cost of Goods Sold.`,
             details: `Found account: ${expenseAccount.accountName || expenseAccount.name}`
           },
           { status: 400 }
@@ -418,7 +411,7 @@ export async function POST(request) {
 
     if (!expenseAccount || !paymentAccount || !payeAccount || !npsEmployeeAccount || !npsEmployerAccount || !otherDeductionsAccount) {
       const missingAccounts = [];
-      if (!expenseAccount) missingAccounts.push('Salaries Expense');
+      if (!expenseAccount) missingAccounts.push(`${CANONICAL_SALARY_ACCOUNT_CODE} - ${CANONICAL_SALARY_ACCOUNT_NAME}`);
       if (!paymentAccount) missingAccounts.push('Cash');
       if (!payeAccount) missingAccounts.push('PAYE Liability');
       if (!npsEmployeeAccount) missingAccounts.push('NPS Employee Contribution Liability');
@@ -1215,7 +1208,7 @@ async function getOrCreatePayrollAccounts(tenantId) {
   const accounts = [];
   
   const accountNames = [
-    'Salaries Expense',
+    CANONICAL_SALARY_ACCOUNT_NAME,
     'PAYE Liability',
     'NPS Employee Contribution Liability',
     'NPS Employer Contribution Liability',
@@ -1252,48 +1245,6 @@ async function getOrCreatePayrollAccounts(tenantId) {
           tenantId: tenantId
         }
       });
-    }
-
-    // For Salaries Expense specifically, also check for variations (code 5230 - used in payroll)
-    if (!account && accountName === 'Salaries Expense') {
-      const salaryCandidates = await prisma.account.findMany({
-        where: {
-          tenantId: tenantId,
-          isActive: true,
-          OR: [
-            { name: { contains: 'Salary', mode: 'insensitive' } },
-            { accountName: { contains: 'Salary', mode: 'insensitive' } },
-            { name: { contains: 'Wages', mode: 'insensitive' } },
-            { accountName: { contains: 'Wages', mode: 'insensitive' } }
-          ]
-        }
-      });
-      const accType = (a) => ((a.accountType || a.type || '') + '').toLowerCase();
-      account = salaryCandidates.find((a) => {
-        const name = (a.accountName || a.name || '').toLowerCase();
-        if (name.includes('cost of goods') || name.includes('cogs')) return false;
-        return accType(a).includes('expense') || accType(a) === 'exp';
-      }) || null;
-      if (account && account.accountCode !== accountCode) {
-        try {
-          const code5230Account = await prisma.account.findFirst({
-            where: { tenantId: tenantId, accountCode: accountCode, id: { not: account.id } }
-          });
-          if (code5230Account) {
-            account = code5230Account;
-          } else {
-            account = await prisma.account.update({
-              where: { id: account.id },
-              data: { accountCode: accountCode, accountName: 'Salaries Expense', name: 'Salaries Expense' }
-            });
-          }
-        } catch (updateErr) {
-          const existing = await prisma.account.findFirst({
-            where: { tenantId: tenantId, accountCode: accountCode }
-          });
-          if (existing) account = existing;
-        }
-      }
     }
 
     if (!account) {
@@ -1368,7 +1319,7 @@ async function getOrCreatePayrollAccounts(tenantId) {
     }
 
     if (!account) {
-      throw new Error(`Could not find or create account: ${accountName} (code ${accountCode}). Add "${accountName}" in Chart of Accounts and try again.`);
+      throw new Error(`Could not find or create account: ${accountName} (code ${accountCode}). Add "${accountCode} - ${accountName}" in Chart of Accounts and try again.`);
     }
     accounts.push(account);
   }
@@ -1381,7 +1332,8 @@ async function getOrCreatePayrollAccounts(tenantId) {
  */
 function generateAccountCode(accountName) {
   const codes = {
-    'Salaries Expense': '5201',
+    [CANONICAL_SALARY_ACCOUNT_NAME]: CANONICAL_SALARY_ACCOUNT_CODE,
+    'Salaries Expense': CANONICAL_SALARY_ACCOUNT_CODE,
     'PAYE Liability': '2130',
     'NPS Employee Contribution Liability': '2101',
     'NPS Employer Contribution Liability': '2102',
@@ -1396,6 +1348,9 @@ function generateAccountCode(accountName) {
  * Get account type based on account name
  */
 function getAccountType(accountName) {
+  if (accountName === CANONICAL_SALARY_ACCOUNT_NAME || accountName.includes('Salaries') || accountName.includes('Wages')) {
+    return 'EXPENSE';
+  }
   if (accountName.includes('Expense')) return 'EXPENSE';
   if (accountName.includes('Liability')) return 'LIABILITY';
   if (accountName === 'Cash') return 'ASSET';
@@ -1404,6 +1359,7 @@ function getAccountType(accountName) {
 
 function getAccountSubtype(accountName) {
   if (accountName === 'Cash') return 'Cash & Bank';
+  if (accountName === CANONICAL_SALARY_ACCOUNT_NAME) return 'Payroll Expense';
   if (accountName.includes('PAYE')) return 'Tax Payable';
   if (accountName.includes('NPS Employer')) return 'Payroll Liability';
   if (accountName.includes('NPS Employee')) return 'Payroll Liability';
@@ -1435,12 +1391,6 @@ function convertAccountType(legacyType) {
 function getAccountDisplayName(account) {
   if (!account) return 'Account';
   return account.accountName || account.name || account.accountCode || account.code || 'Account';
-}
-
-function isExpenseAccount(account) {
-  if (!account) return false;
-  const type = (account.accountType || account.type || '').toUpperCase();
-  return type === 'EXPENSE';
 }
 
 function isAssetAccount(account) {

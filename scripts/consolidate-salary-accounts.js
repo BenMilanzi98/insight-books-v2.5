@@ -1,12 +1,12 @@
 /**
- * Consolidate Salary Expense Accounts to Single Code 5230 - Salaries Expense
+ * Consolidate Salary Expense Accounts to Single Code 5200 - Salaries & Wages
  *
- * The system uses one standard account code (5230) for all salary expenses.
+ * The system uses one standard account code (5200) for all salary expenses.
  * This account is used when processing payroll and is shown/traced in chart of accounts.
  * This script:
- * - For each tenant, picks or creates a single "Salaries Expense" account with code 5230
- * - Migrates all TransactionLine and JournalEntryLine from 5300/5301/6000 (or other
- *   salary-named expense accounts) to the 5230 account
+ * - For each tenant, picks or creates a single "Salaries & Wages" account with code 5200
+ * - Migrates all TransactionLine and JournalEntryLine from legacy salary accounts (or other
+ *   salary-named expense accounts) to the 5200 account
  * - Preserves all data; no amounts are lost
  * - Marks deprecated salary accounts as inactive (isActive = false)
  *
@@ -25,13 +25,13 @@ function isExpenseAccount(acc) {
   return t === 'expense' || t === 'exp';
 }
 
-const SALARY_ACCOUNT_CODE = '5230';
-const SALARY_ACCOUNT_NAME = 'Salaries Expense';
+const SALARY_ACCOUNT_CODE = '5200';
+const SALARY_ACCOUNT_NAME = 'Salaries & Wages';
 
 function isSalaryLike(acc) {
   const name = ((acc.accountName || acc.name || '') + ' ' + (acc.accountCode || '')).toLowerCase();
   return (
-    (acc.accountCode === '5230' || acc.accountCode === '5300' || acc.accountCode === '5301' || acc.accountCode === '6000') ||
+    (acc.accountCode === '5201' || acc.accountCode === '5202' || acc.accountCode === '5203' || acc.accountCode === '5210' || acc.accountCode === '5230') ||
     name.includes('salar') ||
     name.includes('wages') ||
     name.includes('payroll')
@@ -39,103 +39,37 @@ function isSalaryLike(acc) {
 }
 
 async function getCanonicalSalaryAccount(tenantId) {
-  // Prefer existing 5230 - Salaries Expense (used in payroll and chart of accounts)
+  // Prefer existing 5200 - Salaries & Wages (canonical payroll salary expense)
   let canonical = await prisma.account.findFirst({
     where: { tenantId, accountCode: SALARY_ACCOUNT_CODE, isActive: true }
   });
   if (canonical && isExpenseAccount(canonical)) return canonical;
 
-  // Else 5300
-  canonical = await prisma.account.findFirst({
-    where: { tenantId, accountCode: '5300', isActive: true }
-  });
-  if (canonical && isExpenseAccount(canonical)) {
-    if (!DRY_RUN) {
-      const existing = await prisma.account.findFirst({ where: { tenantId, accountCode: SALARY_ACCOUNT_CODE } });
-      if (!existing) {
-        await prisma.account.update({
-          where: { id: canonical.id },
-          data: { accountCode: SALARY_ACCOUNT_CODE, accountName: SALARY_ACCOUNT_NAME, name: SALARY_ACCOUNT_NAME }
-        });
-        canonical = await prisma.account.findUnique({ where: { id: canonical.id } });
-      } else {
-        canonical = existing;
-      }
-    }
-    return canonical;
-  }
+  if (DRY_RUN) return null;
 
-  // Else 5301
-  canonical = await prisma.account.findFirst({
-    where: { tenantId, accountCode: '5301', isActive: true }
+  const expensesRoot = await prisma.account.findFirst({
+    where: { tenantId, accountCode: '5000' },
+    select: { id: true }
   });
-  if (canonical && isExpenseAccount(canonical)) {
-    if (!DRY_RUN) {
-      const existing = await prisma.account.findFirst({ where: { tenantId, accountCode: SALARY_ACCOUNT_CODE } });
-      if (!existing) {
-        await prisma.account.update({
-          where: { id: canonical.id },
-          data: { accountCode: SALARY_ACCOUNT_CODE, accountName: SALARY_ACCOUNT_NAME, name: SALARY_ACCOUNT_NAME }
-        });
-        canonical = await prisma.account.findUnique({ where: { id: canonical.id } });
-      } else {
-        canonical = existing;
-      }
-    }
-    return canonical;
-  }
 
-  // Else 6000 (legacy payroll code)
-  canonical = await prisma.account.findFirst({
-    where: { tenantId, accountCode: '6000', isActive: true }
-  });
-  if (canonical && isExpenseAccount(canonical)) {
-    if (!DRY_RUN) {
-      const existing = await prisma.account.findFirst({ where: { tenantId, accountCode: SALARY_ACCOUNT_CODE } });
-      if (!existing) {
-        await prisma.account.update({
-          where: { id: canonical.id },
-          data: { accountCode: SALARY_ACCOUNT_CODE, accountName: SALARY_ACCOUNT_NAME, name: SALARY_ACCOUNT_NAME }
-        });
-        canonical = await prisma.account.findUnique({ where: { id: canonical.id } });
-      } else {
-        canonical = existing;
-      }
-    }
-    return canonical;
-  }
-
-  // Else any expense account with salary/wages in name
-  const byName = await prisma.account.findMany({
-    where: {
+  return prisma.account.create({
+    data: {
+      code: SALARY_ACCOUNT_CODE,
+      name: SALARY_ACCOUNT_NAME,
+      type: 'EXPENSE',
+      accountCode: SALARY_ACCOUNT_CODE,
+      accountName: SALARY_ACCOUNT_NAME,
+      accountType: 'Expense',
+      accountSubtype: 'Operating Expense',
+      normalBalance: 'Debit',
+      balance: 0,
       tenantId,
       isActive: true,
-      OR: [
-        { name: { contains: 'Salary', mode: 'insensitive' } },
-        { accountName: { contains: 'Salary', mode: 'insensitive' } },
-        { name: { contains: 'Wages', mode: 'insensitive' } },
-        { accountName: { contains: 'Wages', mode: 'insensitive' } }
-      ]
+      acceptsNewTransactions: true,
+      visibleInChart: true,
+      ...(expensesRoot ? { parentAccountId: expensesRoot.id } : {}),
     }
   });
-  const expense = byName.find((a) => isExpenseAccount(a) && !(a.accountName || a.name || '').toLowerCase().includes('cogs'));
-  if (expense) {
-    if (expense.accountCode !== SALARY_ACCOUNT_CODE && !DRY_RUN) {
-      const existing = await prisma.account.findFirst({
-        where: { tenantId, accountCode: SALARY_ACCOUNT_CODE }
-      });
-      if (!existing) {
-        await prisma.account.update({
-          where: { id: expense.id },
-          data: { accountCode: SALARY_ACCOUNT_CODE, accountName: SALARY_ACCOUNT_NAME, name: SALARY_ACCOUNT_NAME }
-        });
-        return await prisma.account.findUnique({ where: { id: expense.id } });
-      }
-    }
-    return expense;
-  }
-
-  return null;
 }
 
 async function getOtherSalaryAccounts(tenantId, canonicalId) {
@@ -159,7 +93,7 @@ async function getOtherSalaryAccounts(tenantId, canonicalId) {
 
 async function main() {
   console.log('\n==========================================');
-  console.log('Consolidate Salary Accounts → 5230 - Salaries Expense');
+  console.log('Consolidate Salary Accounts -> 5200 - Salaries & Wages');
   console.log(DRY_RUN ? '(DRY RUN - no changes written)\n' : '\n');
 
   const tenants = await prisma.tenant.findMany({

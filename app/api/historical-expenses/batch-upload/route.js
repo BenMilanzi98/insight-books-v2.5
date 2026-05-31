@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
+import { getPostableExpenseAccounts } from '@/lib/accountingMappingRules';
 
 export async function POST(request) {
   try {
@@ -68,20 +69,13 @@ export async function POST(request) {
     const headers = parseCSVLine(lines[0]);
     const dataRows = lines.slice(1).map(line => parseCSVLine(line));
 
-    const expenseAccounts = await prisma.account.findMany({
-      where: {
-        tenantId: user.tenantId,
-        accountType: 'Expense',
-        isActive: true
-      },
-      select: {
-        id: true,
-        accountName: true
-      }
-    });
+    const expenseAccounts = await getPostableExpenseAccounts(user.tenantId, prisma);
 
     const expenseAccountsByName = new Map(
-      expenseAccounts.map(account => [account.accountName.toLowerCase(), account])
+      expenseAccounts.map(account => [
+        String(account.accountName || account.name || '').toLowerCase(),
+        account
+      ])
     );
 
     // Validate headers

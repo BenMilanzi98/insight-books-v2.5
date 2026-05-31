@@ -152,7 +152,7 @@ export async function GET(request) {
         { id: "clgqxz1a80004n9o1p7mq3e2y", code: "5000", name: "Office Expenses", type: "EXPENSE", balance: 3200 },
         { id: "clgqxz1a80005n9o1q3mr8t6u", code: "5100", name: "Rent Expense", type: "EXPENSE", balance: 1800 },
         { id: "clgqxz1a80006n9o1r9ms2e9i", code: "5200", name: "Utilities Expense", type: "EXPENSE", balance: 950 },
-        { id: "clgqxz1a80007n9o1s5mt7r3o", code: "5300", name: "Salaries Expense", type: "EXPENSE", balance: 12000 }
+        { id: "clgqxz1a80007n9o1s5mt7r3o", code: "5200", name: "Salaries & Wages", type: "EXPENSE", balance: 12000 }
       ];
       
       

@@ -3,49 +3,15 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
-import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { resolveExpenseAccountSelection } from '@/lib/accountingMappingRules';
 
 const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
-  let expenseAccount = null;
-
-  if (expenseAccountId) {
-    expenseAccount = await prisma.account.findFirst({
-      where: { id: expenseAccountId, tenantId, accountType: 'Expense', isActive: true },
-    });
-    if (!expenseAccount) {
-      const ec = await prisma.expenseCategory.findFirst({
-        where: { id: expenseAccountId, tenantId },
-        include: { account: true },
-      });
-      if (ec?.account?.isActive !== false && ec?.account?.accountType === 'Expense') {
-        expenseAccount = ec.account;
-      }
-    }
-  }
-
-  if (!expenseAccount && category) {
-    const ec = await prisma.expenseCategory.findFirst({
-      where: { tenantId, name: { equals: category, mode: 'insensitive' } },
-      include: { account: true },
-    });
-    if (ec?.account?.isActive !== false && ec?.account?.accountType === 'Expense') {
-      expenseAccount = ec.account;
-    }
-  }
-
-  if (!expenseAccount && category) {
-    expenseAccount = await prisma.account.findFirst({
-      where: {
-        tenantId,
-        accountType: 'Expense',
-        isActive: true,
-        accountName: { equals: category, mode: 'insensitive' },
-      },
-    });
-  }
-
-  if (!expenseAccount || !isSystemExpenseStructurePickerAccount(expenseAccount)) return null;
-  return expenseAccount;
+  const resolved = await resolveExpenseAccountSelection(
+    tenantId,
+    { expenseAccountId, category },
+    prisma
+  );
+  return resolved.account;
 };
 
 // GET - Fetch a single recurring expense by ID
@@ -214,11 +180,19 @@ export async function PUT(request, { params }) {
       );
     }
     
-    const expenseAccount = await resolveExpenseAccount(
-      user.tenantId,
-      body.expenseAccountId,
-      body.category
-    );
+    let expenseAccount;
+    try {
+      expenseAccount = await resolveExpenseAccount(
+        user.tenantId,
+        body.expenseAccountId,
+        body.category
+      );
+    } catch (accountError) {
+      return NextResponse.json(
+        { error: accountError.message || 'Valid expense account is required.' },
+        { status: 400 }
+      );
+    }
 
     if (!expenseAccount) {
       return NextResponse.json(
@@ -418,4 +392,3 @@ export async function DELETE(request, { params }) {
     );
   }
 }
-

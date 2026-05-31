@@ -8,110 +8,111 @@ datasource db {
 }
 
 model Tenant {
-  id                          String                       @id @default(cuid())
-  name                        String
-  subdomain                   String                       @unique
-  createdAt                   DateTime                     @default(now())
-  updatedAt                   DateTime                     @updatedAt
-  status                      String                       @default("active")
-  subscriptionPlan            String
-  logoUrl                     String?
-  primaryColor                String?
-  faviconUrl                  String?
-  secondaryColor              String?
-  defaultBranchId             String?
-  defaultBranch               Branch?                      @relation("TenantDefaultBranch", fields: [defaultBranchId], references: [id], onDelete: SetNull)
-  ownerUserId                 String? // Main tenant user: always has access to all branches
-  owner                       User?                        @relation("TenantOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  accounts                    Account[]
-  AccountBalance              AccountBalance[]
-  accountSubscriptions        AccountSubscription[]
-  adminAccess                 AdminTenantAccess[]
-  affiliateReferrals          AffiliateReferral[]
-  assets                      Asset[]
-  assetCategories             AssetCategory[]
-  assetTransfersOut           AssetInterBusinessTransfer[] @relation("AssetTransferFromTenant")
-  assetTransfersIn            AssetInterBusinessTransfer[] @relation("AssetTransferToTenant")
-  attendanceRecords           AttendanceRecord[]
-  attendanceRegisters         AttendanceRegister[]
-  bankAccounts                BankAccount[]
-  branches                    Branch[]
-  branchSubscriptions         BranchSubscription[]
-  budgets                     Budget[]
-  bfExpenseBudgetHeaders      BfExpenseBudgetHeader[]
-  bfRevenueForecastHeaders    BfRevenueForecastHeader[]
-  clients                     Client[]
-  benefits                    Benefit[]
-  deductions                  Deduction[]
-  departments                 Department[]
-  emailLogs                   EmailLog[]
-  employees                   Employee[]
-  equityAccounts              EquityAccount[]
-  exchangeRates               ExchangeRate[]
-  expenses                    Expense[]
-  goodsReceipts               GoodsReceipt[]
-  gratuityAccounts            GratuityAccount[]
-  inventoryBatches            InventoryBatch[]
-  inventoryBatchConsumptions  InventoryBatchConsumption[]
-  inventoryCategories         InventoryCategory[]
-  inventoryLocations          InventoryLocation[]
-  inventoryTransactions       InventoryTransaction[]
-  invoices                    Invoice[]
-  invoiceRefunds              InvoiceRefund[]
-  creditNotes                 CreditNote[]
-  debitNotes                  DebitNote[]
-  invoiceTemplates            InvoiceTemplate[]
-  invoiceAttachments          InvoiceAttachment[]
-  journalEntries              JournalEntry[]
-  leaveBalances               LeaveBalance[]
-  leavePolicies               LeavePolicy[]
-  leaveRequests               LeaveRequest[]
-  liabilities                 Liability[]
-  liabilityCategories         LiabilityCategory[]
-  expenseCategories           ExpenseCategory[]
-  payments                    Payment[]
-  paymentGateways             PaymentGateway[]
-  paymentAccounts             PaymentAccount[]
-  payrolls                    Payroll[]
-  performanceFeedback         PerformanceFeedback[]
-  performanceGoals            PerformanceGoal[]
-  performanceReviews          PerformanceReview[]
-  productBarcodes             ProductBarcode[]
-  products                    Product[]
-  purchaseOrders              PurchaseOrder[]
-  documentSequences           DocumentSequence[]
-  quotations                  Quotation[]
-  recurringExpenses           RecurringExpense[]
-  roles                       Role[]
-  salaryAdvances              SalaryAdvance[]
-  sales                       Sale[]                       @relation("TenantSales")
-  suppliers                   Supplier[]
-  supplierBills               SupplierBill[]
-  supplierPayments            SupplierPayment[]
-  supplierPaymentAllocations  SupplierPaymentAllocation[]
-  taxTypes                    TaxType[]
-  settings                    TenantSettings?
-  transactions                Transaction[]
-  users                       User[]
-  members                     User[]                       @relation("UserTenants")
-  memberships                 TenantMembership[]
-  accountingPeriods           AccountingPeriod[]
-  stockTransfers              StockTransfer[]
-  stockTransferReceiptNotices StockTransferReceiptNotice[]
-  inventoryExpiryAudits       InventoryExpiryAudit[]
-  posCashDays                 PosCashDay[]
-  tpin                        String?
-  eisEnabled                  Boolean                      @default(false)
-  eisInvoices                 EISInvoice[]
-  eisConfiguration            EISConfiguration?
-  eisUsage                    EISUsage[]
-  rentalAssets                RentalAsset[]
-  rentalTransactions          RentalTransaction[]
+  id                           String                        @id @default(cuid())
+  name                         String
+  subdomain                    String                        @unique
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  status                       String                        @default("active")
+  subscriptionPlan             String
+  logoUrl                      String?
+  primaryColor                 String?
+  faviconUrl                   String?
+  secondaryColor               String?
+  defaultBranchId              String?
+  defaultBranch                Branch?                       @relation("TenantDefaultBranch", fields: [defaultBranchId], references: [id], onDelete: SetNull)
+  ownerUserId                  String? // Main tenant user: always has access to all branches
+  owner                        User?                         @relation("TenantOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  accounts                     Account[]
+  AccountBalance               AccountBalance[]
+  accountSubscriptions         AccountSubscription[]
+  adminAccess                  AdminTenantAccess[]
+  affiliateReferrals           AffiliateReferral[]
+  assets                       Asset[]
+  assetCategories              AssetCategory[]
+  assetTransfersOut            AssetInterBusinessTransfer[]  @relation("AssetTransferFromTenant")
+  assetTransfersIn             AssetInterBusinessTransfer[]  @relation("AssetTransferToTenant")
+  attendanceRecords            AttendanceRecord[]
+  attendanceRegisters          AttendanceRegister[]
+  bankAccounts                 BankAccount[]
+  branches                     Branch[]
+  branchSubscriptions          BranchSubscription[]
+  budgets                      Budget[]
+  bfExpenseBudgetHeaders       BfExpenseBudgetHeader[]
+  bfRevenueForecastHeaders     BfRevenueForecastHeader[]
+  clients                      Client[]
+  benefits                     Benefit[]
+  deductions                   Deduction[]
+  departments                  Department[]
+  emailLogs                    EmailLog[]
+  employees                    Employee[]
+  equityAccounts               EquityAccount[]
+  exchangeRates                ExchangeRate[]
+  expenses                     Expense[]
+  goodsReceipts                GoodsReceipt[]
+  gratuityAccounts             GratuityAccount[]
+  inventoryBatches             InventoryBatch[]
+  inventoryBatchConsumptions   InventoryBatchConsumption[]
+  inventoryCategories          InventoryCategory[]
+  inventoryLocations           InventoryLocation[]
+  inventoryTransactions        InventoryTransaction[]
+  invoices                     Invoice[]
+  invoiceRefunds               InvoiceRefund[]
+  creditNotes                  CreditNote[]
+  debitNotes                   DebitNote[]
+  invoiceTemplates             InvoiceTemplate[]
+  invoiceAttachments           InvoiceAttachment[]
+  journalEntries               JournalEntry[]
+  leaveBalances                LeaveBalance[]
+  leavePolicies                LeavePolicy[]
+  leaveRequests                LeaveRequest[]
+  liabilities                  Liability[]
+  liabilityCategories          LiabilityCategory[]
+  expenseCategories            ExpenseCategory[]
+  payments                     Payment[]
+  paymentGateways              PaymentGateway[]
+  paymentAccounts              PaymentAccount[]
+  payrolls                     Payroll[]
+  performanceFeedback          PerformanceFeedback[]
+  performanceGoals             PerformanceGoal[]
+  performanceReviews           PerformanceReview[]
+  productBarcodes              ProductBarcode[]
+  products                     Product[]
+  purchaseOrders               PurchaseOrder[]
+  documentSequences            DocumentSequence[]
+  quotations                   Quotation[]
+  recurringExpenses            RecurringExpense[]
+  roles                        Role[]
+  salaryAdvances               SalaryAdvance[]
+  sales                        Sale[]                        @relation("TenantSales")
+  suppliers                    Supplier[]
+  supplierBills                SupplierBill[]
+  supplierPayments             SupplierPayment[]
+  supplierPaymentAllocations   SupplierPaymentAllocation[]
+  taxTypes                     TaxType[]
+  settings                     TenantSettings?
+  transactions                 Transaction[]
+  users                        User[]
+  members                      User[]                        @relation("UserTenants")
+  memberships                  TenantMembership[]
+  accountingPeriods            AccountingPeriod[]
+  stockTransfers               StockTransfer[]
+  stockTransferReceiptNotices  StockTransferReceiptNotice[]
+  inventoryExpiryAudits        InventoryExpiryAudit[]
+  posCashDays                  PosCashDay[]
+  tpin                         String?
+  eisEnabled                   Boolean                       @default(false)
+  eisInvoices                  EISInvoice[]
+  eisConfiguration             EISConfiguration?
+  eisUsage                     EISUsage[]
+  rentalAssets                 RentalAsset[]
+  rentalTransactions           RentalTransaction[]
   /// When true, CoA-affecting mutations and postings should be blocked (migration / maintenance).
-  coaLocked                   Boolean                      @default(false)
+  coaLocked                    Boolean                       @default(false)
   /// Guide Phase 3: equity auto-merge requires explicit approval per tenant.
-  coaEquityMigrationApproved  Boolean                      @default(false)
-  coaMigrationLogs            CoaMigrationLog[]
+  coaEquityMigrationApproved   Boolean                       @default(false)
+  coaMigrationLogs             CoaMigrationLog[]
+  accountingMappingCorrections AccountingMappingCorrection[]
 }
 
 model Branch {
@@ -174,63 +175,63 @@ model DocumentSequence {
 }
 
 model TenantSettings {
-  id                              String    @id @default(cuid())
-  tenantId                        String    @unique
-  taxEnabled                      Boolean   @default(true)
-  defaultTaxRate                  Float     @default(0)
-  currencyCode                    String    @default("MWK")
-  invoicePrefix                   String    @default("INV")
-  invoiceTemplate                 String    @default("default")
-  enabledModules                  String[]
-  customDomain                    String?
-  dailyReports                    Boolean   @default(false)
-  emailFooter                     String?
-  emailNotifications              Boolean   @default(true)
-  inAppNotifications              Boolean   @default(true)
-  invoiceReminders                Boolean   @default(true)
-  lowStockAlerts                  Boolean   @default(true)
-  monthlyReports                  Boolean   @default(true)
-  paymentReceipts                 Boolean   @default(true)
-  smsNotifications                Boolean   @default(false)
-  weeklyReports                   Boolean   @default(true)
-  buildingName                    String?
-  businessAddress                 String?
-  businessCity                    String?
-  businessEmail                   String?
-  businessPhone                   String?
-  receiptFooter                   String?
-  defaultBankDetails              String? // Default bank account details for invoice/quotation/receipt footers
+  id                               String    @id @default(cuid())
+  tenantId                         String    @unique
+  taxEnabled                       Boolean   @default(true)
+  defaultTaxRate                   Float     @default(0)
+  currencyCode                     String    @default("MWK")
+  invoicePrefix                    String    @default("INV")
+  invoiceTemplate                  String    @default("default")
+  enabledModules                   String[]
+  customDomain                     String?
+  dailyReports                     Boolean   @default(false)
+  emailFooter                      String?
+  emailNotifications               Boolean   @default(true)
+  inAppNotifications               Boolean   @default(true)
+  invoiceReminders                 Boolean   @default(true)
+  lowStockAlerts                   Boolean   @default(true)
+  monthlyReports                   Boolean   @default(true)
+  paymentReceipts                  Boolean   @default(true)
+  smsNotifications                 Boolean   @default(false)
+  weeklyReports                    Boolean   @default(true)
+  buildingName                     String?
+  businessAddress                  String?
+  businessCity                     String?
+  businessEmail                    String?
+  businessPhone                    String?
+  receiptFooter                    String?
+  defaultBankDetails               String? // Default bank account details for invoice/quotation/receipt footers
   // NPS rates are tenant-configurable; null means "not configured".
   // Calculation code should treat null as 0% unless explicitly set.
-  npsEmployeeRatePercent          Float?
-  npsEmployerRatePercent          Float?
-  balanceReminderSubject          String?
-  balanceReminderBody             String?
-  taxInflowAccountId              String? // Default account for tax collected (inflow from sales/invoices)
-  taxOutflowAccountId             String? // Default account for tax paid (outflow from expenses/supplier bills)
-  eisApiKey                       String? // Encrypted MRA EIS API key
-  eisClientSecret                 String? // Encrypted MRA EIS client secret
+  npsEmployeeRatePercent           Float?
+  npsEmployerRatePercent           Float?
+  balanceReminderSubject           String?
+  balanceReminderBody              String?
+  taxInflowAccountId               String? // Default account for tax collected (inflow from sales/invoices)
+  taxOutflowAccountId              String? // Default account for tax paid (outflow from expenses/supplier bills)
+  eisApiKey                        String? // Encrypted MRA EIS API key
+  eisClientSecret                  String? // Encrypted MRA EIS client secret
   /// Cumulative owner contributions (not reduced by transfers to payment accounts). New rows default 0; migration seeds existing tenants.
-  ownerContributedCapital         Float     @default(0)
+  ownerContributedCapital          Float     @default(0)
   /// Null = owner must complete capital onboarding. Migration sets NOW() for all pre-existing TenantSettings rows.
-  capitalSetupCompletedAt         DateTime?
+  capitalSetupCompletedAt          DateTime?
   /// Null = owner must confirm payment accounts. Migration sets NOW() for all pre-existing TenantSettings rows.
-  paymentAccountsSetupCompletedAt DateTime?
+  paymentAccountsSetupCompletedAt  DateTime?
   /// 1–12: first month of fiscal year (1 = calendar year). Used for Yearly accounting periods.
-  fiscalYearStartMonth            Int       @default(1)
+  fiscalYearStartMonth             Int       @default(1)
   /// Optional display / reminder; authoritative opening date is on posted Opening transactions.
-  openingBalancesAsOfDate         DateTime?
+  openingBalancesAsOfDate          DateTime?
   /// When set and in the future, dashboard setup reminder is hidden.
-  setupReminderSnoozedUntil       DateTime?
+  setupReminderSnoozedUntil        DateTime?
   /// { completed: Record<stepId, iso>, skipped: Record<stepId, iso> } — see lib/setupWizardService.js
-  setupWizardState                Json?
+  setupWizardState                 Json?
   /// Days before expiry for "early" alerts; null = use default 30.
-  expiryWarnDaysEarly             Int?
+  expiryWarnDaysEarly              Int?
   /// Days before expiry for "urgent" alerts; null = use default 7.
-  expiryWarnDaysUrgent            Int?
+  expiryWarnDaysUrgent             Int?
   /// Optional GL for inventory write-off loss; null = auto-resolve "Inventory Adjustment Loss".
   inventoryAdjustmentLossAccountId String?
-  tenant                          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant                           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model InvoiceTemplate {
@@ -1682,9 +1683,9 @@ model InventoryExpiryAudit {
   notes          String?
   createdAt      DateTime @default(now())
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
@@ -2148,6 +2149,31 @@ model CoaMigrationLog {
   @@map("coa_migration_log")
 }
 
+/// Row-level audit trail for accounting mapping corrections.
+model AccountingMappingCorrection {
+  id             String   @id @default(cuid())
+  tenantId       String
+  batchId        String
+  entityType     String
+  entityId       String
+  fieldName      String
+  oldAccountId   String?
+  oldAccountCode String?
+  oldAccountName String?
+  newAccountId   String?
+  newAccountCode String?
+  newAccountName String?
+  reason         String
+  createdAt      DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([batchId])
+  @@index([entityType, entityId])
+  @@map("accounting_mapping_correction")
+}
+
 model TaxType {
   id                 String              @id @default(cuid())
   taxId              String
@@ -2466,19 +2492,19 @@ model Unit {
 }
 
 model ProductUnit {
-  id              String              @id @default(cuid())
-  productId       String
-  unitId          String
-  isDefault       Boolean             @default(false)
-  unitPrice       Decimal             @db.Decimal(10, 2)
-  costPrice       Decimal             @db.Decimal(10, 2)
-  quantityInStock Decimal             @default(0) @db.Decimal(15, 6)
-  reorderPoint    Decimal             @default(0) @db.Decimal(15, 6)
-  isActive        Boolean             @default(true)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  product         Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
-  unit            Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  productId          String
+  unitId             String
+  isDefault          Boolean             @default(false)
+  unitPrice          Decimal             @db.Decimal(10, 2)
+  costPrice          Decimal             @db.Decimal(10, 2)
+  quantityInStock    Decimal             @default(0) @db.Decimal(15, 6)
+  reorderPoint       Decimal             @default(0) @db.Decimal(15, 6)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unit               Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
   purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([productId, unitId])

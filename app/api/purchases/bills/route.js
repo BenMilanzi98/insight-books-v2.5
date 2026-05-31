@@ -10,6 +10,7 @@ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { finalizeExpenseBill } from '@/lib/supplierBillExpenseFinalize';
 import { addMoney, multiplyMoney, roundMoney } from '@/lib/money';
+import { resolvePostableExpenseAccount } from '@/lib/accountingMappingRules';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense', 'stock'];
@@ -192,6 +193,18 @@ export async function POST(request) {
         }
         if (!item.amount || Number(item.amount) <= 0) {
           return NextResponse.json({ error: 'Valid amount is required for expense items' }, { status: 400 });
+        }
+        try {
+          await resolvePostableExpenseAccount(
+            user.tenantId,
+            item.expenseAccountId,
+            prisma
+          );
+        } catch (accountError) {
+          return NextResponse.json(
+            { error: accountError.message || 'Invalid expense account.' },
+            { status: 400 }
+          );
         }
       }
     }

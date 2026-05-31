@@ -16,6 +16,7 @@ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
+import { resolvePostableExpenseAccount } from '@/lib/accountingMappingRules';
 
 /** Payments that count toward invoice balance (completed, not a reversal row). */
 function sumEligibleInvoicePayments(payments) {
@@ -61,6 +62,8 @@ async function recordPaymentTransaction({
   paymentMethod,
   sourceAccount,
   destinationAccount,
+  expenseAccountId,
+  revenueAccountId,
   invoice,
   notes
 }) {
@@ -93,19 +96,16 @@ async function recordPaymentTransaction({
     if (type === 'expense') {
       const paymentAccount = await getPaymentAccount(tenantId, methodKey);
       if (!expenseAccountId) {
-        return NextResponse.json(
-          { error: 'Expense payments require an expenseAccountId.' },
-          { status: 400 }
-        );
+        throw new Error('Expense payments require an expenseAccountId.');
       }
-      const expenseAccount = await prisma.account.findFirst({
-        where: { id: expenseAccountId, tenantId, isActive: true, accountType: 'Expense' }
-      });
+      let expenseAccount = null;
+      try {
+        expenseAccount = await resolvePostableExpenseAccount(tenantId, expenseAccountId, prisma);
+      } catch (accountError) {
+        throw new Error(accountError.message || 'Invalid expense account.');
+      }
       if (!paymentAccount || !expenseAccount) {
-        return NextResponse.json(
-          { error: 'Invalid payment or expense account.' },
-          { status: 400 }
-        );
+        throw new Error('Invalid payment or expense account.');
       }
       sourceType = 'ExpensePayment';
       lines = [
@@ -801,6 +801,8 @@ export async function POST(request) {
       paymentMethod,
       sourceAccount,
       destinationAccount,
+      expenseAccountId,
+      revenueAccountId,
       invoice,
       notes
     });

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { requireStandardAccess } from '@/lib/accessControl';
-import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
-import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
+import { getPostableExpenseAccountOptions } from '@/lib/accountingMappingRules';
 
 /** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
 function isProductCategoryType(type) {
@@ -44,113 +42,11 @@ export async function GET(request) {
       });
       categories = inventoryCategories.map(cat => cat.name);
     } else {
-      // Expense categories: only for the current tenant; one entry per logical name (dedupe by normalized name)
+      // Expense picker rows are sourced from Chart of Accounts only.
       if (!user.tenantId) {
         return NextResponse.json({ categories: [], type: 'expense' });
       }
-      const tenantId = user.tenantId;
-
-      const categoriesById = new Map();
-      const isPostableExpensePickerAccount = (account) =>
-        isSystemExpenseStructurePickerAccount(account) &&
-        !accountBlocksDirectPosting(account).blocked;
-      const toEntry = (accountId, code, name, account, description, expCatId = null) => ({
-        id: accountId,
-        code: code || '',
-        name: name || 'Unnamed',
-        accountId,
-        expenseCategoryId: expCatId || null,
-        account: account ?? null,
-        description: description ?? null,
-      });
-
-      try {
-        const expenseCategories = await prisma.expenseCategory.findMany({
-          where: { tenantId },
-          include: {
-            account: {
-              select: {
-                id: true,
-                accountCode: true,
-                accountName: true,
-                accountType: true,
-                isActive: true,
-                mergedIntoAccountId: true,
-                acceptsNewTransactions: true,
-                _count: {
-                  select: {
-                    childAccounts: { where: { isActive: true } },
-                  },
-                },
-              }
-            }
-          },
-          orderBy: { name: 'asc' }
-        });
-        expenseCategories.forEach((cat) => {
-          if (!cat.account || !isPostableExpensePickerAccount(cat.account)) return;
-          const accountId = cat.accountId;
-          if (categoriesById.has(accountId)) return;
-          categoriesById.set(
-            accountId,
-            toEntry(accountId, cat.accountCode, cat.name, cat.account, cat.description, cat.id)
-          );
-        });
-      } catch (expenseCatErr) {
-        console.warn('Categories API: expense categories unavailable:', expenseCatErr?.message || expenseCatErr);
-      }
-
-      const accountSelect = {
-        id: true,
-        accountCode: true,
-        accountName: true,
-        name: true,
-        accountType: true,
-        accountSubtype: true,
-        isActive: true,
-        mergedIntoAccountId: true,
-        acceptsNewTransactions: true,
-        _count: {
-          select: {
-            childAccounts: { where: { isActive: true } },
-          },
-        },
-      };
-      const baseWhere = {
-        tenantId,
-        isActive: true,
-        accountType: 'Expense',
-        mergedIntoAccountId: null,
-      };
-      try {
-        const expenseGlAccounts = await prisma.account.findMany({
-          where: baseWhere,
-          select: accountSelect,
-          orderBy: [{ accountCode: 'asc' }],
-        });
-        expenseGlAccounts.forEach((acc) => {
-          if (!isPostableExpensePickerAccount(acc)) return;
-          const id = acc.id;
-          if (categoriesById.has(id)) return;
-          const code = acc.accountCode || acc.code || '';
-          const label = acc.accountName || acc.name || code || 'Unnamed';
-          categoriesById.set(id, toEntry(id, code, label, acc, null));
-        });
-      } catch (accountErr) {
-        console.warn('Categories API: expense GL accounts unavailable:', accountErr?.message || accountErr);
-      }
-
-      const cleanDisplayName = (name) => {
-        if (!name || typeof name !== 'string') return name || 'Unnamed';
-        const withoutCode = name.replace(/^\d+\s*-\s*/, '').trim();
-        return withoutCode || name;
-      };
-      categories = Array.from(categoriesById.values()).map((cat) => ({
-        ...cat,
-        name: cleanDisplayName(cat.name),
-        expenseCategoryId: cat.expenseCategoryId || null,
-      }));
-      categories.sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }));
+      categories = await getPostableExpenseAccountOptions(user.tenantId);
     }
 
     return NextResponse.json({

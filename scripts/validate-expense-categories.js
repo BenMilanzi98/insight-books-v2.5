@@ -354,7 +354,7 @@ async function validateReportsMatchGeneralLedger(tenantId) {
 }
 
 async function validateNewExpenseCategoryCreation(tenantId) {
-  logSection('4. Testing New Expense Category Creation');
+  logSection('4. Validating CoA Expense Account Creation Policy');
 
   try {
     // Check if ExpenseCategory table exists
@@ -380,9 +380,6 @@ async function validateNewExpenseCategoryCreation(tenantId) {
       return true;
     }
 
-    const testCategoryName = `Test Category ${Date.now()}`;
-    log(`\nAttempting to create test category: ${testCategoryName}`, 'blue');
-
     const existingAccounts = await prisma.account.findMany({
       where: {
         tenantId,
@@ -394,19 +391,7 @@ async function validateNewExpenseCategoryCreation(tenantId) {
       }
     });
 
-    const existingCategories = await prisma.expenseCategory.findMany({
-      where: {
-        tenantId
-      },
-      select: {
-        accountCode: true
-      }
-    });
-
-    const allCodes = [
-      ...existingAccounts.map(a => a.accountCode).filter(Boolean),
-      ...existingCategories.map(c => c.accountCode).filter(Boolean)
-    ];
+    const allCodes = existingAccounts.map(a => a.accountCode).filter(Boolean);
 
     let maxCode = 5000;
     for (const code of allCodes) {
@@ -427,8 +412,8 @@ async function validateNewExpenseCategoryCreation(tenantId) {
       return false;
     }
 
-    log('\n✓ Expense category creation logic validated', 'green');
-    log('  (Actual creation should be done via API: POST /api/expense-categories)', 'yellow');
+    log('\n✓ Expense account creation policy validated', 'green');
+    log('  Add or edit expense accounts in Chart of Accounts. /api/expense-categories is read-only compatibility.', 'yellow');
 
     return true;
   } catch (error) {

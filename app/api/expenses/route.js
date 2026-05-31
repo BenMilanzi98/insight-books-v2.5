@@ -6,13 +6,15 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
-import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { roundMoney } from '@/lib/money';
+import {
+  assertNoDuplicatePostedSource,
+  resolveExpenseAccountSelection
+} from '@/lib/accountingMappingRules';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -633,87 +635,29 @@ export async function POST(request) {
       );
     }
     
-    let expenseAccount = null;
+    let expenseAccount;
     let expenseCategory = null;
     let selectedCategory = body.category;
     let categoryId = null;
 
-    if (body.expenseAccountId) {
-      // Picker value is usually ExpenseCategory id — resolve that first so GL matches the category's linked account.
-      const ecByPickerId = await prisma.expenseCategory.findFirst({
-        where: { id: body.expenseAccountId, tenantId: user.tenantId },
-        include: { account: true },
-      });
-      if (ecByPickerId?.account) {
-        expenseAccount = ecByPickerId.account;
-        expenseCategory = ecByPickerId;
-        categoryId = ecByPickerId.id;
-        selectedCategory = ecByPickerId.name;
-      } else {
-        expenseAccount = await prisma.account.findFirst({
-          where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
+    try {
+      const resolved = await resolveExpenseAccountSelection(
+        user.tenantId,
+        { expenseAccountId: body.expenseAccountId, category: body.category },
+        prisma
+      );
+      expenseAccount = resolved.account;
+      expenseCategory = resolved.expenseCategory;
+      selectedCategory = resolved.categoryName || expenseAccount.accountName || body.category;
+      if (!expenseCategory) {
+        expenseCategory = await prisma.expenseCategory.findFirst({
+          where: { tenantId: user.tenantId, accountId: expenseAccount.id },
         });
-        if (expenseAccount) {
-          expenseCategory = await prisma.expenseCategory.findFirst({
-            where: { tenantId: user.tenantId, accountId: expenseAccount.id },
-          });
-          if (expenseCategory) {
-            categoryId = expenseCategory.id;
-            selectedCategory = expenseCategory.name;
-          }
-        }
       }
-    }
-
-    if (!expenseAccount && body.category) {
-      expenseCategory = await prisma.expenseCategory.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          name: { equals: body.category, mode: 'insensitive' },
-        },
-        include: { account: true },
-      });
-
-      if (expenseCategory?.account) {
-        expenseAccount = expenseCategory.account;
-        categoryId = expenseCategory.id;
-        selectedCategory = expenseCategory.name;
-      }
-    }
-
-    if (!expenseAccount) {
+      categoryId = expenseCategory?.id || null;
+    } catch (accountError) {
       return NextResponse.json(
-        {
-          error:
-            'Invalid expense account. Choose an active expense account from your chart of accounts.',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!isSystemExpenseStructurePickerAccount(expenseAccount)) {
-      return NextResponse.json(
-        {
-          error:
-            'That account is not a standard expense category. Select an account from the EXPENSES (5000) structure in Chart of accounts (e.g. 5110–5140, 5200–5210, 5300–5340, 5400, 5500, 5701–5899 custom expenses, 5900).',
-        },
-        { status: 400 }
-      );
-    }
-
-    const activeChildCount = await prisma.account.count({
-      where: {
-        tenantId: user.tenantId,
-        parentAccountId: expenseAccount.id,
-        isActive: true,
-      },
-    });
-    const postingBlock = accountBlocksDirectPosting(expenseAccount, { activeChildCount });
-    if (postingBlock.blocked) {
-      return NextResponse.json(
-        {
-          error: `Cannot post expenses to "${postingBlock.details || expenseAccount.accountName || expenseAccount.accountCode}". ${postingBlock.reason} Choose a sub-account beneath it.`,
-        },
+        { error: accountError.message || 'Invalid expense account.' },
         { status: 400 }
       );
     }
@@ -891,6 +835,12 @@ export async function POST(request) {
 
         // Create journal entry for expense
         console.log('🔥 About to create journal entry for expense:', expense.id);
+        await assertNoDuplicatePostedSource({
+          tenantId: user.tenantId,
+          sourceType: 'Expense',
+          sourceId: expense.id,
+          db: tx,
+        });
         await createExpenseJournalEntry({
           tenantId: user.tenantId,
           userId: user.id,
@@ -909,6 +859,12 @@ export async function POST(request) {
         console.log('✅ Journal entry created successfully for expense:', expense.id);
       } else if (paymentStatus === 'Pending' && expense.supplierId) {
         console.log('🔥 About to create journal entry for unpaid supplier expense:', expense.id);
+        await assertNoDuplicatePostedSource({
+          tenantId: user.tenantId,
+          sourceType: 'Expense',
+          sourceId: expense.id,
+          db: tx,
+        });
         await createExpenseJournalEntry({
           tenantId: user.tenantId,
           userId: user.id,

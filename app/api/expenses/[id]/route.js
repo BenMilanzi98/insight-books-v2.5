@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
-import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
-import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
+import { resolveExpenseAccountSelection } from '@/lib/accountingMappingRules';
 import {
   GL_POSTED_STATUSES,
   postApprovedExpenseJournalIfMissing
@@ -200,56 +199,21 @@ export async function PUT(request, { params }) {
     // Prepare update data
     const updateData = {};
 
-    let expenseAccount = null;
     if (body.expenseAccountId) {
-      const ecByPickerId = await prisma.expenseCategory.findFirst({
-        where: { id: body.expenseAccountId, tenantId: user.tenantId },
-        include: { account: true },
-      });
-      if (ecByPickerId?.account) {
-        expenseAccount = ecByPickerId.account;
-      } else {
-        expenseAccount = await prisma.account.findFirst({
-          where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
-        });
-      }
-
-      if (!expenseAccount) {
+      try {
+        const resolved = await resolveExpenseAccountSelection(
+          user.tenantId,
+          { expenseAccountId: body.expenseAccountId, category: body.category },
+          prisma
+        );
+        updateData.expenseAccountId = resolved.account.id;
+        updateData.category = resolved.categoryName || resolved.account.accountName;
+      } catch (accountError) {
         return NextResponse.json(
-          { error: 'Invalid expense account. Please select a valid expense account.' },
+          { error: accountError.message || 'Invalid expense account.' },
           { status: 400 }
         );
       }
-
-      if (!isSystemExpenseStructurePickerAccount(expenseAccount)) {
-        return NextResponse.json(
-          {
-            error:
-              'That account is not a standard expense category. Select an account from the EXPENSES (5000) structure in Chart of accounts (e.g. 5110–5140, 5200–5210, 5300–5340, 5400, 5500, 5701–5899 custom expenses, 5900).',
-          },
-          { status: 400 }
-        );
-      }
-
-      const activeChildCount = await prisma.account.count({
-        where: {
-          tenantId: user.tenantId,
-          parentAccountId: expenseAccount.id,
-          isActive: true,
-        },
-      });
-      const postingBlock = accountBlocksDirectPosting(expenseAccount, { activeChildCount });
-      if (postingBlock.blocked) {
-        return NextResponse.json(
-          {
-            error: `Cannot post expenses to "${postingBlock.details || expenseAccount.accountName || expenseAccount.accountCode}". ${postingBlock.reason} Choose a sub-account beneath it.`,
-          },
-          { status: 400 }
-        );
-      }
-
-      updateData.expenseAccountId = expenseAccount.id;
-      updateData.category = ecByPickerId?.name || expenseAccount.accountName;
     }
     
     // Only include fields that are provided in the request

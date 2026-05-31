@@ -691,18 +691,6 @@ export async function generateBalanceSheet(tenantId, asOfDate, companyName = 'Co
   // Calculate net income for the year
   equity.currentYearProfitLoss = yearRevenue - yearCOGS - yearExpensesTotal;
   
-  // Calculate total equity from accounts and current year profit
-  const calculatedEquity = equity.ownersCapital + equity.retainedEarnings + equity.currentYearProfitLoss;
-  
-  // Calculate what equity should be to balance the sheet
-  const requiredEquity = assets.total - liabilities.total;
-  
-  // If calculated equity doesn't match required equity, adjust retained earnings
-  // This accounts for historical profits/losses not yet recorded in equity accounts
-  if (Math.abs(calculatedEquity - requiredEquity) > 0.01) {
-    equity.retainedEarnings += (requiredEquity - calculatedEquity);
-  }
-  
   equity.total = equity.ownersCapital + equity.retainedEarnings + equity.currentYearProfitLoss;
   
   // ========== FINANCIAL RATIOS ==========

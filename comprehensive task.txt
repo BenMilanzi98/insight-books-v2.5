@@ -1,0 +1,390 @@
+You are required to perform a full accounting data-mapping audit, correction, and stabilization across the Expenses, Chart of Accounts, General Ledger, Journal Entries, Trial Balance, and Reports modules.
+
+Work as both an expert system auditor and an elite software engineer. Your objective is to ensure that all financial data is mapped accurately, posted correctly, reported once, and fully traceable from source transaction to final report. Do not guess. Analyze the existing implementation, database relationships, posting logic, account mappings, report queries, and UI dropdown sources before making changes.
+
+This task must be handled carefully because it affects financial accuracy, audit readiness, and the credibility of the entire system.
+
+## 1. Expense Category Source in `/expenses`
+
+In `/expenses`, under **Create New Expense**, the field **Expense Category*** must only retrieve its list from `/chart-of-accounts`.
+
+Specifically:
+
+* The dropdown must only show accounts under the **Expenses** account group.
+* Only accounts with the correct expense account code range, starting from **5000**, must be listed.
+* The list shown in **Expense Category*** must exactly match the expense accounts defined under `/chart-of-accounts`.
+* No hardcoded expense categories should exist.
+* No categories should be fetched from outdated tables, duplicated category tables, seed data, or static arrays.
+* If an expense account is added, edited, disabled, or removed in `/chart-of-accounts`, the `/expenses` category dropdown must reflect that accurately.
+* The dropdown must display the correct account name, account code, and account ID internally.
+* The selected expense category must post the transaction to the exact selected chart of account, not to a similar or duplicated account.
+
+The `/expenses` module must be fully dependent on the official Chart of Accounts as the single source of truth.
+
+## 2. Correct Expense Posting Logic
+
+Every expense recorded in the system must accurately fall under its correct account.
+
+When an expense is created:
+
+* The system must post the expense to the selected account from the Chart of Accounts.
+* The posting must use the correct `account_id`, not just the account name or code text.
+* The expense must appear correctly in:
+
+  * `/expenses`
+  * `/general-ledger`
+  * `/journal-entries`
+  * `/trial-balance`
+  * `/reports`
+  * Profit and Loss Statement
+  * Expense reports
+  * Any dashboard or summary that uses expense data
+
+There must be no duplicate posting, double counting, or incorrect parent-child aggregation.
+
+Each transaction must have one clear source, one correct account mapping, and one correct ledger impact.
+
+## 3. Salaries and Wages Account Enforcement
+
+Salaries and wages must only be posted to:
+
+**Account 5200 – Salaries & Wages**
+
+No salary-related expense should be posted to any other duplicate or similar account, including but not limited to:
+
+* 5230 — Salaries Expense
+* 5110 — Salaries & Wages Expense
+* Salary Expense
+* Wages Expense
+* Payroll Expense
+* Staff Salaries
+* Employee Wages
+* Any other duplicate or incorrectly named salary account
+
+You must audit the entire system and ensure that all salary, payroll, employee wage, and staff compensation transactions are mapped only to **5200 – Salaries & Wages**.
+
+If duplicate salary-related accounts exist, they must be handled carefully:
+
+* Do not delete accounts blindly if they contain historical data.
+* First analyze their usage.
+* Move, remap, or consolidate related transactions into Account 5200 where appropriate.
+* Preserve audit trail and historical transaction integrity.
+* Ensure future salary postings can only use Account 5200.
+* Disable or merge duplicate salary-related accounts where required, depending on the system’s architecture.
+
+The final system must have one authoritative salary account only: **5200 – Salaries & Wages**.
+
+## 4. Full Chart of Accounts Audit and Cleanup
+
+Analyze the entire `/chart-of-accounts` module.
+
+The Chart of Accounts must be treated as the official accounting structure of the system. It must be clean, unique, accurate, and free from duplicated or overlapping accounts.
+
+Perform a full audit for:
+
+* Duplicate account names
+* Duplicate account codes
+* Similar accounts with different names but same purpose
+* Accounts receiving the same data incorrectly
+* Parent accounts incorrectly receiving direct transaction postings
+* Child accounts and parent accounts both holding the same transaction data
+* Incorrect account types
+* Incorrect account code ranges
+* Incorrect mapping between modules and accounts
+* Expenses posted to assets, liabilities, equity, or revenue accounts
+* Revenue posted to expense accounts
+* Manual or system-generated accounts that conflict with official accounts
+* Old seed accounts still being used accidentally
+* Hidden, disabled, or legacy accounts still receiving transactions
+
+Each account must hold only its own correct data.
+
+There must be no scenario where one transaction is posted into multiple chart of accounts unless it is a proper double-entry journal transaction with clear debit and credit sides.
+
+Parent accounts must not duplicate the value of their child accounts. Parent balances must be calculated from child accounts where applicable, not posted separately unless the system design explicitly allows direct posting and handles it correctly.
+
+## 5. General Ledger Accuracy in `/general-ledger`
+
+Apply the corrected accounting logic to `/general-ledger`.
+
+The General Ledger must show accurate postings for every account.
+
+Ensure that:
+
+* Each transaction appears under the correct account.
+* Debits and credits are correctly applied.
+* No transaction is duplicated.
+* No transaction appears under both parent and child accounts incorrectly.
+* Account balances are calculated correctly.
+* Opening balances, manual journals, expenses, payments, invoices, payroll, purchases, sales, and adjustments are all mapped correctly.
+* The ledger can be traced back to the original source transaction.
+* Every ledger entry includes the correct account ID, transaction reference, date, debit amount, credit amount, description, source module, and created user where applicable.
+* Ledger totals match the Trial Balance and Reports.
+
+The General Ledger must become the central reliable source for all financial reporting.
+
+## 6. Journal Entries Accuracy in `/journal-entries`
+
+Apply the corrected posting and mapping logic to `/journal-entries`.
+
+Ensure that:
+
+* Every journal entry is shown accurately.
+* Each journal has balanced debit and credit entries.
+* No duplicated journal lines exist.
+* Journal entries are not generated multiple times for the same source transaction.
+* Each journal entry has a clear source module.
+* Each journal line uses the correct account from the Chart of Accounts.
+* Salary-related journal entries use only Account 5200 – Salaries & Wages.
+* Expense-related journal entries use the correct expense account selected from `/expenses`.
+* Manual journal entries are validated before posting.
+* Invalid, incomplete, or unbalanced journal entries are prevented.
+* Historical journal entries are corrected only with proper care and audit traceability.
+
+No journal entry should silently affect the wrong account.
+
+## 7. Trial Balance Accuracy in `/trial-balance`
+
+Perform an extensive audit and correction of `/trial-balance`.
+
+The Trial Balance must be 100% accurate and must match the General Ledger.
+
+Ensure that:
+
+* All accounts are listed correctly.
+* Debit and credit balances are calculated correctly.
+* Parent and child accounts are handled correctly.
+* No duplicated balances appear.
+* No account balance is double-counted.
+* Expense accounts appear on the correct side.
+* Revenue, asset, liability, equity, and expense accounts follow correct accounting rules.
+* Total debits must equal total credits.
+* The report must clearly expose any imbalance instead of hiding it.
+* The source of every Trial Balance figure must be traceable back to the General Ledger.
+* Filters by date, branch, business, tenant, or period must work correctly if available.
+
+If the Trial Balance does not balance, identify the exact transaction, journal entry, account, or module causing the issue and fix the root cause.
+
+Do not patch the totals artificially.
+
+## 8. Reports Audit and Cleanup in `/reports`
+
+Perform a deep audit, cleanup, and correction of all reports under `/reports`.
+
+All reports must be accurate, consistent, and generated from the correct source of truth.
+
+Audit and fix:
+
+* Profit and Loss Statement
+* Balance Sheet
+* Trial Balance report
+* General Ledger report
+* Expense reports
+* Revenue reports
+* Cashflow reports
+* Accounts receivable reports
+* Accounts payable reports
+* Tax/VAT reports, if available
+* Payroll reports, if available
+* Project financial reports, if available
+* Any dashboard financial summaries
+* Any custom or exported reports
+
+For every report:
+
+* Remove duplicate data.
+* Prevent double counting.
+* Ensure correct account grouping.
+* Ensure correct date filtering.
+* Ensure correct branch/business/tenant filtering.
+* Ensure correct debit and credit treatment.
+* Ensure parent accounts are not counted together with child accounts incorrectly.
+* Ensure totals match the General Ledger and Trial Balance.
+* Ensure Profit and Loss uses only revenue and expense accounts.
+* Ensure Balance Sheet uses only assets, liabilities, and equity accounts.
+* Ensure salaries are reported only under Account 5200 – Salaries & Wages.
+* Ensure all expense category totals come from the official Chart of Accounts mapping.
+* Ensure exported reports match the on-screen reports exactly.
+
+Reports must not use separate inconsistent calculations if General Ledger data already exists. Where possible, reports should derive from normalized ledger entries to ensure consistency.
+
+## 9. Data Mapping and Source-of-Truth Rules
+
+Before making changes, analyze how data currently flows across the system.
+
+Map the flow from:
+
+* `/chart-of-accounts`
+* `/expenses`
+* `/journal-entries`
+* `/general-ledger`
+* `/trial-balance`
+* `/reports`
+* Payroll or salaries module, if available
+* Payment modules
+* Invoice modules
+* Purchase/procurement modules
+* POS or sales modules
+* Any module that posts financial transactions
+
+Identify:
+
+* Which tables store financial transactions
+* Which tables store ledger entries
+* Which tables store journal entries
+* Which columns reference accounts
+* Whether account references use account ID, account code, or account name
+* Where duplicated account mappings exist
+* Where static mappings or hardcoded accounts exist
+* Where transaction duplication is happening
+* Whether reports are pulling from source transactions, journal entries, ledger entries, or mixed sources
+
+After analysis, enforce one clean accounting flow.
+
+Recommended flow:
+
+1. Chart of Accounts is the single source of truth for all account definitions.
+2. Source modules create business transactions.
+3. Business transactions generate balanced journal entries.
+4. Journal entries generate or represent General Ledger postings.
+5. Trial Balance is calculated from the General Ledger.
+6. Reports are calculated from the General Ledger and official Chart of Accounts structure.
+
+Avoid scattered and inconsistent calculations across different modules.
+
+## 10. Prevent Future Mapping Errors
+
+Implement safeguards to prevent future mistakes.
+
+Add validations where necessary:
+
+* Expense category must be a valid active expense account from Chart of Accounts.
+* Salary expenses must only use Account 5200 – Salaries & Wages.
+* Transactions must not post directly to parent accounts unless explicitly allowed.
+* Account codes must be unique.
+* Account names must not be duplicated within the same account type.
+* Journal entries must balance before posting.
+* Financial transactions must not generate duplicate ledger entries.
+* Reports must not count the same source transaction more than once.
+* Invalid account mappings must be blocked.
+* Missing account mappings must produce a clear error message instead of posting incorrectly.
+
+Add database constraints where appropriate, but do not break existing production data without a safe migration strategy.
+
+## 11. Data Migration and Cleanup Requirements
+
+If existing data is already incorrectly posted, clean it carefully.
+
+Before modifying financial records:
+
+* Create a database backup.
+* Identify all affected records.
+* Produce a clear migration plan.
+* Map old incorrect accounts to the correct official accounts.
+* Preserve references to original transactions.
+* Avoid deleting financial history unless absolutely necessary.
+* Prefer correction, remapping, consolidation, or reversal entries depending on accounting best practice and system design.
+* Keep audit logs of every correction.
+* Ensure after migration:
+
+  * General Ledger is correct.
+  * Journal Entries are correct.
+  * Trial Balance balances.
+  * Reports show accurate figures.
+  * No duplicate values remain.
+
+Any cleanup script must be safe, reversible where possible, and tested before being applied to production data.
+
+## 12. Testing Requirements
+
+After implementation, perform extensive testing.
+
+Test the following scenarios:
+
+### Expense Category Test
+
+* Create a new expense.
+* Confirm the Expense Category dropdown only shows expense accounts from `/chart-of-accounts`.
+* Confirm only accounts under code 5000 expense range appear.
+* Confirm non-expense accounts do not appear.
+
+### Expense Posting Test
+
+* Create expenses under different expense accounts.
+* Confirm each posts to the correct account.
+* Confirm it appears correctly in General Ledger.
+* Confirm it appears correctly in Journal Entries.
+* Confirm it appears correctly in Trial Balance.
+* Confirm it appears correctly in Reports.
+
+### Salary Posting Test
+
+* Post a salary expense.
+* Confirm it only posts to Account 5200 – Salaries & Wages.
+* Confirm no salary amount appears under duplicate salary accounts.
+* Confirm reports show salaries only under 5200.
+
+### Duplicate Account Test
+
+* Check that duplicate accounts do not receive the same data.
+* Check that account balances are not repeated across multiple accounts.
+* Check that parent and child account balances are not double-counted.
+
+### General Ledger Test
+
+* Verify all ledger entries are accurate.
+* Verify debit and credit sides.
+* Verify source transaction references.
+* Verify account mappings.
+
+### Journal Entries Test
+
+* Verify journal entries are balanced.
+* Verify no duplicate journal lines exist.
+* Verify source transactions do not generate multiple duplicate journals.
+
+### Trial Balance Test
+
+* Confirm total debits equal total credits.
+* Confirm account balances match General Ledger.
+* Confirm date filters work correctly.
+
+### Reports Test
+
+* Confirm Profit and Loss is accurate.
+* Confirm Balance Sheet is accurate.
+* Confirm Expense reports are accurate.
+* Confirm exported reports match displayed reports.
+* Confirm no report double-counts transactions.
+
+## 13. Acceptance Criteria
+
+This task is complete only when:
+
+* `/expenses` category dropdown uses only official expense accounts from `/chart-of-accounts`.
+* Every expense posts to the correct selected expense account.
+* Salaries and wages post only to Account 5200 – Salaries & Wages.
+* No duplicate salary accounts are used.
+* Chart of Accounts has no duplicated, conflicting, or incorrectly mapped accounts.
+* Parent and child accounts do not double-count the same data.
+* General Ledger postings are accurate.
+* Journal Entries are accurate and balanced.
+* Trial Balance is accurate and balanced.
+* Reports are accurate and free from duplicated values.
+* Profit and Loss, Balance Sheet, Expense Reports, General Ledger, and Trial Balance all reconcile with each other.
+* All financial data is traceable from source transaction to final report.
+* The solution is stable, production-ready, and safe for auditing.
+
+## 14. Critical Instruction
+
+Do not rush this task.
+
+Plan properly, inspect the current logic thoroughly, understand how data is mapped, and then implement the correct solution.
+
+Do not apply quick fixes that only correct the UI while leaving the accounting logic broken.
+
+Do not hide accounting errors by adjusting report totals.
+
+Do not delete or overwrite financial data without a safe migration and audit trail.
+
+The final result must be an accurate, reliable, audit-ready accounting system where every transaction is mapped to the correct account, posted once, reported once, and fully traceable.

@@ -4,8 +4,10 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
-import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
+import {
+  getPostableExpenseAccounts,
+  resolveExpenseAccountSelection
+} from '@/lib/accountingMappingRules';
 
 // POST - Create expense with attachments in a single request
 export async function POST(request) {
@@ -139,98 +141,23 @@ async function handleExpenseCreation(user, expenseData, formData) {
     // 1. Create the expense
     let expenseAccount = null;
     let expenseCategoryName = null;
-    if (expenseData.expenseAccountId) {
-      const ecByPickerId = await tx.expenseCategory.findFirst({
-        where: { id: expenseData.expenseAccountId, tenantId: user.tenantId },
-        include: {
-          account: {
-            include: {
-              _count: {
-                select: {
-                  childAccounts: { where: { isActive: true } },
-                },
-              },
-            },
-          },
-        },
-      });
-      if (ecByPickerId?.account) {
-        expenseAccount = ecByPickerId.account;
-        expenseCategoryName = ecByPickerId.name;
-      } else {
-        expenseAccount = await tx.account.findFirst({
-          where: {
-            id: expenseData.expenseAccountId,
-            tenantId: user.tenantId,
-            accountType: 'Expense',
-          },
-          include: {
-            _count: {
-              select: {
-                childAccounts: { where: { isActive: true } },
-              },
-            },
-          },
-        });
-      }
-    }
-
-    if (!expenseAccount && expenseData.category) {
-      expenseAccount = await tx.account.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          accountType: 'Expense',
-          accountName: { equals: expenseData.category, mode: 'insensitive' }
-        },
-        include: {
-          _count: {
-            select: {
-              childAccounts: { where: { isActive: true } },
-            },
-          },
-        },
-      });
+    if (expenseData.expenseAccountId || expenseData.category) {
+      const resolved = await resolveExpenseAccountSelection(
+        user.tenantId,
+        { expenseAccountId: expenseData.expenseAccountId, category: expenseData.category },
+        tx
+      );
+      expenseAccount = resolved.account;
+      expenseCategoryName = resolved.categoryName;
     }
 
     if (!expenseAccount) {
-      const fallbackAccounts = await tx.account.findMany({
-        where: {
-          tenantId: user.tenantId,
-          accountType: 'Expense',
-          isActive: true,
-          mergedIntoAccountId: null,
-        },
-        include: {
-          _count: {
-            select: {
-              childAccounts: { where: { isActive: true } },
-            },
-          },
-        },
-        orderBy: { accountCode: 'asc' }
-      });
-      expenseAccount = fallbackAccounts.find(
-        (account) =>
-          isSystemExpenseStructurePickerAccount(account) &&
-          !accountBlocksDirectPosting(account).blocked
-      ) || null;
+      const fallbackAccounts = await getPostableExpenseAccounts(user.tenantId, tx);
+      expenseAccount = fallbackAccounts[0] || null;
     }
 
     if (!expenseAccount) {
       throw new Error('No expense account found. Please configure your Chart of Accounts.');
-    }
-
-    if (!isSystemExpenseStructurePickerAccount(expenseAccount)) {
-      throw new Error(
-        'That account is not a standard expense category. Select a detail account from the EXPENSES (5000) structure in Chart of accounts.'
-      );
-    }
-
-    const postingBlock = accountBlocksDirectPosting(expenseAccount);
-    if (postingBlock.blocked) {
-      throw new Error(
-        `Cannot post expenses to "${postingBlock.details || expenseAccount.accountName || expenseAccount.accountCode}". ${postingBlock.reason} Choose a sub-account beneath it.`
-      );
     }
 
     const expense = await tx.expense.create({

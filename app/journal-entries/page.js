@@ -165,7 +165,7 @@ const JournalEntries = () => {
         { id: "acc5", code: "5000", name: "Office Expenses", type: "EXPENSE" },
         { id: "acc6", code: "5100", name: "Rent Expense", type: "EXPENSE" },
         { id: "acc7", code: "5200", name: "Utilities Expense", type: "EXPENSE" },
-        { id: "acc8", code: "5300", name: "Salaries Expense", type: "EXPENSE" }
+        { id: "acc8", code: "5200", name: "Salaries & Wages", type: "EXPENSE" }
       ]);
     }
   };

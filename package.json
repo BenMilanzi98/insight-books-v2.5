@@ -38,6 +38,8 @@
     "backfill:cogs-expense-links": "node scripts/backfill-cogs-expense-links.js",
     "consolidate-salary-accounts": "node scripts/consolidate-salary-accounts.js",
     "consolidate-salary-accounts:dry-run": "node scripts/consolidate-salary-accounts.js --dry-run",
+    "audit:accounting-mapping": "node scripts/audit-accounting-mapping.js",
+    "remap:accounting-mappings": "node scripts/remap-accounting-mappings.js",
     "coa:snapshot": "node scripts/coa-snapshot-export.cjs",
     "audit:gl": "node scripts/audit-gl.cjs",
     "audit:rbac": "node scripts/rbac-audit.js"
