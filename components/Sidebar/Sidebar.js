@@ -369,7 +369,7 @@ const navigationByPermission = {
   stock: {
     label: "Stock",
     items: [
-      { href: "/stock", icon: "stock", text: "Stock Management", permission: "stock.view" },
+      { href: "/stock", icon: "stock", text: "Stock Management", permission: "inventory.view" },
     ]
   },
   rental: {
@@ -584,20 +584,31 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     const hasAnyPermission = (permissions) =>
       permissions.some((permission) => userHasPermission(user, permission));
 
+    const itemPermissionList = (item = {}) => {
+      if (Array.isArray(item.permissions)) return item.permissions;
+      if (item.permission) return [item.permission];
+      return [];
+    };
+
     const canAccessRoute = (href, fallbackPermissions = []) => {
       const rule = getRouteRuleForPath(href);
-      const permissions = fallbackPermissions.length > 0 ? fallbackPermissions : rule?.anyOf;
+      if (Array.isArray(rule?.allOf) && rule.allOf.length > 0) {
+        return rule.allOf.every((permission) => userHasPermission(user, permission));
+      }
+      const permissions = Array.isArray(rule?.anyOf) && rule.anyOf.length > 0
+        ? rule.anyOf
+        : fallbackPermissions;
       return Array.isArray(permissions) && permissions.length > 0 && hasAnyPermission(permissions);
     };
 
     const filterSubItems = (subItems = []) =>
       subItems.filter((subItem) =>
-        canAccessRoute(subItem.href, subItem.permissions || (subItem.permission ? [subItem.permission] : []))
+        canAccessRoute(subItem.href, itemPermissionList(subItem))
       );
 
     const sections = [];
 
-    if (userHasPermission(user, "dashboard.view")) {
+    if (canAccessRoute("/dashboard")) {
       sections.push(navigationByPermission.dashboard);
     }
 
@@ -605,7 +616,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     const coreItems = [];
     
     // Add items based on permissions
-    if (userHasPermission(user, "sales.view")) {
+    if (canAccessRoute("/pos")) {
 
       coreItems.push({
         href: "/pos",
@@ -613,7 +624,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         text: "POS"
       });
     }
-    if (userHasPermission(user, "quotations.view")) {
+    if (canAccessRoute("/quotations")) {
 
       coreItems.push({
         href: "/quotations",
@@ -621,7 +632,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         text: "Quotations"
       });
     }
-    if (userHasPermission(user, "invoices.view")) {
+    if (canAccessRoute("/invoice")) {
 
       coreItems.push({
         href: "/invoice",
@@ -631,7 +642,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "expenses.view")) {
+    if (canAccessRoute("/expenses")) {
       coreItems.push({
         href: "/expenses",
         icon: "expenses",
@@ -639,7 +650,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "stock.view")) {
+    if (canAccessRoute("/stock")) {
       coreItems.push({
         href: "/stock",
         icon: "stock",
@@ -647,7 +658,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "clients.view")) {
+    if (canAccessRoute("/clients")) {
       coreItems.push({
         href: "/clients",
         icon: "users",
@@ -673,7 +684,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "payments.view")) {
+    if (canAccessRoute("/payments")) {
       coreItems.push({
         href: "/payments",
         icon: "payments",
@@ -681,7 +692,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (userHasPermission(user, "reports.view")) {
+    if (canAccessRoute("/reports")) {
       coreItems.push({
         href: "/reports",
         icon: "reports",
@@ -740,7 +751,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     }
 
     // Assets & Liabilities should be permission-gated (deny-by-default).
-    if (userHasPermission(user, "assets.view")) {
+    if (canAccessRoute("/asset-management")) {
       additionalItems.push({
         href: "/asset-management",
         icon: "reports",
@@ -764,8 +775,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     }
 
     
-    // Tax Types - require tax access so reports/accounting-only users do not see tax management.
-    if (userHasPermission(user, "tax.view")) {
+    // Tax management follows the same route rule as the page guard.
+    if (canAccessRoute("/tax-types")) {
       additionalItems.push({
         href: "/tax-types",
         icon: "reports",
@@ -782,7 +793,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     }
 
     // Accounting section: include only items explicitly permitted.
-    const accountingSubItems = [
+    const accountingSubItems = filterSubItems([
       { href: "/general-ledger", text: "General Ledger", permission: "generalLedger.view" },
       { href: "/accounting/receivables", text: "Receivables", permission: "invoices.view" },
       { href: "/accounting/payables", text: "Payables", permission: "expenses.view" },
@@ -792,7 +803,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       { href: "/capital-account", text: "Capital Account", permission: "reports.view" },
       { href: "/trial-balance", text: "Trial Balance", permission: "trialBalance.view" },
       { href: "/transactions/reversals", text: "Reversals", permission: "journalEntries.view" },
-    ].filter((i) => userHasPermission(user, i.permission));
+    ]);
 
     if (accountingSubItems.length > 0) {
       sections.push({
@@ -803,7 +814,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
             icon: "coa",
             text: "Accounting",
             expandable: true,
-            subItems: accountingSubItems.map(({ permission, ...rest }) => rest),
+            subItems: accountingSubItems.map(({ permission, permissions, ...rest }) => rest),
           },
         ],
       });
@@ -812,7 +823,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Create a business management section if user has access to any of these
     const businessItems = [];
     // Add User & Role Management if user has permission
-    if (userHasPermission(user, "users.view") || userHasPermission(user, "roles.view")) {
+    if (canAccessRoute("/users")) {
       businessItems.push({
         href: "/users",
         icon: "users",
