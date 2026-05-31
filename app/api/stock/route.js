@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission, requirePermission } from '@/lib/auth';
 import { resolveProductListBranchId, clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
@@ -17,7 +17,12 @@ import { roundMoney } from '@/lib/money';
 // GET - Fetch products with all fields
 export async function GET(request) {
   try {
-    const perm = await requirePermission(request, 'inventory.view');
+    const perm = await requireAnyPermission(request, [
+      'inventory.view',
+      'sales.view',
+      'sales.create',
+      'sales.update',
+    ]);
     if (perm) return perm;
 
     // Check for standard access

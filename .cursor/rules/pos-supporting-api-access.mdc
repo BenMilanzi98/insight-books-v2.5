@@ -19,3 +19,5 @@ When changing RBAC, API guards, or POS data loading, keep POS users able to acce
 - tenant logo/uploads displayed by the POS UI
 
 Do not require broad dashboard/accounting/admin access for these POS support calls. Prefer adding `sales.view`, `sales.create`, or `sales.update` to the relevant API access rule when the endpoint is used by POS.
+
+Also check route-level guards such as `requirePermission()` inside API handlers. If a POS-used endpoint has its own guard, it must also accept POS permissions (for example via `requireAnyPermission()`), otherwise middleware access will still end in `403`.

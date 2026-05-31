@@ -1,14 +1,19 @@
 // app/api/clients/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { addMoney, subtractMoney } from '@/lib/money';
 
 // GET - Fetch clients with optional filtering, sorting, and pagination
 export async function GET(request) {
   try {
-    const perm = await requirePermission(request, 'clients.view');
+    const perm = await requireAnyPermission(request, [
+      'clients.view',
+      'sales.view',
+      'sales.create',
+      'sales.update',
+    ]);
     if (perm) return perm;
 
     // Check for standard access (trial or paid subscription)
@@ -171,7 +176,11 @@ export async function GET(request) {
 // POST - Create a new client
 export async function POST(request) {
   try {
-    const perm = await requirePermission(request, 'clients.create');
+    const perm = await requireAnyPermission(request, [
+      'clients.create',
+      'sales.create',
+      'sales.update',
+    ]);
     if (perm) return perm;
 
     // Check for standard access (trial or paid subscription)
