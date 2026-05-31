@@ -44,6 +44,45 @@ import { getRouteRuleForPath } from "@/lib/tenantPageAccess";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
 import BranchSwitcher from "./BranchSwitcher";
 
+const POS_SHELL_PERMISSIONS = [
+  "sales.create",
+  "sales.view",
+  "sales.update",
+  "sales.delete",
+  "sales.void",
+  "sales.refund",
+  "sales.export",
+];
+
+const POS_SUPPORT_PERMISSIONS = [
+  "clients.create",
+  "clients.view",
+  "clients.update",
+  "inventory.view",
+  "tax.view",
+  "payments.view",
+  "accounts.view",
+  "settings.view",
+  "system.switchTenant",
+];
+
+const POS_ONLY_NAV_PERMISSIONS = new Set([
+  ...POS_SHELL_PERMISSIONS,
+  ...POS_SUPPORT_PERMISSIONS,
+]);
+
+const NAV_ROUTE_PERMISSION_OVERRIDES = {
+  "/quotations": ["quotations.view"],
+  "/rentals": ["rentals.view"],
+  "/rentals/hiring": ["rentals.view"],
+  "/accounting/receivables": [
+    "accounting.view",
+    "generalLedger.view",
+    "journalEntries.view",
+    "trialBalance.view",
+  ],
+};
+
 const iconMap = {
   dashboard: LayoutDashboard,
   tenants: Building2,
@@ -584,6 +623,31 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     const hasAnyPermission = (permissions) =>
       permissions.some((permission) => userHasPermission(user, permission));
 
+    const hasSalesShellAccess = POS_SHELL_PERMISSIONS.some((permission) =>
+      userHasPermission(user, permission)
+    );
+
+    const enabledPermissions = Object.entries(user.role.permissions || {})
+      .flatMap(([module, actions]) =>
+        Object.entries(actions || {})
+          .filter(([, enabled]) => enabled === true)
+          .map(([action]) => `${module}.${action}`)
+      );
+
+    const isPosOnlyPermissionSet =
+      hasSalesShellAccess &&
+      enabledPermissions.length > 0 &&
+      enabledPermissions.every((permission) => POS_ONLY_NAV_PERMISSIONS.has(permission));
+
+    if (isPosOnlyPermissionSet) {
+      return [
+        {
+          label: "Point of Sale",
+          items: [{ href: "/pos", icon: "pos", text: "POS" }],
+        },
+      ];
+    }
+
     const itemPermissionList = (item = {}) => {
       if (Array.isArray(item.permissions)) return item.permissions;
       if (item.permission) return [item.permission];
@@ -591,6 +655,11 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     };
 
     const canAccessRoute = (href, fallbackPermissions = []) => {
+      const navOverridePermissions = NAV_ROUTE_PERMISSION_OVERRIDES[href];
+      if (Array.isArray(navOverridePermissions)) {
+        return hasAnyPermission(navOverridePermissions);
+      }
+
       const rule = getRouteRuleForPath(href);
       if (Array.isArray(rule?.allOf) && rule.allOf.length > 0) {
         return rule.allOf.every((permission) => userHasPermission(user, permission));
@@ -760,8 +829,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     }
 
     const rentalSubItems = filterSubItems([
-      { href: "/rentals", text: "Rentals", permissions: ["rentals.view", "invoices.view"] },
-      { href: "/rentals/hiring", text: "Hiring", permissions: ["rentals.view", "invoices.view"] },
+      { href: "/rentals", text: "Rentals", permission: "rentals.view" },
+      { href: "/rentals/hiring", text: "Hiring", permission: "rentals.view" },
     ]);
 
     if (rentalSubItems.length > 0) {
@@ -795,7 +864,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Accounting section: include only items explicitly permitted.
     const accountingSubItems = filterSubItems([
       { href: "/general-ledger", text: "General Ledger", permission: "generalLedger.view" },
-      { href: "/accounting/receivables", text: "Receivables", permission: "invoices.view" },
+      { href: "/accounting/receivables", text: "Receivables", permissions: NAV_ROUTE_PERMISSION_OVERRIDES["/accounting/receivables"] },
       { href: "/accounting/payables", text: "Payables", permission: "expenses.view" },
       { href: "/accounting-periods", text: "Accounting Periods", permission: "journalEntries.view" },
       { href: "/chart-of-accounts", text: "Chart of Accounts", permission: "accounts.view" },
