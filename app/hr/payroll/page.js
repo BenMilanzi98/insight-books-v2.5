@@ -1150,7 +1150,7 @@ export default function PayrollProcessing() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary Expense Account</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary Cost Account</label>
                   {accountsLoading ? (
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
                       Loading accounts...

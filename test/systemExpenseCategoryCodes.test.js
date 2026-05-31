@@ -51,9 +51,9 @@ describe('isTenantExpenseCategoryAccount', () => {
 });
 
 describe('isSystemExpenseStructurePickerAccount', () => {
-  it('matches tenant expense check for blueprint codes only', () => {
+  it('matches tenant expense check for all expense-range CoA accounts', () => {
     expect(isSystemExpenseStructurePickerAccount({ accountCode: '5320', accountType: 'Expense' })).toBe(true);
-    expect(isSystemExpenseStructurePickerAccount({ accountCode: '5355', accountType: 'Expense' })).toBe(false);
+    expect(isSystemExpenseStructurePickerAccount({ accountCode: '5355', accountType: 'Expense' })).toBe(true);
   });
 
   it('rejects non-expense same as tenant helper', () => {

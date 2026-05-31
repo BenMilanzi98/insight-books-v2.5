@@ -25,6 +25,7 @@ const baseExpense = {
 describe('accounting mapping rules', () => {
   it('allows active leaf CoA expense accounts in 5000-5999', () => {
     expect(isPostableExpenseAccount(baseExpense, { tenantId: 'tenant-1' })).toBe(true);
+    expect(isPostableExpenseAccount({ ...baseExpense, accountType: null, type: 'EXPENSE' }, { tenantId: 'tenant-1' })).toBe(true);
     expect(getExpenseAccountValidationError(baseExpense, { tenantId: 'tenant-1' })).toBe(null);
   });
 
@@ -52,6 +53,12 @@ describe('accounting mapping rules', () => {
     expect(isCanonicalSalaryExpenseAccount(canonical)).toBe(true);
     expect(isSalaryLikeExpenseAccount(duplicate)).toBe(true);
     expect(getExpenseAccountValidationError(duplicate)).toMatch(/must use 5200 - Salaries & Wages/);
+    expect(isSalaryLikeExpenseAccount({
+      ...baseExpense,
+      id: 'salary-5301',
+      accountCode: '5301',
+      accountName: 'Salaries & Wages',
+    })).toBe(true);
   });
 
   it('projects expense picker options as account-backed rows', () => {

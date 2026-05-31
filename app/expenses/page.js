@@ -1517,7 +1517,7 @@ const handleFileUpload = async (e) => {
     );
   };
 
-  // Load expense categories (Chart of Accounts 5xxx + ExpenseCategory) for filter and modals
+  // Load expense categories from active, postable Chart of Accounts expense accounts.
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');

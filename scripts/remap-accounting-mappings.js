@@ -32,16 +32,21 @@ function accountName(account) {
 }
 
 function isExpense(account) {
-  return String(account?.accountType || account?.type || '').toLowerCase() === 'expense';
+  const type = String(account?.accountType || account?.type || '').toLowerCase();
+  return type === 'expense' || type === 'exp';
 }
 
 function isSalaryLike(account) {
-  if (!account || !isExpense(account)) return false;
+  if (!account) return false;
   const code = accountCode(account);
   if (code === CANONICAL_SALARY_CODE) return false;
   const name = accountName(account).toLowerCase();
+  const hasExpenseType = isExpense(account);
+  const hasNoType = !String(account?.accountType || account?.type || '').trim();
+  if (!hasExpenseType && !(hasNoType && !code)) return false;
   if (name.includes('cost of goods') || name.includes('cogs')) return false;
   if (['5201', '5202', '5203', '5230'].includes(code)) return true;
+  if (code === '5301' && /\b(salar(?:y|ies)|wages?)\b/i.test(name)) return true;
   if (code === '5210' && /(employer|paye|nps|pension|contribution|benefit|payroll)/i.test(name)) {
     return true;
   }
@@ -59,6 +64,12 @@ const ROW_SPECS = [
     }),
   },
   {
+    entityType: 'JournalEntry',
+    delegate: 'journalEntry',
+    fieldName: 'accountId',
+    where: (tenantId, accountIds) => ({ tenantId, accountId: { in: accountIds } }),
+  },
+  {
     entityType: 'JournalEntryLine',
     delegate: 'journalEntryLine',
     fieldName: 'accountId',
@@ -72,6 +83,15 @@ const ROW_SPECS = [
     delegate: 'expense',
     fieldName: 'expenseAccountId',
     where: (tenantId, accountIds) => ({ tenantId, expenseAccountId: { in: accountIds } }),
+  },
+  {
+    entityType: 'SupplierBillItem',
+    delegate: 'supplierBillItem',
+    fieldName: 'expenseAccountId',
+    where: (tenantId, accountIds) => ({
+      expenseAccountId: { in: accountIds },
+      bill: { tenantId },
+    }),
   },
   {
     entityType: 'RecurringExpense',
@@ -95,7 +115,7 @@ const ROW_SPECS = [
 
 async function getTenantTargets(db, tenantId) {
   const accounts = await db.account.findMany({
-    where: { tenantId, accountType: 'Expense' },
+    where: { tenantId },
     select: {
       id: true,
       tenantId: true,

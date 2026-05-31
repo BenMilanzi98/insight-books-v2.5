@@ -31,7 +31,12 @@ const SALARY_ACCOUNT_NAME = 'Salaries & Wages';
 function isSalaryLike(acc) {
   const name = ((acc.accountName || acc.name || '') + ' ' + (acc.accountCode || '')).toLowerCase();
   return (
-    (acc.accountCode === '5201' || acc.accountCode === '5202' || acc.accountCode === '5203' || acc.accountCode === '5210' || acc.accountCode === '5230') ||
+    (acc.accountCode === '5201' ||
+      acc.accountCode === '5202' ||
+      acc.accountCode === '5203' ||
+      acc.accountCode === '5210' ||
+      acc.accountCode === '5230' ||
+      (acc.accountCode === '5301' && /(salar|wages?)/i.test(name))) ||
     name.includes('salar') ||
     name.includes('wages') ||
     name.includes('payroll')

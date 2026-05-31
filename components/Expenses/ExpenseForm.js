@@ -53,7 +53,7 @@ const ExpenseForm = ({
   // Load payment accounts dynamically
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
 
-  // Load expense categories: standard EXPENSES (5000) structure only (/api/categories?type=expense)
+  // Load expense categories from active, postable Chart of Accounts expense accounts.
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');
@@ -628,7 +628,7 @@ const ExpenseForm = ({
               label="Expense Category"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Categories are fixed to the SYSTEM chart (Cost of Sales, Salaries & Wages, Rent, Utilities, etc.). Add or rename accounts in{" "}
+              Expense categories come from active, postable expense accounts in{" "}
               <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
                 Chart of Accounts
               </a>{" "}

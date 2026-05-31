@@ -108,6 +108,21 @@ function normalizeLines(lines = [], fallbackDescription) {
     });
 }
 
+function validateJournalLineAmounts(lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const debit = Math.abs(Number(line.debitAmount || 0));
+    const credit = Math.abs(Number(line.creditAmount || 0));
+    if (debit <= 0 && credit <= 0) {
+      return { ok: false, error: `Line ${i + 1} must have a debit or credit amount.` };
+    }
+    if (debit > 0 && credit > 0) {
+      return { ok: false, error: `Line ${i + 1} cannot have both debit and credit amounts.` };
+    }
+  }
+  return { ok: true };
+}
+
 /**
  * GET - Fetch a single journal entry by ID
  */
@@ -235,6 +250,14 @@ export async function PUT(request, { params }) {
     if (lines.length < 2) {
       return NextResponse.json(
         { error: 'At least two lines are required for a journal entry.' },
+        { status: 400 }
+      );
+    }
+
+    const lineAmountValidation = validateJournalLineAmounts(lines);
+    if (!lineAmountValidation.ok) {
+      return NextResponse.json(
+        { error: lineAmountValidation.error },
         { status: 400 }
       );
     }

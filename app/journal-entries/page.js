@@ -24,6 +24,10 @@ import {
 } from "@/lib/journalAccountSelect";
 import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
 
+function formatJournalAmountCell(amount) {
+  return formatCurrency(coerceJournalAmount(amount));
+}
+
 const JournalEntries = () => {
   // State variables
   const [entries, setEntries] = useState([]);
@@ -831,10 +835,10 @@ const handleDeleteEntry = async (entryId) => {
                           {line.description || entry.description || '—'}
                         </td>
                         <td className="p-3 text-right font-medium text-amber-700">
-                          {Math.abs(debitValue) > 1e-9 ? formatCurrency(debitValue) : '—'}
+                          {formatJournalAmountCell(debitValue)}
                         </td>
                         <td className="p-3 text-right font-medium text-emerald-700">
-                          {Math.abs(creditValue) > 1e-9 ? formatCurrency(creditValue) : '—'}
+                          {formatJournalAmountCell(creditValue)}
                         </td>
                         {index === 0 && (
                           <>
