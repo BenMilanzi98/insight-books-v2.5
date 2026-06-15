@@ -516,7 +516,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
             width: double.infinity,
             height: 48,
             child: FilledButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 final id = _saleId;
                 if (id == null || id.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -524,11 +524,15 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                   );
                   return;
                 }
+                final paperWidthMm = await chooseReceiptPaperWidthMm(context);
+                if (paperWidthMm == null) return;
+                if (!context.mounted) return;
                 openSaleReceiptThermalPrint(
                   context,
                   ref,
                   id,
                   saleNumberForFilename: saleNo.isNotEmpty ? saleNo : null,
+                  paperWidthMm: paperWidthMm,
                 );
               },
               style: FilledButton.styleFrom(
@@ -599,7 +603,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Print uses 80mm thermal layout (same PDF as web POS). View/Share use the receipt PDF.',
+            'Print supports 80mm and 58mm thermal layouts. View/Share use the receipt PDF.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),

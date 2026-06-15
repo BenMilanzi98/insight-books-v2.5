@@ -13,6 +13,7 @@ import {
 } from '@/lib/productUnitSavePayload';
 import { productLineValue } from '@/lib/stockValuationAggregate';
 import { roundMoney } from '@/lib/money';
+import { enrichProductForPosCatalog } from '@/lib/posCatalogProduct';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -41,15 +42,35 @@ export async function GET(request) {
     }
     
     const { searchParams } = new URL(request.url);
-    const includeProductUnits = /^(1|true|yes)$/i.test(String(searchParams.get('productUnits') || ''));
+    const posCatalogMode = /^(1|true|yes)$/i.test(String(searchParams.get('pos') || ''));
+    const includeProductUnits =
+      posCatalogMode ||
+      /^(1|true|yes)$/i.test(String(searchParams.get('productUnits') || ''));
     const productUnitsInclude = includeProductUnits
       ? {
           productUnits: {
             where: { isActive: true },
             include: {
-              unit: { select: { id: true, symbol: true, name: true } },
+              unit: {
+                select: {
+                  id: true,
+                  symbol: true,
+                  name: true,
+                  conversionToBase: true,
+                  isBaseUnit: true,
+                },
+              },
             },
             orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
+          },
+        }
+      : {};
+    const inventoryBatchesInclude = posCatalogMode
+      ? {
+          inventoryBatches: {
+            where: { qtyRemaining: { gt: 0 } },
+            orderBy: [{ expiryDate: 'asc' }, { purchaseDate: 'asc' }, { createdAt: 'asc' }],
+            select: { id: true, qtyRemaining: true, unitCost: true, expiryDate: true },
           },
         }
       : {};
@@ -203,6 +224,7 @@ export async function GET(request) {
       },
       productBarcodes: { select: { barcode: true } },
       ...productUnitsInclude,
+      ...inventoryBatchesInclude,
       ...(includeUsageCounts ? { _count: { select: countSelect } } : {}),
     };
     const includeWithoutBarcodes = {
@@ -214,6 +236,7 @@ export async function GET(request) {
         }
       },
       ...productUnitsInclude,
+      ...inventoryBatchesInclude,
       ...(includeUsageCounts ? { _count: { select: countSelect } } : {}),
     };
     try {
@@ -327,6 +350,10 @@ export async function GET(request) {
     // Filter by status if provided (since status is computed)
     if (status && status !== 'All') {
       processedProducts = processedProducts.filter(product => product.status === status);
+    }
+
+    if (posCatalogMode) {
+      processedProducts = processedProducts.map((product) => enrichProductForPosCatalog(product));
     }
     
     // Return products with pagination metadata

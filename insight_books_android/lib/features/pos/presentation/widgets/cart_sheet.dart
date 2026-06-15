@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:insightbooks_android/features/pos/presentation/providers/pos_provider.dart';
 import 'package:insightbooks_android/features/pos/presentation/widgets/checkout_view.dart';
+import 'package:insightbooks_android/features/pos/presentation/widgets/pos_expiry_badge.dart';
 
 class CartSheet extends ConsumerWidget {
   const CartSheet({super.key});
@@ -56,6 +57,8 @@ class CartSheet extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1),
+          if (buildPosExpiryCartBanner(posState.cart) != null)
+            buildPosExpiryCartBanner(posState.cart)!,
 
           // Items List
           Expanded(
@@ -343,6 +346,10 @@ class _CartItemTile extends StatelessWidget {
                   product.name,
                   style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
+                if (product.hasExpiryWarning) ...[
+                  const SizedBox(height: 4),
+                  PosExpiryBadge(product: product, compact: true),
+                ],
                 Text(
                   currencyFormat.format(product.price),
                   style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
@@ -568,8 +575,13 @@ class _CartItemTile extends StatelessWidget {
                                       keyboardType:
                                           const TextInputType.numberWithOptions(decimal: true),
                                       decoration: InputDecoration(
-                                        labelText:
-                                            '${u.unitName} (x${u.conversionRate.toStringAsFixed(0)})',
+                                        labelText: [
+                                          u.symbol?.trim().isNotEmpty == true
+                                              ? '${u.unitName} (${u.symbol})'
+                                              : u.unitName,
+                                          if (!u.isBaseUnit)
+                                            '1 base = ${u.conversionRate.toStringAsFixed(3)} ${u.symbol ?? u.unitName}',
+                                        ].join(' - '),
                                         border: const OutlineInputBorder(),
                                       ),
                                     ),

@@ -297,18 +297,20 @@ export const refundSale = async (saleId, reason, refundMethod = null) => {
 };
 
 /**
- * Print receipt: opens a new browser tab (not a sized popup) with the 80mm thermal HTML receipt.
+ * Print receipt: opens a new browser tab (not a sized popup) with the thermal HTML receipt.
  * The receipt page runs print() after load and closes the tab on afterprint / end of print preview.
  * Optional Electron: expose window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(saleId) that uses
  * @madrimov/electron-pos-printer with GET .../receipt?format=print-data (see lib/buildPosReceiptEscPosContents.js).
  */
-export const printReceipt = async (saleId) => {
+export const printReceipt = async (saleId, options = {}) => {
   try {
+    const paperWidth = Number(options.paperWidth || options.paperWidthMm) === 58 ? 58 : 80;
     const receiptUrl = `/api/sales/${saleId}/receipt`;
+    const receiptUrlWithWidth = `${receiptUrl}?paperWidth=${paperWidth}`;
 
     if (typeof window !== 'undefined' && typeof window.__INSIGHT_PRINT_RECEIPT_ESC_POS__ === 'function') {
       try {
-        await window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(saleId);
+        await window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(saleId, { paperWidth });
         return true;
       } catch (escErr) {
         console.warn('ESC/POS print bridge failed, using browser tab:', escErr);
@@ -316,10 +318,10 @@ export const printReceipt = async (saleId) => {
     }
 
     // New tab only — do not pass window features (those force a popup in many browsers)
-    const receiptTab = window.open(receiptUrl, '_blank');
+    const receiptTab = window.open(receiptUrlWithWidth, '_blank');
 
     if (!receiptTab) {
-      const response = await fetch(`${receiptUrl}?format=pdf`);
+      const response = await fetch(`${receiptUrl}?format=pdf&paperWidth=${paperWidth}`);
       if (!response.ok) throw new Error(`Error generating receipt: ${response.statusText}`);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -444,6 +446,7 @@ export const fetchProductsForSaleAll = async (params = {}) => {
       if (category && category !== 'all') queryParams.append('category', category);
       if (branchId) queryParams.append('branchId', branchId);
       if (allBranches) queryParams.append('allBranches', 'true');
+      queryParams.append('pos', '1');
       queryParams.append('limit', pageSize);
       queryParams.append('page', String(page));
 
@@ -1016,7 +1019,7 @@ export const calculateItemTotals = (item) => {
 };
 
 // Default export object with all functions organized
-export default {
+const salesService = {
   // Core sales functions
   fetchSales,
   createSale,
@@ -1075,3 +1078,5 @@ export default {
   // Receipt and printing
   printReceipt
 };
+
+export default salesService;

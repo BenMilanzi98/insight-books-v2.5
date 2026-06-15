@@ -58,6 +58,8 @@ class PosRepository {
         final response = await _dio.get(
           '/api/stock',
           queryParameters: {
+            'pos': '1',
+            'allBranches': 'true',
             if (search != null && search.isNotEmpty) 'search': search,
             if (category != null && category != 'all' && category.isNotEmpty)
               'category': category,
@@ -349,11 +351,15 @@ class PosRepository {
 
   /// Server returns PDF when `format=pdf` (same as web print/download).
   Future<({List<int> bytes, String fileExtension, String mimeType})> downloadReceiptForShare(
-    String saleId,
-  ) async {
+    String saleId, {
+    int paperWidthMm = 80,
+  }) async {
     final pdfResp = await _dio.get(
       '/api/sales/$saleId/receipt',
-      queryParameters: {'format': 'pdf'},
+      queryParameters: {
+        'format': 'pdf',
+        'paperWidth': paperWidthMm.toString(),
+      },
       options: Options(
         responseType: ResponseType.bytes,
         validateStatus: (_) => true,
@@ -378,8 +384,11 @@ class PosRepository {
     );
   }
 
-  Future<List<int>> downloadReceiptPdf(String saleId) async {
-    final r = await downloadReceiptForShare(saleId);
+  Future<List<int>> downloadReceiptPdf(
+    String saleId, {
+    int paperWidthMm = 80,
+  }) async {
+    final r = await downloadReceiptForShare(saleId, paperWidthMm: paperWidthMm);
     return r.bytes;
   }
 
@@ -633,7 +642,7 @@ class PosRepository {
     try {
       final response = await _dio.get(
         '/api/stock',
-        queryParameters: {'search': trimmed, 'limit': 20},
+        queryParameters: {'search': trimmed, 'limit': 20, 'pos': '1'},
       );
       final List productsJson = response.data['products'] ?? [];
       for (final raw in productsJson) {
@@ -647,14 +656,22 @@ class PosRepository {
       // Offline fallback: resolve from cached products.
       final cached = await _readProductsCache();
       for (final product in cached) {
-        final sku = (product.sku ?? '').trim().toLowerCase();
-        final probe = trimmed.toLowerCase();
-        if (sku == probe) {
+        if (_productMatchesBarcodeOrSku(product, trimmed)) {
           return product;
         }
       }
       return null;
     }
+  }
+
+  bool _productMatchesBarcodeOrSku(PosProduct product, String code) {
+    final probe = code.toLowerCase();
+    if ((product.sku ?? '').trim().toLowerCase() == probe) return true;
+    if ((product.barcode ?? '').trim().toLowerCase() == probe) return true;
+    for (final barcode in product.barcodes) {
+      if (barcode.trim().toLowerCase() == probe) return true;
+    }
+    return false;
   }
 
   Future<void> _saveProductsCache(List productsJson) async {
@@ -684,24 +701,120 @@ class PosRepository {
   }
 
   PosProduct _productFromRaw(Map<String, dynamic> data) {
-    data['price'] = _toDouble(data['price']);
-    data['stockLevel'] = _toDouble(data['stockLevel']);
-    if (data['taxes'] != null) {
-      data['taxes'] = (data['taxes'] as List).map((t) {
-        final Map<String, dynamic> tax = Map<String, dynamic>.from(t);
+    final normalized = Map<String, dynamic>.from(data);
+    normalized['price'] = _toDouble(normalized['price'] ?? normalized['unitPrice']);
+    normalized['stockLevel'] = _toDouble(normalized['stockLevel']);
+    normalized['accountId'] ??= normalized['incomeAccountId']?.toString();
+
+    normalized['taxes'] = _normalizeTaxes(normalized);
+    normalized['units'] = _normalizeUnits(normalized);
+    normalized['barcodes'] = _normalizeBarcodes(normalized);
+
+    normalized['isPerishable'] = normalized['isPerishable'] == true;
+    normalized['isService'] = normalized['isService'] == true;
+    final units = normalized['units'] as List;
+    normalized['hasFlexibleUnits'] =
+        normalized['hasFlexibleUnits'] == true || units.isNotEmpty;
+
+    if (normalized['expiresWithinDays'] != null) {
+      normalized['expiresWithinDays'] =
+          int.tryParse('${normalized['expiresWithinDays']}');
+    }
+
+    return PosProduct.fromJson(normalized);
+  }
+
+  List<Map<String, dynamic>> _normalizeTaxes(Map<String, dynamic> data) {
+    if (data['taxes'] is List) {
+      return (data['taxes'] as List).map((t) {
+        final Map<String, dynamic> tax = Map<String, dynamic>.from(t as Map);
         tax['taxRate'] = _toDouble(tax['taxRate']);
         return tax;
       }).toList();
     }
-    if (data['units'] != null) {
-      data['units'] = (data['units'] as List).map((u) {
-        final Map<String, dynamic> unit = Map<String, dynamic>.from(u);
-        unit['conversionRate'] = _toDouble(unit['conversionRate']);
-        unit['unitPrice'] = _toDouble(unit['unitPrice']);
-        return unit;
+    if (data['productTaxes'] is List) {
+      return (data['productTaxes'] as List)
+          .whereType<Map>()
+          .where((pt) => pt['taxType'] is Map)
+          .map((pt) {
+        final taxType = Map<String, dynamic>.from(pt['taxType'] as Map);
+        return {
+          'id': taxType['id']?.toString() ?? '',
+          'taxName': taxType['taxName']?.toString() ?? 'Tax',
+          'taxRate': _toDouble(taxType['taxRate']),
+        };
       }).toList();
     }
-    return PosProduct.fromJson(data);
+    return [];
+  }
+
+  List<Map<String, dynamic>> _normalizeUnits(Map<String, dynamic> data) {
+    if (data['units'] is List && (data['units'] as List).isNotEmpty) {
+      return (data['units'] as List).map(_normalizeUnitRow).toList();
+    }
+    if (data['productUnits'] is List) {
+      final basePrice = _toDouble(data['price'] ?? data['unitPrice']);
+      return (data['productUnits'] as List)
+          .whereType<Map>()
+          .where((pu) => pu['unit'] is Map && pu['isActive'] != false)
+          .map((pu) {
+        final unit = Map<String, dynamic>.from(pu['unit'] as Map);
+        final rate = _toDouble(
+          unit['conversionToBase'] ?? unit['conversionRate'] ?? 1,
+        );
+        final unitName =
+            unit['name']?.toString() ?? unit['symbol']?.toString() ?? 'Unit';
+        return {
+          'id': unit['id']?.toString() ?? pu['id']?.toString() ?? '',
+          'unitName': unitName,
+          'symbol': unit['symbol']?.toString(),
+          'conversionRate': rate > 0 ? rate : 1,
+          'conversionToBase': rate > 0 ? rate : 1,
+          'unitPrice': pu['unitPrice'] != null
+              ? _toDouble(pu['unitPrice'])
+              : basePrice,
+          'isBaseUnit': unit['isBaseUnit'] == true,
+        };
+      }).toList();
+    }
+    return [];
+  }
+
+  Map<String, dynamic> _normalizeUnitRow(dynamic raw) {
+    final Map<String, dynamic> unit = Map<String, dynamic>.from(raw as Map);
+    final rate = _toDouble(
+      unit['conversionRate'] ?? unit['conversionToBase'] ?? 1,
+    );
+    unit['conversionRate'] = rate > 0 ? rate : 1;
+    unit['conversionToBase'] = unit['conversionRate'];
+    unit['unitName'] ??=
+        unit['name']?.toString() ?? unit['symbol']?.toString() ?? 'Unit';
+    unit['unitPrice'] = _toDouble(unit['unitPrice']);
+    unit['isBaseUnit'] = unit['isBaseUnit'] == true;
+    return unit;
+  }
+
+  List<String> _normalizeBarcodes(Map<String, dynamic> data) {
+    final barcodes = <String>{};
+    if (data['barcodes'] is List) {
+      for (final entry in data['barcodes'] as List) {
+        final value = entry.toString().trim();
+        if (value.isNotEmpty) barcodes.add(value);
+      }
+    }
+    if (data['productBarcodes'] is List) {
+      for (final entry in data['productBarcodes'] as List) {
+        if (entry is Map && entry['barcode'] != null) {
+          final value = entry['barcode'].toString().trim();
+          if (value.isNotEmpty) barcodes.add(value);
+        }
+      }
+    }
+    final legacy = data['barcode']?.toString().trim();
+    if (legacy != null && legacy.isNotEmpty) {
+      barcodes.add(legacy);
+    }
+    return barcodes.toList();
   }
 
   bool _matchesBarcodeOrSku(Map<String, dynamic> data, String code) {

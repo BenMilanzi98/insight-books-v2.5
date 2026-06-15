@@ -10,6 +10,7 @@ _PosProduct _$PosProductFromJson(Map<String, dynamic> json) => _PosProduct(
   id: json['id'] as String,
   name: json['name'] as String,
   sku: json['sku'] as String?,
+  barcode: json['barcode'] as String?,
   price: (json['price'] as num).toDouble(),
   stockLevel: (json['stockLevel'] as num?)?.toDouble(),
   category: json['category'] as String?,
@@ -24,6 +25,15 @@ _PosProduct _$PosProductFromJson(Map<String, dynamic> json) => _PosProduct(
           ?.map((e) => ProductUnit.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
+  barcodes:
+      (json['barcodes'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const [],
+  isPerishable: json['isPerishable'] as bool? ?? false,
+  isService: json['isService'] as bool? ?? false,
+  hasFlexibleUnits: json['hasFlexibleUnits'] as bool? ?? false,
+  nearestExpiryDate: json['nearestExpiryDate'] as String?,
+  expiresWithinDays: (json['expiresWithinDays'] as num?)?.toInt(),
+  expiryAlertLevel: json['expiryAlertLevel'] as String?,
 );
 
 Map<String, dynamic> _$PosProductToJson(_PosProduct instance) =>
@@ -31,12 +41,20 @@ Map<String, dynamic> _$PosProductToJson(_PosProduct instance) =>
       'id': instance.id,
       'name': instance.name,
       'sku': instance.sku,
+      'barcode': instance.barcode,
       'price': instance.price,
       'stockLevel': instance.stockLevel,
       'category': instance.category,
       'accountId': instance.accountId,
       'taxes': instance.taxes,
       'units': instance.units,
+      'barcodes': instance.barcodes,
+      'isPerishable': instance.isPerishable,
+      'isService': instance.isService,
+      'hasFlexibleUnits': instance.hasFlexibleUnits,
+      'nearestExpiryDate': instance.nearestExpiryDate,
+      'expiresWithinDays': instance.expiresWithinDays,
+      'expiryAlertLevel': instance.expiryAlertLevel,
     };
 
 _ProductTax _$ProductTaxFromJson(Map<String, dynamic> json) => _ProductTax(
@@ -55,7 +73,9 @@ Map<String, dynamic> _$ProductTaxToJson(_ProductTax instance) =>
 _ProductUnit _$ProductUnitFromJson(Map<String, dynamic> json) => _ProductUnit(
   id: json['id'] as String,
   unitName: json['unitName'] as String,
+  symbol: json['symbol'] as String?,
   conversionRate: (json['conversionRate'] as num).toDouble(),
+  conversionToBase: (json['conversionToBase'] as num?)?.toDouble(),
   unitPrice: (json['unitPrice'] as num?)?.toDouble(),
   isBaseUnit: json['isBaseUnit'] as bool,
 );
@@ -64,7 +84,9 @@ Map<String, dynamic> _$ProductUnitToJson(_ProductUnit instance) =>
     <String, dynamic>{
       'id': instance.id,
       'unitName': instance.unitName,
+      'symbol': instance.symbol,
       'conversionRate': instance.conversionRate,
+      'conversionToBase': instance.conversionToBase,
       'unitPrice': instance.unitPrice,
       'isBaseUnit': instance.isBaseUnit,
     };

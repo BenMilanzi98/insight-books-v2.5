@@ -5,6 +5,11 @@ import { getUserFromSession } from '@/lib/auth';
 import { getPaymentMethodName } from '@/lib/paymentMethods';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
+function parseReceiptPaperWidth(searchParams) {
+  const requested = Number(searchParams.get('paperWidth') || searchParams.get('paperWidthMm'));
+  return requested === 58 ? 58 : 80;
+}
+
 export async function GET(request, { params }) {
   const resolvedParams = typeof params.then === 'function' ? await params : params;
   const saleId = resolvedParams?.id ?? null;
@@ -298,6 +303,9 @@ export async function GET(request, { params }) {
     
     const receiptReqUrl = new URL(request.url);
     const format = receiptReqUrl.searchParams.get('format');
+    const receiptPaperWidthMm = parseReceiptPaperWidth(receiptReqUrl.searchParams);
+    const isCompact58 = receiptPaperWidthMm === 58;
+    const receiptViewportWidth = isCompact58 ? 220 : 302;
     const autoPrintParam = receiptReqUrl.searchParams.get('autoPrint');
     /** When true, omit window.print() script (Android WebView uses PrintDocumentAdapter; embedded previews). */
     const suppressAutoPrint =
@@ -309,7 +317,12 @@ export async function GET(request, { params }) {
         '@/lib/buildPosReceiptEscPosContents'
       );
       return NextResponse.json(
-        buildPosReceiptEscPosContents({ sale, tenantSettings, taxData })
+        buildPosReceiptEscPosContents({
+          sale,
+          tenantSettings,
+          taxData,
+          paperWidth: receiptPaperWidthMm,
+        })
       );
     }
 
@@ -346,7 +359,7 @@ export async function GET(request, { params }) {
 <html lang="en"${suppressAutoPrint ? ' class="receipt-embed"' : ''}>
     <head>
       <meta charset="utf-8">
-<meta name="viewport" content="width=302,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=${receiptViewportWidth},initial-scale=1,maximum-scale=1">
       <title>Receipt - ${sale.saleNumber}</title>
       <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -354,60 +367,61 @@ html{background:#94a3b8;height:auto}
 html.receipt-embed,html.receipt-embed body{min-height:0!important;max-height:none}
 /*
  * 80 mm roll → ~72 mm printable → ~272 px at 96 dpi
+ * 58 mm roll → ~50 mm printable → compact font/spacing
  * Font A (normal body) ≈ 12 pt = 11 px; Font B (compact) ≈ 9 pt = 8 px
  * Header (store name) ≈ double-height = 16 px; Total line ≈ 14 px bold
  */
 body{
   font-family:Arial,Helvetica,sans-serif;
   margin:0 auto;
-  font-size:12px;       /* Font A — normal body */
+  font-size:${isCompact58 ? 10 : 12}px;       /* Font A — normal body */
   font-weight:bold;
   line-height:1.5;
   color:#1a1a1a;
   background:transparent;
   width:100%;
-  max-width:80mm;
+  max-width:${receiptPaperWidthMm}mm;
 }
 .paper{background:#fff;width:100%}
 /* 3 mm side margins each side leaves ~66 mm usable */
-.body{padding:6px 6px 10px}
+.body{padding:${isCompact58 ? '4px 4px 8px' : '6px 6px 10px'}}
 /* ── Company header (double-size branding) ─────────────── */
 .co-header{text-align:center;margin-bottom:4px}
-.co-logo{max-width:56px;max-height:56px;display:block;margin:0 auto 4px;object-fit:contain}
-.co-name{font-size:16px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;line-height:1.2}
+.co-logo{max-width:${isCompact58 ? 44 : 56}px;max-height:${isCompact58 ? 44 : 56}px;display:block;margin:0 auto 4px;object-fit:contain}
+.co-name{font-size:${isCompact58 ? 13 : 16}px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;line-height:1.2}
 /* ── RECEIPT title (largest element) ──────────────────── */
-.rtitle{text-align:center;font-size:12px;font-weight:bold;letter-spacing:4px;margin:7px 0 6px;line-height:1}
+.rtitle{text-align:center;font-size:${isCompact58 ? 10 : 12}px;font-weight:bold;letter-spacing:${isCompact58 ? 2 : 4}px;margin:7px 0 6px;line-height:1}
 /* ── Dashed section separator ──────────────────────────── */
 .sep{border:none;border-top:1px dashed #555;margin:6px 0}
 /* ── Info field rows: LABEL   value  (Font A, 11 px) ───── */
 .frow{display:flex;align-items:baseline;gap:4px;margin:2px 0}
-.flabel{font-weight:bold;font-size:12px;white-space:nowrap;flex-shrink:0;min-width:80px}
-.fval{flex:1;font-size:12px;text-align:right;word-break:break-word;font-weight:bold}
+.flabel{font-weight:bold;font-size:${isCompact58 ? 10 : 12}px;white-space:nowrap;flex-shrink:0;min-width:${isCompact58 ? 60 : 80}px}
+.fval{flex:1;font-size:${isCompact58 ? 10 : 12}px;text-align:right;word-break:break-word;font-weight:bold}
 /* ── Items table (Font B — compact, ~9 px) ─────────────── */
-.itbl{width:100%;border-collapse:collapse;font-size:12px;margin:3px 0}
-.itbl th{font-weight:bold;padding:2px 2px;text-align:left;border-bottom:1px solid #222;font-size:12px}
+.itbl{width:100%;border-collapse:collapse;font-size:${isCompact58 ? 10 : 12}px;margin:3px 0;table-layout:fixed}
+.itbl th{font-weight:bold;padding:2px 2px;text-align:left;border-bottom:1px solid #222;font-size:${isCompact58 ? 10 : 12}px}
 .itbl th.r{text-align:right}
-.itbl td{padding:3px 2px;vertical-align:top;font-size:12px}
-.itbl td.c{text-align:center;width:10%}
-.itbl td.d{width:58%}
-.itbl td.r{text-align:right;width:32%}
+.itbl td{padding:${isCompact58 ? 2 : 3}px 2px;vertical-align:top;font-size:${isCompact58 ? 10 : 12}px;overflow-wrap:anywhere}
+.itbl td.c{text-align:center;width:${isCompact58 ? 14 : 10}%}
+.itbl td.d{width:${isCompact58 ? 52 : 58}%}
+.itbl td.r{text-align:right;width:${isCompact58 ? 34 : 32}%}
 .itbl tr.ir td{border-bottom:1px dotted #ccc}
 /* Sub-lines (Selling Price, tax, discount) — smallest readable size */
-.isub{font-size:12px;margin-top:1px;line-height:1.3;display:flex;justify-content:space-between;gap:4px}
+.isub{font-size:${isCompact58 ? 9 : 12}px;margin-top:1px;line-height:1.3;display:flex;justify-content:space-between;gap:4px}
 /* ── Totals (Font A, 11 px; grand total 14 px bold) ────── */
 .trow{display:flex;align-items:baseline;gap:4px;margin:3px 0}
-.tlabel{font-weight:bold;font-size:12px;white-space:nowrap;flex-shrink:0;min-width:95px}
-.tval{flex:1;font-size:12px;text-align:right;font-weight:bold}
+.tlabel{font-weight:bold;font-size:${isCompact58 ? 10 : 12}px;white-space:nowrap;flex-shrink:0;min-width:${isCompact58 ? 76 : 95}px}
+.tval{flex:1;font-size:${isCompact58 ? 10 : 12}px;text-align:right;font-weight:bold}
 /* Grand total — double-height equivalent (14 px bold) */
-.trow.grand .tlabel{font-size:14px;font-weight:bold}
-.trow.grand .tval{font-size:14px;font-weight:bold}
+.trow.grand .tlabel{font-size:${isCompact58 ? 12 : 14}px;font-weight:bold}
+.trow.grand .tval{font-size:${isCompact58 ? 12 : 14}px;font-weight:bold}
 /* ── Footer ─────────────────────────────────────────────── */
-.ty{text-align:center;font-weight:bold;font-size:12px;letter-spacing:1px;margin:8px 0 4px;line-height:1.3}
-.credit{text-align:center;font-size:12px;font-weight:bold;margin-bottom:1px}
+.ty{text-align:center;font-weight:bold;font-size:${isCompact58 ? 10 : 12}px;letter-spacing:1px;margin:8px 0 4px;line-height:1.3}
+.credit{text-align:center;font-size:${isCompact58 ? 10 : 12}px;font-weight:bold;margin-bottom:1px}
 @media print{
   html{background:#fff!important}
-  body{width:80mm;max-width:80mm;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  @page{margin:0;size:80mm auto}
+  body{width:${receiptPaperWidthMm}mm;max-width:${receiptPaperWidthMm}mm;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{margin:0;size:${receiptPaperWidthMm}mm auto}
         }
       </style>
     </head>
@@ -572,8 +586,11 @@ ${suppressAutoPrint ? receiptLayoutClampScript : `<script>
       let strategy = 'none';
 
       // --- Strategy 1 (primary): jsPDF programmatic receipt ---
-      // Works on all platforms with no system dependencies.
+      // Works on all platforms with no system dependencies. Keep existing 80mm/default behavior.
       try {
+        if (receiptPaperWidthMm !== 80) {
+          throw new Error('Use HTML renderer for compact thermal receipt PDF');
+        }
         const { generateSaleReceiptPdfBuffer } = await import('@/lib/server-pdf-jspdf');
         buffer = generateSaleReceiptPdfBuffer(sale, tenantSettings, taxData);
         strategy = 'jspdf';
@@ -602,7 +619,7 @@ ${suppressAutoPrint ? receiptLayoutClampScript : `<script>
             return paper ? paper.scrollHeight : document.body.scrollHeight;
           });
           buffer = await page.pdf({
-            width: '80mm',
+            width: `${receiptPaperWidthMm}mm`,
             height: `${Math.ceil(contentHeight * 0.2646) + 10}mm`,
             printBackground: true,
             margin: { top: '2mm', right: '0mm', bottom: '2mm', left: '0mm' },

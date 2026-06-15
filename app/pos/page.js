@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   ShoppingCart, 
@@ -306,7 +307,7 @@ const POSPage = () => {
     if (isAddingPosTax && defaultTaxInflowAccountId && !newPosTax.accountId) {
       setNewPosTax(prev => ({ ...prev, accountId: defaultTaxInflowAccountId }));
     }
-  }, [isAddingPosTax, defaultTaxInflowAccountId]);
+  }, [isAddingPosTax, defaultTaxInflowAccountId, newPosTax.accountId]);
 
   // Close tax dropdown on outside click
   useEffect(() => {
@@ -512,7 +513,6 @@ const POSPage = () => {
             resolvedDefaultId = defaultAccount.id;
             defaultIncomeAccountIdRef.current = resolvedDefaultId;
             setDefaultIncomeAccountId(resolvedDefaultId);
-            console.log('✅ Income account loaded:', defaultAccount.accountName, defaultAccount.accountCode);
           } else {
             defaultIncomeAccountIdRef.current = null;
             console.warn('No income accounts found. Sales will fail without accountId.');
@@ -598,6 +598,8 @@ const POSPage = () => {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
+  // Network listeners are registered once; callbacks read current state through their own calls.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── EIS helpers ──────────────────────────────────────────────
@@ -900,6 +902,7 @@ const POSPage = () => {
 
   // Load products
   const loadProducts = async () => {
+    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v1';
     try {
       setIsLoadingProducts(true);
       setProductsError(null);
@@ -910,8 +913,23 @@ const POSPage = () => {
       });
       setProducts(productsData);
       setFilteredProducts(productsData);
+      try {
+        localStorage.setItem(POS_PRODUCTS_CACHE_KEY, JSON.stringify(productsData));
+      } catch (_) {}
     } catch (error) {
       console.error("Error loading products:", error);
+      try {
+        const cached = localStorage.getItem(POS_PRODUCTS_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProducts(parsed);
+            setFilteredProducts(parsed);
+            setProductsError("Using cached product catalog (offline or server unavailable)");
+            return;
+          }
+        }
+      } catch (_) {}
       setProductsError("Failed to load products");
       
       const sampleProducts = [
@@ -973,77 +991,75 @@ const POSPage = () => {
 
   // Helper function to check if product has unit management enabled
   const hasUnitManagement = (product) => {
-    const hasUnits = !!(product?.units && product.units.length > 0);
-    console.log("=== UNIT MANAGEMENT CHECK ===");
-    console.log("Product:", product?.name);
-    console.log("Has units property:", !!product?.units);
-    console.log("Units length:", product?.units?.length || 0);
-    console.log("Has unit management:", hasUnits);
-    console.log("=============================");
-    return hasUnits;
+    return !!(product?.units && product.units.length > 0);
+  };
+
+  const getProductExpiryAlert = (product) => {
+    if (!product) return null;
+    if (product.expiryAlertLevel === 'expired') {
+      return { level: 'expired', label: 'Expired' };
+    }
+    if (product.expiryAlertLevel === 'warning') {
+      if (product.expiresWithinDays != null) {
+        return { level: 'warning', label: `Exp ${product.expiresWithinDays}d` };
+      }
+      return { level: 'warning', label: 'Expiring soon' };
+    }
+    return null;
+  };
+
+  const getUnitConversionRate = (unit) => {
+    const raw = unit?.conversionToBase ?? unit?.conversionRate ?? 1;
+    const rate = Number(raw);
+    return Number.isFinite(rate) && rate > 0 ? rate : 1;
+  };
+
+  const renderProductExpiryBadge = (product) => {
+    const alert = getProductExpiryAlert(product);
+    if (!alert) return null;
+    const cls =
+      alert.level === 'expired'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-amber-100 text-amber-900';
+    return (
+      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${cls}`}>
+        {alert.label}
+      </span>
+    );
   };
   
   // Add product to the current sale
   const addProduct = async (product, qty = quantity) => {
     if (!product) return;
     
-    // Always fetch full product details to know if units are configured
     let detailedProduct = product;
-    console.log("=== ADD PRODUCT DEBUG ===");
-    console.log("Product ID:", product.id);
-    console.log("Product name:", product.name);
-    
-    try {
-      console.log("Fetching product details from API...");
-      const res = await fetch(`/api/stock/${product.id}`);
-      console.log("API response status:", res.status);
-      
-      if (res.ok) {
-        const data = await res.json();
-        console.log("API response data:", data);
-        
-        // The API returns the product data directly, not wrapped in a 'product' property
-        if (data && (data.product || data.id)) {
-          const productData = data.product || data;
-          console.log("=== POS PRODUCT DETAILS DEBUG ===");
-          console.log("Product ID:", product.id);
-          console.log("Raw API response:", JSON.stringify(productData, null, 2));
-          
-          // The API now returns units in the correct format
-          const units = Array.isArray(productData.units) ? productData.units : [];
-          const taxes = Array.isArray(productData.taxes) ? productData.taxes : [];
-          console.log("Units found:", units.length);
-          console.log("Units data:", units);
-          console.log("=== TAXES DEBUG ===");
-          console.log("Taxes found:", taxes.length);
-          console.log("Taxes data:", JSON.stringify(taxes, null, 2));
-          console.log("================================");
+    const catalogHasUnits = Array.isArray(product.units) && product.units.length > 0;
+    const catalogHasTaxes = Array.isArray(product.taxes) && product.taxes.length > 0;
 
-          detailedProduct = {
-            ...product,
-            ...productData,
-            units: units,
-            taxes: taxes // Ensure taxes are included
-          };
+    if (!catalogHasUnits || !catalogHasTaxes) {
+      try {
+        const res = await fetch(`/api/stock/${product.id}`);
+        
+        if (res.ok) {
+          const data = await res.json();
           
-          console.log("Detailed product with units and taxes:", {
-            name: detailedProduct.name,
-            taxes: detailedProduct.taxes,
-            taxesCount: detailedProduct.taxes?.length || 0
-          });
-        } else {
-          console.log("No product data in API response");
+          if (data && (data.product || data.id)) {
+            const productData = data.product || data;
+            const units = Array.isArray(productData.units) ? productData.units : (product.units || []);
+            const taxes = Array.isArray(productData.taxes) ? productData.taxes : (product.taxes || []);
+
+            detailedProduct = {
+              ...product,
+              ...productData,
+              units,
+              taxes,
+            };
+          }
         }
-      } else {
-        console.log("API request failed with status:", res.status);
+      } catch (e) {
+        console.error("Error fetching product details:", e);
       }
-    } catch (e) {
-      console.error("Error fetching product details:", e);
-      // If detail fetch fails, proceed with basic product
     }
-    
-    console.log("Final detailed product:", detailedProduct);
-    console.log("=========================");
 
     const isUnitManaged = hasUnitManagement(detailedProduct);
 
@@ -1115,7 +1131,11 @@ const POSPage = () => {
             : p
         ));
       }
-      showCartAddedToast(detailedProduct.name);
+      showCartAddedToast(
+        getProductExpiryAlert(detailedProduct)?.level === 'warning'
+          ? `${detailedProduct.name} - expires within 30 days`
+          : detailedProduct.name
+      );
     } else {
       // Determine initial price (base Selling Price for unit-managed)
       let initialPrice = detailedProduct.price;
@@ -1139,24 +1159,12 @@ const POSPage = () => {
                 calculationType: defaultTaxTypeForInflow.calculationType || 'Percentage'
               }]
             : []);
-      console.log("=== TAX CALCULATION DEBUG ===");
-      console.log("Product:", detailedProduct.name);
-      console.log("Product taxes:", productTaxes);
-      console.log("Taxes count:", productTaxes.length);
-      console.log("Quantity:", parsedQty);
-      console.log("Selling Price:", initialPrice);
-      
       const taxCalculation = calculateSaleItemTaxes({
         quantity: parsedQty,
         unitPrice: initialPrice,
         discountAmount: 0,
         taxes: productTaxes
       });
-      
-      console.log("Tax calculation result:", taxCalculation);
-      console.log("Total tax amount:", taxCalculation.totalTaxAmount);
-      console.log("Tax breakdown:", taxCalculation.taxBreakdown);
-      console.log("==============================");
 
       // For unit-based products, initialize with empty unitQuantities
       // The UnitBasedQuantityInput will set the actual quantities and trigger tax recalculation
@@ -1186,7 +1194,11 @@ const POSPage = () => {
       }
       
       setSelectedProducts([...selectedProducts, newProduct]);
-      showCartAddedToast(detailedProduct.name);
+      showCartAddedToast(
+        getProductExpiryAlert(detailedProduct)?.level === 'warning'
+          ? `${detailedProduct.name} - expires within 30 days`
+          : detailedProduct.name
+      );
     }
     
     // Clear product selection
@@ -1264,12 +1276,6 @@ const POSPage = () => {
   
   // Update product discount
   const updateProductDiscount = (productId, discount) => {
-    console.log('🔍 Discount Debug:', {
-      productId,
-      discountInput: discount,
-      discountParsed: parseFloat(discount) || 0
-    });
-    
     setSelectedProducts(selectedProducts.map(product => {
       if (product.id === productId) {
         // Treat entered discount as per-unit discount; total discount scales with quantity
@@ -1284,16 +1290,7 @@ const POSPage = () => {
           discountAmount: newDiscountAmount,
           taxes: productTaxes
         });
-        
-        console.log('💰 Product Discount Update:', {
-          productName: product.name,
-          productSubtotal: product.subtotal,
-          perUnitDiscount,
-          discountAmount: newDiscountAmount,
-          taxAmount: taxCalculation.totalTaxAmount,
-          newTotal: subtractMoney(addMoney(product.subtotal, taxCalculation.totalTaxAmount), newDiscountAmount)
-        });
-        
+
         return {
           ...product,
           // Store per-unit discount entered by user
@@ -1431,11 +1428,6 @@ const POSPage = () => {
 
   // Update unit quantities for unit-managed products
   const updateUnitQuantities = useCallback((productId, unitQuantities) => {
-    console.log("=== POS UNIT QUANTITIES UPDATE ===");
-    console.log("Product ID:", productId);
-    console.log("Unit Quantities:", unitQuantities);
-    console.log("==================================");
-    
     setSelectedProducts(prev => prev.map(product => {
       if (product.id === productId) {
         // Calculate total base quantity and total price from unitQuantities
@@ -1446,7 +1438,7 @@ const POSPage = () => {
           Object.entries(unitQuantities).forEach(([unitId, qty]) => {
             const unit = product.units.find(u => u.id === unitId);
             if (unit && qty > 0) {
-              const conversionRate = parseFloat(unit.conversionToBase || 1);
+              const conversionRate = getUnitConversionRate(unit);
               const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
               totalBaseQuantity += convertedToBase;
               
@@ -1467,16 +1459,6 @@ const POSPage = () => {
           const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
           taxBreakdown = taxCalculation.taxBreakdown;
           taxAmount = taxCalculation.totalTaxAmount;
-          
-          console.log(`🔍 Recalculating tax after unit quantities change for ${product.name}:`, {
-            unitQuantities,
-            totalBaseQuantity,
-            totalPrice,
-            baseAmount,
-            quantityForTax,
-            taxBreakdown,
-            totalTaxAmount: taxAmount
-          });
         }
         
         return {
@@ -1515,7 +1497,7 @@ const POSPage = () => {
             Object.entries(product.unitQuantities).forEach(([unitId, qty]) => {
               const unit = product.units.find(u => u.id === unitId);
               if (unit && qty > 0) {
-                const conversionRate = parseFloat(unit.conversionToBase || 1);
+                const conversionRate = getUnitConversionRate(unit);
                 const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
                 totalBaseQuantity += convertedToBase;
               }
@@ -1529,15 +1511,6 @@ const POSPage = () => {
           const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
           taxBreakdown = taxCalculation.taxBreakdown;
           taxAmount = taxCalculation.totalTaxAmount;
-          
-          console.log(`🔍 Recalculating tax for unit-based product ${product.name} (price update):`, {
-            newPrice,
-            baseAmount,
-            totalBaseQuantity: quantityForTax,
-            unitQuantities: product.unitQuantities,
-            taxBreakdown,
-            totalTaxAmount: taxAmount
-          });
         }
         
         return {
@@ -1895,10 +1868,6 @@ const POSPage = () => {
       
       // Always prioritize the selected payment method
       // If paymentMethod is set, use it regardless of allocations
-      console.log('🔍 POS: completeSale - paymentMethod:', paymentMethod);
-      console.log('🔍 POS: completeSale - paymentAllocations:', paymentAllocations);
-      console.log('🔍 POS: completeSale - paymentAccounts:', paymentAccounts.map(acc => ({ id: acc.id, name: acc.name })));
-      
       if (paymentMethod && paymentAccounts.length > 0) {
         // Try to find account by ID first (current format)
         let selectedAccount = paymentAccounts.find(acc => acc.id === paymentMethod);
@@ -1930,7 +1899,6 @@ const POSPage = () => {
             }
           } else {
             // Single payment - use selected account with full total
-            console.log('🔍 POS: Setting finalPaymentAllocations with account:', selectedAccount.id, selectedAccount.name);
             finalPaymentAllocations = [{ paymentAccountId: selectedAccount.id, amount: total }];
           }
         } else {
@@ -2016,7 +1984,7 @@ const POSPage = () => {
                 Object.entries(product.unitQuantities).forEach(([unitId, qty]) => {
                   const unit = product.units.find(u => u.id === unitId);
                   if (unit && qty > 0) {
-                    const conversionRate = parseFloat(unit.conversionToBase || 1);
+                    const conversionRate = getUnitConversionRate(unit);
                     const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
                     totalBaseQuantity += convertedToBase;
                   }
@@ -2027,13 +1995,6 @@ const POSPage = () => {
               lineTotal = product.subtotal || 0;
               quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : (product.quantity || 1);
               
-              console.log(`🔍 Unit-based product tax calculation for ${product.name}:`, {
-                unitQuantities: product.unitQuantities,
-                totalBaseQuantity,
-                subtotal: product.subtotal,
-                lineTotal,
-                quantityForTax
-              });
             } else {
               // Regular product: quantity × unitPrice
               lineTotal = multiplyMoney(product.quantity || 1, product.price || 0);
@@ -2045,19 +2006,6 @@ const POSPage = () => {
             const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
             taxBreakdown = taxCalculation.taxBreakdown;
             taxAmount = taxCalculation.totalTaxAmount;
-            
-            console.log(`🔍 Recalculating tax for ${product.name}:`, {
-              isUnitManaged,
-              quantity: product.quantity,
-              quantityForTax,
-              unitPrice: product.price,
-              subtotal: product.subtotal,
-              lineTotal,
-              baseAmount,
-              discountAmount: product.discountAmount || 0,
-              taxBreakdown: taxBreakdown,
-              totalTaxAmount: taxAmount
-            });
           }
           
           const itemData = {
@@ -2089,15 +2037,6 @@ const POSPage = () => {
               unitQuantities[unit.id] = product.unitQuantities?.[unit.id] || 0;
             });
             itemData.unitQuantities = unitQuantities;
-            
-            console.log("=== SALE CREATION DEBUG ===");
-            console.log("Product:", product.name);
-            console.log("Has unit management:", hasUnitManagement(product));
-            console.log("Product units:", product.units);
-            console.log("Product unitQuantities:", product.unitQuantities);
-            console.log("Calculated unitQuantities for sale:", unitQuantities);
-            console.log("Item data being sent:", itemData);
-            console.log("=============================");
           }
           
           return itemData;
@@ -2105,20 +2044,14 @@ const POSPage = () => {
         // Always send paymentAllocations if we have them, otherwise send paymentMethod
         // Note: paymentAllocations should always be set by the logic above
         ...(finalPaymentAllocations.length > 0
-          ? (() => {
-              console.log('🔍 POS: Sending paymentAllocations:', finalPaymentAllocations);
-              return {
-                paymentAllocations: finalPaymentAllocations.map(alloc => ({
-                  paymentAccountId: alloc.paymentAccountId,
-                  amount: alloc.amount
-                }))
-              };
-            })()
+          ? {
+              paymentAllocations: finalPaymentAllocations.map(alloc => ({
+                paymentAccountId: alloc.paymentAccountId,
+                amount: alloc.amount
+              }))
+            }
           : paymentMethod 
-            ? (() => {
-                console.log('🔍 POS: No allocations, sending paymentMethod:', paymentMethod);
-                return { paymentMethod: paymentMethod }; // Fallback: send account ID if no allocations
-              })()
+            ? { paymentMethod: paymentMethod } // Fallback: send account ID if no allocations
             : {}),
         notes: saleNotes,
         status: 'completed',
@@ -2245,11 +2178,11 @@ const POSPage = () => {
   };
   
   // Print the current receipt
-  const handlePrintReceipt = async () => {
+  const handlePrintReceipt = async (paperWidth = 80) => {
     if (!currentReceipt) return;
     
     try {
-      await printReceipt(currentReceipt.id);
+      await printReceipt(currentReceipt.id, { paperWidth });
     } catch (error) {
       console.error("Error printing receipt:", error);
       alert("Failed to print receipt. Please try again.");
@@ -2459,7 +2392,7 @@ const POSPage = () => {
           <div>
             <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">New Sale</h2>
             <div className="flex flex-wrap gap-2 mb-6 bg-gray-50 p-1 rounded-xl">
-              <button 
+              <button
                 className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   activeTab === "walkIn" 
                     ? "bg-white text-blue-600 shadow-md" 
@@ -2934,7 +2867,10 @@ const POSPage = () => {
                             onClick={() => product.stockLevel > 0 && handleQuickAdd(product)}
                           >
                             <div className="flex-1">
-                              <p className="font-semibold text-gray-900">{product.name}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-gray-900">{product.name}</p>
+                                {renderProductExpiryBadge(product)}
+                              </div>
                               <div className="flex flex-wrap text-xs text-gray-500 gap-3 mt-1">
                                 {product.sku && <span>SKU: {product.sku}</span>}
                                 <span className={product.stockLevel !== null && product.stockLevel > 0 ? 'text-green-600' : 'text-red-600'}>
@@ -3055,9 +2991,12 @@ const POSPage = () => {
                               )}
                             </div>
                             <div className="p-2 flex-1 flex flex-col min-w-0">
-                              <span className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight">
-                                {product.name}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight">
+                                  {product.name}
+                                </span>
+                                {renderProductExpiryBadge(product)}
+                              </div>
                               {product.sku ? (
                                 <span className="text-[10px] text-gray-500 truncate mt-0.5">
                                   {product.sku}
@@ -3120,7 +3059,12 @@ const POSPage = () => {
                   {selectedProducts.length > 0 ? (
                     selectedProducts.map((product) => (
                       <tr key={product.id} className="hover:bg-blue-50 transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{product.name}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>{product.name}</span>
+                            {renderProductExpiryBadge(product)}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-sm text-right font-semibold text-gray-700">{formatCurrency(product.price)}</td>
                         {!hasUnitManagement(product) && (
                           <td className="px-4 py-3 text-sm text-right">
@@ -3315,6 +3259,12 @@ const POSPage = () => {
             </div>
 
             {/* Unit-Based Quantity Input Section */}
+            {selectedProducts.some((p) => getProductExpiryAlert(p)) && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <strong>Expiry notice:</strong>{' '}
+                Some cart items expire within 30 days - review before checkout.
+              </div>
+            )}
             {selectedProducts.some(p => hasUnitManagement(p)) && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                 <h3 className="text-sm font-medium text-blue-900 mb-3">Unit-Based Products</h3>
@@ -4079,10 +4029,10 @@ const POSPage = () => {
           )}
           
         <div className="mt-6 flex justify-center">
-          <a href="/pos/list" className="text-blue-600 text-sm font-semibold hover:text-blue-800 hover:underline flex items-center transition-colors">
+          <Link href="/pos/list" className="text-blue-600 text-sm font-semibold hover:text-blue-800 hover:underline flex items-center transition-colors">
             View All Sales
             <ArrowRight className="w-4 h-4 ml-1" />
-          </a>
+          </Link>
         </div>
       </div>
       
@@ -4191,10 +4141,17 @@ const POSPage = () => {
               </button>
               <button 
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
-                onClick={handlePrintReceipt}
+                onClick={() => handlePrintReceipt(80)}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                Print Receipt
+                Print 80mm
+              </button>
+              <button
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center justify-center hover:bg-indigo-700"
+                onClick={() => handlePrintReceipt(58)}
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print 58mm
               </button>
             </div>
           </div>

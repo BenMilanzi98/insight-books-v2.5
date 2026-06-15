@@ -430,10 +430,11 @@ class Pos extends _$Pos {
     }
   }
 
-  void addToCart(PosProduct product) {
+  /// Returns an expiry warning message when the product is within the alert window.
+  String? addToCart(PosProduct product) {
     if (!state.canCreateSales) {
       state = state.copyWith(error: 'You do not have permission to perform this action.');
-      return;
+      return null;
     }
     final existingIndex = state.cart.indexWhere(
       (item) => item.product.id == product.id,
@@ -450,6 +451,10 @@ class Pos extends _$Pos {
       );
       state = state.copyWith(cart: [...state.cart, newItem]);
     }
+    if (product.hasExpiryWarning) {
+      return '${product.name} expires within 30 days';
+    }
+    return null;
   }
 
   /// Returns the product name when added, or `null` if not found / not allowed.
@@ -467,6 +472,17 @@ class Pos extends _$Pos {
         product = p;
         break;
       }
+      if ((p.barcode ?? '').toLowerCase() == probe) {
+        product = p;
+        break;
+      }
+      for (final barcode in p.barcodes) {
+        if (barcode.toLowerCase() == probe) {
+          product = p;
+          break;
+        }
+      }
+      if (product != null) break;
     }
     product ??= await ref.read(posRepositoryProvider).findProductByBarcodeOrSku(trimmed);
     if (product == null) {
@@ -990,7 +1006,13 @@ class Pos extends _$Pos {
         double qty = 0;
         for (final unit in item.product.units) {
           final q = unitQuantities[unit.id] ?? 0;
-          qty += q * unit.conversionRate;
+          if (q <= 0) continue;
+          if (unit.isBaseUnit) {
+            qty += q;
+          } else {
+            final rate = unit.conversionRate > 0 ? unit.conversionRate : 1;
+            qty += q / rate;
+          }
         }
         final effectiveQty = qty > 0 ? qty : item.quantity;
         return item.copyWith(

@@ -15,12 +15,13 @@ const _thermalReceiptPrintChannel =
 
 /// Same receipt document as web `/pos`: HTML from `/api/sales/{id}/receipt` with
 /// `autoPrint=0`, printed via Android [WebView] + [PrintDocumentAdapter].
-/// iOS and fallback use the server PDF on 80mm roll.
+/// iOS and fallback use the server PDF on the selected thermal roll width.
 Future<void> openSaleReceiptThermalPrint(
   BuildContext context,
   WidgetRef ref,
   String saleId, {
   String? saleNumberForFilename,
+  int paperWidthMm = 80,
 }) async {
   if (saleId.isEmpty || saleId.startsWith('OFFLINE-')) {
     if (!context.mounted) return;
@@ -57,25 +58,30 @@ Future<void> openSaleReceiptThermalPrint(
       final token = await storage.getToken();
       final cookie = await storage.getCookie();
       final uri = Uri.parse('$apiBaseUrl/api/sales/$saleId/receipt').replace(
-        queryParameters: {'autoPrint': '0'},
+        queryParameters: {
+          'autoPrint': '0',
+          'paperWidth': paperWidthMm.toString(),
+        },
       );
       await _thermalReceiptPrintChannel.invokeMethod<void>(
         'printThermalReceipt',
         <String, dynamic>{
           'url': uri.toString(),
+          'paperWidthMm': paperWidthMm,
           if (token != null && token.isNotEmpty)
             'authorization': 'Bearer $token',
           if (cookie != null && cookie.isNotEmpty) 'cookie': cookie,
         },
       );
     } else {
-      final bytes =
-          await ref.read(posRepositoryProvider).downloadReceiptPdf(saleId);
+      final bytes = await ref
+          .read(posRepositoryProvider)
+          .downloadReceiptPdf(saleId, paperWidthMm: paperWidthMm);
       final name = _receiptFileName(saleNumberForFilename, saleId);
       final ok = await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => Uint8List.fromList(bytes),
         name: name,
-        format: PdfPageFormat.roll80,
+        format: _rollFormatForWidth(paperWidthMm),
       );
       if (!context.mounted) return;
       if (!ok) {
@@ -98,6 +104,7 @@ Future<void> openSaleReceiptThermalPrint(
       ref,
       saleId,
       saleNumberForFilename,
+      paperWidthMm: paperWidthMm,
       cause: e.message ?? e.code,
     );
   } on MissingPluginException catch (_) {
@@ -110,6 +117,7 @@ Future<void> openSaleReceiptThermalPrint(
       ref,
       saleId,
       saleNumberForFilename,
+      paperWidthMm: paperWidthMm,
       cause: 'Native receipt print not available',
     );
   } catch (e) {
@@ -124,6 +132,31 @@ Future<void> openSaleReceiptThermalPrint(
   }
 }
 
+Future<int?> chooseReceiptPaperWidthMm(BuildContext context) {
+  return showDialog<int>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Printer paper width'),
+      content: const Text('Choose the paper size loaded in the receipt printer.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(58),
+          child: const Text('58mm'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(80),
+          child: const Text('80mm'),
+        ),
+      ],
+    ),
+  );
+}
+
+PdfPageFormat _rollFormatForWidth(int paperWidthMm) {
+  final width = (paperWidthMm == 58 ? 58 : 80) * PdfPageFormat.mm;
+  return PdfPageFormat(width, 2000 * PdfPageFormat.mm, marginAll: 0);
+}
+
 String _receiptFileName(String? saleNumberForFilename, String saleId) {
   if (saleNumberForFilename != null && saleNumberForFilename.trim().isNotEmpty) {
     return 'receipt-${saleNumberForFilename.trim()}.pdf';
@@ -136,6 +169,7 @@ Future<void> _printReceiptPdfFallback(
   WidgetRef ref,
   String saleId,
   String? saleNumberForFilename, {
+  int paperWidthMm = 80,
   String? cause,
 }) async {
   if (!context.mounted) return;
@@ -159,8 +193,9 @@ Future<void> _printReceiptPdfFallback(
     );
     dialogOpen = true;
 
-    final bytes =
-        await ref.read(posRepositoryProvider).downloadReceiptPdf(saleId);
+    final bytes = await ref
+        .read(posRepositoryProvider)
+        .downloadReceiptPdf(saleId, paperWidthMm: paperWidthMm);
 
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
@@ -170,7 +205,7 @@ Future<void> _printReceiptPdfFallback(
     final ok = await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => Uint8List.fromList(bytes),
       name: name,
-      format: PdfPageFormat.roll80,
+      format: _rollFormatForWidth(paperWidthMm),
     );
     if (!context.mounted) return;
     if (!ok) {

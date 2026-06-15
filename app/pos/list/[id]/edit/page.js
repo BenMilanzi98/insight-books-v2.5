@@ -668,11 +668,11 @@ const loadSale = async (productList) => {
   };
   
   // Print the current receipt
-  const handlePrintReceipt = async () => {
+  const handlePrintReceipt = async (paperWidth = 80) => {
     if (!currentReceipt) return;
     
     try {
-      await printReceipt(currentReceipt.id);
+      await printReceipt(currentReceipt.id, { paperWidth });
     } catch (error) {
       console.error("Error printing receipt:", error);
       alert("Failed to print receipt. Please try again.");
@@ -847,7 +847,7 @@ const loadSale = async (productList) => {
           <div>
             <h2 className="text-lg font-semibold mb-2">Edit Sale</h2>
             <div className="flex mb-4">
-              <button 
+              <button
                 className={`px-4 py-2 ${activeTab === "walkIn" ? "bg-blue-100 text-blue-600" : "bg-gray-100"} rounded-l-md`}
                 onClick={() => {
                   setActiveTab("walkIn");
@@ -1316,10 +1316,17 @@ const loadSale = async (productList) => {
               </button>
               <button 
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
-                onClick={handlePrintReceipt}
+                onClick={() => handlePrintReceipt(80)}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                Print Receipt
+                Print 80mm
+              </button>
+              <button
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center justify-center hover:bg-indigo-700"
+                onClick={() => handlePrintReceipt(58)}
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print 58mm
               </button>
             </div>
           </div>

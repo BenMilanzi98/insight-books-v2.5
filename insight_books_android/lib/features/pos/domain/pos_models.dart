@@ -5,17 +5,39 @@ part 'pos_models.g.dart';
 
 @freezed
 abstract class PosProduct with _$PosProduct {
+  const PosProduct._();
+
   const factory PosProduct({
     required String id,
     required String name,
     String? sku,
+    String? barcode,
     required double price,
     double? stockLevel,
     String? category,
     String? accountId,
     @Default([]) List<ProductTax> taxes,
     @Default([]) List<ProductUnit> units,
+    @Default([]) List<String> barcodes,
+    @Default(false) bool isPerishable,
+    @Default(false) bool isService,
+    @Default(false) bool hasFlexibleUnits,
+    String? nearestExpiryDate,
+    int? expiresWithinDays,
+    String? expiryAlertLevel,
   }) = _PosProduct;
+
+  bool get hasExpiryWarning =>
+      expiryAlertLevel == 'warning' || expiryAlertLevel == 'expired';
+
+  String? get expiryBadgeLabel {
+    if (expiryAlertLevel == 'expired') return 'Expired';
+    if (expiryAlertLevel == 'warning' && expiresWithinDays != null) {
+      return 'Exp ${expiresWithinDays}d';
+    }
+    if (expiryAlertLevel == 'warning') return 'Expiring soon';
+    return null;
+  }
 
   factory PosProduct.fromJson(Map<String, dynamic> json) =>
       _$PosProductFromJson(json);
@@ -38,7 +60,9 @@ abstract class ProductUnit with _$ProductUnit {
   const factory ProductUnit({
     required String id,
     required String unitName,
+    String? symbol,
     required double conversionRate,
+    double? conversionToBase,
     required double? unitPrice,
     required bool isBaseUnit,
   }) = _ProductUnit;

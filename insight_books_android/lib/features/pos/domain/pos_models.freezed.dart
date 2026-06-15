@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PosProduct {
 
- String get id; String get name; String? get sku; double get price; double? get stockLevel; String? get category; String? get accountId; List<ProductTax> get taxes; List<ProductUnit> get units;
+ String get id; String get name; String? get sku; String? get barcode; double get price; double? get stockLevel; String? get category; String? get accountId; List<ProductTax> get taxes; List<ProductUnit> get units; List<String> get barcodes; bool get isPerishable; bool get isService; bool get hasFlexibleUnits; String? get nearestExpiryDate; int? get expiresWithinDays; String? get expiryAlertLevel;
 /// Create a copy of PosProduct
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $PosProductCopyWith<PosProduct> get copyWith => _$PosProductCopyWithImpl<PosProd
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PosProduct&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.sku, sku) || other.sku == sku)&&(identical(other.price, price) || other.price == price)&&(identical(other.stockLevel, stockLevel) || other.stockLevel == stockLevel)&&(identical(other.category, category) || other.category == category)&&(identical(other.accountId, accountId) || other.accountId == accountId)&&const DeepCollectionEquality().equals(other.taxes, taxes)&&const DeepCollectionEquality().equals(other.units, units));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PosProduct&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.sku, sku) || other.sku == sku)&&(identical(other.barcode, barcode) || other.barcode == barcode)&&(identical(other.price, price) || other.price == price)&&(identical(other.stockLevel, stockLevel) || other.stockLevel == stockLevel)&&(identical(other.category, category) || other.category == category)&&(identical(other.accountId, accountId) || other.accountId == accountId)&&const DeepCollectionEquality().equals(other.taxes, taxes)&&const DeepCollectionEquality().equals(other.units, units)&&const DeepCollectionEquality().equals(other.barcodes, barcodes)&&(identical(other.isPerishable, isPerishable) || other.isPerishable == isPerishable)&&(identical(other.isService, isService) || other.isService == isService)&&(identical(other.hasFlexibleUnits, hasFlexibleUnits) || other.hasFlexibleUnits == hasFlexibleUnits)&&(identical(other.nearestExpiryDate, nearestExpiryDate) || other.nearestExpiryDate == nearestExpiryDate)&&(identical(other.expiresWithinDays, expiresWithinDays) || other.expiresWithinDays == expiresWithinDays)&&(identical(other.expiryAlertLevel, expiryAlertLevel) || other.expiryAlertLevel == expiryAlertLevel));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,sku,price,stockLevel,category,accountId,const DeepCollectionEquality().hash(taxes),const DeepCollectionEquality().hash(units));
+int get hashCode => Object.hash(runtimeType,id,name,sku,barcode,price,stockLevel,category,accountId,const DeepCollectionEquality().hash(taxes),const DeepCollectionEquality().hash(units),const DeepCollectionEquality().hash(barcodes),isPerishable,isService,hasFlexibleUnits,nearestExpiryDate,expiresWithinDays,expiryAlertLevel);
 
 @override
 String toString() {
-  return 'PosProduct(id: $id, name: $name, sku: $sku, price: $price, stockLevel: $stockLevel, category: $category, accountId: $accountId, taxes: $taxes, units: $units)';
+  return 'PosProduct(id: $id, name: $name, sku: $sku, barcode: $barcode, price: $price, stockLevel: $stockLevel, category: $category, accountId: $accountId, taxes: $taxes, units: $units, barcodes: $barcodes, isPerishable: $isPerishable, isService: $isService, hasFlexibleUnits: $hasFlexibleUnits, nearestExpiryDate: $nearestExpiryDate, expiresWithinDays: $expiresWithinDays, expiryAlertLevel: $expiryAlertLevel)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $PosProductCopyWith<$Res>  {
   factory $PosProductCopyWith(PosProduct value, $Res Function(PosProduct) _then) = _$PosProductCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String? sku, double price, double? stockLevel, String? category, String? accountId, List<ProductTax> taxes, List<ProductUnit> units
+ String id, String name, String? sku, String? barcode, double price, double? stockLevel, String? category, String? accountId, List<ProductTax> taxes, List<ProductUnit> units, List<String> barcodes, bool isPerishable, bool isService, bool hasFlexibleUnits, String? nearestExpiryDate, int? expiresWithinDays, String? expiryAlertLevel
 });
 
 
@@ -65,18 +65,26 @@ class _$PosProductCopyWithImpl<$Res>
 
 /// Create a copy of PosProduct
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? sku = freezed,Object? price = null,Object? stockLevel = freezed,Object? category = freezed,Object? accountId = freezed,Object? taxes = null,Object? units = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? sku = freezed,Object? barcode = freezed,Object? price = null,Object? stockLevel = freezed,Object? category = freezed,Object? accountId = freezed,Object? taxes = null,Object? units = null,Object? barcodes = null,Object? isPerishable = null,Object? isService = null,Object? hasFlexibleUnits = null,Object? nearestExpiryDate = freezed,Object? expiresWithinDays = freezed,Object? expiryAlertLevel = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,sku: freezed == sku ? _self.sku : sku // ignore: cast_nullable_to_non_nullable
+as String?,barcode: freezed == barcode ? _self.barcode : barcode // ignore: cast_nullable_to_non_nullable
 as String?,price: null == price ? _self.price : price // ignore: cast_nullable_to_non_nullable
 as double,stockLevel: freezed == stockLevel ? _self.stockLevel : stockLevel // ignore: cast_nullable_to_non_nullable
 as double?,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String?,accountId: freezed == accountId ? _self.accountId : accountId // ignore: cast_nullable_to_non_nullable
 as String?,taxes: null == taxes ? _self.taxes : taxes // ignore: cast_nullable_to_non_nullable
 as List<ProductTax>,units: null == units ? _self.units : units // ignore: cast_nullable_to_non_nullable
-as List<ProductUnit>,
+as List<ProductUnit>,barcodes: null == barcodes ? _self.barcodes : barcodes // ignore: cast_nullable_to_non_nullable
+as List<String>,isPerishable: null == isPerishable ? _self.isPerishable : isPerishable // ignore: cast_nullable_to_non_nullable
+as bool,isService: null == isService ? _self.isService : isService // ignore: cast_nullable_to_non_nullable
+as bool,hasFlexibleUnits: null == hasFlexibleUnits ? _self.hasFlexibleUnits : hasFlexibleUnits // ignore: cast_nullable_to_non_nullable
+as bool,nearestExpiryDate: freezed == nearestExpiryDate ? _self.nearestExpiryDate : nearestExpiryDate // ignore: cast_nullable_to_non_nullable
+as String?,expiresWithinDays: freezed == expiresWithinDays ? _self.expiresWithinDays : expiresWithinDays // ignore: cast_nullable_to_non_nullable
+as int?,expiryAlertLevel: freezed == expiryAlertLevel ? _self.expiryAlertLevel : expiryAlertLevel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -161,10 +169,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? sku,  double price,  double? stockLevel,  String? category,  String? accountId,  List<ProductTax> taxes,  List<ProductUnit> units)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? sku,  String? barcode,  double price,  double? stockLevel,  String? category,  String? accountId,  List<ProductTax> taxes,  List<ProductUnit> units,  List<String> barcodes,  bool isPerishable,  bool isService,  bool hasFlexibleUnits,  String? nearestExpiryDate,  int? expiresWithinDays,  String? expiryAlertLevel)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PosProduct() when $default != null:
-return $default(_that.id,_that.name,_that.sku,_that.price,_that.stockLevel,_that.category,_that.accountId,_that.taxes,_that.units);case _:
+return $default(_that.id,_that.name,_that.sku,_that.barcode,_that.price,_that.stockLevel,_that.category,_that.accountId,_that.taxes,_that.units,_that.barcodes,_that.isPerishable,_that.isService,_that.hasFlexibleUnits,_that.nearestExpiryDate,_that.expiresWithinDays,_that.expiryAlertLevel);case _:
   return orElse();
 
 }
@@ -182,10 +190,10 @@ return $default(_that.id,_that.name,_that.sku,_that.price,_that.stockLevel,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? sku,  double price,  double? stockLevel,  String? category,  String? accountId,  List<ProductTax> taxes,  List<ProductUnit> units)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? sku,  String? barcode,  double price,  double? stockLevel,  String? category,  String? accountId,  List<ProductTax> taxes,  List<ProductUnit> units,  List<String> barcodes,  bool isPerishable,  bool isService,  bool hasFlexibleUnits,  String? nearestExpiryDate,  int? expiresWithinDays,  String? expiryAlertLevel)  $default,) {final _that = this;
 switch (_that) {
 case _PosProduct():
-return $default(_that.id,_that.name,_that.sku,_that.price,_that.stockLevel,_that.category,_that.accountId,_that.taxes,_that.units);case _:
+return $default(_that.id,_that.name,_that.sku,_that.barcode,_that.price,_that.stockLevel,_that.category,_that.accountId,_that.taxes,_that.units,_that.barcodes,_that.isPerishable,_that.isService,_that.hasFlexibleUnits,_that.nearestExpiryDate,_that.expiresWithinDays,_that.expiryAlertLevel);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -202,10 +210,10 @@ return $default(_that.id,_that.name,_that.sku,_that.price,_that.stockLevel,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? sku,  double price,  double? stockLevel,  String? category,  String? accountId,  List<ProductTax> taxes,  List<ProductUnit> units)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? sku,  String? barcode,  double price,  double? stockLevel,  String? category,  String? accountId,  List<ProductTax> taxes,  List<ProductUnit> units,  List<String> barcodes,  bool isPerishable,  bool isService,  bool hasFlexibleUnits,  String? nearestExpiryDate,  int? expiresWithinDays,  String? expiryAlertLevel)?  $default,) {final _that = this;
 switch (_that) {
 case _PosProduct() when $default != null:
-return $default(_that.id,_that.name,_that.sku,_that.price,_that.stockLevel,_that.category,_that.accountId,_that.taxes,_that.units);case _:
+return $default(_that.id,_that.name,_that.sku,_that.barcode,_that.price,_that.stockLevel,_that.category,_that.accountId,_that.taxes,_that.units,_that.barcodes,_that.isPerishable,_that.isService,_that.hasFlexibleUnits,_that.nearestExpiryDate,_that.expiresWithinDays,_that.expiryAlertLevel);case _:
   return null;
 
 }
@@ -216,13 +224,14 @@ return $default(_that.id,_that.name,_that.sku,_that.price,_that.stockLevel,_that
 /// @nodoc
 @JsonSerializable()
 
-class _PosProduct implements PosProduct {
-  const _PosProduct({required this.id, required this.name, this.sku, required this.price, this.stockLevel, this.category, this.accountId, final  List<ProductTax> taxes = const [], final  List<ProductUnit> units = const []}): _taxes = taxes,_units = units;
+class _PosProduct extends PosProduct {
+  const _PosProduct({required this.id, required this.name, this.sku, this.barcode, required this.price, this.stockLevel, this.category, this.accountId, final  List<ProductTax> taxes = const [], final  List<ProductUnit> units = const [], final  List<String> barcodes = const [], this.isPerishable = false, this.isService = false, this.hasFlexibleUnits = false, this.nearestExpiryDate, this.expiresWithinDays, this.expiryAlertLevel}): _taxes = taxes,_units = units,_barcodes = barcodes,super._();
   factory _PosProduct.fromJson(Map<String, dynamic> json) => _$PosProductFromJson(json);
 
 @override final  String id;
 @override final  String name;
 @override final  String? sku;
+@override final  String? barcode;
 @override final  double price;
 @override final  double? stockLevel;
 @override final  String? category;
@@ -241,6 +250,19 @@ class _PosProduct implements PosProduct {
   return EqualUnmodifiableListView(_units);
 }
 
+ final  List<String> _barcodes;
+@override@JsonKey() List<String> get barcodes {
+  if (_barcodes is EqualUnmodifiableListView) return _barcodes;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_barcodes);
+}
+
+@override@JsonKey() final  bool isPerishable;
+@override@JsonKey() final  bool isService;
+@override@JsonKey() final  bool hasFlexibleUnits;
+@override final  String? nearestExpiryDate;
+@override final  int? expiresWithinDays;
+@override final  String? expiryAlertLevel;
 
 /// Create a copy of PosProduct
 /// with the given fields replaced by the non-null parameter values.
@@ -255,16 +277,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PosProduct&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.sku, sku) || other.sku == sku)&&(identical(other.price, price) || other.price == price)&&(identical(other.stockLevel, stockLevel) || other.stockLevel == stockLevel)&&(identical(other.category, category) || other.category == category)&&(identical(other.accountId, accountId) || other.accountId == accountId)&&const DeepCollectionEquality().equals(other._taxes, _taxes)&&const DeepCollectionEquality().equals(other._units, _units));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PosProduct&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.sku, sku) || other.sku == sku)&&(identical(other.barcode, barcode) || other.barcode == barcode)&&(identical(other.price, price) || other.price == price)&&(identical(other.stockLevel, stockLevel) || other.stockLevel == stockLevel)&&(identical(other.category, category) || other.category == category)&&(identical(other.accountId, accountId) || other.accountId == accountId)&&const DeepCollectionEquality().equals(other._taxes, _taxes)&&const DeepCollectionEquality().equals(other._units, _units)&&const DeepCollectionEquality().equals(other._barcodes, _barcodes)&&(identical(other.isPerishable, isPerishable) || other.isPerishable == isPerishable)&&(identical(other.isService, isService) || other.isService == isService)&&(identical(other.hasFlexibleUnits, hasFlexibleUnits) || other.hasFlexibleUnits == hasFlexibleUnits)&&(identical(other.nearestExpiryDate, nearestExpiryDate) || other.nearestExpiryDate == nearestExpiryDate)&&(identical(other.expiresWithinDays, expiresWithinDays) || other.expiresWithinDays == expiresWithinDays)&&(identical(other.expiryAlertLevel, expiryAlertLevel) || other.expiryAlertLevel == expiryAlertLevel));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,sku,price,stockLevel,category,accountId,const DeepCollectionEquality().hash(_taxes),const DeepCollectionEquality().hash(_units));
+int get hashCode => Object.hash(runtimeType,id,name,sku,barcode,price,stockLevel,category,accountId,const DeepCollectionEquality().hash(_taxes),const DeepCollectionEquality().hash(_units),const DeepCollectionEquality().hash(_barcodes),isPerishable,isService,hasFlexibleUnits,nearestExpiryDate,expiresWithinDays,expiryAlertLevel);
 
 @override
 String toString() {
-  return 'PosProduct(id: $id, name: $name, sku: $sku, price: $price, stockLevel: $stockLevel, category: $category, accountId: $accountId, taxes: $taxes, units: $units)';
+  return 'PosProduct(id: $id, name: $name, sku: $sku, barcode: $barcode, price: $price, stockLevel: $stockLevel, category: $category, accountId: $accountId, taxes: $taxes, units: $units, barcodes: $barcodes, isPerishable: $isPerishable, isService: $isService, hasFlexibleUnits: $hasFlexibleUnits, nearestExpiryDate: $nearestExpiryDate, expiresWithinDays: $expiresWithinDays, expiryAlertLevel: $expiryAlertLevel)';
 }
 
 
@@ -275,7 +297,7 @@ abstract mixin class _$PosProductCopyWith<$Res> implements $PosProductCopyWith<$
   factory _$PosProductCopyWith(_PosProduct value, $Res Function(_PosProduct) _then) = __$PosProductCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String? sku, double price, double? stockLevel, String? category, String? accountId, List<ProductTax> taxes, List<ProductUnit> units
+ String id, String name, String? sku, String? barcode, double price, double? stockLevel, String? category, String? accountId, List<ProductTax> taxes, List<ProductUnit> units, List<String> barcodes, bool isPerishable, bool isService, bool hasFlexibleUnits, String? nearestExpiryDate, int? expiresWithinDays, String? expiryAlertLevel
 });
 
 
@@ -292,18 +314,26 @@ class __$PosProductCopyWithImpl<$Res>
 
 /// Create a copy of PosProduct
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? sku = freezed,Object? price = null,Object? stockLevel = freezed,Object? category = freezed,Object? accountId = freezed,Object? taxes = null,Object? units = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? sku = freezed,Object? barcode = freezed,Object? price = null,Object? stockLevel = freezed,Object? category = freezed,Object? accountId = freezed,Object? taxes = null,Object? units = null,Object? barcodes = null,Object? isPerishable = null,Object? isService = null,Object? hasFlexibleUnits = null,Object? nearestExpiryDate = freezed,Object? expiresWithinDays = freezed,Object? expiryAlertLevel = freezed,}) {
   return _then(_PosProduct(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,sku: freezed == sku ? _self.sku : sku // ignore: cast_nullable_to_non_nullable
+as String?,barcode: freezed == barcode ? _self.barcode : barcode // ignore: cast_nullable_to_non_nullable
 as String?,price: null == price ? _self.price : price // ignore: cast_nullable_to_non_nullable
 as double,stockLevel: freezed == stockLevel ? _self.stockLevel : stockLevel // ignore: cast_nullable_to_non_nullable
 as double?,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String?,accountId: freezed == accountId ? _self.accountId : accountId // ignore: cast_nullable_to_non_nullable
 as String?,taxes: null == taxes ? _self._taxes : taxes // ignore: cast_nullable_to_non_nullable
 as List<ProductTax>,units: null == units ? _self._units : units // ignore: cast_nullable_to_non_nullable
-as List<ProductUnit>,
+as List<ProductUnit>,barcodes: null == barcodes ? _self._barcodes : barcodes // ignore: cast_nullable_to_non_nullable
+as List<String>,isPerishable: null == isPerishable ? _self.isPerishable : isPerishable // ignore: cast_nullable_to_non_nullable
+as bool,isService: null == isService ? _self.isService : isService // ignore: cast_nullable_to_non_nullable
+as bool,hasFlexibleUnits: null == hasFlexibleUnits ? _self.hasFlexibleUnits : hasFlexibleUnits // ignore: cast_nullable_to_non_nullable
+as bool,nearestExpiryDate: freezed == nearestExpiryDate ? _self.nearestExpiryDate : nearestExpiryDate // ignore: cast_nullable_to_non_nullable
+as String?,expiresWithinDays: freezed == expiresWithinDays ? _self.expiresWithinDays : expiresWithinDays // ignore: cast_nullable_to_non_nullable
+as int?,expiryAlertLevel: freezed == expiryAlertLevel ? _self.expiryAlertLevel : expiryAlertLevel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -583,7 +613,7 @@ as double,
 /// @nodoc
 mixin _$ProductUnit {
 
- String get id; String get unitName; double get conversionRate; double? get unitPrice; bool get isBaseUnit;
+ String get id; String get unitName; String? get symbol; double get conversionRate; double? get conversionToBase; double? get unitPrice; bool get isBaseUnit;
 /// Create a copy of ProductUnit
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -596,16 +626,16 @@ $ProductUnitCopyWith<ProductUnit> get copyWith => _$ProductUnitCopyWithImpl<Prod
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductUnit&&(identical(other.id, id) || other.id == id)&&(identical(other.unitName, unitName) || other.unitName == unitName)&&(identical(other.conversionRate, conversionRate) || other.conversionRate == conversionRate)&&(identical(other.unitPrice, unitPrice) || other.unitPrice == unitPrice)&&(identical(other.isBaseUnit, isBaseUnit) || other.isBaseUnit == isBaseUnit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ProductUnit&&(identical(other.id, id) || other.id == id)&&(identical(other.unitName, unitName) || other.unitName == unitName)&&(identical(other.symbol, symbol) || other.symbol == symbol)&&(identical(other.conversionRate, conversionRate) || other.conversionRate == conversionRate)&&(identical(other.conversionToBase, conversionToBase) || other.conversionToBase == conversionToBase)&&(identical(other.unitPrice, unitPrice) || other.unitPrice == unitPrice)&&(identical(other.isBaseUnit, isBaseUnit) || other.isBaseUnit == isBaseUnit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,unitName,conversionRate,unitPrice,isBaseUnit);
+int get hashCode => Object.hash(runtimeType,id,unitName,symbol,conversionRate,conversionToBase,unitPrice,isBaseUnit);
 
 @override
 String toString() {
-  return 'ProductUnit(id: $id, unitName: $unitName, conversionRate: $conversionRate, unitPrice: $unitPrice, isBaseUnit: $isBaseUnit)';
+  return 'ProductUnit(id: $id, unitName: $unitName, symbol: $symbol, conversionRate: $conversionRate, conversionToBase: $conversionToBase, unitPrice: $unitPrice, isBaseUnit: $isBaseUnit)';
 }
 
 
@@ -616,7 +646,7 @@ abstract mixin class $ProductUnitCopyWith<$Res>  {
   factory $ProductUnitCopyWith(ProductUnit value, $Res Function(ProductUnit) _then) = _$ProductUnitCopyWithImpl;
 @useResult
 $Res call({
- String id, String unitName, double conversionRate, double? unitPrice, bool isBaseUnit
+ String id, String unitName, String? symbol, double conversionRate, double? conversionToBase, double? unitPrice, bool isBaseUnit
 });
 
 
@@ -633,12 +663,14 @@ class _$ProductUnitCopyWithImpl<$Res>
 
 /// Create a copy of ProductUnit
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? unitName = null,Object? conversionRate = null,Object? unitPrice = freezed,Object? isBaseUnit = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? unitName = null,Object? symbol = freezed,Object? conversionRate = null,Object? conversionToBase = freezed,Object? unitPrice = freezed,Object? isBaseUnit = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,unitName: null == unitName ? _self.unitName : unitName // ignore: cast_nullable_to_non_nullable
-as String,conversionRate: null == conversionRate ? _self.conversionRate : conversionRate // ignore: cast_nullable_to_non_nullable
-as double,unitPrice: freezed == unitPrice ? _self.unitPrice : unitPrice // ignore: cast_nullable_to_non_nullable
+as String,symbol: freezed == symbol ? _self.symbol : symbol // ignore: cast_nullable_to_non_nullable
+as String?,conversionRate: null == conversionRate ? _self.conversionRate : conversionRate // ignore: cast_nullable_to_non_nullable
+as double,conversionToBase: freezed == conversionToBase ? _self.conversionToBase : conversionToBase // ignore: cast_nullable_to_non_nullable
+as double?,unitPrice: freezed == unitPrice ? _self.unitPrice : unitPrice // ignore: cast_nullable_to_non_nullable
 as double?,isBaseUnit: null == isBaseUnit ? _self.isBaseUnit : isBaseUnit // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -725,10 +757,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String unitName,  double conversionRate,  double? unitPrice,  bool isBaseUnit)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String unitName,  String? symbol,  double conversionRate,  double? conversionToBase,  double? unitPrice,  bool isBaseUnit)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ProductUnit() when $default != null:
-return $default(_that.id,_that.unitName,_that.conversionRate,_that.unitPrice,_that.isBaseUnit);case _:
+return $default(_that.id,_that.unitName,_that.symbol,_that.conversionRate,_that.conversionToBase,_that.unitPrice,_that.isBaseUnit);case _:
   return orElse();
 
 }
@@ -746,10 +778,10 @@ return $default(_that.id,_that.unitName,_that.conversionRate,_that.unitPrice,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String unitName,  double conversionRate,  double? unitPrice,  bool isBaseUnit)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String unitName,  String? symbol,  double conversionRate,  double? conversionToBase,  double? unitPrice,  bool isBaseUnit)  $default,) {final _that = this;
 switch (_that) {
 case _ProductUnit():
-return $default(_that.id,_that.unitName,_that.conversionRate,_that.unitPrice,_that.isBaseUnit);case _:
+return $default(_that.id,_that.unitName,_that.symbol,_that.conversionRate,_that.conversionToBase,_that.unitPrice,_that.isBaseUnit);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -766,10 +798,10 @@ return $default(_that.id,_that.unitName,_that.conversionRate,_that.unitPrice,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String unitName,  double conversionRate,  double? unitPrice,  bool isBaseUnit)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String unitName,  String? symbol,  double conversionRate,  double? conversionToBase,  double? unitPrice,  bool isBaseUnit)?  $default,) {final _that = this;
 switch (_that) {
 case _ProductUnit() when $default != null:
-return $default(_that.id,_that.unitName,_that.conversionRate,_that.unitPrice,_that.isBaseUnit);case _:
+return $default(_that.id,_that.unitName,_that.symbol,_that.conversionRate,_that.conversionToBase,_that.unitPrice,_that.isBaseUnit);case _:
   return null;
 
 }
@@ -781,12 +813,14 @@ return $default(_that.id,_that.unitName,_that.conversionRate,_that.unitPrice,_th
 @JsonSerializable()
 
 class _ProductUnit implements ProductUnit {
-  const _ProductUnit({required this.id, required this.unitName, required this.conversionRate, required this.unitPrice, required this.isBaseUnit});
+  const _ProductUnit({required this.id, required this.unitName, this.symbol, required this.conversionRate, this.conversionToBase, required this.unitPrice, required this.isBaseUnit});
   factory _ProductUnit.fromJson(Map<String, dynamic> json) => _$ProductUnitFromJson(json);
 
 @override final  String id;
 @override final  String unitName;
+@override final  String? symbol;
 @override final  double conversionRate;
+@override final  double? conversionToBase;
 @override final  double? unitPrice;
 @override final  bool isBaseUnit;
 
@@ -803,16 +837,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductUnit&&(identical(other.id, id) || other.id == id)&&(identical(other.unitName, unitName) || other.unitName == unitName)&&(identical(other.conversionRate, conversionRate) || other.conversionRate == conversionRate)&&(identical(other.unitPrice, unitPrice) || other.unitPrice == unitPrice)&&(identical(other.isBaseUnit, isBaseUnit) || other.isBaseUnit == isBaseUnit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProductUnit&&(identical(other.id, id) || other.id == id)&&(identical(other.unitName, unitName) || other.unitName == unitName)&&(identical(other.symbol, symbol) || other.symbol == symbol)&&(identical(other.conversionRate, conversionRate) || other.conversionRate == conversionRate)&&(identical(other.conversionToBase, conversionToBase) || other.conversionToBase == conversionToBase)&&(identical(other.unitPrice, unitPrice) || other.unitPrice == unitPrice)&&(identical(other.isBaseUnit, isBaseUnit) || other.isBaseUnit == isBaseUnit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,unitName,conversionRate,unitPrice,isBaseUnit);
+int get hashCode => Object.hash(runtimeType,id,unitName,symbol,conversionRate,conversionToBase,unitPrice,isBaseUnit);
 
 @override
 String toString() {
-  return 'ProductUnit(id: $id, unitName: $unitName, conversionRate: $conversionRate, unitPrice: $unitPrice, isBaseUnit: $isBaseUnit)';
+  return 'ProductUnit(id: $id, unitName: $unitName, symbol: $symbol, conversionRate: $conversionRate, conversionToBase: $conversionToBase, unitPrice: $unitPrice, isBaseUnit: $isBaseUnit)';
 }
 
 
@@ -823,7 +857,7 @@ abstract mixin class _$ProductUnitCopyWith<$Res> implements $ProductUnitCopyWith
   factory _$ProductUnitCopyWith(_ProductUnit value, $Res Function(_ProductUnit) _then) = __$ProductUnitCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String unitName, double conversionRate, double? unitPrice, bool isBaseUnit
+ String id, String unitName, String? symbol, double conversionRate, double? conversionToBase, double? unitPrice, bool isBaseUnit
 });
 
 
@@ -840,12 +874,14 @@ class __$ProductUnitCopyWithImpl<$Res>
 
 /// Create a copy of ProductUnit
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? unitName = null,Object? conversionRate = null,Object? unitPrice = freezed,Object? isBaseUnit = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? unitName = null,Object? symbol = freezed,Object? conversionRate = null,Object? conversionToBase = freezed,Object? unitPrice = freezed,Object? isBaseUnit = null,}) {
   return _then(_ProductUnit(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,unitName: null == unitName ? _self.unitName : unitName // ignore: cast_nullable_to_non_nullable
-as String,conversionRate: null == conversionRate ? _self.conversionRate : conversionRate // ignore: cast_nullable_to_non_nullable
-as double,unitPrice: freezed == unitPrice ? _self.unitPrice : unitPrice // ignore: cast_nullable_to_non_nullable
+as String,symbol: freezed == symbol ? _self.symbol : symbol // ignore: cast_nullable_to_non_nullable
+as String?,conversionRate: null == conversionRate ? _self.conversionRate : conversionRate // ignore: cast_nullable_to_non_nullable
+as double,conversionToBase: freezed == conversionToBase ? _self.conversionToBase : conversionToBase // ignore: cast_nullable_to_non_nullable
+as double?,unitPrice: freezed == unitPrice ? _self.unitPrice : unitPrice // ignore: cast_nullable_to_non_nullable
 as double?,isBaseUnit: null == isBaseUnit ? _self.isBaseUnit : isBaseUnit // ignore: cast_nullable_to_non_nullable
 as bool,
   ));

@@ -9,6 +9,7 @@ import 'package:insightbooks_android/features/pos/presentation/providers/pos_pro
 import 'package:insightbooks_android/features/pos/domain/pos_models.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 import 'package:insightbooks_android/features/pos/presentation/widgets/cart_sheet.dart';
+import 'package:insightbooks_android/features/pos/presentation/widgets/pos_expiry_badge.dart';
 import 'package:insightbooks_android/features/pos/presentation/widgets/barcode_scanner_screen.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
@@ -98,6 +99,19 @@ int? _cartQuantityForProduct(PosProduct product, List<CartItem> cart) {
     }
   }
   return null;
+}
+
+void _handleAddProduct(
+  BuildContext context,
+  Pos posNotifier,
+  PosProduct product,
+) {
+  final warning = posNotifier.addToCart(product);
+  if (warning != null && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(warning)),
+    );
+  }
 }
 
 class PosScreen extends ConsumerStatefulWidget {
@@ -455,7 +469,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                             product: product,
                             cartQuantity: cartQuantity,
                             onAdd: posState.canCreateSales
-                                ? () => posNotifier.addToCart(product)
+                                ? () => _handleAddProduct(context, posNotifier, product)
                                 : () {},
                           );
                         },
@@ -480,7 +494,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                             product: product,
                             cartQuantity: cartQuantity,
                             onAdd: posState.canCreateSales
-                                ? () => posNotifier.addToCart(product)
+                                ? () => _handleAddProduct(context, posNotifier, product)
                                 : () {},
                           );
                         },
@@ -1529,16 +1543,20 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
     }
   }
 
-  /// Same as web POS thermal path: system print dialog, 80mm roll, server PDF.
+  /// Same as web POS thermal path: system print dialog, selected roll width, server PDF fallback.
   Future<void> _printThermalReceipt() async {
     final sale = _full ?? widget.preview;
     final saleId = (sale['id'] ?? '').toString();
     final saleNo = (sale['saleNumber'] ?? '').toString().trim();
+    final paperWidthMm = await chooseReceiptPaperWidthMm(context);
+    if (paperWidthMm == null) return;
+    if (!mounted) return;
     await openSaleReceiptThermalPrint(
       context,
       ref,
       saleId,
       saleNumberForFilename: saleNo.isNotEmpty ? saleNo : null,
+      paperWidthMm: paperWidthMm,
     );
   }
 
@@ -1809,6 +1827,10 @@ class _ProductListTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (product.hasExpiryWarning) ...[
+                      const SizedBox(height: 4),
+                      PosExpiryBadge(product: product, compact: true),
+                    ],
                     if (subtitleParts.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
@@ -1912,6 +1934,12 @@ class _ProductCard extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
+            if (product.hasExpiryWarning)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: PosExpiryBadge(product: product, compact: true),
+              ),
             if (inCart)
               Positioned(
                 top: 8,

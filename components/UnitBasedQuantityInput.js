@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+const getUnitConversionRate = (unit) => {
+  const raw = unit?.conversionToBase ?? unit?.conversionRate ?? 1;
+  const rate = Number(raw);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+};
+
+const getUnitSymbol = (unit) => unit?.symbol || unit?.unitName || unit?.name || 'unit';
+
 const UnitBasedQuantityInput = ({ 
   product, 
   quantity, 
@@ -34,33 +42,27 @@ const UnitBasedQuantityInput = ({
         const n = v != null && v !== '' ? Number(v) : 0;
         initialQuantities[unit.id] = Number.isFinite(n) ? n : 0;
       });
+      // Keep the editor in sync when the cart swaps to a different product.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnitQuantities(initialQuantities);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]); // Only depend on product ID to prevent infinite loops
 
   // Calculate totals directly from current values.
   let totalBaseQuantity = 0;
   let totalPrice = 0;
   if (product?.units && Object.keys(unitQuantities).length > 0) {
-    console.log("=== TOTAL CALCULATION DEBUG ===");
-    console.log("Unit quantities:", unitQuantities);
-    console.log("Product units:", product.units);
-
     Object.entries(unitQuantities).forEach(([unitId, qty]) => {
       const unit = product.units.find(u => u.id === unitId);
       if (unit && qty > 0) {
-        const conversionRate = parseFloat(unit.conversionToBase);
-        const unitPrice = parseFloat(unit.unitPrice);
+        const conversionRate = getUnitConversionRate(unit);
+        const unitPrice = Number(unit.unitPrice) || 0;
         const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
-        console.log(`Unit ${unit.symbol}: ${qty} ${unit.symbol} = ${convertedToBase.toFixed(6)} base units (conversion rate: ${conversionRate})`);
         totalBaseQuantity += convertedToBase;
         totalPrice += qty * unitPrice;
       }
     });
-
-    console.log("Total base quantity:", totalBaseQuantity.toFixed(6));
-    console.log("Total price:", totalPrice.toFixed(2));
-    console.log("==============================");
   }
 
   // Notify parent components when totals change
@@ -72,15 +74,8 @@ const UnitBasedQuantityInput = ({
 
   // Handle individual unit quantity changes
   const handleUnitQuantityChange = useCallback((unitId, value) => {
-    console.log("=== UNIT QUANTITY CHANGE DEBUG ===");
-    console.log("Unit ID:", unitId);
-    console.log("Value:", value);
-    
     const numValue = parseFloat(value) || 0;
-    
-    console.log("Setting quantity for unit:", unitId, "to:", numValue);
-    console.log("================================");
-    
+
     setUnitQuantities(prev => ({
       ...prev,
       [unitId]: numValue
@@ -112,7 +107,7 @@ const UnitBasedQuantityInput = ({
                 <div className="flex items-center space-x-3">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   <span className="text-sm font-medium text-green-700">
-                    {baseUnit.symbol} (Base Unit)
+                    {getUnitSymbol(baseUnit)} (Base Unit)
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -126,7 +121,7 @@ const UnitBasedQuantityInput = ({
                     placeholder="0.000"
                   />
                   <span className="text-xs text-gray-500 w-16 text-right">
-                    {formatCurrency(parseFloat(baseUnit.unitPrice))}
+                    {formatCurrency(Number(baseUnit.unitPrice) || 0)}
                   </span>
                 </div>
               </div>
@@ -141,10 +136,10 @@ const UnitBasedQuantityInput = ({
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                   <div>
                     <span className="text-sm font-medium text-blue-700">
-                      {unit.symbol}
+                      {getUnitSymbol(unit)}
                     </span>
                     <div className="text-xs text-gray-500">
-                      1 {baseUnit?.symbol} = {parseFloat(unit.conversionToBase)} {unit.symbol}
+                      1 {getUnitSymbol(baseUnit)} = {getUnitConversionRate(unit)} {getUnitSymbol(unit)}
                     </div>
                   </div>
                 </div>
@@ -159,7 +154,7 @@ const UnitBasedQuantityInput = ({
                     placeholder="0.000"
                   />
                   <span className="text-xs text-gray-500 w-16 text-right">
-                    {formatCurrency(parseFloat(unit.unitPrice))}
+                    {formatCurrency(Number(unit.unitPrice) || 0)}
                   </span>
                 </div>
               </div>
@@ -175,7 +170,7 @@ const UnitBasedQuantityInput = ({
             Total Quantity:
           </span>
           <span className="text-sm font-bold text-gray-900">
-            {totalBaseQuantity.toFixed(6)} {baseUnit?.symbol}
+            {totalBaseQuantity.toFixed(6)} {getUnitSymbol(baseUnit)}
           </span>
         </div>
         <div className="flex justify-between items-center mt-1">
@@ -191,14 +186,12 @@ const UnitBasedQuantityInput = ({
       {/* Stock Status Indicators */}
       <div className="mt-2 space-y-1">
         {product.units.map(unit => {
-          const availableStock = parseFloat(unit.quantityInStock);
+          const availableStock = Number(unit.quantityInStock) || 0;
           const requested = unitQuantities[unit.id] || 0;
           const isOutOfStock = availableStock === 0;
           const isLowStock = availableStock <= parseFloat(unit.reorderPoint);
           const isInsufficient = requested > availableStock;
           
-          console.log(`🔥 UNIT STOCK DEBUG: ${unit.symbol} - Available: ${availableStock}, Requested: ${requested}`);
-
           return (
             <div key={unit.id} className={`text-xs px-2 py-1 rounded ${
               isOutOfStock ? 'bg-red-100 text-red-700' :
@@ -206,7 +199,7 @@ const UnitBasedQuantityInput = ({
               isLowStock ? 'bg-yellow-100 text-yellow-700' :
               'bg-green-100 text-green-700'
             }`}>
-              {unit.symbol}: {availableStock} available
+              {getUnitSymbol(unit)}: {availableStock} available
               {isInsufficient && ` (Need ${requested - availableStock} more)`}
             </div>
           );

@@ -155,9 +155,9 @@ const SaleDetailPage = () => {
   };
   
   // Handle print receipt
-  const handlePrintReceipt = async () => {
+  const handlePrintReceipt = async (paperWidth = 80) => {
     try {
-      await printReceipt(id);
+      await printReceipt(id, { paperWidth });
     } catch (error) {
       console.error("Error printing receipt:", error);
       alert("Failed to print receipt. Please try again.");
@@ -294,7 +294,7 @@ const handleDeleteSale = async () => {
           <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2">Sale Not Found</h2>
           <p className="text-gray-500 mb-4">The requested sale could not be found</p>
-          <button 
+          <button
             className="px-4 py-2 bg-blue-600 text-white rounded-md"
             onClick={() => router.push('/pos')}
           >
@@ -320,12 +320,19 @@ const handleDeleteSale = async () => {
         </div>
         
         <div className="flex items-center space-x-2">
-          <button 
+          <button
             className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center hover:bg-gray-50"
-            onClick={handlePrintReceipt}
+            onClick={() => handlePrintReceipt(80)}
           >
             <Printer className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Print Receipt</span>
+          </button>
+          <button
+            className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center hover:bg-gray-50"
+            onClick={() => handlePrintReceipt(58)}
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Print 58mm</span>
           </button>
           
           {/* <div className="relative">
@@ -593,12 +600,19 @@ const handleDeleteSale = async () => {
             </div>
             
             <div className="space-y-2">
-              <button 
+              <button
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
-                onClick={handlePrintReceipt}
+                onClick={() => handlePrintReceipt(80)}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                Print Receipt
+                Print Receipt (80mm)
+              </button>
+              <button
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center justify-center hover:bg-indigo-700"
+                onClick={() => handlePrintReceipt(58)}
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print Receipt (58mm)
               </button>
               
               {sale.status === 'completed' && (

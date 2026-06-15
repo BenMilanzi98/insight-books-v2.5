@@ -50,8 +50,12 @@ class MainActivity : FlutterActivity() {
                 }
                 val authorization = call.argument<String>("authorization")
                 val cookie = call.argument<String>("cookie")
+                val paperWidthMm = when (call.argument<Int>("paperWidthMm")) {
+                    58 -> 58
+                    else -> 80
+                }
                 runOnUiThread {
-                    startThermalReceiptPrint(url, authorization, cookie, result)
+                    startThermalReceiptPrint(url, authorization, cookie, paperWidthMm, result)
                 }
             }
     }
@@ -60,6 +64,7 @@ class MainActivity : FlutterActivity() {
         url: String,
         authorization: String?,
         cookie: String?,
+        paperWidthMm: Int,
         result: MethodChannel.Result,
     ) {
         printWebView?.let { old ->
@@ -144,7 +149,7 @@ class MainActivity : FlutterActivity() {
                                 val metrics = view.resources.displayMetrics
                                 val widthPx = TypedValue.applyDimension(
                                     TypedValue.COMPLEX_UNIT_MM,
-                                    80f,
+                                    paperWidthMm.toFloat(),
                                     metrics,
                                 ).toInt().coerceAtLeast(200)
 
@@ -177,14 +182,14 @@ class MainActivity : FlutterActivity() {
                                 @Suppress("DEPRECATION")
                                 val adapter: PrintDocumentAdapter =
                                     view.createPrintDocumentAdapter(jobName)
-                                val widthMils = (80.0 / 25.4 * 1000.0).toInt()
-                                // Match printed length to laid-out content vs 80mm width (avoids dpi/CSS px mismatch).
+                                val widthMils = (paperWidthMm.toDouble() / 25.4 * 1000.0).toInt()
+                                // Match printed length to laid-out content vs selected roll width (avoids dpi/CSS px mismatch).
                                 val heightMils = (contentH.toDouble() / widthPx * widthMils)
                                     .toInt()
                                     .coerceIn(1200, 200_000)
                                 val mediaSize = PrintAttributes.MediaSize(
-                                    "ROLL_80MM",
-                                    "80mm thermal",
+                                    "ROLL_${paperWidthMm}MM",
+                                    "${paperWidthMm}mm thermal",
                                     widthMils,
                                     heightMils,
                                 )
