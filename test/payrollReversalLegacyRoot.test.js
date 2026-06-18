@@ -47,8 +47,25 @@ const {
   function makeTxApi() {
     return {
       transaction: {
-        create: vi.fn(async ({ data }) => ({ id: 'txn-payroll-reversal', ...data })),
+        findFirst: vi.fn(async ({ where, include }) => {
+          if (where?.id === originalTransaction.id && where?.tenantId === tenantId) {
+            if (include?.lines) {
+              return { ...originalTransaction, lines: originalLines };
+            }
+            return originalTransaction;
+          }
+          if (where?.reversedTransactionId === originalTransaction.id) return null;
+          return null;
+        }),
+        create: vi.fn(async ({ data, include }) => {
+          const createdLines = (data.lines?.create || []).map((line, idx) => ({
+            id: `rev-line-${idx + 1}`,
+            ...line,
+          }));
+          return { id: 'txn-payroll-reversal', ...data, lines: createdLines };
+        }),
         update: vi.fn(async ({ data }) => data),
+        count: vi.fn(async () => 0),
       },
       transactionLine: {
         create: vi.fn(async ({ data }) => ({ id: `line-${data.lineNumber}`, ...data })),
@@ -78,6 +95,22 @@ const {
       },
       auditLog: {
         create: vi.fn(async ({ data }) => data),
+      },
+      account: {
+        findMany: vi.fn(async ({ where }) => {
+          const ids = where?.id?.in || [];
+          return ids.map((id) => ({
+            id,
+            tenantId,
+            accountCode: id === 'acc-assets-root' ? '1000' : '5300',
+            accountName: id === 'acc-assets-root' ? 'Assets' : 'Salaries',
+            accountType: id === 'acc-assets-root' ? 'Asset' : 'Expense',
+            isActive: true,
+            acceptsNewTransactions: true,
+            mergedIntoAccountId: null,
+            _count: { childAccounts: id === 'acc-assets-root' ? 1 : 0 },
+          }));
+        }),
       },
     };
   }

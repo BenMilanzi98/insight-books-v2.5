@@ -61,17 +61,6 @@ export async function GET(request, { params }) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    let allowedBranchIds = [];
-    try {
-      const ub = await prisma.userBranch.findMany({
-        where: { userId },
-        select: { branchId: true },
-      });
-      allowedBranchIds = ub.map((r) => r.branchId);
-    } catch {
-      allowedBranchIds = [];
-    }
-
     const memberships = buildMembershipList(user);
 
     return NextResponse.json({
@@ -87,8 +76,6 @@ export async function GET(request, { params }) {
         roleId: user.roleId,
         roleName: user.role?.name || '',
         primaryTenantId: user.tenantId,
-        defaultBranchId: user.defaultBranchId || null,
-        allowedBranchIds,
         isEmailVerified: Boolean(user.isEmailVerified),
         otpCode: user.otpCode || null,
         otpExpiry: user.otpExpiry || null,

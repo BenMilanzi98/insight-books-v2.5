@@ -230,6 +230,80 @@ export default function TaxAccountsPage() {
     );
   }
 
+  const resolveAccountFlow = (account) =>
+    account.flow ||
+    (String(account.account?.accountCode || "").startsWith("2045-") ? "outflow" : "inflow");
+
+  const inflowAccounts = taxAccounts.filter((a) => resolveAccountFlow(a) === "inflow");
+  const outflowAccounts = taxAccounts.filter((a) => resolveAccountFlow(a) === "outflow");
+
+  const renderTaxAccountRow = (account) => (
+    <div key={account.taxType.id} className="p-6 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900">{account.taxType.taxName}</h3>
+            {account.isSystem && (
+              <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800">MRA</span>
+            )}
+            <span className={`px-2 py-0.5 text-xs rounded-full ${
+              resolveAccountFlow(account) === "inflow" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"
+            }`}>
+              {resolveAccountFlow(account) === "inflow" ? "2041" : "2045"}
+            </span>
+            <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-mono">
+              {account.account?.accountCode || account.taxType.taxCode}
+            </span>
+          </div>
+          <p className="text-sm text-gray-500">
+            {account.account?.accountName || "Not linked"} ·{" "}
+            {account.taxType.calculationType === "Percentage"
+              ? `${account.taxType.taxRate}%`
+              : formatCurrency(account.taxType.taxRate)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {(account.netDueInPeriod ?? Math.max(0, account.netPayable || 0)) > 0 && (
+            <button
+              onClick={() => handleSettleTax(account)}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm"
+            >
+              <CreditCard size={16} />
+              Settle
+            </button>
+          )}
+          <Link
+            href={`/tax-accounts/${account.taxType.id}`}
+            className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+          >
+            <Eye size={18} />
+            View Details
+          </Link>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Collected</p>
+          <p className="text-lg font-semibold text-blue-600">{formatCurrency(account.totalCollected)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Paid</p>
+          <p className="text-lg font-semibold text-red-600">{formatCurrency(account.totalPaid)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Reversed / voided</p>
+          <p className="text-lg font-semibold text-yellow-600">{formatCurrency(account.totalRefunded)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Net due (period)</p>
+          <p className="text-lg font-semibold text-purple-600">
+            {formatCurrency(account.netDueInPeriod ?? Math.max(0, account.netPayable || 0))}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
@@ -339,18 +413,18 @@ export default function TaxAccountsPage() {
           <h2 className="text-base font-semibold text-gray-900">Default tax accounts (fixed)</h2>
         </div>
         <p className="text-sm text-gray-600 mb-3">
-          Tax is always recorded to these system accounts. They cannot be changed.
+          Roll-up GL parents — each MRA tax posts to its own child account (2041-xx / 2045-xx). Direct posting to 2041 or 2045 is blocked.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
+          <div className="bg-emerald-50 rounded-lg px-3 py-2.5 border border-emerald-100">
+            <span className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Tax inflow (collected)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Tax from sales, invoices and POS</p>
+            <p className="text-xs text-gray-500 mt-0.5">VAT output, PAYE, WHT, excise — child accounts 2041-01+</p>
           </div>
-          <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
+          <div className="bg-orange-50 rounded-lg px-3 py-2.5 border border-orange-100">
+            <span className="text-xs font-medium text-orange-700 uppercase tracking-wide">Tax outflow (paid)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Tax on expenses and supplier bills</p>
+            <p className="text-xs text-gray-500 mt-0.5">Input VAT, CIT, levies — child accounts 2045-01+</p>
           </div>
         </div>
       </div>
@@ -442,109 +516,25 @@ export default function TaxAccountsPage() {
             </Link>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
-            {taxAccounts.map((account) => (
-              <div key={account.taxType.id} className="p-6 hover:bg-gray-50 transition-colors">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {account.taxType.taxName}
-                      </h3>
-                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                        {account.taxType.taxCode}
-                      </span>
-                      <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                        {account.account?.accountType || 'N/A'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500">
-                      Account: {account.account?.accountCode || 'N/A'} - {account.account?.accountName || 'Not Linked'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Rate: {account.taxType.calculationType === 'Percentage' 
-                        ? `${account.taxType.taxRate}%` 
-                        : formatCurrency(account.taxType.taxRate)}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {(account.netDueInPeriod ?? Math.max(0, account.netPayable || 0)) > 0 && (
-                      <button
-                        onClick={() => handleSettleTax(account)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm"
-                      >
-                        <CreditCard size={16} />
-                        Settle
-                      </button>
-                    )}
-                    <Link
-                      href={`/tax-accounts/${account.taxType.id}`}
-                      className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                    >
-                      <Eye size={18} />
-                      View Details
-                    </Link>
-                  </div>
+          <div>
+            {inflowAccounts.length > 0 && (
+              <div>
+                <div className="px-6 py-3 bg-emerald-50 border-b border-emerald-100">
+                  <h3 className="text-sm font-semibold text-emerald-900">2041 — Tax Inflow (Collected)</h3>
+                  <p className="text-xs text-emerald-700">{inflowAccounts.length} account(s)</p>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Total Collected</p>
-                    <p className="text-lg font-semibold text-blue-600">
-                      {formatCurrency(account.totalCollected)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Total Paid</p>
-                    <p className="text-lg font-semibold text-red-600">
-                      {formatCurrency(account.totalPaid)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Total Refunded</p>
-                    <p className="text-lg font-semibold text-yellow-600">
-                      {formatCurrency(account.totalRefunded)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Net due (period)</p>
-                    <p className="text-lg font-semibold text-purple-600">
-                      {formatCurrency(
-                        account.netDueInPeriod ?? Math.max(0, account.netPayable || 0)
-                      )}
-                    </p>
-                    {Number(account.periodReversalOverhang) > 0 && (
-                      <p className="text-xs text-amber-800 mt-1">
-                        Reversal overhang: {formatCurrency(account.periodReversalOverhang)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Breakdown Chart */}
-                {account.breakdown.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-xs font-medium text-gray-700 mb-2">
-                      {groupBy === 'day' ? 'Daily' : 'Monthly'} Breakdown
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      {account.breakdown.slice(0, 12).map((period) => (
-                        <div
-                          key={period.period}
-                          className="flex-1 min-w-[80px] bg-gray-50 rounded p-2"
-                        >
-                          <p className="text-xs text-gray-600 mb-1">{period.period}</p>
-                          <p className="text-xs font-semibold text-blue-600">
-                            {formatCurrency(period.collected)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {inflowAccounts.map(renderTaxAccountRow)}
               </div>
-            ))}
+            )}
+            {outflowAccounts.length > 0 && (
+              <div>
+                <div className="px-6 py-3 bg-orange-50 border-b border-orange-100">
+                  <h3 className="text-sm font-semibold text-orange-900">2045 — Tax Outflow (Paid)</h3>
+                  <p className="text-xs text-orange-700">{outflowAccounts.length} account(s)</p>
+                </div>
+                {outflowAccounts.map(renderTaxAccountRow)}
+              </div>
+            )}
           </div>
         )}
       </div>

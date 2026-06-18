@@ -13,7 +13,7 @@ export default function RootLayoutClient({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  const hiddenPaths = ["/", "/auth/login", "/auth/signup", "/auth/business-setup", "/contact", "/terms", "/privacy"];
+  const hiddenPaths = ["/", "/auth/login", "/auth/signup", "/contact", "/terms", "/privacy"];
   const shouldHideLayout =
     hiddenPaths.includes(pathname) ||
     pathname.startsWith("/auth/") ||

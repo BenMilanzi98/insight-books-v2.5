@@ -1,7 +1,6 @@
 // app/api/reports/expenses/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
@@ -11,6 +10,16 @@ import {
   isGlCogsWindowActive,
 } from '@/lib/expenseRegisterGlCogsOverlap';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import {
+  buildExpenseReconciliation,
+  getGlPeriodTotals,
+} from '@/lib/reportingEngine/index.js';
+import {
+  bootstrapReportRoute,
+  auditReportAccess,
+  enrichRowsWithTenantName,
+  tenantNameMap,
+} from '@/lib/reportRouteBootstrap';
 
 function monthKeyFromDate(d) {
   const date = new Date(d);
@@ -23,13 +32,9 @@ function monthLabelFromDate(d) {
 
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, userQ, tw, scope, tenantIds, tenants, reportBranchId } = boot;
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -50,8 +55,8 @@ export async function GET(request) {
       categoryLower.includes('cost of goods') ||
       categoryLower.includes('cogs');
 
-    const filter = addBranchFilterIncludeUnassigned(user, {
-      tenantId: user.tenantId,
+    const filter = addBranchFilterIncludeUnassigned(userQ, {
+      ...tw,
       status: 'Approved',
       isDeleted: false,
       isReversal: false,
@@ -69,6 +74,7 @@ export async function GET(request) {
       where: filter,
       select: {
         id: true,
+        tenantId: true,
         description: true,
         amount: true,
         date: true,
@@ -98,7 +104,7 @@ export async function GET(request) {
     const categoryCodeMap = {};
     try {
       const expenseCategories = await prisma.expenseCategory.findMany({
-        where: { tenantId: user.tenantId },
+        where: { ...tw },
         select: { name: true, accountCode: true },
       });
       expenseCategories.forEach((ec) => {
@@ -114,12 +120,12 @@ export async function GET(request) {
     });
 
     const cogsAccountIds = includeCogsInReport
-      ? await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId)
+      ? await getCogsAccountIdsForExpenseRegister(prisma, tw)
       : [];
     const cogsIdSet = new Set(cogsAccountIds);
 
     const transactionWhere = {
-      tenantId: user.tenantId,
+      ...tw,
       status: { in: ['posted', 'Posted'] },
       date: {
         gte: start,
@@ -127,10 +133,10 @@ export async function GET(request) {
       },
     };
     const bid =
-      user?.currentBranchId &&
-      (typeof user.currentBranchId === 'string'
-        ? user.currentBranchId
-        : user.currentBranchId?.id);
+      userQ?.currentBranchId &&
+      (typeof userQ.currentBranchId === 'string'
+        ? userQ.currentBranchId
+        : userQ.currentBranchId?.id);
     if (bid) {
       transactionWhere.OR = [{ branchId: bid }, { branchId: null }];
     }
@@ -140,7 +146,7 @@ export async function GET(request) {
       try {
         const reversedParents = await prisma.transaction.findMany({
           where: {
-            tenantId: user.tenantId,
+            ...tw,
             isReversal: true,
             reversedTransactionId: { not: null },
           },
@@ -298,6 +304,55 @@ export async function GET(request) {
       }))
       .sort((a, b) => (b.amount || 0) - (a.amount || 0));
 
+    let glTotals = null;
+    try {
+      for (const tenantId of tenantIds) {
+        const t = await getGlPeriodTotals({
+          tenantId,
+          startDate,
+          endDate,
+          branchId: reportBranchId,
+          prisma,
+        });
+        if (!glTotals) {
+          glTotals = { ...t, accountLines: [...(t.accountLines || [])] };
+        } else {
+          glTotals.revenue = addMoney(glTotals.revenue, t.revenue);
+          glTotals.cogs = addMoney(glTotals.cogs, t.cogs);
+          glTotals.operatingExpenses = addMoney(glTotals.operatingExpenses, t.operatingExpenses);
+          glTotals.totalExpenses = addMoney(glTotals.totalExpenses, t.totalExpenses);
+          glTotals.hasGlActivity = glTotals.hasGlActivity || t.hasGlActivity;
+          if (t.accountLines?.length) glTotals.accountLines.push(...t.accountLines);
+        }
+      }
+    } catch (glErr) {
+      console.warn('Expense report: GL reconciliation failed', glErr?.message || glErr);
+    }
+
+    const tMap = tenantNameMap(tenants);
+    const enrichedExpenses = enrichRowsWithTenantName(expenses, tMap);
+
+    let byTenant = null;
+    if (tenantIds.length > 1) {
+      byTenant = tenantIds.map((tid) => {
+        const rows = expenses.filter((e) => e.tenantId === tid);
+        return {
+          tenantId: tid,
+          tenantName: tMap.get(tid) || tid,
+          totalExpenses: rows.reduce((sum, e) => addMoney(sum, e.amount), 0),
+          expenseCount: rows.length,
+        };
+      });
+    }
+
+    await auditReportAccess({
+      user,
+      reportType: 'expenses',
+      tenantIds,
+      scope,
+      filters: { startDate, endDate, category },
+    });
+
     return NextResponse.json({
       period: {
         startDate,
@@ -312,12 +367,28 @@ export async function GET(request) {
         cogsTransactionCount,
         expenseCount: expenses.length,
         availableCategories,
+        glOperatingExpenses: glTotals?.operatingExpenses ?? 0,
+        glCogs: glTotals?.cogs ?? 0,
+        glTotalExpenses: glTotals?.totalExpenses ?? 0,
       },
       expensesByCategory: Object.values(expensesByCategory),
       expensesByMonth: Object.values(expensesByMonth).sort((a, b) =>
         (a.monthKey || '').localeCompare(b.monthKey || '')
       ),
-      expenses,
+      expenses: enrichedExpenses,
+      metadata: {
+        ledgerSource: 'general_ledger',
+        fromGeneralLedger: Boolean(glTotals?.hasGlActivity),
+        reconciliation: glTotals
+          ? buildExpenseReconciliation(totalExpenses, glTotals)
+          : null,
+        glExpensesByAccount: (glTotals?.accountLines ?? []).filter((line) =>
+          line.accountCode.startsWith('5')
+        ),
+        sourcePolicy: glTotals?.sourcePolicy ?? null,
+      },
+      scope,
+      ...(byTenant ? { byTenant } : {}),
     });
   } catch (error) {
     console.error('Error generating expense report:', error);

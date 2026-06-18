@@ -7,22 +7,11 @@ import {
   createTransactionReversal,
   validateReversalReason
 } from '@/lib/transactionReversalService';
-import { updateAccountBalance } from '@/lib/core';
 import {
   findInvoicePaymentJournalTransactionId,
   reverseJournalEntriesLinkedToPaymentId
 } from '@/lib/financialReversalHelpers';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
-
-function normalizePaymentMethod(method) {
-  const methodStr = (method ?? '').toString().trim();
-  if (!methodStr) return 'cash';
-  if (methodStr.includes('_')) return methodStr.toLowerCase();
-  if (methodStr.length > 20 && /^[a-z0-9]+$/i.test(methodStr) && !methodStr.includes(' ')) {
-    return methodStr;
-  }
-  return methodStr.toLowerCase().replace(/\s+/g, '_') || 'cash';
-}
 
 // Helper function to format payment data (same as in the main route.js)
 const formatPaymentResponse = (payment) => {
@@ -354,33 +343,7 @@ export async function DELETE(request, { params }) {
       reversalReason
     });
 
-    // 3) Reverse payment-account balance impacts (mirror POST)
-    if (existingPayment.allocations?.length > 0) {
-      for (const alloc of existingPayment.allocations) {
-        const account = alloc.paymentAccount;
-        if (!account) continue;
-        const normalizedMethod = normalizePaymentMethod(account.name);
-        if (payType === 'expense') {
-          await updateAccountBalance(user.tenantId, normalizedMethod, Number(alloc.amount || 0), 'add');
-        } else if (payType === 'invoice' || payType === 'sale' || payType === '') {
-          await updateAccountBalance(user.tenantId, normalizedMethod, Number(alloc.amount || 0), 'subtract');
-        }
-      }
-    } else if (payType === 'invoice' || payType === 'sale' || payType === '') {
-      const normalizedMethod = normalizePaymentMethod(existingPayment.paymentMethod);
-      await updateAccountBalance(user.tenantId, normalizedMethod, amount, 'subtract');
-    } else if (payType === 'expense') {
-      const normalizedSource = normalizePaymentMethod(existingPayment.sourceAccount || existingPayment.paymentMethod);
-      await updateAccountBalance(user.tenantId, normalizedSource, amount, 'add');
-    } else if (payType === 'transfer') {
-      const normalizedSource = normalizePaymentMethod(existingPayment.sourceAccount);
-      const normalizedDestination = normalizePaymentMethod(existingPayment.destinationAccount);
-      await updateAccountBalance(user.tenantId, normalizedSource, amount, 'add');
-      await updateAccountBalance(user.tenantId, normalizedDestination, amount, 'subtract');
-    } else if (payType === 'adjustment') {
-      const normalizedMethod = normalizePaymentMethod(existingPayment.paymentMethod);
-      await updateAccountBalance(user.tenantId, normalizedMethod, amount, 'subtract');
-    }
+    // 3) GL reversals above restore balances via postGlEntry reversal lines
 
     // 4) Payment row: reversal pair (original marked Reversed) — not hard-deleted
     await createPaymentReversal({

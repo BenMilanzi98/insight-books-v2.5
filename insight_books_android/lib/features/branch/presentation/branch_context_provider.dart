@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
-import 'package:insightbooks_android/features/account/data/account_repository.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/dashboard_controller.dart';
 import 'package:insightbooks_android/features/tenant/data/tenant_repository.dart';
 import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
@@ -19,7 +18,6 @@ class BranchContextState {
   final bool loading;
   final bool switching;
   final String? error;
-  /// True after the first [refresh] completes (success or failure).
   final bool hasLoadedOnce;
 
   const BranchContextState({
@@ -78,58 +76,23 @@ class BranchContextNotifier extends Notifier<BranchContextState> {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final dio = ref.read(dioProvider);
-      final accountRepo = ref.read(accountRepositoryProvider);
       final meResp = await dio.get('/api/auth/me');
       final me = meResp.data is Map
           ? Map<String, dynamic>.from(meResp.data as Map)
           : <String, dynamic>{};
 
-      final allowedRaw = me['allowedBranchIds'];
-      List<String>? allowed;
-      if (allowedRaw is List) {
-        allowed = allowedRaw.map((e) => e.toString()).toList();
-      }
-      final canAll = allowed == null;
-
-      final rawCurrent = me['currentBranchId'];
       String? currentId;
+      final rawCurrent = me['currentBranchId'] ?? me['defaultBranchId'];
       if (rawCurrent != null && rawCurrent.toString().trim().isNotEmpty) {
         currentId = rawCurrent.toString().trim();
       }
-      final rows = await accountRepo.fetchBranches();
-      final active = rows.where((b) => (b['isActive'] ?? true) == true).toList();
-
-      String? idFromRow(Map<String, dynamic> b) {
-        final raw = b['id'];
-        if (raw == null) return null;
-        final s = raw.toString().trim();
-        return s.isEmpty ? null : s;
-      }
-
-      String label = 'All branches';
-      if (currentId != null) {
-        Map<String, dynamic>? found;
-        for (final b in active) {
-          if (idFromRow(b) == currentId) {
-            found = b;
-            break;
-          }
-        }
-        if (found != null) {
-          final name = (found['name'] ?? 'Branch').toString();
-          final code = (found['code'] ?? '').toString();
-          label = code.isEmpty ? name : '$name ($code)';
-        } else {
-          label = 'Branch';
-        }
-      }
 
       state = BranchContextState(
-        branches: active,
+        branches: const [],
         currentBranchId: currentId,
-        currentBranchLabel: label,
-        allowedBranchIds: allowed,
-        canSelectAllBranches: canAll,
+        currentBranchLabel: '',
+        allowedBranchIds: null,
+        canSelectAllBranches: true,
         loading: false,
         hasLoadedOnce: true,
       );

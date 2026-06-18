@@ -1,0 +1,34 @@
+name: Accounting verify
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Accounting scenario verification
+        if: ${{ secrets.DATABASE_URL != '' }}
+        run: npm run verify:accounting-scenario -- --tenant=QA-Accounting
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

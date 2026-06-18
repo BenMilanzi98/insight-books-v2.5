@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { endOfLocalDay } from '@/lib/dateUtils';
 import {
   dashboardLocalLastWeekBounds,
@@ -11,15 +11,14 @@ import {
   dashboardLocalWeekBefore,
   dashboardLocalYesterdayBounds,
 } from '@/lib/dashboardDatePeriods';
-import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 import { getEffectiveDashboardBranchId } from '@/lib/branchAccess';
+import { fetchDashboardPeriodMetrics } from '@/lib/dashboardGlMetrics';
 import {
   getAccessibleTenantIdsForUser,
   parseDashboardTenantScope,
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
-import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
@@ -269,135 +268,29 @@ export async function GET(request) {
           ? { branchId: txBranchEff }
           : {};
 
-    const [currentInvoices, currentSales, currentExpensesData] = await Promise.all([
-      // Revenue (cash): include invoice payments received in the period
-      prisma.payment.aggregate({
-        where: {
-          ...tw,
-          isReversal: false,
-          invoiceId: { not: null },
-          status: { equals: 'Completed', mode: 'insensitive' },
-          paymentDate: { gte: currentPeriodStart, lte: currentPeriodEndDate },
-          ...(branchIdForPayments
-            ? {
-                OR: [
-                  { branchId: branchIdForPayments },
-                  { invoice: { branchId: branchIdForPayments } }
-                ]
-              }
-            : {})
-        },
-        _sum: { amount: true }
+    const periodMetricsArgs = {
+      prisma,
+      tenantIds,
+      branchId: txBranchEff,
+      cogsAccountIds,
+      userQ,
+      tw,
+      transactionBranchSlice,
+      branchIdForPayments,
+    };
+
+    const [currentPeriodMetrics, previousPeriodMetrics] = await Promise.all([
+      fetchDashboardPeriodMetrics({
+        ...periodMetricsArgs,
+        startDate: currentPeriodStart,
+        endDate: currentPeriodEndDate,
       }),
-      prisma.sale.aggregate({
-        where: addBranchFilter(userQ, {
-          ...tw,
-          saleDate: { 
-            gte: currentPeriodStart,
-            lte: currentPeriodEndDate
-          },
-          status: 'completed'
-        }),
-        _sum: { total: true }
-      }),
-      // Operating expenses from Expense table (cash-ish): ONLY count expenses that have been paid (or partially paid).
-      // This prevents pending statutory liabilities (PAYE/NPS) from inflating expenses before payment is recorded.
-      prisma.expense.aggregate({
-        where: addBranchFilterIncludeUnassigned(userQ, {
-          ...tw,
-          status: 'Approved',
-          isDeleted: false,
-          isReversal: false,
-          ...settledExpensePaymentOr(),
-          date: {
-            gte: currentPeriodStart,
-            lte: currentPeriodEndDate
-          }
-        }),
-        _sum: { amount: true }
+      fetchDashboardPeriodMetrics({
+        ...periodMetricsArgs,
+        startDate: previousPeriodStart,
+        endDate: previousPeriodEnd,
       }),
     ]);
-
-    const currentCOGS =
-      cogsAccountIds.length > 0
-        ? await sumNetCogsDebitMinusCredit(prisma, {
-            cogsAccountIds,
-            transactionWhere: {
-              ...tw,
-              ...transactionBranchSlice,
-              date: {
-                gte: currentPeriodStart,
-                lte: currentPeriodEndDate,
-              },
-              status: 'posted',
-            },
-          })
-        : 0;
-
-    // Get previous period data with refund calculations
-    const [previousInvoices, previousSales, previousExpensesData] = await Promise.all([
-      // Revenue (cash): include invoice payments received in the previous period
-      prisma.payment.aggregate({
-        where: {
-          ...tw,
-          isReversal: false,
-          invoiceId: { not: null },
-          status: { equals: 'Completed', mode: 'insensitive' },
-          paymentDate: { gte: previousPeriodStart, lte: previousPeriodEnd },
-          ...(branchIdForPayments
-            ? {
-                OR: [
-                  { branchId: branchIdForPayments },
-                  { invoice: { branchId: branchIdForPayments } }
-                ]
-              }
-            : {})
-        },
-        _sum: { amount: true }
-      }),
-      prisma.sale.aggregate({
-        where: addBranchFilter(userQ, {
-          ...tw,
-          saleDate: { 
-            gte: previousPeriodStart,
-            lte: previousPeriodEnd
-          },
-          status: 'completed'
-        }),
-        _sum: { total: true }
-      }),
-      // Operating expenses (cash-ish): ONLY count paid/partial expenses (exclude pending liabilities like PAYE/NPS).
-      prisma.expense.aggregate({
-        where: addBranchFilterIncludeUnassigned(userQ, {
-          ...tw,
-          status: 'Approved',
-          isDeleted: false,
-          isReversal: false,
-          ...settledExpensePaymentOr(),
-          date: {
-            gte: previousPeriodStart,
-            lte: previousPeriodEnd
-          }
-        }),
-        _sum: { amount: true }
-      }),
-    ]);
-
-    const previousCOGS =
-      cogsAccountIds.length > 0
-        ? await sumNetCogsDebitMinusCredit(prisma, {
-            cogsAccountIds,
-            transactionWhere: {
-              ...tw,
-              ...transactionBranchSlice,
-              date: {
-                gte: previousPeriodStart,
-                lte: previousPeriodEnd,
-              },
-              status: 'posted',
-            },
-          })
-        : 0;
 
     // Get outstanding invoices (Accounts Receivable)
     const [outstandingInvoicesData, previousOutstandingInvoicesData] = await Promise.all([
@@ -425,13 +318,20 @@ export async function GET(request) {
       })
     ]);
 
-    // Revenue totals (invoice payments + POS sales)
-    const currentRevenue = addMoney(currentInvoices._sum.amount, currentSales._sum.total);
-    const previousRevenue = addMoney(previousInvoices._sum.amount, previousSales._sum.total);
-    
-    // Include net COGS in expenses (credits from void/refund reversals reduce the total)
-    const currentExpenses = addMoney(currentExpensesData._sum.amount, currentCOGS);
-    const previousExpenses = addMoney(previousExpensesData._sum.amount, previousCOGS);
+    const currentRevenue = currentPeriodMetrics.revenue;
+    const previousRevenue = previousPeriodMetrics.revenue;
+    const currentExpenses = addMoney(
+      currentPeriodMetrics.operatingExpenses,
+      currentPeriodMetrics.cogs
+    );
+    const previousExpenses = addMoney(
+      previousPeriodMetrics.operatingExpenses,
+      previousPeriodMetrics.cogs
+    );
+    const metricsSource =
+      currentPeriodMetrics.source === 'gl' || previousPeriodMetrics.source === 'gl'
+        ? 'gl'
+        : 'operational';
     const currentProfit = subtractMoney(currentRevenue, currentExpenses);
     const previousProfit = subtractMoney(previousRevenue, previousExpenses);
     
@@ -658,8 +558,59 @@ export async function GET(request) {
     const profitChange = calculateChange(currentProfit, previousProfit);
     const outstandingInvoicesChange = calculateChange(currentOutstandingInvoices, previousOutstandingInvoices);
     const cashFlowChange = calculateChange(currentNetCashFlow, previousNetCashFlow);
+
+    let byTenant = null;
+    if (tenantIds.length > 1) {
+      const tenantRows = await prisma.tenant.findMany({
+        where: { id: { in: tenantIds } },
+        select: { id: true, name: true },
+      });
+      const nameById = new Map(tenantRows.map((t) => [t.id, t.name]));
+
+      byTenant = await Promise.all(
+        tenantIds.map(async (tid) => {
+          const singleTw = tenantWhereIn([tid]);
+          let perTenantCogsIds = [];
+          try {
+            perTenantCogsIds = await getCogsAccountIdsForExpenseRegister(prisma, singleTw);
+          } catch (_) {
+            /* non-fatal */
+          }
+          const perTenantMetrics = await fetchDashboardPeriodMetrics({
+            prisma,
+            tenantIds: [tid],
+            branchId: null,
+            cogsAccountIds: perTenantCogsIds,
+            userQ: userForDashboardBranchFilter(user, false),
+            tw: singleTw,
+            transactionBranchSlice: {},
+            branchIdForPayments: null,
+            startDate: currentPeriodStart,
+            endDate: currentPeriodEndDate,
+          });
+          const expensesTotal = addMoney(
+            perTenantMetrics.operatingExpenses,
+            perTenantMetrics.cogs
+          );
+          return {
+            tenantId: tid,
+            tenantName: nameById.get(tid) || tid,
+            revenue: perTenantMetrics.revenue,
+            expenses: expensesTotal,
+            profit: subtractMoney(perTenantMetrics.revenue, expensesTotal),
+          };
+        })
+      );
+    }
     
     return NextResponse.json({
+      source: metricsSource,
+      scope: {
+        tenantIds,
+        branchScoped,
+        mode: tenantIds.length > 1 ? 'multi' : 'single',
+      },
+      ...(byTenant ? { byTenant } : {}),
       financialSummary: {
         revenue: {
           current: currentRevenue,

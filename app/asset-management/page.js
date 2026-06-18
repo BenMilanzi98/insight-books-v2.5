@@ -442,6 +442,13 @@ const AssetManagement = () => {
     name: "",
     description: ""
   });
+
+  const [assetCategoryInlineMode, setAssetCategoryInlineMode] = useState(false);
+  const [inlineAssetCategoryName, setInlineAssetCategoryName] = useState("");
+  const [inlineAssetCategoryDescription, setInlineAssetCategoryDescription] = useState("");
+  const [liabilityCategoryInlineMode, setLiabilityCategoryInlineMode] = useState(false);
+  const [inlineLiabilityCategoryName, setInlineLiabilityCategoryName] = useState("");
+  const [inlineLiabilityCategoryDescription, setInlineLiabilityCategoryDescription] = useState("");
   
   const [paymentFormData, setPaymentFormData] = useState({
     amount: "",
@@ -695,6 +702,32 @@ const AssetManagement = () => {
       setAssetsLoading(false);
     }
   };
+
+  // Backfill asset register from historical capital-account asset contributions (once per session).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('capitalAssetSyncDone')) {
+          return;
+        }
+        const res = await fetch('/api/assets/sync-capital-contributions', { method: 'POST' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('capitalAssetSyncDone', '1');
+        }
+        if (!cancelled && data.created > 0) {
+          fetchAssets();
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // Fetch liabilities from API
   const fetchLiabilities = async () => {
@@ -809,6 +842,20 @@ const AssetManagement = () => {
     e.preventDefault();
     
     try {
+      const payload = { ...assetFormData };
+      if (!assetEditId && assetCategoryInlineMode) {
+        if (!inlineAssetCategoryName.trim()) {
+          throw new Error('Enter a name for the new category or switch to an existing category.');
+        }
+        payload.newCategoryName = inlineAssetCategoryName.trim();
+        if (inlineAssetCategoryDescription.trim()) {
+          payload.newCategoryDescription = inlineAssetCategoryDescription.trim();
+        }
+        delete payload.categoryId;
+      } else if (!payload.categoryId) {
+        throw new Error('Select a category or create a new one.');
+      }
+
       const url = assetEditId ? `/api/assets/${assetEditId}` : '/api/assets';
       const method = assetEditId ? 'PUT' : 'POST';
       
@@ -817,7 +864,7 @@ const AssetManagement = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(assetFormData)
+        body: JSON.stringify(payload)
       });
       
       if (!response.ok) {
@@ -861,6 +908,9 @@ const AssetManagement = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to create category");
       }
+
+      const data = await response.json();
+      const created = data.category;
       
       // Show success message
       setAlertMessage("Category successfully created");
@@ -869,7 +919,14 @@ const AssetManagement = () => {
       
       // Close modal and refresh categories
       setShowAssetCategoryModal(false);
-      fetchAssetCategories();
+      await fetchAssetCategories();
+
+      if (showAssetModal && created?.id) {
+        setAssetFormData((prev) => ({ ...prev, categoryId: created.id }));
+        setAssetCategoryInlineMode(false);
+        setInlineAssetCategoryName("");
+        setInlineAssetCategoryDescription("");
+      }
       
       // Reset form
       setAssetCategoryFormData({ name: "", description: "" });
@@ -938,6 +995,9 @@ const AssetManagement = () => {
       paymentMethod: "",
       glAccountId: "",
     });
+    setAssetCategoryInlineMode(false);
+    setInlineAssetCategoryName("");
+    setInlineAssetCategoryDescription("");
     setAssetEditId(null);
   };
   
@@ -1105,10 +1165,23 @@ const AssetManagement = () => {
     e.preventDefault();
     
     try {
+      const payload = buildLiabilityPayload(liabilityFormData);
+      if (!liabilityEditId && liabilityCategoryInlineMode) {
+        if (!inlineLiabilityCategoryName.trim()) {
+          throw new Error('Enter a name for the new category or switch to an existing category.');
+        }
+        payload.newCategoryName = inlineLiabilityCategoryName.trim();
+        if (inlineLiabilityCategoryDescription.trim()) {
+          payload.newCategoryDescription = inlineLiabilityCategoryDescription.trim();
+        }
+        delete payload.categoryId;
+      } else if (!payload.categoryId) {
+        throw new Error('Select a category or create a new one.');
+      }
+
       const url = liabilityEditId ? `/api/liabilities/${liabilityEditId}` : '/api/liabilities';
       const method = liabilityEditId ? 'PUT' : 'POST';
       
-      const payload = buildLiabilityPayload(liabilityFormData);
       const response = await fetch(url, {
         method,
         headers: {
@@ -1176,13 +1249,24 @@ const AssetManagement = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to create category");
       }
+
+      const data = await response.json();
+      const created = data.category;
       
       setAlertMessage("Category successfully created");
       setAlertType("success");
       setShowAlert(true);
       
       setShowLiabilityCategoryModal(false);
-      fetchLiabilityCategories();
+      await fetchLiabilityCategories();
+
+      if (showLiabilityModal && created?.id) {
+        setLiabilityFormData((prev) => ({ ...prev, categoryId: created.id }));
+        setLiabilityCategoryInlineMode(false);
+        setInlineLiabilityCategoryName("");
+        setInlineLiabilityCategoryDescription("");
+      }
+
       setLiabilityCategoryFormData({ name: "", description: "" });
     } catch (error) {
       console.error("Error creating category:", error);
@@ -1264,6 +1348,9 @@ const AssetManagement = () => {
       notes: "",
       glAccountId: "",
     });
+    setLiabilityCategoryInlineMode(false);
+    setInlineLiabilityCategoryName("");
+    setInlineLiabilityCategoryDescription("");
     setLiabilityEditId(null);
     setLiabilityEditPaymentCount(0);
   };
@@ -1559,6 +1646,7 @@ const AssetManagement = () => {
                     >
                       <option value="all">All Sources</option>
                       <option value="po">From PO</option>
+                      <option value="capital">From Capital Account</option>
                     </select>
                     <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
                   </div>
@@ -1606,6 +1694,11 @@ const AssetManagement = () => {
                             String(asset.notes || "").toUpperCase().includes("[PO_ASSET:")) && (
                             <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
                               From PO
+                            </span>
+                          )}
+                          {String(asset.notes || "").includes("CAPITAL_CONTRIBUTION:") && (
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                              Capital
                             </span>
                           )}
                         </div>
@@ -2119,18 +2212,55 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Category *</label>
-                      <select
-                        className="w-full p-2 border border-gray-200 rounded"
-                        value={assetFormData.categoryId}
-                        onChange={(e) => setAssetFormData({...assetFormData, categoryId: e.target.value})}
-                        required
-                      >
-                        <option value="">Select Category</option>
-                        {assetCategories.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium">Category *</label>
+                        {!assetEditId && (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                            onClick={() => {
+                              setAssetCategoryInlineMode((v) => !v);
+                              if (assetCategoryInlineMode) {
+                                setInlineAssetCategoryName("");
+                                setInlineAssetCategoryDescription("");
+                              }
+                            }}
+                          >
+                            {assetCategoryInlineMode ? "Use existing category" : "+ New category"}
+                          </button>
+                        )}
+                      </div>
+                      {assetCategoryInlineMode && !assetEditId ? (
+                        <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-gray-200 rounded bg-white"
+                            placeholder="New category name"
+                            value={inlineAssetCategoryName}
+                            onChange={(e) => setInlineAssetCategoryName(e.target.value)}
+                            required
+                          />
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-gray-200 rounded bg-white"
+                            placeholder="Description (optional)"
+                            value={inlineAssetCategoryDescription}
+                            onChange={(e) => setInlineAssetCategoryDescription(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <select
+                          className="w-full p-2 border border-gray-200 rounded"
+                          value={assetFormData.categoryId}
+                          onChange={(e) => setAssetFormData({...assetFormData, categoryId: e.target.value})}
+                          required={!assetCategoryInlineMode}
+                        >
+                          <option value="">Select Category</option>
+                          {assetCategories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
 
@@ -2837,18 +2967,55 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Category *</label>
-                      <select
-                        className="w-full p-2 border border-gray-200 rounded"
-                        value={liabilityFormData.categoryId}
-                        onChange={(e) => setLiabilityFormData({...liabilityFormData, categoryId: e.target.value})}
-                        required
-                      >
-                        <option value="">Select Category</option>
-                        {liabilityCategories.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium">Category *</label>
+                        {!liabilityEditId && (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                            onClick={() => {
+                              setLiabilityCategoryInlineMode((v) => !v);
+                              if (liabilityCategoryInlineMode) {
+                                setInlineLiabilityCategoryName("");
+                                setInlineLiabilityCategoryDescription("");
+                              }
+                            }}
+                          >
+                            {liabilityCategoryInlineMode ? "Use existing category" : "+ New category"}
+                          </button>
+                        )}
+                      </div>
+                      {liabilityCategoryInlineMode && !liabilityEditId ? (
+                        <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-gray-200 rounded bg-white"
+                            placeholder="New category name"
+                            value={inlineLiabilityCategoryName}
+                            onChange={(e) => setInlineLiabilityCategoryName(e.target.value)}
+                            required
+                          />
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-gray-200 rounded bg-white"
+                            placeholder="Description (optional)"
+                            value={inlineLiabilityCategoryDescription}
+                            onChange={(e) => setInlineLiabilityCategoryDescription(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <select
+                          className="w-full p-2 border border-gray-200 rounded"
+                          value={liabilityFormData.categoryId}
+                          onChange={(e) => setLiabilityFormData({...liabilityFormData, categoryId: e.target.value})}
+                          required={!liabilityCategoryInlineMode}
+                        >
+                          <option value="">Select Category</option>
+                          {liabilityCategories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
 

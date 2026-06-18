@@ -50,7 +50,8 @@ export async function GET(request) {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        phone: user.phone || null,
       }
     });
 

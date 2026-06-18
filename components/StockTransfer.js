@@ -22,6 +22,7 @@ export const StockTransferModal = ({
   const [loadingSourceProducts, setLoadingSourceProducts] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]); // Array of {productId, quantity, availableStock}
   const [notes, setNotes] = useState("");
+  const [completeImmediately, setCompleteImmediately] = useState(true);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -165,7 +166,8 @@ export const StockTransferModal = ({
       toTenantId,
       productId: sp.productId,
       quantity: parseFloat(sp.quantity),
-      notes: notes || null
+      notes: notes || null,
+      directTransfer: completeImmediately,
     }));
 
     let successCount = 0;
@@ -180,6 +182,7 @@ export const StockTransferModal = ({
       setSourceProducts([]);
       setSelectedProducts([]);
       setNotes("");
+      setCompleteImmediately(true);
       setErrors({});
     }
   };
@@ -190,6 +193,7 @@ export const StockTransferModal = ({
     setSourceProducts([]);
     setSelectedProducts([]);
     setNotes("");
+    setCompleteImmediately(true);
     setErrors({});
     onClose();
   };
@@ -207,8 +211,10 @@ export const StockTransferModal = ({
           <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Transfer Stock</h3>
-                <p className="text-sm text-gray-500 mt-1">Same businesses as &quot;Switch business&quot;. Stock is taken from each product&apos;s location; the destination uses this business&apos;s default location.</p>
+                <h3 className="text-lg font-medium text-gray-900">Transfer stock between businesses</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Move inventory from one business to another. Stock is deducted from the source using FIFO costing and added at the destination at the transferred cost.
+                </p>
               </div>
               <button
                 onClick={handleClose}
@@ -431,6 +437,28 @@ export const StockTransferModal = ({
                   </div>
                 )}
 
+                {/* Transfer mode */}
+                {fromTenantId && toTenantId && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={completeImmediately}
+                        onChange={(e) => setCompleteImmediately(e.target.checked)}
+                        className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        <span className="font-medium text-gray-900">Complete immediately</span>
+                        <span className="block text-xs text-gray-500 mt-0.5">
+                          {completeImmediately
+                            ? "Stock moves now — both businesses update right away."
+                            : "Creates a pending transfer. Approve from the sending business, then receive at the destination."}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
                 {/* Notes */}
                 {fromTenantId && toTenantId && (
                   <div>
@@ -483,16 +511,35 @@ export const StockTransferModal = ({
   );
 };
 
-// Simplified Stock Transfers List - Show completed transfers only
+// Stock transfers list with status filter and workflow actions
 export const StockTransfersList = ({
   transfers = [],
   loading = false,
-  onRefresh
+  onRefresh,
+  onApprove,
+  onReceive,
+  onReject,
 }) => {
-  // Show only completed (received) transfers for simplicity
-  const completedTransfers = transfers.filter(t => 
-    t.status?.toLowerCase() === 'received'
-  ).slice(0, 10); // Show last 10 transfers
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filtered =
+    statusFilter === "all"
+      ? transfers
+      : transfers.filter((t) => String(t.status || "").toLowerCase() === statusFilter);
+
+  const statusStyles = {
+    pending: "bg-amber-100 text-amber-800",
+    approved: "bg-blue-100 text-blue-800",
+    received: "bg-green-100 text-green-800",
+    rejected: "bg-red-100 text-red-800",
+    cancelled: "bg-gray-100 text-gray-700",
+  };
+
+  const handleReject = async (transferId) => {
+    const reason = window.prompt("Reason for rejection (optional):");
+    if (reason === null) return;
+    await onReject?.(transferId, reason);
+  };
 
   if (loading) {
     return (
@@ -503,90 +550,129 @@ export const StockTransfersList = ({
     );
   }
 
-  if (completedTransfers.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-        <p className="text-sm">No recent transfers</p>
-        <p className="text-xs text-gray-400 mt-1">Transfers will appear here after completion</p>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Recent transfers</h3>
-          <p className="text-sm text-gray-500">Last 10 completed moves between businesses</p>
+          <h3 className="text-lg font-semibold text-gray-900">Transfer history</h3>
+          <p className="text-sm text-gray-500">All stock moves between your businesses</p>
         </div>
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            className="flex items-center px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+        <div className="flex items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
+            aria-label="Filter by status"
           >
-            <RefreshCw className="w-4 h-4 mr-1" />
-            Refresh
-          </button>
-        )}
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="received">Received</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="flex items-center px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Refresh
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-2">
-        {completedTransfers.map((transfer) => (
-          <div
-            key={transfer.id || transfer._id}
-            className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition-colors"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Package className="w-4 h-4 text-gray-500" />
-                  <span className="font-medium text-gray-900">
-                    {transfer.product?.name || "N/A"}
-                  </span>
-                  {transfer.product?.sku && (
-                    <span className="text-sm text-gray-500">({transfer.product.sku})</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 mt-2">
-                  <span className="text-gray-500">From business</span>
-                  <span className="font-medium text-gray-900">
-                    {transfer.fromBranch?.tenant?.name || transfer.fromBranch?.name || "N/A"}
-                  </span>
-                  {transfer.fromBranch?.tenant?.name && transfer.fromBranch?.name ? (
-                    <span className="text-xs text-gray-500">· {transfer.fromBranch.name}</span>
-                  ) : null}
-                  <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-500">To business</span>
-                  <span className="font-medium text-gray-900">
-                    {transfer.toBranch?.tenant?.name || transfer.toBranch?.name || "N/A"}
-                  </span>
-                  {transfer.toBranch?.tenant?.name && transfer.toBranch?.name ? (
-                    <span className="text-xs text-gray-500">· {transfer.toBranch.name}</span>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                  <span>Qty: {transfer.quantity || 0}</span>
-                  <span>•</span>
-                  <span>
-                    {transfer.receivedAt 
-                      ? new Date(transfer.receivedAt).toLocaleDateString()
-                      : transfer.createdAt 
-                      ? new Date(transfer.createdAt).toLocaleDateString()
-                      : "N/A"}
-                  </span>
+      {filtered.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm">No transfers{statusFilter !== "all" ? ` with status “${statusFilter}”` : ""}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((transfer) => {
+            const status = String(transfer.status || "pending").toLowerCase();
+            const badgeClass = statusStyles[status] || statusStyles.pending;
+            return (
+              <div
+                key={transfer.id || transfer._id}
+                className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition-colors"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <Package className="w-4 h-4 text-gray-500 shrink-0" />
+                      <span className="font-medium text-gray-900">
+                        {transfer.product?.name || "N/A"}
+                      </span>
+                      {transfer.product?.sku && (
+                        <span className="text-sm text-gray-500">({transfer.product.sku})</span>
+                      )}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badgeClass}`}>
+                        {status}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 mt-2">
+                      <span className="font-medium text-gray-900">
+                        {transfer.fromBranch?.tenant?.name || "Source"}
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="font-medium text-gray-900">
+                        {transfer.toBranch?.tenant?.name || "Destination"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
+                      <span>Qty: {transfer.quantity ?? 0}</span>
+                      <span>
+                        {transfer.receivedAt
+                          ? `Received ${new Date(transfer.receivedAt).toLocaleDateString()}`
+                          : transfer.createdAt
+                            ? `Created ${new Date(transfer.createdAt).toLocaleDateString()}`
+                            : ""}
+                      </span>
+                      {transfer.createdBy?.name && (
+                        <span>By {transfer.createdBy.name}</span>
+                      )}
+                    </div>
+                    {transfer.notes && (
+                      <p className="mt-2 text-xs text-gray-500 line-clamp-2">{transfer.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    {status === "pending" && onApprove && (
+                      <button
+                        type="button"
+                        onClick={() => onApprove(transfer.id)}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {status === "approved" && onReceive && (
+                      <button
+                        type="button"
+                        onClick={() => onReceive(transfer.id)}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700"
+                      >
+                        Receive
+                      </button>
+                    )}
+                    {status === "pending" && onReject && (
+                      <button
+                        type="button"
+                        onClick={() => handleReject(transfer.id)}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50"
+                      >
+                        Reject
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <Check className="w-3 h-3 mr-1" />
-                  Completed
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

@@ -126,7 +126,7 @@ export async function GET(request) {
 
     // For CSV format
     if (format === 'csv') {
-      const res = generateCsvResponse(merged);
+      const res = await generateCsvResponse(merged, user.tenantId);
       res.headers.set('Cache-Control', 'no-store');
       return res;
     }
@@ -145,8 +145,83 @@ export async function GET(request) {
   }
 }
 
+const POSTED_GL_STATUSES = ['posted', 'Posted'];
+
+async function buildExpenseJournalLookup(prismaClient, tenantId, rows) {
+  const expenseIds = rows
+    .filter((row) => (row.entryType || 'Expense') === 'Expense' && row.id)
+    .map((row) => row.id);
+  const transactionIds = [
+    ...new Set(
+      rows
+        .map((row) => row.transactionId || row.glJournalId || '')
+        .filter(Boolean)
+    ),
+  ];
+
+  const byExpenseId = new Map();
+  const byTransactionId = new Map();
+
+  if (expenseIds.length) {
+    const expenseTransactions = await prismaClient.transaction.findMany({
+      where: {
+        tenantId,
+        sourceType: 'Expense',
+        sourceId: { in: expenseIds },
+        isReversal: false,
+        status: { in: POSTED_GL_STATUSES },
+      },
+      select: { id: true, reference: true, sourceId: true },
+    });
+
+    for (const tx of expenseTransactions) {
+      byExpenseId.set(tx.sourceId, {
+        transactionId: tx.id,
+        journalReference: tx.reference || '',
+      });
+    }
+  }
+
+  if (transactionIds.length) {
+    const linkedTransactions = await prismaClient.transaction.findMany({
+      where: {
+        tenantId,
+        id: { in: transactionIds },
+      },
+      select: { id: true, reference: true },
+    });
+
+    for (const tx of linkedTransactions) {
+      byTransactionId.set(tx.id, {
+        transactionId: tx.id,
+        journalReference: tx.reference || '',
+      });
+    }
+  }
+
+  return { byExpenseId, byTransactionId };
+}
+
+function resolveExpenseJournalFields(row, lookup) {
+  const existingTransactionId = row.transactionId || row.glJournalId || '';
+
+  if (existingTransactionId) {
+    const hit = lookup.byTransactionId.get(existingTransactionId);
+    return hit || { transactionId: existingTransactionId, journalReference: '' };
+  }
+
+  if ((row.entryType || 'Expense') === 'Expense' && row.id) {
+    const hit = lookup.byExpenseId.get(row.id);
+    return hit || { transactionId: '', journalReference: '' };
+  }
+
+  return { transactionId: '', journalReference: '' };
+}
+
 // Generate CSV response (Expense rows + COGS GL rows, same register as the UI list)
-function generateCsvResponse(rows) {
+async function generateCsvResponse(rows, tenantId) {
+  const journalLookup = await buildExpenseJournalLookup(prisma, tenantId, rows);
+
   const csvStringifier = createObjectCsvStringifier({
     header: [
       { id: 'entryType', title: 'Entry Type' },
@@ -165,11 +240,13 @@ function generateCsvResponse(rows) {
       { id: 'glAccount', title: 'GL Account (COGS)' },
       { id: 'submittedBy', title: 'Submitted By' },
       { id: 'notes', title: 'Notes' },
-      { id: 'createdAt', title: 'Created At' }
+      { id: 'createdAt', title: 'Created At' },
+      { id: 'journalReference', title: 'Journal Reference' },
     ]
   });
 
   const records = rows.map((row) => {
+    const journal = resolveExpenseJournalFields(row, journalLookup);
     const d = row.date instanceof Date ? row.date : new Date(row.date);
     const dateStr = Number.isNaN(d.getTime())
       ? ''
@@ -194,11 +271,12 @@ function generateCsvResponse(rows) {
       status: row.status || '',
       paymentStatus: row.paymentStatus || '',
       branchId: row.branchId || '',
-      glJournalId: row.transactionId || row.glJournalId || '',
+      glJournalId: journal.transactionId,
       glAccount: row.glAccountLabel || row.glAccount || '',
       submittedBy: row.submittedBy ? row.submittedBy.name : '',
       notes: row.notes || '',
-      createdAt: createdStr
+      createdAt: createdStr,
+      journalReference: journal.journalReference,
     };
   });
   

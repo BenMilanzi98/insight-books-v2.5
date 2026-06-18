@@ -8,6 +8,11 @@ import {
   sumPhysicalInventoryProductLines,
 } from '@/lib/stockValuationAggregate';
 import { roundMoney } from '@/lib/money';
+import {
+  resolveOrEnsureStockOnHandGlAccount,
+  STOCK_ON_HAND_GL_CODE,
+  STOCK_ON_HAND_GL_NAME,
+} from '@/lib/inventoryGlAccount';
 
 // GET - Fetch inventory statistics with fallbacks
 export async function GET(request) {
@@ -91,6 +96,25 @@ export async function GET(request) {
       },
     ];
 
+    let glAccount = {
+      code: STOCK_ON_HAND_GL_CODE,
+      name: STOCK_ON_HAND_GL_NAME,
+      id: null,
+      postedBalance: null,
+    };
+    try {
+      const stockGl = await resolveOrEnsureStockOnHandGlAccount(tenantId, prisma);
+      glAccount = {
+        id: stockGl.id,
+        code: STOCK_ON_HAND_GL_CODE,
+        name: stockGl.accountName || stockGl.name || STOCK_ON_HAND_GL_NAME,
+        postedBalance:
+          stockGl.balance != null ? roundMoney(parseFloat(stockGl.balance) || 0) : null,
+      };
+    } catch (glErr) {
+      console.warn('Stock statistics: could not resolve 1310 GL link:', glErr?.message || glErr);
+    }
+
     return NextResponse.json({
       totalItems,
       serviceCount,
@@ -100,6 +124,9 @@ export async function GET(request) {
       nearingReorder,
       categories: categoryPercentages,
       recentTransactions,
+      glAccount,
+      valuationNote:
+        'Stock value is tied to GL 1310 Stock on Hand (same aggregate shown on Chart of Accounts under Inventory).',
     });
   } catch (error) {
     console.error('Error fetching inventory statistics:', error);

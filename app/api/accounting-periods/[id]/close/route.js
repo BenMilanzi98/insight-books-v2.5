@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { canManageAccountingPeriods } from '@/lib/accountingPeriodAccess';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { runGlReconciliation } from '@/lib/glReconciliation';
 
 const FLOAT_TOLERANCE = 0.0001;
 
@@ -110,6 +111,7 @@ export async function POST(request, { params }) {
           journalEntry: {
             tenantId: user.tenantId,
             status: 'Posted',
+            transactionId: null,
             entryDate: { gte: period.startDate, lte: period.endDate },
           },
         },
@@ -125,6 +127,26 @@ export async function POST(request, { params }) {
         {
           error: 'Period does not balance. Debits must equal credits before closing.',
           details: `Debits: ${parseMoney(totalDebits)}, Credits: ${parseMoney(totalCredits)}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const periodStartStr = period.startDate.toISOString().slice(0, 10);
+    const periodEndStr = period.endDate.toISOString().slice(0, 10);
+    const reconciliation = await runGlReconciliation({
+      tenantId: user.tenantId,
+      branchId: null,
+      startDate: periodStartStr,
+      endDate: periodEndStr,
+      includeSubledgers: true,
+    });
+
+    if (!reconciliation.allOk) {
+      return NextResponse.json(
+        {
+          error: 'GL reconciliation failed. Resolve imbalances before closing this period.',
+          reconciliation,
         },
         { status: 400 }
       );
@@ -152,6 +174,7 @@ export async function POST(request, { params }) {
           journalEntry: {
             tenantId: user.tenantId,
             status: 'Posted',
+            transactionId: null,
             entryDate: { lt: period.startDate },
           },
         },
@@ -174,6 +197,7 @@ export async function POST(request, { params }) {
           journalEntry: {
             tenantId: user.tenantId,
             status: 'Posted',
+            transactionId: null,
             entryDate: { gte: period.startDate, lte: period.endDate },
           },
         },

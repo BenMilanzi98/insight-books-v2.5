@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
 import { getPosCashDayState } from '@/lib/posCashDayService';
 import { generatePosDailyReport } from '@/lib/posDailyReportService';
 
@@ -7,6 +7,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
+    const perm = await requireAnyPermission(request, [
+      'sales.view',
+      'sales.create',
+      'sales.update',
+    ]);
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user?.tenantId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

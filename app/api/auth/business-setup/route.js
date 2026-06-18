@@ -1,114 +1,133 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+import { ensurePrimaryBranchForTenant } from '@/lib/tenantStockAccess';
+
+function normalizePhone(value) {
+  if (value == null) return '';
+  return String(value).replace(/[\s\-().]/g, '');
+}
+
+function isValidPhone(value) {
+  const digits = normalizePhone(value).replace(/^\+/, '');
+  return /^\d{7,15}$/.test(digits);
+}
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    
-    // Validate required fields
-    if (!body.userId || !body.tenantId || !body.businessName || !body.personalPhone) {
+
+    const sessionUser = await getUserFromSession(request);
+    const userId = body.userId || sessionUser?.id;
+    const tenantId = body.tenantId || sessionUser?.tenantId;
+
+    if (!userId || !tenantId || !body.businessName?.trim() || !body.personalPhone?.trim()) {
       return NextResponse.json(
-        { error: 'User ID, Tenant ID, Business Name, and Personal Phone Number are required' },
+        { error: 'Business name and personal phone number are required. Please sign in and try again.' },
         { status: 400 }
       );
     }
 
-    // Validate phone number format
-    const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
-    if (!phoneRegex.test(body.personalPhone.replace(/\s/g, ''))) {
+    if (sessionUser && sessionUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    if (!isValidPhone(body.personalPhone)) {
       return NextResponse.json(
-        { error: 'Please enter a valid phone number' },
+        { error: 'Please enter a valid phone number (7–15 digits)' },
         { status: 400 }
       );
     }
 
-    // Verify user and tenant exist
     const user = await prisma.user.findUnique({
-      where: { id: body.userId },
-      include: { tenant: true }
+      where: { id: userId },
+      include: { tenant: true },
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (user.tenantId !== body.tenantId) {
-      return NextResponse.json(
-        { error: 'Invalid tenant association' },
-        { status: 403 }
-      );
+    if (user.tenantId !== tenantId) {
+      return NextResponse.json({ error: 'Invalid tenant association' }, { status: 403 });
     }
 
-    // Update user with personal phone number
     await prisma.user.update({
-      where: { id: body.userId },
-      data: {
-        phone: body.personalPhone
-      }
+      where: { id: userId },
+      data: { phone: body.personalPhone.trim() },
     });
 
-    // Update tenant with business information
     const updatedTenant = await prisma.tenant.update({
-      where: { id: body.tenantId },
-      data: {
-        name: body.businessName,
-        // Update settings with business information
-        settings: {
-          update: {
-            businessEmail: body.businessEmail || null,
-            businessPhone: body.businessPhone || null,
-            businessAddress: body.businessAddress || null,
-            businessCity: body.businessCity || null,
-            // Store additional business info in settings
-            customDomain: body.website || null,
-            // Add business info to email footer
-            emailFooter: body.description ? `\n\n${body.description}` : null
-          }
-        }
+      where: { id: tenantId },
+      data: { name: body.businessName.trim() },
+    });
+
+    await prisma.tenantSettings.upsert({
+      where: { tenantId },
+      create: {
+        tenantId,
+        businessEmail: body.businessEmail?.trim() || null,
+        businessPhone: body.businessPhone?.trim() || null,
+        businessAddress: body.businessAddress?.trim() || null,
+        businessCity: body.businessCity?.trim() || null,
+        customDomain: body.website?.trim() || null,
+        emailFooter: body.description?.trim() ? `\n\n${body.description.trim()}` : null,
       },
-      include: {
-        settings: true
-      }
+      update: {
+        businessEmail: body.businessEmail?.trim() || null,
+        businessPhone: body.businessPhone?.trim() || null,
+        businessAddress: body.businessAddress?.trim() || null,
+        businessCity: body.businessCity?.trim() || null,
+        customDomain: body.website?.trim() || null,
+        emailFooter: body.description?.trim() ? `\n\n${body.description.trim()}` : null,
+      },
     });
 
-    // Create audit log for business setup
-    await prisma.auditLog.create({
-      data: {
-        action: 'BUSINESS_SETUP',
-        entityType: 'TENANT',
-        entityId: body.tenantId,
-        userId: body.userId,
-        details: JSON.stringify({
-          businessName: body.businessName,
-          businessEmail: body.businessEmail,
-          businessPhone: body.businessPhone,
-          businessAddress: body.businessAddress,
-          businessCity: body.businessCity,
-          website: body.website,
-          industry: body.industry,
-          description: body.description
-        }),
-        tenantId: body.tenantId
-      }
-    });
+    const primaryBranchId = await ensurePrimaryBranchForTenant(tenantId);
+    if (primaryBranchId) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { defaultBranchId: primaryBranchId },
+      });
+    }
 
-    // If business email is provided, update user's email if it's different
-    if (body.businessEmail && body.businessEmail !== user.email) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'BUSINESS_SETUP',
+          entityType: 'TENANT',
+          entityId: tenantId,
+          userId,
+          details: JSON.stringify({
+            businessName: body.businessName,
+            businessEmail: body.businessEmail,
+            businessPhone: body.businessPhone,
+            businessAddress: body.businessAddress,
+            businessCity: body.businessCity,
+            website: body.website,
+            industry: body.industry,
+            description: body.description,
+          }),
+          tenantId,
+        },
+      });
+    } catch (auditErr) {
+      console.warn('Business setup audit log skipped:', auditErr?.message || auditErr);
+    }
+
+    if (body.businessEmail?.trim() && body.businessEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
       const taken = await prisma.user.findFirst({
         where: {
-          email: { equals: String(body.businessEmail).trim(), mode: 'insensitive' },
-          tenantId: body.tenantId,
-          id: { not: body.userId },
+          email: { equals: body.businessEmail.trim(), mode: 'insensitive' },
+          tenantId,
+          id: { not: userId },
         },
       });
 
       if (!taken) {
         await prisma.user.update({
-          where: { id: body.userId },
-          data: { email: body.businessEmail.trim() },
+          where: { id: userId },
+          data: { email: body.businessEmail.trim().toLowerCase() },
         });
       }
     }
@@ -119,10 +138,9 @@ export async function POST(request) {
       tenant: {
         id: updatedTenant.id,
         name: updatedTenant.name,
-        subdomain: updatedTenant.subdomain
-      }
+        subdomain: updatedTenant.subdomain,
+      },
     });
-
   } catch (error) {
     console.error('Business setup error:', error);
     return NextResponse.json(
@@ -130,4 +148,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-} 
+}

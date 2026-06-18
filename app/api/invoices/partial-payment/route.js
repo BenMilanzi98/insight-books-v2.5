@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalance } from '@/lib/core';
 import { createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
@@ -143,14 +142,6 @@ export async function POST(request) {
           }
         }
       });
-
-      // Update account balance
-      try {
-        await updateAccountBalance(user.tenantId, paymentMethod, numericAmount, 'add');
-      } catch (error) {
-        console.error('Error updating account balance:', error);
-        // Don't fail the payment if account balance update fails
-      }
 
       // Create journal entry for invoice payment
       try {

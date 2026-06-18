@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 export async function GET(request) {
   try {
@@ -13,9 +19,20 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
+
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scopeResult = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scopeResult.ok) {
+      return NextResponse.json(
+        { error: scopeResult.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds, branchScoped } = scopeResult;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+
     const dateRange = searchParams.get('dateRange') || 'month';
     
     // Calculate date range based on the parameter
@@ -143,8 +160,8 @@ export async function GET(request) {
     
     // Get recent invoices (income transactions)
     const invoices = await prisma.invoice.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         issueDate: {
           gte: startDate,
           lte: endDate
@@ -165,8 +182,8 @@ export async function GET(request) {
     
     // Get recent sales (including historical transactions)
     const sales = await prisma.sale.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         saleDate: {
           gte: startDate,
           lte: endDate
@@ -188,8 +205,8 @@ export async function GET(request) {
     
     // Get recent expenses (expense transactions)
     const expenses = await prisma.expense.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         date: {
           gte: startDate,
           lte: endDate
@@ -205,7 +222,7 @@ export async function GET(request) {
     // Get recent supplier payments (expense transactions)
     const supplierPayments = await prisma.supplierPayment.findMany({
       where: {
-        tenantId,
+        ...tw,
         paymentDate: {
           gte: startDate,
           lte: endDate
@@ -224,7 +241,7 @@ export async function GET(request) {
       }
     });
     
-    console.log(`Found ${invoices.length} invoices, ${sales.length} sales, ${expenses.length} expenses, and ${supplierPayments.length} supplier payments for tenant ${tenantId}`);
+    console.log(`Found ${invoices.length} invoices, ${sales.length} sales, ${expenses.length} expenses, and ${supplierPayments.length} supplier payments for tenant scope ${tenantIds.join(',')}`);
     
     // Combine and format transactions
     const transactions = [

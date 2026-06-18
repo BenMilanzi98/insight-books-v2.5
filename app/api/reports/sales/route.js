@@ -1,13 +1,14 @@
 // app/api/reports/sales/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
 import {
-  validInvoiceReportWhere,
-  validSaleReportWhere,
+  validInvoiceReportWhereScoped,
+  validSaleReportWhereScoped,
 } from '@/lib/reportingSourceRules';
+import { bootstrapReportRoute, auditReportAccess, tenantNameMap } from '@/lib/reportRouteBootstrap';
 import {
   invoiceDocumentTaxAmount,
   invoiceItemNetRevenueExTax,
@@ -18,21 +19,20 @@ import {
   roundReportAmount,
 } from '@/lib/reportLineNetRevenue';
 import { addMoney, multiplyMoney, subtractMoney } from '@/lib/money';
+import {
+  buildSalesReconciliation,
+  getGlPeriodTotals,
+} from '@/lib/reportingEngine/index.js';
 
 export async function GET(request) {
   try {
     const perm = await requirePermission(request, 'reports.view');
     if (perm) return perm;
 
-    // Get user from session
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
-    
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, userQ, tw, scope, tenantIds, tenants, reportBranchId } = boot;
+
     // Get query parameters (support both request.url and request.nextUrl)
     const url = request.nextUrl ?? request.url;
     const searchParams = typeof url === 'object' && url.searchParams ? url.searchParams : new URL(typeof url === 'string' ? url : url?.toString() || '', 'http://localhost').searchParams;
@@ -52,8 +52,8 @@ export async function GET(request) {
     
     // Get sales data - filter by branch
     const sales = await prisma.sale.findMany({
-      where: addBranchFilter(user, {
-        ...validSaleReportWhere(user.tenantId, 'saleDate', start, end)
+      where: addBranchFilter(userQ, {
+        ...validSaleReportWhereScoped(tw, 'saleDate', start, end)
       }),
       include: {
         items: {
@@ -70,8 +70,8 @@ export async function GET(request) {
     
     // Get invoice data (also considered sales) - filter by branch
     const invoices = await prisma.invoice.findMany({
-      where: addBranchFilter(user, {
-        ...validInvoiceReportWhere(user.tenantId, 'issueDate', start, end)
+      where: addBranchFilter(userQ, {
+        ...validInvoiceReportWhereScoped(tw, 'issueDate', start, end)
       }),
       include: {
         items: {
@@ -287,7 +287,63 @@ export async function GET(request) {
     const salesByCustomerArray = Object.values(salesByCustomer).sort((a, b) => 
       b.totalSpent - a.totalSpent
     );
-    
+
+    let glTotals = null;
+    try {
+      for (const tenantId of tenantIds) {
+        const t = await getGlPeriodTotals({
+          tenantId,
+          startDate,
+          endDate,
+          branchId: reportBranchId,
+          prisma,
+        });
+        if (!glTotals) {
+          glTotals = { ...t, accountLines: [...(t.accountLines || [])] };
+        } else {
+          glTotals.revenue = addMoney(glTotals.revenue, t.revenue);
+          glTotals.cogs = addMoney(glTotals.cogs, t.cogs);
+          glTotals.operatingExpenses = addMoney(glTotals.operatingExpenses, t.operatingExpenses);
+          glTotals.totalExpenses = addMoney(glTotals.totalExpenses, t.totalExpenses);
+          glTotals.hasGlActivity = glTotals.hasGlActivity || t.hasGlActivity;
+          if (t.accountLines?.length) glTotals.accountLines.push(...t.accountLines);
+        }
+      }
+    } catch (glErr) {
+      console.warn('Sales report: GL reconciliation failed', glErr?.message || glErr);
+    }
+
+    await auditReportAccess({
+      user,
+      reportType: 'sales',
+      tenantIds,
+      scope,
+      filters: { startDate, endDate, groupBy },
+    });
+
+    let byTenant = null;
+    if (tenantIds.length > 1) {
+      const tMap = tenantNameMap(tenants);
+      byTenant = tenantIds.map((tid) => {
+        const tenantSales = sales.filter((s) => s.tenantId === tid);
+        const tenantInvoices = invoices.filter((i) => i.tenantId === tid);
+        const revenueFromSales = tenantSales.reduce(
+          (sum, sale) => addMoney(sum, saleNetRevenueTotalExTax(sale)),
+          0
+        );
+        const revenueFromInvoices = tenantInvoices.reduce(
+          (sum, invoice) => addMoney(sum, invoiceNetRevenueTotalExTax(invoice)),
+          0
+        );
+        return {
+          tenantId: tid,
+          tenantName: tMap.get(tid) || tid,
+          totalSales: addMoney(revenueFromSales, revenueFromInvoices),
+          transactionCount: tenantSales.length + tenantInvoices.length,
+        };
+      });
+    }
+
     return NextResponse.json({
       period: {
         startDate,
@@ -308,7 +364,20 @@ export async function GET(request) {
       salesByDate: salesByDateArray,
       salesByProduct: salesByProductArray,
       salesByCustomer: salesByCustomerArray,
-      groupBy
+      groupBy,
+      metadata: {
+        ledgerSource: 'general_ledger',
+        operationalBasis:
+          'Valid invoice and POS sales net of tax and line discounts (same rules as income statement operational revenue).',
+        fromGeneralLedger: Boolean(glTotals?.hasGlActivity),
+        glRevenueTotal: glTotals?.revenue ?? 0,
+        reconciliation: glTotals
+          ? buildSalesReconciliation(totalRevenue, glTotals)
+          : null,
+        sourcePolicy: glTotals?.sourcePolicy ?? null,
+      },
+      scope,
+      ...(byTenant ? { byTenant } : {}),
     });
   } catch (error) {
     console.error('Error generating sales report:', error);

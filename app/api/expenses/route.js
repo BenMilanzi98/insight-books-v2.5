@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
@@ -815,12 +814,6 @@ export async function POST(request) {
             sourceAccount: paymentMethod || null
           }
         });
-        try {
-          await updateAccountBalance(user.tenantId, paymentMethod, paymentAmount, 'subtract');
-        } catch (balanceError) {
-          console.error('Error updating account balance (expense):', balanceError);
-          // Don't fail expense creation if balance update fails (e.g. no AccountBalance row yet)
-        }
 
         if (paymentMethod.length >= 20 && /^[a-z0-9]+$/i.test(paymentMethod)) {
           const pa = await tx.paymentAccount.findFirst({

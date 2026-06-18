@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalance } from '@/lib/core';
+import { postApprovedExpenseJournalIfMissing } from '@/lib/expenseGlPosting';
 import { getPostableExpenseAccounts } from '@/lib/accountingMappingRules';
 
 export async function POST(request) {
@@ -314,8 +314,12 @@ export async function POST(request) {
           }
         });
 
-        // Update account balance
-        await updateAccountBalance(user.tenantId, expenseData.paymentMethod, expenseData.amount, "subtract");
+        await postApprovedExpenseJournalIfMissing({
+          tx,
+          tenantId: user.tenantId,
+          userId: user.id,
+          expense,
+        });
 
         // Create audit log
         await tx.auditLog.create({

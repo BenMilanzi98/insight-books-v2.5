@@ -2,7 +2,8 @@
 // Lightweight endpoint for POS to fetch income accounts without Finance/Admin requirement
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { canAccessPosIncomeAccounts } from '@/lib/chartOfAccountsAccess';
 import {
   findCoaPostableIncomeAccountsForTenant,
   pickDefaultPostableIncomeAccount,
@@ -17,6 +18,10 @@ export async function GET(request) {
         { error: 'Authentication required' },
         { status: 401 }
       );
+    }
+
+    if (!canAccessPosIncomeAccounts(user)) {
+      return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
 
     const accounts = await findCoaPostableIncomeAccountsForTenant(prisma, user.tenantId, {

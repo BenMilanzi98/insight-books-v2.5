@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { findCurrentLiabilitiesGroupId } from '@/lib/coaPostingCodes';
+import { ensureMalawiTaxTypesForTenant } from '@/lib/malawiTaxSeed.js';
+import { getMalawiTaxCatalogEntry, isMalawiSystemTaxType } from '@/lib/malawiTaxCatalog.js';
 
 /**
  * GET /api/tax-types
@@ -17,117 +18,11 @@ export async function GET(request) {
       );
     }
 
-    // Ensure PAYE tax type exists (for backward compatibility)
+    // Ensure Malawi MRA tax catalog (2041 / 2045 children + TaxType rows)
     try {
-      const existingPAYETaxType = await prisma.taxType.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          OR: [
-            { taxId: 'PAYE' },
-            { taxName: { contains: 'PAYE', mode: 'insensitive' } }
-          ]
-        }
-      });
-
-      if (!existingPAYETaxType) {
-        // Check if PAYE deduction exists
-        const payeDeduction = await prisma.deduction.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            name: { contains: 'PAYE', mode: 'insensitive' },
-            isStatutory: true
-          }
-        });
-
-        // Only create PAYE tax type if PAYE deduction exists
-        if (payeDeduction) {
-          // Find or create PAYE Liability account (MUST be Liability type)
-          let payeAccount = await prisma.account.findFirst({
-            where: {
-              tenantId: user.tenantId,
-              OR: [
-                { name: { contains: 'PAYE', mode: 'insensitive' } },
-                { accountName: { contains: 'PAYE', mode: 'insensitive' } }
-              ],
-              accountType: 'Liability'
-            }
-          });
-
-          // If PAYE account doesn't exist, create it
-          if (!payeAccount) {
-            const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
-            payeAccount = await prisma.account.create({
-              data: {
-                code: '2130',
-                name: 'PAYE Payable',
-                type: 'LIABILITY',
-                accountCode: '2130',
-                accountName: 'PAYE Payable',
-                accountType: 'Liability',
-                accountSubtype: 'Current Liability',
-                normalBalance: 'Credit',
-                balance: 0,
-                tenantId: user.tenantId,
-                ...(parentId ? { parentAccountId: parentId } : {}),
-              }
-            });
-          }
-
-          // Create PAYE tax type with account linked (REQUIRED)
-          await prisma.taxType.create({
-            data: {
-              taxId: 'PAYE',
-              taxName: 'PAYE (Malawi Income Tax 2025/26)',
-              taxCode: 'PAYE-2025-26',
-              taxRate: 0, // PAYE is calculated dynamically based on brackets, not a fixed rate
-              calculationType: 'Percentage',
-              accountId: payeAccount.id, // REQUIRED: Always link to account
-              status: 'Active',
-              tenantId: user.tenantId
-            }
-          });
-        }
-      } else if (existingPAYETaxType && !existingPAYETaxType.accountId) {
-        // Fix existing tax type that has no account
-        let payeAccount = await prisma.account.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            OR: [
-              { name: { contains: 'PAYE', mode: 'insensitive' } },
-              { accountName: { contains: 'PAYE', mode: 'insensitive' } }
-            ],
-            accountType: 'Liability'
-          }
-        });
-
-        if (!payeAccount) {
-          const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
-          payeAccount = await prisma.account.create({
-            data: {
-              code: '2130',
-              name: 'PAYE Payable',
-              type: 'LIABILITY',
-              accountCode: '2130',
-              accountName: 'PAYE Payable',
-              accountType: 'Liability',
-              accountSubtype: 'Current Liability',
-              normalBalance: 'Credit',
-              balance: 0,
-              tenantId: user.tenantId,
-              ...(parentId ? { parentAccountId: parentId } : {}),
-            }
-          });
-        }
-
-        // Link account to existing tax type
-        await prisma.taxType.update({
-          where: { id: existingPAYETaxType.id },
-          data: { accountId: payeAccount.id }
-        });
-      }
-    } catch (payeError) {
-      // Log error but don't fail the request
-      console.error('Error ensuring PAYE tax type exists:', payeError);
+      await ensureMalawiTaxTypesForTenant(user.tenantId, prisma);
+    } catch (seedErr) {
+      console.error('Error ensuring Malawi tax catalog:', seedErr);
     }
 
     const { searchParams } = new URL(request.url);
@@ -160,9 +55,14 @@ export async function GET(request) {
     const taxTypesWithAccount = taxTypes.map((t) => ({
       ...t,
       account: t.accountId ? accountMap.get(t.accountId) ?? null : null,
+      catalogEntry: getMalawiTaxCatalogEntry(t.taxId) || getMalawiTaxCatalogEntry(t.taxCode),
+      isSystem: isMalawiSystemTaxType(t),
     }));
 
-    return NextResponse.json({ taxTypes: taxTypesWithAccount });
+    return NextResponse.json({
+      taxTypes: taxTypesWithAccount,
+      catalogCount: taxTypesWithAccount.filter((t) => t.isSystem).length,
+    });
   } catch (error) {
     console.error('Error fetching tax types:', error);
     return NextResponse.json(

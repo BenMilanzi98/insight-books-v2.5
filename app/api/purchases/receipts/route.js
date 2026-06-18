@@ -536,6 +536,25 @@ export async function POST(request) {
         }
       }
 
+      await trx.auditLog.create({
+        data: {
+          action: goodsReceipt.status === 'Posted' ? 'GOODS_RECEIPT_POSTED' : 'GOODS_RECEIPT_CREATED',
+          entityType: 'GOODS_RECEIPT',
+          entityId: goodsReceipt.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            receiptNumber: goodsReceipt.receiptNumber,
+            supplierId: supplier.id,
+            purchaseOrderId: purchaseOrder?.id || null,
+            totalAmount,
+            status: goodsReceipt.status,
+            itemCount: goodsReceipt.items?.length || 0,
+            inventoryApplied: Boolean(goodsReceipt.inventoryAppliedAt),
+          }),
+        },
+      });
+
       return goodsReceipt;
     });
 

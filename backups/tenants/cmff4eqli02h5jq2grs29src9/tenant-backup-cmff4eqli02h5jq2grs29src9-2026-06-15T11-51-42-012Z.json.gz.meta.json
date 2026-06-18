@@ -1,0 +1,241 @@
+{
+  "filename": "tenant-backup-cmff4eqli02h5jq2grs29src9-2026-06-15T11-51-42-012Z.json.gz",
+  "tenantId": "cmff4eqli02h5jq2grs29src9",
+  "tenantName": "Insight Books",
+  "exportedAt": "2026-06-15T11:51:42.011Z",
+  "exportedBy": "cmemjq8bh0000jq5cv130xef0",
+  "rowCount": 3378,
+  "stats": {
+    "Tenant": 1,
+    "Account": 362,
+    "AccountBalance": 14,
+    "AccountSubscription": 1,
+    "AccountingPeriod": 3,
+    "AdminTenantAccess": 0,
+    "AffiliateReferral": 0,
+    "Asset": 1,
+    "AssetCategory": 4,
+    "AttendanceRecord": 0,
+    "AttendanceRegister": 0,
+    "AuditLog": 771,
+    "BankAccount": 0,
+    "Benefit": 0,
+    "BfExpenseBudgetHeader": 1,
+    "BfRevenueForecastHeader": 1,
+    "Branch": 0,
+    "BranchSubscription": 0,
+    "Budget": 0,
+    "Client": 92,
+    "CreditNote": 0,
+    "DebitNote": 0,
+    "Deduction": 2,
+    "Department": 0,
+    "DocumentSequence": 3,
+    "EISConfiguration": 0,
+    "EISInvoice": 0,
+    "EISSubmissionLog": 0,
+    "EISUsage": 0,
+    "EmailLog": 0,
+    "Employee": 3,
+    "EquityAccount": 0,
+    "ExchangeRate": 0,
+    "Expense": 240,
+    "ExpenseCategory": 69,
+    "GoodsReceipt": 0,
+    "GratuityAccount": 0,
+    "InventoryBatch": 3,
+    "InventoryBatchConsumption": 3,
+    "InventoryCategory": 1,
+    "InventoryExpiryAudit": 0,
+    "InventoryLocation": 0,
+    "InventoryTransaction": 64,
+    "Invoice": 72,
+    "InvoiceAttachment": 0,
+    "InvoiceRefund": 0,
+    "InvoiceTemplate": 1,
+    "JournalEntry": 0,
+    "LeaveBalance": 0,
+    "LeavePolicy": 0,
+    "LeaveRequest": 0,
+    "Liability": 0,
+    "LiabilityCategory": 1,
+    "Payment": 361,
+    "PaymentAccount": 5,
+    "PaymentGateway": 0,
+    "Payroll": 3,
+    "PerformanceFeedback": 0,
+    "PerformanceGoal": 0,
+    "PerformanceReview": 0,
+    "PosCashDay": 0,
+    "Product": 6,
+    "ProductBarcode": 0,
+    "PurchaseOrder": 0,
+    "Quotation": 10,
+    "RecurringExpense": 0,
+    "RentalAsset": 0,
+    "RentalTransaction": 0,
+    "Role": 6,
+    "SalaryAdvance": 1,
+    "Sale": 53,
+    "StockTransfer": 0,
+    "StockTransferReceiptNotice": 0,
+    "Supplier": 1,
+    "SupplierBill": 0,
+    "SupplierPayment": 0,
+    "SupplierPaymentAllocation": 0,
+    "TaxType": 2,
+    "TenantMembership": 0,
+    "TenantSettings": 1,
+    "Transaction": 381,
+    "User": 3,
+    "accounting_mapping_correction": 0,
+    "coa_migration_log": 0,
+    "_UserTenants": 0,
+    "AccountBalanceHistory": 0,
+    "AdvanceDeduction": 0,
+    "AssetInterBusinessTransfer": 0,
+    "AssetJournalEntry": 1,
+    "BfExpenseBudgetLine": 0,
+    "BfRevenueForecastLine": 0,
+    "BudgetItem": 0,
+    "DepreciationSchedule": 0,
+    "EmployeeBenefit": 0,
+    "ExpenseAttachment": 0,
+    "GoodsReceiptItem": 0,
+    "GratuityPayment": 0,
+    "InvoiceItem": 72,
+    "JournalEntryLine": 0,
+    "LiabilityPayment": 0,
+    "PaymentAllocation": 3,
+    "PerformanceReviewCriteria": 0,
+    "PosCashDayDeposit": 6,
+    "product_units": 0,
+    "ProductTax": 0,
+    "PurchaseOrderItem": 0,
+    "QuotationItem": 8,
+    "RecurringExpenseHistory": 0,
+    "RentalAssetAvailability": 0,
+    "RentalItem": 0,
+    "RevenueBudgetBreakdown": 0,
+    "SaleItem": 3,
+    "SaleItemTax": 0,
+    "SupplierBillItem": 0,
+    "TransactionLine": 739,
+    "UserBranch": 0
+  },
+  "coverage": {
+    "version": 2,
+    "totalPublicTables": 129,
+    "coveredTableCount": 116,
+    "directTableCount": 83,
+    "indirectTableCount": 32,
+    "exportedTableCount": 116,
+    "uncoveredTables": [],
+    "categories": {
+      "core": {
+        "tables": 5,
+        "rows": 14,
+        "detail": {
+          "Tenant": 1,
+          "TenantSettings": 1,
+          "User": 3,
+          "Role": 6,
+          "DocumentSequence": 3
+        }
+      },
+      "accounting": {
+        "tables": 7,
+        "rows": 1505,
+        "detail": {
+          "Account": 362,
+          "AccountBalance": 14,
+          "AccountingPeriod": 3,
+          "Transaction": 381,
+          "TransactionLine": 739,
+          "AccountSubscription": 1,
+          "PaymentAccount": 5
+        }
+      },
+      "sales": {
+        "tables": 11,
+        "rows": 681,
+        "detail": {
+          "Sale": 53,
+          "SaleItem": 3,
+          "Invoice": 72,
+          "InvoiceItem": 72,
+          "InvoiceTemplate": 1,
+          "Payment": 361,
+          "PaymentAllocation": 3,
+          "Quotation": 10,
+          "QuotationItem": 8,
+          "Client": 92,
+          "PosCashDayDeposit": 6
+        }
+      },
+      "inventory": {
+        "tables": 6,
+        "rows": 78,
+        "detail": {
+          "Product": 6,
+          "InventoryCategory": 1,
+          "InventoryTransaction": 64,
+          "InventoryBatch": 3,
+          "InventoryBatchConsumption": 3,
+          "Supplier": 1
+        }
+      },
+      "expenses": {
+        "tables": 4,
+        "rows": 311,
+        "detail": {
+          "Expense": 240,
+          "ExpenseCategory": 69,
+          "BfExpenseBudgetHeader": 1,
+          "BfRevenueForecastHeader": 1
+        }
+      },
+      "hr": {
+        "tables": 4,
+        "rows": 9,
+        "detail": {
+          "Employee": 3,
+          "Payroll": 3,
+          "Deduction": 2,
+          "SalaryAdvance": 1
+        }
+      },
+      "assets": {
+        "tables": 4,
+        "rows": 7,
+        "detail": {
+          "Asset": 1,
+          "AssetCategory": 4,
+          "AssetJournalEntry": 1,
+          "LiabilityCategory": 1
+        }
+      },
+      "tax": {
+        "tables": 1,
+        "rows": 2,
+        "detail": {
+          "TaxType": 2
+        }
+      },
+      "other": {
+        "tables": 1,
+        "rows": 771,
+        "detail": {
+          "AuditLog": 771
+        }
+      }
+    },
+    "verification": {
+      "mismatches": [],
+      "exportErrors": [],
+      "passed": true
+    }
+  },
+  "fileSize": 191070,
+  "verificationPassed": true
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
 import { generatePosDailyReport } from '@/lib/posDailyReportService';
 import { getPosCashDayState } from '@/lib/posCashDayService';
 import { generatePosDailySalesPdfBuffer } from '@/lib/posDailySalesPdf';
@@ -19,6 +19,9 @@ function csvEscape(v) {
 
 export async function GET(request) {
   try {
+    const perm = await requireAnyPermission(request, ['sales.view', 'sales.export']);
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user?.tenantId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

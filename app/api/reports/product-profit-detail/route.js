@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import {
   calculateDateRange,
@@ -12,6 +11,7 @@ import {
   invoiceItemNetRevenueExTax,
   saleItemNetRevenueExTax,
 } from '@/lib/reportLineNetRevenue';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
 function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
@@ -57,18 +57,17 @@ const DRAFT_STATUSES = ['draft', 'Draft', 'void', 'Void', 'cancelled', 'Cancelle
  */
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, userQ, tw, scope, tenantIds, reportBranchId } = boot;
 
     const { searchParams } = new URL(request.url);
     const { startDate, endDate } = getDateRange(searchParams);
     const categoryIdFilter = (searchParams.get('categoryId') || '').trim();
 
-    const accessEff = getEffectiveDashboardBranchId(user);
+    const accessEff = getEffectiveDashboardBranchId(userQ);
     const branchId =
-      accessEff === false ? null : normalizeBranchId(user.currentBranchId) ?? null;
+      accessEff === false ? null : normalizeBranchId(userQ.currentBranchId) ?? reportBranchId ?? null;
 
     const productSelect = {
       id: true,
@@ -78,11 +77,12 @@ export async function GET(request) {
       averageCost: true,
       isService: true,
       categoryId: true,
+      tenantId: true,
       inventoryCategory: { select: { id: true, name: true } },
     };
 
     const invoiceWhere = {
-      tenantId: user.tenantId,
+      ...tw,
       voidedAt: null,
       refundedAt: null,
       isReversal: false,
@@ -98,7 +98,7 @@ export async function GET(request) {
             where: {
               invoice: { is: invoiceWhere },
               ...(categoryIdFilter
-                ? { product: { is: { categoryId: categoryIdFilter, tenantId: user.tenantId } } }
+                ? { product: { is: { categoryId: categoryIdFilter, ...tw } } }
                 : {}),
             },
             select: {
@@ -112,13 +112,13 @@ export async function GET(request) {
               productId: true,
               product: { select: productSelect },
               invoice: {
-                select: { invoiceNumber: true, issueDate: true, status: true },
+                select: { invoiceNumber: true, issueDate: true, status: true, tenantId: true },
               },
             },
           });
 
     const saleWhere = {
-      tenantId: user.tenantId,
+      ...tw,
       status: 'completed',
       voidedAt: null,
       refundedAt: null,
@@ -134,7 +134,7 @@ export async function GET(request) {
             where: {
               sale: { is: saleWhere },
               ...(categoryIdFilter
-                ? { product: { is: { categoryId: categoryIdFilter, tenantId: user.tenantId } } }
+                ? { product: { is: { categoryId: categoryIdFilter, ...tw } } }
                 : {}),
             },
             select: {
@@ -147,13 +147,13 @@ export async function GET(request) {
               productId: true,
               isCustom: true,
               product: { select: productSelect },
-              sale: { select: { saleNumber: true, saleDate: true } },
+              sale: { select: { saleNumber: true, saleDate: true, tenantId: true } },
             },
           });
 
     const expenseAgg = await prisma.expense.aggregate({
-      where: addBranchFilter(user, {
-        tenantId: user.tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         status: 'Approved',
         isDeleted: false,
         isReversal: false,
@@ -279,6 +279,18 @@ export async function GET(request) {
     const productGrossProfit = round2(productSalesRevenue - productCostTotal);
     const profitAfterOperating = round2(productGrossProfit - operatingExpensesApproved);
 
+    await auditReportAccess({
+      user,
+      reportType: 'product-profit-detail',
+      tenantIds,
+      scope,
+      filters: {
+        startDate: formatYmdInTimeZone(startDate),
+        endDate: formatYmdInTimeZone(endDate),
+        categoryId: categoryIdFilter || null,
+      },
+    });
+
     return NextResponse.json({
       period: {
         startDate: formatYmdInTimeZone(startDate),
@@ -295,6 +307,7 @@ export async function GET(request) {
         skuCount: rows.length,
       },
       rows,
+      scope,
     });
   } catch (e) {
     console.error('product-profit-detail', e);

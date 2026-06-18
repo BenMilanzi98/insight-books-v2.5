@@ -35,7 +35,6 @@ export async function GET(request) {
         email: true,
         role: true,
         tenantId: true,
-        defaultBranchId: true,
         isActive: true,
         tenant: sessionData.tenantId
           ? {
@@ -48,14 +47,6 @@ export async function GET(request) {
               },
             }
           : undefined,
-        defaultBranch: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            isActive: true,
-          },
-        },
       },
     });
 
@@ -110,7 +101,6 @@ export async function GET(request) {
       id: user.id,
       tenantId: effectiveTenantId,
       role: user.role,
-      currentBranchId: sessionData.branchId || null,
     };
     await applyBranchAccessToSessionUser(branchCtxUser);
 
@@ -120,12 +110,12 @@ export async function GET(request) {
       email: user.email,
       role: user.role,
       tenantId: effectiveTenantId,
-      defaultBranchId: branchCtxUser.defaultBranchId ?? user.defaultBranchId ?? null,
-      defaultBranch: user.defaultBranch,
       tenant: user.tenant,
-      currentBranchId: branchCtxUser.currentBranchId,
-      allowedBranchIds: branchCtxUser.allowedBranchIds,
       sessionTenantId: sessionData.tenantId ?? null,
+      // Backward compatibility for mobile/legacy clients (hidden primary branch only).
+      currentBranchId: branchCtxUser.primaryBranchId ?? null,
+      defaultBranchId: branchCtxUser.primaryBranchId ?? null,
+      allowedBranchIds: null,
     });
   } catch (error) {
     console.error('Error fetching current user:', error);

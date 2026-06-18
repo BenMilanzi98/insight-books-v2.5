@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { ensureDefaultTaxAccountsForTenant } from '@/lib/taxAccountsInitialization';
+import { ensureMalawiTaxTypesForTenant } from '@/lib/malawiTaxSeed.js';
 
 /**
  * GET /api/settings/tax-defaults
@@ -23,6 +24,7 @@ export async function GET(request) {
     // Create default tax accounts (2041 Tax Inflow, 2045 Tax Outflow) and set as tenant defaults if not already set
     try {
       await ensureDefaultTaxAccountsForTenant(tenantId, prisma, true);
+      await ensureMalawiTaxTypesForTenant(tenantId, prisma);
     } catch (initErr) {
       console.warn('Tax defaults: ensure default tax accounts (non-fatal):', initErr?.message || initErr);
     }
@@ -46,22 +48,31 @@ export async function GET(request) {
     let defaultTaxTypeForOutflow = null;
     let activeTaxTypes = [];
     try {
-      const inflowPromise = taxInflowAccountId
-        ? prisma.taxType.findFirst({
-            where: { tenantId, status: 'Active', accountId: taxInflowAccountId },
-            include: { account: { select: accountSelect } }
-          })
-        : Promise.resolve(null);
-      const outflowPromise = taxOutflowAccountId
-        ? prisma.taxType.findFirst({
-            where: { tenantId, status: 'Active', accountId: taxOutflowAccountId },
-            include: { account: { select: accountSelect } }
-          })
-        : Promise.resolve(null);
+      const inflowPromise = prisma.taxType.findFirst({
+        where: { tenantId, status: 'Active', taxId: 'MW-VAT' },
+        include: { account: { select: accountSelect } },
+      });
+      const outflowPromise = prisma.taxType.findFirst({
+        where: { tenantId, status: 'Active', taxId: 'MW-VAT-IN' },
+        include: { account: { select: accountSelect } },
+      });
 
       const [inflowResult, outflowResult] = await Promise.all([inflowPromise, outflowPromise]);
       defaultTaxTypeForInflow = inflowResult ?? null;
       defaultTaxTypeForOutflow = outflowResult ?? null;
+
+      if (!defaultTaxTypeForInflow && taxInflowAccountId) {
+        defaultTaxTypeForInflow = await prisma.taxType.findFirst({
+          where: { tenantId, status: 'Active', accountId: taxInflowAccountId },
+          include: { account: { select: accountSelect } },
+        });
+      }
+      if (!defaultTaxTypeForOutflow && taxOutflowAccountId) {
+        defaultTaxTypeForOutflow = await prisma.taxType.findFirst({
+          where: { tenantId, status: 'Active', accountId: taxOutflowAccountId },
+          include: { account: { select: accountSelect } },
+        });
+      }
 
       activeTaxTypes = await prisma.taxType.findMany({
         where: { tenantId, status: 'Active' },

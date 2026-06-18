@@ -74,7 +74,7 @@ export async function GET(request) {
     
     // For CSV format
     if (format === 'csv') {
-      return generateCsvResponse(invoices);
+      return generateCsvResponse(invoices, user.tenantId);
     }
     
     // For other formats (could implement PDF, Excel, etc.)
@@ -91,8 +91,47 @@ export async function GET(request) {
   }
 }
 
+const POSTED_GL_STATUSES = ['posted', 'Posted'];
+
+async function fetchJournalRefsBySourceIds(prismaClient, tenantId, sourceType, entityIds) {
+  if (!entityIds.length) return new Map();
+
+  const sourceIdCandidates = entityIds.flatMap((id) => [id, `${id}-revenue`]);
+  const transactions = await prismaClient.transaction.findMany({
+    where: {
+      tenantId,
+      sourceType,
+      sourceId: { in: sourceIdCandidates },
+      isReversal: false,
+      status: { in: POSTED_GL_STATUSES },
+    },
+    select: { id: true, reference: true, sourceId: true },
+  });
+
+  const txBySourceId = new Map(transactions.map((tx) => [tx.sourceId, tx]));
+  const journalByEntityId = new Map();
+
+  for (const entityId of entityIds) {
+    const tx =
+      txBySourceId.get(`${entityId}-revenue`) || txBySourceId.get(entityId) || null;
+    journalByEntityId.set(entityId, {
+      transactionId: tx?.id || '',
+      journalReference: tx?.reference || '',
+    });
+  }
+
+  return journalByEntityId;
+}
+
 // Helper function to generate CSV response
-async function generateCsvResponse(invoices) {
+async function generateCsvResponse(invoices, tenantId) {
+  const journalByInvoiceId = await fetchJournalRefsBySourceIds(
+    prisma,
+    tenantId,
+    'Invoice',
+    invoices.map((invoice) => invoice.id)
+  );
+
   // Define CSV header
   const csvStringifier = createObjectCsvStringifier({
     header: [
@@ -105,23 +144,34 @@ async function generateCsvResponse(invoices) {
       { id: 'tax', title: 'Tax' },
       { id: 'total', title: 'Total' },
       { id: 'status', title: 'Status' },
-      { id: 'createdAt', title: 'Created At' }
+      { id: 'createdAt', title: 'Created At' },
+      { id: 'journalReference', title: 'Journal Reference' },
+      { id: 'transactionId', title: 'Transaction ID' },
     ]
   });
   
   // Transform invoices data for CSV
-  const records = invoices.map(invoice => ({
-    invoiceNumber: invoice.invoiceNumber,
-    date: invoice.issueDate.toISOString().split('T')[0],
-    dueDate: invoice.dueDate.toISOString().split('T')[0],
-    client: invoice.client.name,
-    email: invoice.client.email,
-    subtotal: invoice.subtotal.toFixed(2),
-    tax: invoice.taxAmount.toFixed(2),
-    total: invoice.total.toFixed(2),
-    status: invoice.status,
-    createdAt: invoice.createdAt.toISOString().split('T')[0]
-  }));
+  const records = invoices.map(invoice => {
+    const journal = journalByInvoiceId.get(invoice.id) || {
+      transactionId: '',
+      journalReference: '',
+    };
+
+    return {
+      invoiceNumber: invoice.invoiceNumber,
+      date: invoice.issueDate.toISOString().split('T')[0],
+      dueDate: invoice.dueDate.toISOString().split('T')[0],
+      client: invoice.client.name,
+      email: invoice.client.email,
+      subtotal: invoice.subtotal.toFixed(2),
+      tax: invoice.taxAmount.toFixed(2),
+      total: invoice.total.toFixed(2),
+      status: invoice.status,
+      createdAt: invoice.createdAt.toISOString().split('T')[0],
+      journalReference: journal.journalReference,
+      transactionId: journal.transactionId,
+    };
+  });
   
   // Generate CSV content
   const csvContent = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(records);

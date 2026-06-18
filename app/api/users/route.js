@@ -1,7 +1,7 @@
 // app/api/users/route.js - Modified to ensure tenant isolation
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import bcrypt from 'bcrypt';
+import { resolveHiddenPrimaryBranchId } from '@/lib/hiddenPrimaryBranch';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
@@ -67,55 +67,27 @@ export async function GET(request) {
     // Build sort object for Prisma
     const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
-    // Fetch users with their role and userBranches (allowed branches for separation by branch).
-    // Be backward compatible with databases that might not yet have UserBranch / branch separation schema.
-    let users;
-    try {
-      users = await prisma.user.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
-        include: {
-          role: {
-            select: {
-              id: true,
-              name: true,
-              permissions: true
-            }
-          },
-          userBranches: { select: { branchId: true } }
-        }
-      });
-    } catch (schemaError) {
-      console.error('Users list query (with userBranches) failed, falling back to legacy select:', schemaError?.message || schemaError);
-      users = await prisma.user.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
-        include: {
-          role: {
-            select: {
-              id: true,
-              name: true,
-              permissions: true
-            }
+    // Fetch users with their role
+    const users = await prisma.user.findMany({
+      where,
+      orderBy,
+      skip,
+      take: limit,
+      include: {
+        role: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true
           }
         }
-      });
-    }
-
-    // Add roleType and allowedBranchIds for frontend (allowedBranchIds empty when branch separation not available)
-    const formattedUsers = users.map(user => {
-      const { userBranches, ...rest } = user;
-      const allowedBranchIds = userBranches?.map((ub) => ub.branchId).filter(Boolean) ?? [];
-      return {
-        ...rest,
-        roleType: user.role?.name || 'user',
-        allowedBranchIds
-      };
+      }
     });
+
+    const formattedUsers = users.map(user => ({
+      ...user,
+      roleType: user.role?.name || 'user',
+    }));
     
     // Return users with pagination metadata
     return NextResponse.json({
@@ -185,8 +157,7 @@ export async function POST(request) {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const tenantId = currentUser.tenantId;
-    const defaultBranchId = body.defaultBranchId && String(body.defaultBranchId).trim() ? body.defaultBranchId : null;
-    const allowedBranchIds = Array.isArray(body.allowedBranchIds) ? body.allowedBranchIds : [];
+    const primaryBranchId = await resolveHiddenPrimaryBranchId(tenantId);
 
     // Create the user with tenant association
     const newUser = await prisma.user.create({
@@ -210,7 +181,7 @@ export async function POST(request) {
         isEmailVerified: true,
         otpCode: null,
         otpExpiry: null,
-        ...(defaultBranchId && { defaultBranchId })
+        ...(primaryBranchId ? { defaultBranchId: primaryBranchId } : {}),
       },
       include: {
         role: true // Include the role in the returned user object
@@ -277,19 +248,7 @@ export async function POST(request) {
       console.warn('Skipping membership writes (legacy DB / not deployed yet):', membershipWriteError?.message || membershipWriteError);
     }
 
-    // Assign allowed branches (user-branch separation)
-    if (allowedBranchIds.length > 0 && newUser.id) {
-      const validBranchIds = await prisma.branch.findMany({
-        where: { id: { in: allowedBranchIds }, tenantId },
-        select: { id: true }
-      });
-      const ids = validBranchIds.map((b) => b.id);
-      if (ids.length > 0) {
-        await prisma.userBranch.createMany({
-          data: ids.map((branchId) => ({ userId: newUser.id, branchId }))
-        });
-      }
-    }
+    // Branch access is tenant-wide via hidden primary branch — no UserBranch rows.
 
     // Add a roleType string field for compatibility with code that expects role to be a string
     newUser.roleType = newUser.role?.name || 'user';

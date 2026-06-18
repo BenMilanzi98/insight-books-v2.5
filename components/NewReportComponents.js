@@ -4,6 +4,7 @@ import { Package, TrendingUp, TrendingDown, PieChart } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatDate, formatPeriodRange } from '@/lib/dateUtils';
 import { FinancialReport } from './FinancialReportComponents';
+import { extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
 
 /** Group movements by day or week; returns array of { date, transactionType, qtyIn, qtyOut, balance, reference }. Balance = closing balance for that period. */
 function groupMovements(movements, groupBy) {
@@ -149,6 +150,7 @@ export const StockMovementReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {productMovements.length > 0 ? (
         <div className="space-y-6">
@@ -381,6 +383,7 @@ export const PosDailyReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <div className="space-y-6">
@@ -586,6 +589,7 @@ export const SalesAnalysisReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {/* Company Header with Logo */}
       {data.logoUrl && (
@@ -931,6 +935,7 @@ export const ExpenseAnalysisReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
 
       {data.groupBy === 'category' && data.data && (
@@ -1052,6 +1057,7 @@ export const ProfitabilityAnalysisReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
 
       {data.groupBy === 'product' && data.data && (

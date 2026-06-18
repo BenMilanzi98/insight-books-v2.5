@@ -1,0 +1,713 @@
+[
+  {
+    "code": "1000",
+    "name": "Assets",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": null,
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "1100",
+    "name": "Current Assets",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "1110",
+    "name": "Cash - Main Account",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1120",
+    "name": "Cash - Petty Cash",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1130",
+    "name": "Bank - Primary",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "1130-01",
+    "name": "National Bank",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1130-02",
+    "name": "Standard Bank",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1133",
+    "name": "Bank - FDH Bank",
+    "type": "Asset",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1134",
+    "name": "Bank - NBS Bank",
+    "type": "Asset",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1135",
+    "name": "Bank - First Capital Bank",
+    "type": "Asset",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1136",
+    "name": "Bank - EcoBank",
+    "type": "Asset",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1137",
+    "name": "Bank - Centenary Bank",
+    "type": "Asset",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1138",
+    "name": "Bank - CDH Investment Bank",
+    "type": "Asset",
+    "parentCode": "1130",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1140",
+    "name": "Mobile Money - Airtel",
+    "type": "Asset",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1141",
+    "name": "Mobile Money - TNM Mpamba",
+    "type": "Asset",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1145",
+    "name": "POS Card Clearing",
+    "type": "Asset",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1200",
+    "name": "Accounts Receivable",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1210",
+    "name": "Prepaid Expenses",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1215",
+    "name": "Advances to Suppliers",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1216",
+    "name": "Salary Advance Receivable",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1218",
+    "name": "Insurance Receivable — Control",
+    "type": "Asset",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1240",
+    "name": "VAT Recoverable",
+    "type": "Asset",
+    "parentCode": "1100",
+    "subtype": "Current Asset",
+    "normalBalance": "Debit",
+    "isSystem": true
+  },
+  {
+    "code": "1300",
+    "name": "Inventory",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1100",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "1310",
+    "name": "Stock on Hand",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1300",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1320",
+    "name": "Raw Materials",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1300",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1330",
+    "name": "Goods in Transit",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1300",
+    "subtype": "Current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1500",
+    "name": "Fixed Assets",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "1510",
+    "name": "Property & Equipment",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1500",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1520",
+    "name": "Furniture & Fittings",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1500",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1530",
+    "name": "Motor Vehicles",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1500",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1540",
+    "name": "Computer Equipment",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1500",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1590",
+    "name": "Accumulated Depreciation",
+    "type": "Asset",
+    "normalBalance": "Credit",
+    "parentCode": "1500",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1900",
+    "name": "Other Assets",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "1910",
+    "name": "Long-term Deposits",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1900",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1920",
+    "name": "Intangible Assets",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1900",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "1999",
+    "name": "All other assets (1000–1999)",
+    "type": "Asset",
+    "normalBalance": "Debit",
+    "parentCode": "1900",
+    "subtype": "Non-current Asset",
+    "isSystem": true
+  },
+  {
+    "code": "2000",
+    "name": "Liabilities",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": null,
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "2041",
+    "name": "Tax Inflow (Collected)",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2000",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2045",
+    "name": "Tax Outflow (Paid)",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2000",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2100",
+    "name": "Current Liabilities",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "2110",
+    "name": "Accounts Payable",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2100",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2120",
+    "name": "VAT Payable (MRA)",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2100",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2130",
+    "name": "PAYE Payable",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2100",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2140",
+    "name": "Accrued Expenses",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2100",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2150",
+    "name": "Deferred Revenue",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2100",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2160",
+    "name": "Short-term Loans",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2100",
+    "subtype": "Current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2500",
+    "name": "Long-term Liabilities",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "2510",
+    "name": "Bank Loans (Long-term)",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2500",
+    "subtype": "Non-current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2520",
+    "name": "Shareholder Loans",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2500",
+    "subtype": "Non-current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "2999",
+    "name": "All other liabilities (2000–2999)",
+    "type": "Liability",
+    "normalBalance": "Credit",
+    "parentCode": "2500",
+    "subtype": "Non-current Liability",
+    "isSystem": true
+  },
+  {
+    "code": "3000",
+    "name": "Equity",
+    "type": "Equity",
+    "normalBalance": "Credit",
+    "parentCode": null,
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "3100",
+    "name": "Owner's Capital",
+    "type": "Equity",
+    "normalBalance": "Credit",
+    "parentCode": "3000",
+    "subtype": "Equity",
+    "isSystem": true
+  },
+  {
+    "code": "3200",
+    "name": "Retained Earnings",
+    "type": "Equity",
+    "normalBalance": "Credit",
+    "parentCode": "3000",
+    "subtype": "Equity",
+    "isSystem": true
+  },
+  {
+    "code": "3300",
+    "name": "Current Year Earnings",
+    "type": "Equity",
+    "normalBalance": "Credit",
+    "parentCode": "3000",
+    "subtype": "Equity",
+    "isSystem": true
+  },
+  {
+    "code": "3999",
+    "name": "Opening Balances Suspense",
+    "type": "Equity",
+    "normalBalance": "Credit",
+    "parentCode": "3000",
+    "subtype": "Equity",
+    "isSystem": true
+  },
+  {
+    "code": "4000",
+    "name": "Revenue",
+    "type": "Income",
+    "normalBalance": "Credit",
+    "parentCode": null,
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "4100",
+    "name": "Product Sales",
+    "type": "Income",
+    "normalBalance": "Credit",
+    "parentCode": "4000",
+    "subtype": "Operating Income",
+    "isSystem": true
+  },
+  {
+    "code": "4110",
+    "name": "Sales Returns & Allowances",
+    "type": "Income",
+    "normalBalance": "Debit",
+    "parentCode": "4000",
+    "subtype": "Operating Income",
+    "isSystem": true
+  },
+  {
+    "code": "4150",
+    "name": "Service Revenue",
+    "type": "Income",
+    "normalBalance": "Credit",
+    "parentCode": "4000",
+    "subtype": "Operating Income",
+    "isSystem": true
+  },
+  {
+    "code": "4200",
+    "name": "Subscription Revenue",
+    "type": "Income",
+    "normalBalance": "Credit",
+    "parentCode": "4000",
+    "subtype": "Operating Income",
+    "isSystem": true
+  },
+  {
+    "code": "4300",
+    "name": "Interest & Investment Income",
+    "type": "Income",
+    "normalBalance": "Credit",
+    "parentCode": "4000",
+    "subtype": "Operating Income",
+    "isSystem": true
+  },
+  {
+    "code": "4900",
+    "name": "All Other Incomes (4000–4900)",
+    "type": "Income",
+    "normalBalance": "Credit",
+    "parentCode": "4000",
+    "subtype": "Operating Income",
+    "isSystem": true
+  },
+  {
+    "code": "5000",
+    "name": "Expenses",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": null,
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "5100",
+    "name": "Cost of Sales",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "5110",
+    "name": "Purchases",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5100",
+    "subtype": "Cost of Sales",
+    "isSystem": true
+  },
+  {
+    "code": "5120",
+    "name": "Purchase Returns & Discounts",
+    "type": "Expense",
+    "normalBalance": "Credit",
+    "parentCode": "5100",
+    "subtype": "Cost of Sales",
+    "isSystem": true
+  },
+  {
+    "code": "5130",
+    "name": "Freight & Import Costs",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5100",
+    "subtype": "Cost of Sales",
+    "isSystem": true
+  },
+  {
+    "code": "5140",
+    "name": "Direct Labour",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5100",
+    "subtype": "Cost of Sales",
+    "isSystem": true
+  },
+  {
+    "code": "5200",
+    "name": "Salaries & Wages (legacy)",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5300",
+    "name": "Rent & Lease",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5301",
+    "name": "Salaries & Wages",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5310",
+    "name": "Utilities",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5320",
+    "name": "Office Supplies",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5330",
+    "name": "Marketing & Advertising",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5340",
+    "name": "Travel & Transport",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5400",
+    "name": "Depreciation Expense",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5500",
+    "name": "Bank Charges & Interest",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  },
+  {
+    "code": "5700",
+    "name": "Custom Expenses",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Group",
+    "isSystem": true
+  },
+  {
+    "code": "5900",
+    "name": "All Other Expenses (5000–5900)",
+    "type": "Expense",
+    "normalBalance": "Debit",
+    "parentCode": "5000",
+    "subtype": "Operating Expense",
+    "isSystem": true
+  }
+]

@@ -1,21 +1,85 @@
 // app/api/reports/[reportType]/export/route.js
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { stripEmbeddedPeriodFromReportLabel, parseInclusiveApiYmdRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 import * as XLSX from 'xlsx';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
 import {
+  appendReconciliationRowsForHeaders,
+  appendReconciliationToExcelWorksheet,
+  fetchExpenseExportReconciliation,
+  fetchSalesExportReconciliation,
+  mergeReconciliationColumnHeaders,
+} from '@/lib/reportExportReconciliation';
+import {
   normalizeReportYmdParam,
-  validInvoiceReportWhere,
-  validSaleReportWhere,
+  validInvoiceReportWhereScoped,
+  validSaleReportWhereScoped,
 } from '@/lib/reportingSourceRules';
 import {
   invoiceNetRevenueTotalExTax,
   saleNetRevenueTotalExTax,
 } from '@/lib/reportLineNetRevenue';
 import { addMoney, parseMoney, roundMoney, subtractMoney } from '@/lib/money';
+<<<<<<< Updated upstream
+=======
+import { filterNonZeroOperatingExpenseLines } from '@/lib/incomeStatementOperatingAccountDisplay';
+import { bootstrapReportRoute, auditReportAccess, tenantNameMap } from '@/lib/reportRouteBootstrap';
+import { generateScopedIncomeStatement, generateScopedBalanceSheet } from '@/lib/reportingEngine/multiTenantReporting';
+import { buildExportHeaderRows, prependHeaderRowsToCsv } from '@/lib/reportExportScope';
+
+const BUSINESS_EXPORT_HEADER = { key: 'business', label: 'Business' };
+
+function prependBusinessHeader(headers, multiTenant) {
+  if (!multiTenant || headers.some((h) => h.key === 'business')) return headers;
+  return [BUSINESS_EXPORT_HEADER, ...headers];
+}
+
+async function mergePerTenantExportReconciliation(fetchFn, {
+  tenantIds,
+  tenants,
+  getOperationalAmount,
+  ...rest
+}) {
+  if (tenantIds.length <= 1) {
+    return fetchFn({
+      tenantId: tenantIds[0],
+      operationalTotal: getOperationalAmount?.(tenantIds[0]),
+      operationalRevenue: getOperationalAmount?.(tenantIds[0]),
+      ...rest,
+    });
+  }
+  const tMap = tenantNameMap(tenants);
+  const mergedItems = [];
+  for (const tenantId of tenantIds) {
+    try {
+      const amount = getOperationalAmount?.(tenantId) ?? 0;
+      const rec = await fetchFn({
+        tenantId,
+        operationalTotal: amount,
+        operationalRevenue: amount,
+        ...rest,
+      });
+      if (rec?.items?.length) {
+        for (const item of rec.items) {
+          mergedItems.push({
+            ...item,
+            label: `${tMap.get(tenantId) || tenantId}: ${item.label}`,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn(`Export reconciliation failed for tenant ${tenantId}:`, err?.message || err);
+    }
+  }
+  if (!mergedItems.length) return null;
+  return {
+    items: mergedItems,
+    reconciled: mergedItems.every((i) => i.reconciled),
+  };
+}
+>>>>>>> Stashed changes
 
 /**
  * GET handler for exporting various reports
@@ -23,14 +87,19 @@ import { addMoney, parseMoney, roundMoney, subtractMoney } from '@/lib/money';
  */
 export async function GET(request, context) {
   try {
-    // Get user from session
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+
+    const {
+      user,
+      tenantIds,
+      tenants,
+      scope,
+      primaryTenantId,
+      reportBranchId,
+      tw,
+      reportingCurrency,
+    } = boot;
 
     const params = await context.params;
     const reportType = params?.reportType;
@@ -43,36 +112,62 @@ export async function GET(request, context) {
     const format = searchParams.get('format') || 'csv';
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const exportFilters = { startDate, endDate };
+    let exportScope = scope;
+    let exportHeaderRows = buildExportHeaderRows(scope, exportFilters);
+    const multiTenant = tenantIds.length > 1;
+    const tMap = tenantNameMap(tenants);
     
     // Get report data based on type
     let reportData;
     let headers;
     let title;
+    let exportReconciliation = null;
     
     switch (reportType) {
       case 'income-statement':
-      case 'profit-loss':
+      case 'profit-loss': {
+        const statement = await generateScopedIncomeStatement({
+          tenantIds,
+          tenants,
+          startDate,
+          endDate,
+          branchId: reportBranchId,
+          scope,
+          reportingCurrency,
+        });
+        exportScope = { ...scope, consolidation: statement.consolidation || scope.consolidation };
+        exportHeaderRows = buildExportHeaderRows(exportScope, exportFilters);
+
+        await auditReportAccess({
+          user,
+          reportType: reportType === 'profit-loss' ? 'profit-loss' : 'income-statement',
+          tenantIds,
+          scope,
+          filters: exportFilters,
+          format,
+        });
+
         if (format.toLowerCase() === 'pdf') {
-          return await generateIncomeStatementPDF(user.tenantId, startDate, endDate, request);
-        }
-        // Same logic for Excel and CSV (system rule): use full income statement service
-        if (format.toLowerCase() === 'xlsx' || format.toLowerCase() === 'csv') {
-          const { generateIncomeStatementFromAccounts } = await import('@/lib/incomeStatementService');
-          const tenant = await prisma.tenant.findUnique({
-            where: { id: user.tenantId },
-            select: { name: true }
-          });
-          const statement = await generateIncomeStatementFromAccounts(
-            user.tenantId,
+          return await generateIncomeStatementPDF(
+            primaryTenantId,
             startDate,
             endDate,
-            tenant?.name || 'Company',
-            null,
-            user.currentBranchId || null
+            request,
+            { statement, scope, headerRows: exportHeaderRows }
           );
+        }
+        if (format.toLowerCase() === 'xlsx' || format.toLowerCase() === 'csv') {
           if (format.toLowerCase() === 'xlsx') {
-            return await generateIncomeStatementExcelResponse(statement, startDate, endDate, 'income-statement.xlsx');
+            return await generateIncomeStatementExcelResponse(
+              statement,
+              startDate,
+              endDate,
+              'income-statement.xlsx',
+              exportHeaderRows
+            );
           }
+          exportReconciliation = statement?.metadata?.reconciliation ?? null;
           reportData = flattenIncomeStatementForCSV(statement);
           headers = [
             { key: 'type', label: 'Type' },
@@ -83,7 +178,7 @@ export async function GET(request, context) {
           title = 'Profit & Loss Statement';
           break;
         }
-        reportData = await generateIncomeStatementData(user.tenantId, startDate, endDate);
+        reportData = await generateIncomeStatementData(primaryTenantId, startDate, endDate);
         headers = [
           { key: 'type', label: 'Type' },
           { key: 'category', label: 'Category' },
@@ -92,14 +187,70 @@ export async function GET(request, context) {
         ];
         title = 'Profit & Loss Statement';
         break;
+      }
         
       case 'balance-sheet':
-        // For PDF, use the actual balance sheet API to get the same data structure
         if (format.toLowerCase() === 'pdf') {
-          return await generateBalanceSheetPDF(user.tenantId, endDate, request);
+          const scopedSheet =
+            tenantIds.length > 1
+              ? await generateScopedBalanceSheet({
+                  tenantIds,
+                  tenants,
+                  asOfDate: endDate,
+                  branchId: reportBranchId,
+                  scope,
+                  reportingCurrency,
+                })
+              : null;
+          await auditReportAccess({
+            user,
+            reportType: 'balance-sheet',
+            tenantIds,
+            scope,
+            filters: exportFilters,
+            format,
+          });
+          return await generateBalanceSheetPDF(primaryTenantId, endDate, request, {
+            statement: scopedSheet || undefined,
+            scope,
+            headerRows: exportHeaderRows,
+            byTenant: scopedSheet?.byTenant || null,
+          });
         }
-        // For CSV/XLSX, use the simplified format
-        reportData = await generateBalanceSheetData(user.tenantId, endDate, user.currentBranchId || null);
+        // For CSV/XLSX, use scoped generator when multiple businesses are selected
+        if (tenantIds.length > 1) {
+          const scopedSheet = await generateScopedBalanceSheet({
+            tenantIds,
+            tenants,
+            asOfDate: endDate,
+            branchId: reportBranchId,
+            scope,
+            reportingCurrency,
+          });
+          exportScope = { ...scope, consolidation: scopedSheet.consolidation || scope.consolidation };
+          exportHeaderRows = buildExportHeaderRows(exportScope, exportFilters);
+          reportData = balanceSheetToExportRows(scopedSheet);
+          exportReconciliation = scopedSheet?.metadata?.reconciliation ?? null;
+        } else {
+          reportData = await generateBalanceSheetData(primaryTenantId, endDate, reportBranchId);
+          try {
+            const { generateBalanceSheetFromAccounts } = await import('@/lib/balanceSheetService');
+            const tenantBs = await prisma.tenant.findUnique({
+              where: { id: primaryTenantId },
+              select: { name: true },
+            });
+            const bsFull = await generateBalanceSheetFromAccounts(
+              primaryTenantId,
+              endDate,
+              tenantBs?.name || 'Company',
+              null,
+              reportBranchId
+            );
+            exportReconciliation = bsFull?.metadata?.reconciliation ?? null;
+          } catch (_) {
+            /* non-fatal */
+          }
+        }
         headers = [
           { key: 'section', label: 'Section' },
           { key: 'type', label: 'Type' },
@@ -109,32 +260,84 @@ export async function GET(request, context) {
         title = 'Balance Sheet';
         break;
         
-      case 'expenses':
-        reportData = await generateExpenseReportData(user.tenantId, startDate, endDate, user.currentBranchId || null);
-        headers = [
-          { key: 'date', label: 'Date' },
-          { key: 'category', label: 'Category' },
-          { key: 'description', label: 'Description' },
-          { key: 'merchant', label: 'Merchant' },
-          { key: 'submittedBy', label: 'Submitted By' },
-          { key: 'status', label: 'Status' },
-          { key: 'amount', label: 'Amount' }
-        ];
+      case 'expenses': {
+        reportData = await generateExpenseReportData({
+          tw,
+          startDate,
+          endDate,
+          branchId: reportBranchId,
+          multiTenant,
+          tMap,
+        });
+        headers = prependBusinessHeader(
+          mergeReconciliationColumnHeaders([
+            { key: 'date', label: 'Date' },
+            { key: 'category', label: 'Category' },
+            { key: 'description', label: 'Description' },
+            { key: 'merchant', label: 'Merchant' },
+            { key: 'submittedBy', label: 'Submitted By' },
+            { key: 'status', label: 'Status' },
+            { key: 'amount', label: 'Amount' },
+          ]),
+          multiTenant
+        );
         title = 'Expense Report';
+        exportReconciliation = await mergePerTenantExportReconciliation(
+          fetchExpenseExportReconciliation,
+          {
+            tenantIds,
+            tenants,
+            startDate,
+            endDate,
+            branchId: reportBranchId,
+            prisma,
+            getOperationalAmount: (tid) =>
+              reportData
+                .filter((row) => !multiTenant || row.tenantId === tid)
+                .reduce((sum, row) => addMoney(sum, row.amount), 0),
+          }
+        );
         break;
-        
-      case 'sales':
-        reportData = await generateSalesReportData(user.tenantId, startDate, endDate, user.currentBranchId || null);
-        headers = [
-          { key: 'date', label: 'Date' },
-          { key: 'type', label: 'Type' },
-          { key: 'number', label: 'Reference' },
-          { key: 'customer', label: 'Customer' },
-          { key: 'status', label: 'Status' },
-          { key: 'total', label: 'Total' }
-        ];
+      }
+
+      case 'sales': {
+        reportData = await generateSalesReportData({
+          tw,
+          startDate,
+          endDate,
+          branchId: reportBranchId,
+          multiTenant,
+          tMap,
+        });
+        headers = prependBusinessHeader(
+          mergeReconciliationColumnHeaders([
+            { key: 'date', label: 'Date' },
+            { key: 'type', label: 'Type' },
+            { key: 'number', label: 'Reference' },
+            { key: 'customer', label: 'Customer' },
+            { key: 'status', label: 'Status' },
+            { key: 'total', label: 'Total' },
+          ]),
+          multiTenant
+        );
         title = 'Sales Report';
+        exportReconciliation = await mergePerTenantExportReconciliation(
+          fetchSalesExportReconciliation,
+          {
+            tenantIds,
+            tenants,
+            startDate,
+            endDate,
+            branchId: reportBranchId,
+            prisma,
+            getOperationalAmount: (tid) =>
+              reportData
+                .filter((row) => !multiTenant || row.tenantId === tid)
+                .reduce((sum, row) => addMoney(sum, row.total), 0),
+          }
+        );
         break;
+      }
         
       case 'cash-flow':
         if (!startDate || !endDate) {
@@ -143,28 +346,21 @@ export async function GET(request, context) {
             { status: 400 }
           );
         }
-        const { generateCashFlowFromAccounts } = await import('@/lib/cashFlowService');
-        const tenant = await prisma.tenant.findUnique({
-          where: { id: user.tenantId },
-          select: { name: true, logoUrl: true }
-        });
-        const cashFlowData = await generateCashFlowFromAccounts(
-          user.tenantId,
-          startDate,
-          endDate,
-          tenant?.name || 'Company',
-          tenant?.logoUrl || null,
-          user.currentBranchId || null
-        );
-        const { prepareExportData } = await import('@/lib/exportUtils');
-        const cashFlowExport = prepareExportData('cash-flow', cashFlowData);
-        reportData = cashFlowExport.data;
-        headers = cashFlowExport.headers || [
-          { key: 'section', label: 'Section' },
-          { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount', format: 'currency' }
-        ];
-        title = cashFlowExport.title || 'Cash Flow Statement (Direct Method)';
+        {
+          const cashFlowExport = await generateCashFlowExportData({
+            tenantIds,
+            tenants,
+            startDate,
+            endDate,
+            branchId: reportBranchId,
+            multiTenant,
+            tMap,
+          });
+          reportData = cashFlowExport.data;
+          headers = prependBusinessHeader(cashFlowExport.headers, multiTenant);
+          title = cashFlowExport.title;
+          exportReconciliation = cashFlowExport.reconciliation;
+        }
         break;
 
       case 'stock-movement': {
@@ -174,76 +370,60 @@ export async function GET(request, context) {
             { status: 400 }
           );
         }
-        const { generateStockMovementReport } = await import('@/lib/stockMovementService');
-        const stockMovementData = await generateStockMovementReport(
-          user.tenantId,
+        const stockMovementExport = await generateStockMovementExportData({
+          tenantIds,
+          tenants,
           startDate,
           endDate,
-          searchParams.get('productId') || null,
-          user.currentBranchId || null
-        );
-        const { prepareExportData: prepareExportDataStock } = await import('@/lib/exportUtils');
-        const stockMovementExport = prepareExportDataStock('stock-movement', stockMovementData);
+          productId: searchParams.get('productId') || null,
+          branchId: reportBranchId,
+          multiTenant,
+          tMap,
+        });
         reportData = stockMovementExport.data;
-        headers = stockMovementExport.headers || [
-          { key: 'productName', label: 'Product' },
-          { key: 'sku', label: 'SKU' },
-          { key: 'date', label: 'Date' },
-          { key: 'transactionType', label: 'Transaction Type' },
-          { key: 'qtyIn', label: 'Qty In' },
-          { key: 'qtyOut', label: 'Qty Out' },
-          { key: 'balance', label: 'Balance' },
-          { key: 'reference', label: 'Reference' }
-        ];
-        title = stockMovementExport.title || 'Stock Movement Report';
+        headers = prependBusinessHeader(stockMovementExport.headers, multiTenant);
+        title = stockMovementExport.title;
+        exportReconciliation = stockMovementExport.reconciliation;
         break;
       }
 
       case 'inventory-losses':
-        reportData = await generateInventoryLossReportData(
-          user.tenantId,
+        reportData = await generateInventoryLossReportData({
+          tw,
           startDate,
           endDate,
-          user.currentBranchId || null
+          branchId: reportBranchId,
+          multiTenant,
+          tMap,
+        });
+        headers = prependBusinessHeader(
+          [
+            { key: 'date', label: 'Date' },
+            { key: 'eventType', label: 'Event Type' },
+            { key: 'description', label: 'Description' },
+            { key: 'reference', label: 'Reference' },
+            { key: 'branchName', label: 'Branch' },
+            { key: 'submittedBy', label: 'Submitted By' },
+            { key: 'amount', label: 'Amount' },
+          ],
+          multiTenant
         );
-        headers = [
-          { key: 'date', label: 'Date' },
-          { key: 'eventType', label: 'Event Type' },
-          { key: 'description', label: 'Description' },
-          { key: 'reference', label: 'Reference' },
-          { key: 'branchName', label: 'Branch' },
-          { key: 'submittedBy', label: 'Submitted By' },
-          { key: 'amount', label: 'Amount' }
-        ];
         title = 'Inventory Loss Report';
         break;
 
       case 'pos-daily': {
         const dateParam = normalizeReportYmdParam(searchParams.get('date'));
-        const { generatePosDailyReport } = await import('@/lib/posDailyReportService');
-        const posData = await generatePosDailyReport(
-          user.tenantId,
+        const posExport = await generatePosDailyExportData({
+          tenantIds,
+          tenants,
           dateParam,
-          user.currentBranchId || null
-        );
-        const posRows = [
-          { metric: 'Date', value: posData.date },
-          { metric: 'Total Sales', value: posData.totalSales },
-          { metric: 'Transactions', value: posData.transactionCount },
-          { metric: 'Items Sold', value: posData.itemsSold },
-          { metric: 'Average Sale', value: posData.averageSaleValue },
-          { metric: 'Total COGS', value: posData.totalCogs ?? '' },
-          { metric: 'Gross Profit', value: posData.grossProfit ?? '' },
-          { metric: 'Voided', value: posData.voidedCount ?? 0 },
-          { metric: 'Refunds', value: posData.refundCount ?? 0 }
-        ];
-        (posData.paymentBreakdown || []).forEach(p => {
-          posRows.push({ metric: `Payment: ${p.label || p.method}`, value: p.total });
+          branchId: reportBranchId,
+          multiTenant,
+          tMap,
         });
-        posRows.push({ metric: 'Grand Total (Payments)', value: posData.paymentGrandTotal ?? 0 });
-        reportData = posRows;
-        headers = [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }];
-        title = `POS Daily Report ${dateParam}`;
+        reportData = posExport.data;
+        headers = prependBusinessHeader(posExport.headers, multiTenant);
+        title = posExport.title;
         break;
       }
         
@@ -255,19 +435,44 @@ export async function GET(request, context) {
     }
     
     // Generate the export file based on format
+    if (exportReconciliation?.items?.length && reportType !== 'income-statement' && reportType !== 'profit-loss') {
+      reportData = appendReconciliationRowsForHeaders(reportData, headers, exportReconciliation);
+    }
+
+    if (reportType !== 'income-statement' && reportType !== 'profit-loss') {
+      await auditReportAccess({
+        user,
+        reportType,
+        tenantIds,
+        scope,
+        filters: exportFilters,
+        format,
+      });
+    }
+
     switch (format.toLowerCase()) {
-      case 'csv':
-        return generateCSVResponse(reportData, headers, `${reportType}.csv`);
+      case 'csv': {
+        let csvResponse = generateCSVResponse(reportData, headers, `${reportType}.csv`);
+        if (exportHeaderRows?.length) {
+          const body = await csvResponse.text();
+          csvResponse = new NextResponse(prependHeaderRowsToCsv(body, exportHeaderRows), {
+            status: 200,
+            headers: csvResponse.headers,
+          });
+        }
+        return csvResponse;
+      }
         
       case 'xlsx':
-        return generateExcelResponse(reportData, headers, title, `${reportType}.xlsx`);
+        return generateExcelResponse(reportData, headers, title, `${reportType}.xlsx`, exportHeaderRows);
         
-      case 'pdf':
-        // Get tenant info for header
-        const tenant = await prisma.tenant.findUnique({
-          where: { id: user.tenantId },
-          select: { name: true, logoUrl: true }
-        });
+      case 'pdf': {
+        const tenant = tenants?.length === 1
+          ? tenants[0]
+          : await prisma.tenant.findUnique({
+              where: { id: primaryTenantId },
+              select: { name: true, logoUrl: true }
+            });
         
         // Build period label
         let periodLabel = '';
@@ -279,8 +484,11 @@ export async function GET(request, context) {
         
         return await generatePDFResponse(reportData, headers, title, `${reportType}.pdf`, {
           tenant,
-          periodLabel
+          companyName: scope?.businessLabel || tenant?.name,
+          periodLabel,
+          headerRows: exportHeaderRows,
         });
+      }
         
       default:
         return NextResponse.json(
@@ -411,7 +619,10 @@ async function generateBalanceSheetData(tenantId, asOfDate, branchId = null) {
     null,
     branchId
   );
+  return balanceSheetToExportRows(sheet);
+}
 
+function balanceSheetToExportRows(sheet) {
   const rows = [];
   const pushLine = (section, type, line) => {
     rows.push({
@@ -443,48 +654,50 @@ async function generateBalanceSheetData(tenantId, asOfDate, branchId = null) {
 /**
  * Generate Expense Report data for export
  */
-async function generateExpenseReportData(tenantId, startDate, endDate, branchId = null) {
+async function generateExpenseReportData({ tw, startDate, endDate, branchId, multiTenant, tMap }) {
   const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
   const expenses = await prisma.expense.findMany({
     where: {
-      tenantId,
+      ...tw,
       status: 'Approved',
       isDeleted: false,
       isReversal: false,
       date: { gte: start, lte: end },
-      ...(branchId ? { branchId } : {})
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       submittedBy: {
         select: {
-          name: true
-        }
-      }
+          name: true,
+        },
+      },
     },
     orderBy: {
-      date: 'desc'
-    }
+      date: 'desc',
+    },
   });
-  
-  // Format data for export
-  const exportData = expenses.map(expense => ({
+
+  return expenses.map((expense) => ({
+    ...(multiTenant
+      ? {
+          business: tMap.get(expense.tenantId) || expense.tenantId,
+          tenantId: expense.tenantId,
+        }
+      : {}),
     date: formatYmdInTimeZone(expense.date),
     category: expense.category,
     description: expense.description,
     merchant: expense.merchant || 'N/A',
     submittedBy: expense.submittedBy?.name || 'Unknown',
     status: expense.status,
-    amount: expense.amount
+    amount: expense.amount,
   }));
-  
-  return exportData;
 }
 
 /**
  * Generate Inventory Loss report data for export.
- * Includes inventory write-off + stock-out expenses mirrored from inventory journals.
  */
-async function generateInventoryLossReportData(tenantId, startDate, endDate, branchId = null) {
+async function generateInventoryLossReportData({ tw, startDate, endDate, branchId, multiTenant, tMap }) {
   const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
 
   const normalizedBranchId =
@@ -493,7 +706,7 @@ async function generateInventoryLossReportData(tenantId, startDate, endDate, bra
       : (typeof branchId === 'string' ? branchId : null);
 
   const where = {
-    tenantId,
+    ...tw,
     status: 'Approved',
     isDeleted: false,
     isReversal: false,
@@ -522,9 +735,15 @@ async function generateInventoryLossReportData(tenantId, startDate, endDate, bra
     const eventType = reference.startsWith('inventory-writeoff:')
       ? 'Write-off'
       : reference.startsWith('inventory-stockout:')
-      ? 'Stock-out'
-      : 'Unknown';
+        ? 'Stock-out'
+        : 'Unknown';
     return {
+      ...(multiTenant
+        ? {
+            business: tMap.get(expense.tenantId) || expense.tenantId,
+            tenantId: expense.tenantId,
+          }
+        : {}),
       date: formatYmdInTimeZone(expense.date),
       eventType,
       description: expense.description || 'Inventory adjustment loss',
@@ -539,76 +758,246 @@ async function generateInventoryLossReportData(tenantId, startDate, endDate, bra
 /**
  * Generate Sales Report data for export
  */
-async function generateSalesReportData(tenantId, startDate, endDate, branchId = null) {
+async function generateSalesReportData({ tw, startDate, endDate, branchId, multiTenant, tMap }) {
   const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
   const sales = await prisma.sale.findMany({
     where: {
-      ...validSaleReportWhere(tenantId, 'saleDate', start, end),
-      ...(branchId ? { branchId } : {})
+      ...validSaleReportWhereScoped(tw, 'saleDate', start, end),
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       client: {
         select: {
-          name: true
-        }
+          name: true,
+        },
       },
-      items: true
+      items: true,
     },
     orderBy: {
-      saleDate: 'desc'
-    }
+      saleDate: 'desc',
+    },
   });
-  
-  // Get invoices
+
   const invoices = await prisma.invoice.findMany({
     where: {
-      ...validInvoiceReportWhere(tenantId, 'issueDate', start, end),
-      ...(branchId ? { branchId } : {})
+      ...validInvoiceReportWhereScoped(tw, 'issueDate', start, end),
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       client: {
         select: {
-          name: true
-        }
+          name: true,
+        },
       },
-      items: true
+      items: true,
     },
     orderBy: {
-      issueDate: 'desc'
-    }
+      issueDate: 'desc',
+    },
   });
-  
-  // Format data for export
+
   const exportData = [];
-  
-  // Add sales data
-  sales.forEach(sale => {
+
+  sales.forEach((sale) => {
     exportData.push({
+      ...(multiTenant
+        ? {
+            business: tMap.get(sale.tenantId) || sale.tenantId,
+            tenantId: sale.tenantId,
+          }
+        : {}),
       date: formatYmdInTimeZone(sale.saleDate),
       type: 'Direct Sale',
       number: sale.saleNumber,
       customer: sale.client?.name || 'Direct Customer',
       status: sale.status,
-      total: saleNetRevenueTotalExTax(sale)
+      total: saleNetRevenueTotalExTax(sale),
     });
   });
-  
-  // Add invoice data
-  invoices.forEach(invoice => {
+
+  invoices.forEach((invoice) => {
     exportData.push({
+      ...(multiTenant
+        ? {
+            business: tMap.get(invoice.tenantId) || invoice.tenantId,
+            tenantId: invoice.tenantId,
+          }
+        : {}),
       date: formatYmdInTimeZone(invoice.issueDate),
       type: 'Invoice',
       number: invoice.invoiceNumber,
       customer: invoice.client?.name || 'Unknown',
       status: invoice.status,
-      total: invoiceNetRevenueTotalExTax(invoice)
+      total: invoiceNetRevenueTotalExTax(invoice),
     });
   });
-  
-  // Sort by date (newest first)
+
   exportData.sort((a, b) => new Date(b.date) - new Date(a.date));
-  
   return exportData;
+}
+
+async function generateCashFlowExportData({
+  tenantIds,
+  tenants,
+  startDate,
+  endDate,
+  branchId,
+  multiTenant,
+  tMap,
+}) {
+  const { generateCashFlowFromAccounts } = await import('@/lib/cashFlowService');
+  const { prepareExportData } = await import('@/lib/exportUtils');
+  const allRows = [];
+  let headers = [
+    { key: 'section', label: 'Section' },
+    { key: 'description', label: 'Description' },
+    { key: 'amount', label: 'Amount', format: 'currency' },
+  ];
+  let title = 'Cash Flow Statement (Direct Method)';
+  let reconciliation = null;
+
+  for (const tenantId of tenantIds) {
+    const tenant = tenants.find((t) => t.id === tenantId);
+    const cashFlowData = await generateCashFlowFromAccounts(
+      tenantId,
+      startDate,
+      endDate,
+      tenant?.name || 'Company',
+      tenant?.logoUrl || null,
+      branchId
+    );
+    const cashFlowExport = prepareExportData('cash-flow', cashFlowData);
+    headers = cashFlowExport.headers || headers;
+    title = cashFlowExport.title || title;
+    if (cashFlowData?.metadata?.reconciliation?.items?.length) {
+      reconciliation = reconciliation || { items: [] };
+      for (const item of cashFlowData.metadata.reconciliation.items) {
+        reconciliation.items.push({
+          ...item,
+          label: multiTenant
+            ? `${tenant?.name || tenantId}: ${item.label}`
+            : item.label,
+        });
+      }
+    }
+    for (const row of cashFlowExport.data || []) {
+      allRows.push(
+        multiTenant
+          ? { business: tenant?.name || tenantId, tenantId, ...row }
+          : row
+      );
+    }
+  }
+
+  return { data: allRows, headers, title, reconciliation };
+}
+
+async function generateStockMovementExportData({
+  tenantIds,
+  tenants,
+  startDate,
+  endDate,
+  productId,
+  branchId,
+  multiTenant,
+  tMap,
+}) {
+  const { generateStockMovementReport } = await import('@/lib/stockMovementService');
+  const { prepareExportData } = await import('@/lib/exportUtils');
+  const allRows = [];
+  let headers = [
+    { key: 'productName', label: 'Product' },
+    { key: 'sku', label: 'SKU' },
+    { key: 'date', label: 'Date' },
+    { key: 'transactionType', label: 'Transaction Type' },
+    { key: 'qtyIn', label: 'Qty In' },
+    { key: 'qtyOut', label: 'Qty Out' },
+    { key: 'balance', label: 'Balance' },
+    { key: 'reference', label: 'Reference' },
+  ];
+  let title = 'Stock Movement Report';
+  let reconciliation = null;
+
+  for (const tenantId of tenantIds) {
+    const tenant = tenants.find((t) => t.id === tenantId);
+    const stockMovementData = await generateStockMovementReport(
+      tenantId,
+      startDate,
+      endDate,
+      productId,
+      branchId
+    );
+    const stockMovementExport = prepareExportData('stock-movement', stockMovementData);
+    headers = stockMovementExport.headers || headers;
+    title = stockMovementExport.title || title;
+    if (stockMovementData?.metadata?.reconciliation?.items?.length) {
+      reconciliation = reconciliation || { items: [] };
+      for (const item of stockMovementData.metadata.reconciliation.items) {
+        reconciliation.items.push({
+          ...item,
+          label: multiTenant
+            ? `${tenant?.name || tenantId}: ${item.label}`
+            : item.label,
+        });
+      }
+    }
+    for (const row of stockMovementExport.data || []) {
+      allRows.push(
+        multiTenant
+          ? { business: tenant?.name || tenantId, tenantId, ...row }
+          : row
+      );
+    }
+  }
+
+  return { data: allRows, headers, title, reconciliation };
+}
+
+async function generatePosDailyExportData({
+  tenantIds,
+  tenants,
+  dateParam,
+  branchId,
+  multiTenant,
+  tMap,
+}) {
+  const { generatePosDailyReport } = await import('@/lib/posDailyReportService');
+  const allRows = [];
+
+  for (const tenantId of tenantIds) {
+    const tenant = tenants.find((t) => t.id === tenantId);
+    const posData = await generatePosDailyReport(tenantId, dateParam, branchId);
+    const posRows = [
+      { metric: 'Date', value: posData.date },
+      { metric: 'Total Sales', value: posData.totalSales },
+      { metric: 'Transactions', value: posData.transactionCount },
+      { metric: 'Items Sold', value: posData.itemsSold },
+      { metric: 'Average Sale', value: posData.averageSaleValue },
+      { metric: 'Total COGS', value: posData.totalCogs ?? '' },
+      { metric: 'Gross Profit', value: posData.grossProfit ?? '' },
+      { metric: 'Voided', value: posData.voidedCount ?? 0 },
+      { metric: 'Refunds', value: posData.refundCount ?? 0 },
+    ];
+    (posData.paymentBreakdown || []).forEach((p) => {
+      posRows.push({ metric: `Payment: ${p.label || p.method}`, value: p.total });
+    });
+    posRows.push({ metric: 'Grand Total (Payments)', value: posData.paymentGrandTotal ?? 0 });
+    for (const row of posRows) {
+      allRows.push(
+        multiTenant
+          ? { business: tenant?.name || tenantId, tenantId, ...row }
+          : row
+      );
+    }
+  }
+
+  return {
+    data: allRows,
+    headers: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }],
+    title: multiTenant
+      ? `POS Daily Report ${dateParam} (Multiple Businesses)`
+      : `POS Daily Report ${dateParam}`,
+  };
 }
 
 /**
@@ -723,20 +1112,44 @@ function flattenIncomeStatementForCSV(statement) {
     { type: 'Subtotal', category: 'Total Operating Expenses', amount: totalOpEx, percentage: pct(totalOpEx) },
     { type: 'Total', category: 'Net Profit', amount: netProfit, percentage: pct(netProfit) }
   );
+
+  const reconciliation = statement?.metadata?.reconciliation;
+  if (reconciliation?.items?.length) {
+    rows.push({ type: 'Reconciliation', category: 'General Ledger vs Operational', amount: '', percentage: '' });
+    reconciliation.items.forEach((item) => {
+      rows.push({
+        type: 'Reconciliation',
+        category: item.label,
+        amount: Number(item.variance) || 0,
+        percentage: item.reconciled ? 'OK' : 'Variance',
+      });
+    });
+  }
+
   return rows;
 }
 
 /**
  * Generate an Excel response (generic)
  */
-function generateExcelResponse(data, headers, sheetName, filename) {
-  const worksheetData = data.map(item => {
+function generateExcelResponse(data, headers, sheetName, filename, headerRows = []) {
+  const worksheetData = [];
+
+  if (headerRows?.length) {
+    for (const row of headerRows) {
+      worksheetData.push({ [headers[0]?.label || 'Field']: row.label, '': row.value });
+    }
+    worksheetData.push({});
+  }
+
+  for (const item of data) {
     const row = {};
-    headers.forEach(header => {
+    headers.forEach((header) => {
       row[header.label] = item[header.key];
     });
-    return row;
-  });
+    worksheetData.push(row);
+  }
+
   const worksheet = XLSX.utils.json_to_sheet(worksheetData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName || 'Report');
@@ -745,8 +1158,8 @@ function generateExcelResponse(data, headers, sheetName, filename) {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`
-    }
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    },
   });
 }
 
@@ -754,13 +1167,13 @@ function generateExcelResponse(data, headers, sheetName, filename) {
  * Income Statement Excel export: one worksheet, clean layout, values only.
  * Styling: headings bold, totals bold with top border, currency format, negative in brackets.
  */
-async function generateIncomeStatementExcelResponse(statement, startDate, endDate, filename = 'income-statement.xlsx') {
+async function generateIncomeStatementExcelResponse(statement, startDate, endDate, filename = 'income-statement.xlsx', headerRows = []) {
   const ExcelJS = (await import('exceljs')).default;
   const periodLabel = startDate && endDate ? `${startDate} to ${endDate}` : (statement?.period ? `${statement.period.startDate} to ${statement.period.endDate}` : '');
   const totalRevenue = Number(statement?.totalRevenue ?? 0);
   const cogsTotal = Number(statement?.cogs?.costOfProductsSold ?? statement?.cogs?.total ?? 0);
   const grossProfit = Number(statement?.grossProfit ?? totalRevenue - cogsTotal);
-  const operatingExpenses = statement?.operatingExpenses?.categories ?? [];
+  const operatingExpenses = filterNonZeroOperatingExpenseLines(statement?.operatingExpenses?.categories ?? []);
   const totalOperatingExpenses = Number(statement?.totalOperatingExpenses ?? statement?.operatingExpenses?.total ?? 0);
   const netProfit = Number(statement?.operatingIncome ?? statement?.netIncome ?? grossProfit - totalOperatingExpenses);
 
@@ -776,6 +1189,14 @@ async function generateIncomeStatementExcelResponse(statement, startDate, endDat
   };
 
   let rowNum = 1;
+  for (const hdr of headerRows) {
+    const r = ws.getRow(rowNum++);
+    r.getCell(1).value = hdr.label;
+    r.getCell(1).font = { bold: true };
+    r.getCell(2).value = hdr.value;
+  }
+  if (headerRows.length) rowNum++;
+
   const r1 = ws.getRow(rowNum++);
   r1.getCell(1).value = 'Profit & Loss Statement';
   r1.getCell(1).font = { bold: true };
@@ -828,6 +1249,8 @@ async function generateIncomeStatementExcelResponse(statement, startDate, endDat
   setAmount(rNet, 2, netProfit);
   rNet.getCell(2).border = { top: { style: 'thin' } };
 
+  appendReconciliationToExcelWorksheet(ws, rowNum, statement?.metadata?.reconciliation);
+
   ws.getColumn(1).width = 28;
   ws.getColumn(2).width = 18;
 
@@ -854,6 +1277,7 @@ async function generatePDFResponse(data, headers, title, filename, options = {})
   const tenant = options.tenant || null;
   const companyName = tenant?.name || options.companyName || 'Company';
   const periodLabel = options.periodLabel || '';
+  const headerRows = options.headerRows || [];
   
   // Create new PDF document
   const doc = new jsPDF({
@@ -886,6 +1310,17 @@ async function generatePDFResponse(data, headers, title, filename, options = {})
   doc.setFont('helvetica', 'bold');
   doc.text(title, pageWidth / 2, yPos, { align: 'center' });
   yPos += 6;
+
+  if (headerRows.length) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    for (const hdr of headerRows) {
+      doc.text(`${hdr.label}: ${hdr.value}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 4;
+    }
+    yPos += 2;
+  }
   
   // Period/Date Label
   if (periodLabel) {
@@ -982,23 +1417,26 @@ async function generatePDFResponse(data, headers, title, filename, options = {})
 /**
  * Generate Income Statement PDF matching the exact display format
  */
-async function generateIncomeStatementPDF(tenantId, startDate, endDate, request) {
+async function generateIncomeStatementPDF(tenantId, startDate, endDate, request, options = {}) {
   try {
-    const { generateIncomeStatementFromAccounts } = await import('@/lib/incomeStatementService');
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { name: true, logoUrl: true }
-    });
-    const url = request?.url ? new URL(request.url) : null;
-    const branchId = url?.searchParams?.get('branchId') || null;
-    const data = await generateIncomeStatementFromAccounts(
-      tenantId,
-      startDate,
-      endDate,
-      tenant?.name || 'Company',
-      tenant?.logoUrl || null,
-      branchId
-    );
+    let data = options.statement;
+    if (!data) {
+      const { generateIncomeStatementFromAccounts } = await import('@/lib/incomeStatementService');
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { name: true, logoUrl: true }
+      });
+      const url = request?.url ? new URL(request.url) : null;
+      const branchId = url?.searchParams?.get('branchId') || null;
+      data = await generateIncomeStatementFromAccounts(
+        tenantId,
+        startDate,
+        endDate,
+        tenant?.name || 'Company',
+        tenant?.logoUrl || null,
+        branchId
+      );
+    }
     
     // Use dynamic imports for server-side compatibility
     const jsPDF = (await import('jspdf')).default;
@@ -1040,9 +1478,10 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
       return totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0;
     };
     
-    const companyName = data.companyName || 'Company';
+    const companyName = options.scope?.businessLabel || data.companyName || data.company || 'Company';
     const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
     const totalRevenue = data.totalRevenue ?? data.revenue?.total ?? 0;
+    const headerRows = options.headerRows || [];
     
     // Company Header
     doc.setFontSize(18);
@@ -1055,6 +1494,17 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
     doc.setFont('helvetica', 'bold');
     doc.text('Income Statement', pageWidth / 2, yPos, { align: 'center' });
     yPos += 6;
+
+    if (headerRows.length) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80, 80, 80);
+      for (const hdr of headerRows) {
+        doc.text(`${hdr.label}: ${hdr.value}`, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 4;
+      }
+      yPos += 2;
+    }
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -1187,27 +1637,25 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
 /**
  * Generate Balance Sheet PDF matching the exact display format
  */
-async function generateBalanceSheetPDF(tenantId, asOfDate, request) {
+async function generateBalanceSheetPDF(tenantId, asOfDate, request, options = {}) {
   try {
-    // Import the generateBalanceSheet function
-    const { generateBalanceSheet } = await import('@/app/api/reports/balance-sheet/route');
-    
-    // Get tenant settings
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { 
-        name: true,
-        logoUrl: true
-      }
-    });
-    
-    // Generate balance sheet data
-    const data = await generateBalanceSheet(
-      tenantId,
-      asOfDate,
-      tenant?.name || 'Company',
-      tenant?.logoUrl || null
-    );
+    let data = options.statement;
+    if (!data) {
+      const { generateBalanceSheet } = await import('@/app/api/reports/balance-sheet/route');
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          name: true,
+          logoUrl: true,
+        },
+      });
+      data = await generateBalanceSheet(
+        tenantId,
+        asOfDate,
+        tenant?.name || 'Company',
+        tenant?.logoUrl || null
+      );
+    }
     
     // Use dynamic imports for server-side compatibility
     const jsPDF = (await import('jspdf')).default;
@@ -1237,9 +1685,11 @@ async function generateBalanceSheetPDF(tenantId, asOfDate, request) {
       return totalAssets > 0 ? ((value || 0) / totalAssets * 100) : 0;
     };
     
-    const companyName = data.companyName || 'Company';
-    const asOfDateStr = data.asOfDate || '';
-    const totalAssets = data.assets?.total || 0;
+    const companyName = options.scope?.businessLabel || data.company || data.companyName || 'Company';
+    const asOfDateStr = data.asOfDate || asOfDate || '';
+    const totalAssets = data.assets?.total || data.totalAssets || 0;
+    const headerRows = options.headerRows || [];
+    const byTenant = options.byTenant;
     
     // Company Header
     doc.setFontSize(18);
@@ -1252,6 +1702,17 @@ async function generateBalanceSheetPDF(tenantId, asOfDate, request) {
     doc.setFont('helvetica', 'bold');
     doc.text('Balance Sheet', pageWidth / 2, yPos, { align: 'center' });
     yPos += 6;
+
+    if (headerRows.length) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80, 80, 80);
+      for (const hdr of headerRows) {
+        doc.text(`${hdr.label}: ${hdr.value}`, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 4;
+      }
+      yPos += 2;
+    }
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -1476,6 +1937,30 @@ async function generateBalanceSheetPDF(tenantId, asOfDate, request) {
       
       const debtToEquity = data.ratios.debtToEquity ? data.ratios.debtToEquity.toFixed(2) : 'N/A';
       doc.text(`Debt-to-Equity: ${debtToEquity}`, margin, yPos);
+    }
+
+    if (Array.isArray(byTenant) && byTenant.length > 1) {
+      yPos = (doc.lastAutoTable?.finalY ?? yPos) + 12;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Business comparison', margin, yPos);
+      yPos += 4;
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Business', 'Total assets', 'Total liabilities', 'Total equity']],
+        body: byTenant.map((row) => [
+          row.tenantName || row.businessName || row.tenantId || '',
+          formatCurrency(row.totalAssets ?? 0),
+          formatCurrency(row.totalLiabilities ?? 0),
+          formatCurrency(row.totalEquity ?? 0),
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 2 },
+        margin: { left: margin, right: margin },
+      });
     }
     
     // Convert PDF to buffer

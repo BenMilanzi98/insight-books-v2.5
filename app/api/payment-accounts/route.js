@@ -119,9 +119,10 @@ export async function POST(request) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    const { name, accountType, reference, isActive = true } = body || {};
+    const { name, accountType, reference, isActive = true, parentGlCode } = body || {};
     const trimmedName = String(name ?? '').trim();
     const trimmedType = String(accountType ?? '').trim();
+    const trimmedParentGl = parentGlCode != null ? String(parentGlCode).trim() : '';
 
     if (!trimmedName || !trimmedType) {
       return NextResponse.json({ 
@@ -134,6 +135,27 @@ export async function POST(request) {
         {
           error: `Invalid account type. Allowed: ${ALLOWED_PAYMENT_ACCOUNT_TYPES.join(', ')}`,
           code: 'INVALID_PAYMENT_ACCOUNT_TYPE',
+        },
+        { status: 400 }
+      );
+    }
+
+    const { resolvePaymentParentGlCode } = await import('@/lib/paymentGlChannels.js');
+    const resolvedParent =
+      trimmedType === 'Cash'
+        ? null
+        : resolvePaymentParentGlCode({
+            accountType: trimmedType,
+            name: trimmedName,
+            parentGlCode: trimmedParentGl || null,
+          });
+
+    if (['Bank', 'Mobile Money', 'Wallet'].includes(trimmedType) && !resolvedParent) {
+      return NextResponse.json(
+        {
+          error:
+            'Select a bank or mobile money channel (1131–1138, 1140, or 1141). The GL sub-account will be created automatically under that parent.',
+          code: 'PAYMENT_PARENT_GL_REQUIRED',
         },
         { status: 400 }
       );
@@ -169,7 +191,11 @@ export async function POST(request) {
             isSystem: false,
           },
         });
-        return ensurePaymentAccountCoaLink(user.tenantId, created, tx);
+        return ensurePaymentAccountCoaLink(
+          user.tenantId,
+          { ...created, parentGlCode: resolvedParent },
+          tx
+        );
       });
     } catch (linkErr) {
       if (linkErr instanceof PaymentGlSlotsExhaustedError) {

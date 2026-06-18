@@ -163,8 +163,9 @@ Set<String> _defaultSalesBundle() => {
       'sales.view',
       'sales.create',
       'sales.update',
-      'clients.view',
-      'tenants.switch',
+      'sales.void',
+      'sales.refund',
+      'sales.export',
     };
 
 /// Flattens API `/api/auth/me` JSON: `role.permissions` is nested maps, not a string list.
@@ -186,7 +187,6 @@ Set<String> parsePermissionsFromMeResponse(Map<String, dynamic> data) {
     if (out.isEmpty) {
       return _defaultSalesBundle();
     }
-    out.add('tenants.switch');
   }
 
   return out;

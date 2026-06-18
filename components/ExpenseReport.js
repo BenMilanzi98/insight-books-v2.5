@@ -1,6 +1,7 @@
 // components/ExpenseReport.jsx
 import React, { useState } from 'react';
 import { FinancialReport, PercentageChange } from './FinancialReportComponents';
+import { extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange } from '@/lib/dateUtils';
 import { BarChart, PieChart, ChevronDown, ChevronUp } from 'lucide-react';
@@ -56,6 +57,7 @@ export const ExpenseReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <>

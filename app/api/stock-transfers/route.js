@@ -3,36 +3,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { createFifoBatch } from '@/lib/fifoCosting';
 import { Prisma } from '@prisma/client';
 import { userHasAccessToTenant, ensurePrimaryBranchForTenant } from '@/lib/tenantStockAccess';
 import { upsertReceiptNoticeForTransfer } from '@/lib/stockTransferReceiptNotices';
-
-/**
- * Destination business may store products as tenant-wide (branchId null) or on the primary branch.
- * Match by SKU first, then by name (case-insensitive), and add stock to that row instead of creating a duplicate.
- */
-async function findDestinationProductForTransfer(tx, toTenantId, primaryBranchId, sourceProduct) {
-  const branchScope = [{ branchId: primaryBranchId }, { branchId: null }];
-  const base = { tenantId: toTenantId, isDeleted: false, OR: branchScope };
-
-  const sku = sourceProduct.sku != null ? String(sourceProduct.sku).trim() : '';
-  if (sku) {
-    const bySku = await tx.product.findFirst({
-      where: { ...base, sku: { equals: sku, mode: 'insensitive' } },
-    });
-    if (bySku) return bySku;
-  }
-
-  const name = sourceProduct.name != null ? String(sourceProduct.name).trim() : '';
-  if (name) {
-    return tx.product.findFirst({
-      where: { ...base, name: { equals: name, mode: 'insensitive' } },
-    });
-  }
-
-  return null;
-}
+import { executeStockTransferMovement } from '@/lib/stockTransferService';
+import { getAccessibleTenantIdsForUser } from '@/lib/dashboardTenantScope';
 
 // GET - Fetch stock transfers for the tenant
 export async function GET(request) {
@@ -56,12 +31,14 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const branchId = searchParams.get('branchId');
 
-    // Transfers involving this business (tenant), including cross-business moves
+    const accessibleTenantIds = await getAccessibleTenantIdsForUser(user);
+
+    // Transfers involving any business the user can access
     const conditions = [
       {
         OR: [
-          { fromBranch: { tenantId: user.tenantId } },
-          { toBranch: { tenantId: user.tenantId } },
+          { fromBranch: { tenantId: { in: accessibleTenantIds } } },
+          { toBranch: { tenantId: { in: accessibleTenantIds } } },
         ],
       },
     ];
@@ -117,6 +94,9 @@ export async function GET(request) {
               name: true,
               email: true
             }
+          },
+          receivedBy: {
+            select: { id: true, name: true, email: true },
           },
         },
         orderBy: {
@@ -449,159 +429,28 @@ export async function POST(request) {
       // If direct transfer, execute immediately
       if (directTransfer) {
         console.log('[Stock Transfer] Executing direct transfer...');
-        let destinationProduct = await findDestinationProductForTransfer(
+        await executeStockTransferMovement({
           tx,
+          transfer,
+          sourceProduct,
+          fromTenantId,
           toTenantId,
-          resolvedToBranch,
-          sourceProduct
-        );
-
-        const productCost = parseFloat(sourceProduct.cost || 0);
-        const unitCost = productCost > 0 ? productCost : 0;
-        
-        // Use the transferQtyDecimal from outer scope
-        const qtyDecimal = transferQtyDecimal;
-
-        if (!destinationProduct) {
-          // Create product only when no matching SKU/name exists in the destination business
-          console.log('[Stock Transfer] Creating destination product...');
-          try {
-            const skuTrim = sourceProduct.sku != null ? String(sourceProduct.sku).trim() : '';
-            const newSku =
-              skuTrim ||
-              `TRANSFER-${sourceProduct.id.substring(0, 8)}-${Date.now()}`;
-
-            destinationProduct = await tx.product.create({
-              data: {
-                name: sourceProduct.name || 'Transferred Product',
-                sku: newSku,
-                description: sourceProduct.description || null,
-                price: sourceProduct.price ? parseFloat(sourceProduct.price) : 0,
-                cost: sourceProduct.cost ? parseFloat(sourceProduct.cost) : null,
-                category: sourceProduct.category || null,
-                location: sourceProduct.location || null,
-                reorderPoint: sourceProduct.reorderPoint || null,
-                image: sourceProduct.image || null,
-                isService: sourceProduct.isService || false,
-                stockLevel: new Prisma.Decimal(0),
-                tenantId: toTenantId,
-                branchId: resolvedToBranch,
-                categoryId: sameTenantTransfer ? sourceProduct.categoryId || null : null,
-                inventoryAccountId: sameTenantTransfer ? sourceProduct.inventoryAccountId || null : null,
-                cogsAccountId: sameTenantTransfer ? sourceProduct.cogsAccountId || null : null,
-                taxRate: sourceProduct.taxRate || 0
-              }
-            });
-            console.log('[Stock Transfer] Destination product created:', destinationProduct.id);
-          } catch (createError) {
-            console.error('[Stock Transfer] Error creating destination product:', createError);
-            console.error('[Stock Transfer] Create error details:', {
-              message: createError.message,
-              code: createError.code,
-              meta: createError.meta
-            });
-            throw createError;
-          }
-        } else {
-          console.log('[Stock Transfer] Destination product already exists:', destinationProduct.id);
-        }
-
-        // Reduce stock from source product
-        await tx.product.update({
-          where: { id: sourceProduct.id },
-          data: {
-            stockLevel: {
-              decrement: qtyDecimal
-            }
-          }
+          fromBranchId: resolvedFromBranch,
+          toBranchId: resolvedToBranch,
+          fromBranchName: fromBranchData.name,
+          toBranchName: toBranchData.name,
+          userId: user.id,
+          sameTenantTransfer,
         });
 
-        // Add stock to destination product using FIFO
-        try {
-          // Generate a simple sourceId for the transfer
-          const sourceId = `transfer-${transfer.id}`;
-          const qtyForFifo = parseFloat(qtyDecimal.toString());
-          
-          console.log(`[Stock Transfer] Creating FIFO batch:`, {
-            productId: destinationProduct.id,
-            qty: qtyForFifo,
-            cost: unitCost,
-            branchId: resolvedToBranch,
-            tenantId: toTenantId,
-            sourceId: sourceId
-          });
-          
-          await createFifoBatch({
-            tenantId: toTenantId,
-            branchId: resolvedToBranch,
-            productId: destinationProduct.id,
-            quantityPurchased: qtyForFifo,
-            unitCost: unitCost,
-            purchaseDate: new Date(),
-            sourceType: 'StockTransfer',
-            sourceId: sourceId,
-            tx: tx
-          });
-          console.log(`[Stock Transfer] FIFO batch created successfully`);
-        } catch (fifoError) {
-          console.error('[Stock Transfer] Error creating FIFO batch:', fifoError);
-          console.error('[Stock Transfer] FIFO error details:', {
-            message: fifoError.message,
-            stack: fifoError.stack,
-            code: fifoError.code,
-            name: fifoError.name
-          });
-          // Fallback: update stock directly
-          console.log(`[Stock Transfer] Falling back to direct stock update`);
-          await tx.product.update({
-            where: { id: destinationProduct.id },
-            data: {
-              stockLevel: {
-                increment: qtyDecimal
-              }
-            }
-          });
-        }
-
-        // Status only: older deployed Prisma clients omit receivedBy/receivedAt on StockTransfer.
-        // After prisma migrate deploy + generate, optional columns can be set here again if needed.
         await tx.stockTransfer.update({
           where: { id: transfer.id },
-          data: { status: 'received' },
+          data: {
+            status: 'received',
+            receivedById: user.id,
+            receivedAt: new Date(),
+          },
         });
-
-        // Create inventory transactions
-        try {
-          // InventoryTransaction.quantity is Int, not Decimal
-          const stockOutQty = Math.round(-transferQuantity);
-          const stockInQty = Math.round(transferQuantity);
-          
-          await tx.inventoryTransaction.createMany({
-            data: [
-              {
-                type: 'Stock Out',
-                quantity: stockOutQty,
-                notes: `Stock transfer to ${toBranchData.name}`,
-                productId: sourceProduct.id,
-                userId: user.id,
-                tenantId: fromTenantId,
-                branchId: resolvedFromBranch
-              },
-              {
-                type: 'Stock In',
-                quantity: stockInQty,
-                notes: `Stock transfer from ${fromBranchData.name}`,
-                productId: destinationProduct.id,
-                userId: user.id,
-                tenantId: toTenantId,
-                branchId: resolvedToBranch
-              }
-            ]
-          });
-        } catch (transactionError) {
-          // Log but don't fail the transfer if transaction log fails
-          console.warn('Failed to create inventory transactions:', transactionError);
-        }
       }
 
       // Note: Audit log creation moved outside transaction to avoid issues

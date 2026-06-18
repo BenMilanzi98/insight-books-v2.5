@@ -590,28 +590,24 @@ export default function SystemLedgerCoaTable({
   };
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.04]">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
       {loading ? (
-        <div className="flex flex-col items-center justify-center gap-6 py-32">
-          <div className="relative">
-            <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400/15" />
-            <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-xl shadow-indigo-600/20 ring-1 ring-white/10">
-              <Loader2 size={32} className="animate-spin" strokeWidth={2} />
-            </div>
+        <div className="flex flex-col items-center justify-center gap-4 py-28">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+            <Loader2 size={24} className="animate-spin" strokeWidth={2} />
           </div>
-          <p className="text-sm font-medium text-slate-500">Loading chart of accounts…</p>
+          <p className="text-sm text-slate-500">Loading accounts…</p>
         </div>
       ) : (
         <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
           {accounts.length === 0 ? (
-            <div className="flex flex-col gap-3 border-b border-amber-200/80 bg-amber-50/90 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" strokeWidth={2} />
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" strokeWidth={2} />
                 <div>
-                  <p className="text-sm font-semibold text-amber-950">No ledger rows loaded yet</p>
-                  <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                    The chart below always follows the standard SYSTEM structure. Sync or import to create accounts —
-                    balances and actions will fill in as codes match.
+                  <p className="text-sm font-medium text-slate-900">No accounts loaded</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Sync the standard chart or import a template to populate your ledger.
                   </p>
                 </div>
               </div>

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+} from '@/lib/dashboardTenantScope';
 
 /**
  * PATCH — Mark a receipt notice as read (id = StockTransferReceiptNotice id).
@@ -16,13 +20,19 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scopeResult = parseDashboardTenantScope(searchParams, user, accessible);
+    const tenantIds = scopeResult.ok ? scopeResult.tenantIds : [user.tenantId];
+    const tenantIdSet = new Set(tenantIds);
+
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 });
     }
 
     let updated = await prisma.stockTransferReceiptNotice.updateMany({
-      where: { id, tenantId: user.tenantId },
+      where: { id, tenantId: { in: tenantIds } },
       data: { readAt: new Date() },
     });
 
@@ -31,17 +41,18 @@ export async function PATCH(request, { params }) {
         where: {
           id,
           status: 'received',
-          tenantId: { not: user.tenantId },
-          toBranch: { tenantId: user.tenantId, isActive: true },
+          tenantId: { notIn: tenantIds },
+          toBranch: { tenantId: { in: tenantIds }, isActive: true },
         },
-        select: { id: true, tenantId: true },
+        select: { id: true, tenantId: true, toBranch: { select: { tenantId: true } } },
       });
-      if (xfer) {
+      if (xfer && tenantIdSet.has(xfer.toBranch?.tenantId)) {
+        const receivingTenantId = xfer.toBranch.tenantId;
         try {
           await prisma.stockTransferReceiptNotice.upsert({
             where: { stockTransferId: id },
             create: {
-              tenantId: user.tenantId,
+              tenantId: receivingTenantId,
               stockTransferId: id,
               sourceTenantId: xfer.tenantId,
               readAt: new Date(),

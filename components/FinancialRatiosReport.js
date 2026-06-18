@@ -2,6 +2,7 @@
 // components/FinancialRatiosReport.jsx
 import React from 'react';
 import { FinancialReport } from './FinancialReportComponents';
+import { extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
 import { formatCurrency, formatPercentage } from '@/lib/currencyUtils';
 import { formatPeriodRange } from '@/lib/dateUtils';
 import { PieChart, TrendingUp, BarChart, AlertCircle, CheckCircle, Info } from 'lucide-react';
@@ -61,6 +62,7 @@ export const FinancialRatiosReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <>

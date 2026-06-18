@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import bcrypt from 'bcryptjs';
 import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
+import { resolveHiddenPrimaryBranchId } from '@/lib/hiddenPrimaryBranch';
 
 // GET /api/admin/users - Get all users with pagination and filtering
 export async function GET(request) {
@@ -91,8 +92,6 @@ export async function GET(request) {
       status: user.status === 'pending' ? 'pending' : (user.isActive ? 'active' : 'inactive'),
       tenant: user.tenant?.name || 'No Tenant',
       tenantId: user.tenant?.id,
-      defaultBranchId: user.defaultBranchId || null,
-      allowedBranchIds: [],
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       avatar: (user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()
@@ -139,8 +138,6 @@ export async function POST(request) {
       primaryTenantId,
       password,
       department,
-      defaultBranchId,
-      allowedBranchIds,
     } = body;
 
     function normalizeMembershipsCreate(membershipsArr, legacyTenantId, legacyRoleId) {
@@ -231,6 +228,7 @@ export async function POST(request) {
     const trimmedPassword =
       typeof password === 'string' && password.trim() ? password.trim() : '';
     const plainPassword = trimmedPassword || generateSixCharAlphanumericPassword();
+    const primaryBranchId = await resolveHiddenPrimaryBranchId(tenant.id);
 
     // Create user
     const newUser = await prisma.user.create({
@@ -247,7 +245,7 @@ export async function POST(request) {
         isEmailVerified: true,
         otpCode: null,
         otpExpiry: null,
-        ...(defaultBranchId && { defaultBranchId })
+        ...(primaryBranchId ? { defaultBranchId: primaryBranchId } : {}),
       },
       include: {
         tenant: {
@@ -281,19 +279,6 @@ export async function POST(request) {
         tenants: { connect: cleaned.map((m) => ({ id: m.tenantId })) },
       },
     });
-
-    if (Array.isArray(allowedBranchIds) && allowedBranchIds.length > 0 && newUser.id) {
-      const validBranchIds = await prisma.branch.findMany({
-        where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
-        select: { id: true },
-      });
-      const ids = validBranchIds.map((b) => b.id);
-      if (ids.length > 0) {
-        await prisma.userBranch.createMany({
-          data: ids.map((branchId) => ({ userId: newUser.id, branchId })),
-        });
-      }
-    }
 
     // Transform response
     const transformedUser = {

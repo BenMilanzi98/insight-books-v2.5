@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
 import { runGlReconciliation } from '@/lib/glReconciliation';
+import { bootstrapReportRoute, auditReportAccess, tenantNameMap } from '@/lib/reportRouteBootstrap';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,10 +15,9 @@ export const revalidate = 0;
  */
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, scope, tenantIds, tenants, reportBranchId, branchId, userQ } = boot;
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -31,18 +30,60 @@ export async function GET(request) {
     }
 
     const branchIdParam = searchParams.get('branchId');
-    const branchId =
-      branchIdParam === 'all' || branchIdParam === '' ? null :
-      (branchIdParam ?? user.currentBranchId ?? null);
+    const effectiveBranchId =
+      branchIdParam === 'all' || branchIdParam === ''
+        ? null
+        : branchIdParam ?? reportBranchId ?? branchId ?? userQ?.currentBranchId ?? null;
+    const includeSubledgers = searchParams.get('includeSubledgers') === 'true';
+
+    const tMap = tenantNameMap(tenants);
+
+    if (tenantIds.length > 1) {
+      const byTenant = await Promise.all(
+        tenantIds.map(async (tenantId) => {
+          const report = await runGlReconciliation({
+            tenantId,
+            branchId: effectiveBranchId,
+            startDate,
+            endDate,
+            includeSubledgers,
+          });
+          return {
+            tenantId,
+            businessName: tMap.get(tenantId) || tenantId,
+            ...report,
+          };
+        })
+      );
+
+      await auditReportAccess({
+        user,
+        reportType: 'gl-reconciliation',
+        tenantIds,
+        scope,
+        filters: { startDate, endDate, branchId: effectiveBranchId, includeSubledgers },
+      });
+
+      return NextResponse.json({ scope, byTenant });
+    }
 
     const report = await runGlReconciliation({
-      tenantId: user.tenantId,
-      branchId,
+      tenantId: tenantIds[0],
+      branchId: effectiveBranchId,
       startDate,
       endDate,
+      includeSubledgers,
     });
 
-    return NextResponse.json(report);
+    await auditReportAccess({
+      user,
+      reportType: 'gl-reconciliation',
+      tenantIds,
+      scope,
+      filters: { startDate, endDate, branchId: effectiveBranchId, includeSubledgers },
+    });
+
+    return NextResponse.json({ ...report, scope });
   } catch (error) {
     console.error('gl-reconciliation:', error);
     return NextResponse.json(

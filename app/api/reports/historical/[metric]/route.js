@@ -1,22 +1,17 @@
-// app/api/financial/historical/[metric]/route.js
+// app/api/reports/historical/[metric]/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
 import { calculateDateRange } from '@/lib/dateUtils';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
 // GET - Fetch historical trend data for a given metric
 export async function GET(request, { params }) {
   try {
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+
+    const { user, tw, tenantIds, scope } = boot;
     const metric = params.metric;
-    
-    // Get user from session
-    const user = await getUserFromSession(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -40,32 +35,32 @@ export async function GET(request, { params }) {
     
     switch(metric) {
       case 'revenue':
-        data = await getRevenueTrend(user.tenantId, startDate, endDate, timeframe);
+        data = await getRevenueTrend(tw, startDate, endDate, timeframe);
         if (previousPeriod) {
-          prevData = await getRevenueTrend(user.tenantId, prevStartDate, prevEndDate, timeframe);
+          prevData = await getRevenueTrend(tw, prevStartDate, prevEndDate, timeframe);
         }
         break;
         
       case 'expenses':
-        data = await getExpensesTrend(user.tenantId, startDate, endDate, timeframe);
+        data = await getExpensesTrend(tw, startDate, endDate, timeframe);
         if (previousPeriod) {
-          prevData = await getExpensesTrend(user.tenantId, prevStartDate, prevEndDate, timeframe);
+          prevData = await getExpensesTrend(tw, prevStartDate, prevEndDate, timeframe);
         }
         break;
         
       case 'profit':
-        data = await getProfitTrend(user.tenantId, startDate, endDate, timeframe);
+        data = await getProfitTrend(tw, startDate, endDate, timeframe);
         if (previousPeriod) {
-          prevData = await getProfitTrend(user.tenantId, prevStartDate, prevEndDate, timeframe);
+          prevData = await getProfitTrend(tw, prevStartDate, prevEndDate, timeframe);
         }
         break;
         
       case 'expenseBreakdown':
-        data = await getExpenseBreakdown(user.tenantId, startDate, endDate);
+        data = await getExpenseBreakdown(tw, startDate, endDate);
         break;
         
       case 'salesByCategory':
-        data = await getSalesByCategory(user.tenantId, startDate, endDate);
+        data = await getSalesByCategory(tw, startDate, endDate);
         break;
         
       default:
@@ -74,11 +69,20 @@ export async function GET(request, { params }) {
           { status: 400 }
         );
     }
+
+    await auditReportAccess({
+      user,
+      reportType: `historical-${metric}`,
+      tenantIds,
+      scope,
+      filters: { timeframe, previousPeriod },
+    });
     
     // Return the data
     return NextResponse.json({
       metric,
       timeframe,
+      scope,
       period: {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString()
@@ -100,7 +104,7 @@ export async function GET(request, { params }) {
 }
 
 // Helper function to get revenue trend
-async function getRevenueTrend(tenantId, startDate, endDate, timeframe) {
+async function getRevenueTrend(tw, startDate, endDate, timeframe) {
   // Determine the grouping interval based on timeframe
   let groupBy;
   if (timeframe === 'thisMonth' || timeframe === 'lastMonth') {
@@ -114,7 +118,7 @@ async function getRevenueTrend(tenantId, startDate, endDate, timeframe) {
   // Get all invoices in the date range
   const invoices = await prisma.invoice.findMany({
     where: {
-      tenantId,
+      ...tw,
       issueDate: {
         gte: startDate,
         lte: endDate
@@ -125,7 +129,7 @@ async function getRevenueTrend(tenantId, startDate, endDate, timeframe) {
   // Get all sales in the date range
   const sales = await prisma.sale.findMany({
     where: {
-      tenantId,
+      ...tw,
       saleDate: {
         gte: startDate,
         lte: endDate
@@ -144,7 +148,7 @@ async function getRevenueTrend(tenantId, startDate, endDate, timeframe) {
 }
 
 // Helper function to get expenses trend
-async function getExpensesTrend(tenantId, startDate, endDate, timeframe) {
+async function getExpensesTrend(tw, startDate, endDate, timeframe) {
   // Determine the grouping interval based on timeframe
   let groupBy;
   if (timeframe === 'thisMonth' || timeframe === 'lastMonth') {
@@ -158,7 +162,7 @@ async function getExpensesTrend(tenantId, startDate, endDate, timeframe) {
   // Get all expenses in the date range
   const expenses = await prisma.expense.findMany({
     where: {
-      tenantId,
+      ...tw,
       date: {
         gte: startDate,
         lte: endDate
@@ -178,10 +182,10 @@ async function getExpensesTrend(tenantId, startDate, endDate, timeframe) {
 }
 
 // Helper function to get profit trend
-async function getProfitTrend(tenantId, startDate, endDate, timeframe) {
+async function getProfitTrend(tw, startDate, endDate, timeframe) {
   // Get revenue and expenses
-  const revenueTrend = await getRevenueTrend(tenantId, startDate, endDate, timeframe);
-  const expensesTrend = await getExpensesTrend(tenantId, startDate, endDate, timeframe);
+  const revenueTrend = await getRevenueTrend(tw, startDate, endDate, timeframe);
+  const expensesTrend = await getExpensesTrend(tw, startDate, endDate, timeframe);
   
   // Calculate profit for each period
   const profitTrend = [];
@@ -218,11 +222,11 @@ async function getProfitTrend(tenantId, startDate, endDate, timeframe) {
 }
 
 // Helper function to get expense breakdown
-async function getExpenseBreakdown(tenantId, startDate, endDate) {
+async function getExpenseBreakdown(tw, startDate, endDate) {
   // Get all expenses in the date range
   const expenses = await prisma.expense.findMany({
     where: {
-      tenantId,
+      ...tw,
       date: {
         gte: startDate,
         lte: endDate
@@ -249,11 +253,11 @@ async function getExpenseBreakdown(tenantId, startDate, endDate) {
 }
 
 // Helper function to get sales by category
-async function getSalesByCategory(tenantId, startDate, endDate) {
+async function getSalesByCategory(tw, startDate, endDate) {
   // Get all sales items in the date range
   const sales = await prisma.sale.findMany({
     where: {
-      tenantId,
+      ...tw,
       saleDate: {
         gte: startDate,
         lte: endDate

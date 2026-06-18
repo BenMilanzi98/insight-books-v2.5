@@ -198,7 +198,6 @@ class ExpenseController extends Notifier<ExpensePageState> {
     await loadCategories();
     await loadPaymentAccounts();
     await loadSuppliers();
-    await loadBranches();
     await loadTaxData();
     await Future.wait([fetchExpenses(), fetchStatistics()]);
   }

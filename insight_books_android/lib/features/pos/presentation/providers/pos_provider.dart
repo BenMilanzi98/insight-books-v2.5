@@ -334,10 +334,8 @@ class Pos extends _$Pos {
       if (!ref.mounted) {
         return;
       }
-      final branches = await repository.fetchBranches();
-      if (!ref.mounted) {
-        return;
-      }
+      // Branch is resolved server-side; skip list fetch unless legacy multi-branch API is used.
+      final branches = <Map<String, dynamic>>[];
 
       final taxTypes = await repository.fetchTaxTypes();
       final taxAccounts = await repository.fetchTaxAccounts();

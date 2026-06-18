@@ -15,6 +15,7 @@ import {
   validateNoDuplicateInventoryLines,
   validateNoPostingToStructuralCoaRoots,
 } from '@/lib/journalManualLineValidation';
+import { bootstrapReportRoute, auditReportAccess, tenantNameMap } from '@/lib/reportRouteBootstrap';
 
 /**
  * Manual journal entries are restricted to adjustments only.
@@ -83,8 +84,8 @@ function canCreateJournalEntries(user) {
   );
 }
 
-function buildWhereClause(tenantId, searchParams) {
-  const where = { tenantId, AND: [] };
+function buildWhereClause(tenantScope, searchParams) {
+  const where = { ...tenantScope, AND: [] };
 
   const status = searchParams.get('status');
   if (status && status.toLowerCase() !== 'all' && status.toLowerCase() !== 'all status') {
@@ -152,8 +153,8 @@ function buildWhereClause(tenantId, searchParams) {
  * Build where for Transaction (legacy) entries.
  * When includeAllSourceTypes is true, do not filter by sourceType so Invoice, Sale, Reversal all appear.
  */
-function buildLegacyTransactionWhere(tenantId, searchParams, includeAllSourceTypes = false) {
-  const where = { tenantId, AND: [] };
+function buildLegacyTransactionWhere(tenantScope, searchParams, includeAllSourceTypes = false) {
+  const where = { ...tenantScope, AND: [] };
 
   const status = searchParams.get('status');
   if (status && status.toLowerCase() !== 'all' && status.toLowerCase() !== 'all status') {
@@ -262,13 +263,16 @@ function resolveEntryDate(body) {
 
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated with this user' },
-        { status: 401 }
-      );
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const {
+      user,
+      tw,
+      scope,
+      tenantIds,
+      tenants,
+      primaryTenantId,
+    } = boot;
 
     if (!canViewJournalEntries(user)) {
       return NextResponse.json(
@@ -285,10 +289,11 @@ export async function GET(request) {
     );
     const skip = (page - 1) * limit;
 
-    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
+    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(primaryTenantId, prisma);
     const mergeJournalCtx = buildMergeRollupContext(mergeRollupRows);
 
-    const where = buildWhereClause(user.tenantId, searchParams);
+    const tMap = tenantNameMap(tenants);
+    const where = buildWhereClause(tw, searchParams);
     const sortBy = searchParams.get('sortBy') || 'entryDate';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
     const sourceType = searchParams.get('sourceType');
@@ -304,7 +309,7 @@ export async function GET(request) {
     // When "all" source types: merge JournalEntry (manual) + Transaction (Invoice, Sale, Reversal, etc.) so reversals show
     const MERGE_CAP = 3000;
     if (isAllSourceTypes) {
-      const legacyWhere = buildLegacyTransactionWhere(user.tenantId, searchParams, true);
+      const legacyWhere = buildLegacyTransactionWhere(tw, searchParams, true);
       const [journalEntries, legacyTransactions] = await Promise.all([
         prisma.journalEntry.findMany({
           where,
@@ -337,14 +342,32 @@ export async function GET(request) {
       });
       const total = merged.length;
       const entries = merged.slice(skip, skip + limit);
+      const formatted = applyMergeDisplayToJournalPayload(
+        formatJournalEntries(entries),
+        mergeJournalCtx
+      );
+      await auditReportAccess({
+        user,
+        reportType: 'journal-entries',
+        tenantIds,
+        scope,
+        filters: { startDate: searchParams.get('startDate'), endDate: searchParams.get('endDate') },
+      });
       return NextResponse.json({
-        entries: applyMergeDisplayToJournalPayload(formatJournalEntries(entries), mergeJournalCtx),
+        entries:
+          tenantIds.length > 1
+            ? formatted.map((e) => ({
+                ...e,
+                businessName: tMap.get(e.tenantId) || e.businessName,
+              }))
+            : formatted,
         pagination: {
           page,
           limit,
           totalCount: total,
           totalPages: Math.ceil(total / limit),
         },
+        scope,
       });
     }
 
@@ -363,7 +386,7 @@ export async function GET(request) {
     let total = totalCount;
 
     if (entriesRaw.length === 0) {
-      const legacyWhere = buildLegacyTransactionWhere(user.tenantId, searchParams, false);
+      const legacyWhere = buildLegacyTransactionWhere(tw, searchParams, false);
       const [legacyCount, legacyEntries] = await Promise.all([
         prisma.transaction.count({ where: legacyWhere }),
         prisma.transaction.findMany({
@@ -379,14 +402,32 @@ export async function GET(request) {
       total = legacyCount;
     }
 
+    const formatted = applyMergeDisplayToJournalPayload(
+      formatJournalEntries(entries),
+      mergeJournalCtx
+    );
+    await auditReportAccess({
+      user,
+      reportType: 'journal-entries',
+      tenantIds,
+      scope,
+      filters: { startDate: searchParams.get('startDate'), endDate: searchParams.get('endDate') },
+    });
     return NextResponse.json({
-      entries: applyMergeDisplayToJournalPayload(formatJournalEntries(entries), mergeJournalCtx),
+      entries:
+        tenantIds.length > 1
+          ? formatted.map((e) => ({
+              ...e,
+              businessName: tMap.get(e.tenantId) || e.businessName,
+            }))
+          : formatted,
       pagination: {
         page,
         limit,
         totalCount: total,
         totalPages: Math.ceil(total / limit),
       },
+      scope,
     });
   } catch (error) {
     console.error('Error fetching journal entries:', error);

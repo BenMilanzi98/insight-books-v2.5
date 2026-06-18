@@ -1,17 +1,19 @@
 // app/api/reports/available/route.js
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
+import { getAccessibleTenantIdsForUser } from '@/lib/dashboardTenantScope';
 
 export async function GET(request) {
   try {
-    // Get user from session
     const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
+    if (!user) {
       return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
+
+    const accessibleTenantIds = await getAccessibleTenantIdsForUser(user);
     
     // Define available reports
     const reports = [
@@ -107,7 +109,11 @@ export async function GET(request) {
       },
     ];
     
-    return NextResponse.json(reports);
+    return NextResponse.json({
+      reports,
+      multiBusiness: accessibleTenantIds.length > 1,
+      accessibleBusinessCount: accessibleTenantIds.length,
+    });
   } catch (error) {
     console.error('Error fetching available reports:', error);
     return NextResponse.json(

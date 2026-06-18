@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
-import { updateAccountBalance, processCapitalTransfer } from '@/lib/core';
 import {
   createInvoicePaymentJournalEntry,
   getPaymentAccount,
@@ -13,10 +12,14 @@ import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
-import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 import { resolvePostableExpenseAccount } from '@/lib/accountingMappingRules';
+import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
+import {
+  postPaymentAdjustmentGlEntry,
+  postPaymentTransferGlEntry,
+} from '@/lib/paymentGlPosting.js';
 
 /** Payments that count toward invoice balance (completed, not a reversal row). */
 function sumEligibleInvoicePayments(payments) {
@@ -155,24 +158,28 @@ async function recordPaymentTransaction({
         }
       ];
     } else if (type === 'transfer') {
-      const fromAccount = await getPaymentAccount(tenantId, sourceAccount);
-      const toAccount = await getPaymentAccount(tenantId, destinationAccount);
-      if (!fromAccount || !toAccount) return;
-      sourceType = 'Transfer';
-      lines = [
-        {
-          accountId: toAccount.id,
-          debitAmount: numericAmount,
-          creditAmount: 0,
-          description: 'Transfer in'
-        },
-        {
-          accountId: fromAccount.id,
-          debitAmount: 0,
-          creditAmount: numericAmount,
-          description: 'Transfer out'
-        }
-      ];
+      await postPaymentTransferGlEntry({
+        tenantId,
+        userId,
+        paymentId,
+        amount: numericAmount,
+        paymentDate: entryDate,
+        sourceAccount,
+        destinationAccount,
+        notes: description,
+      });
+      return;
+    } else if (type === 'adjustment') {
+      await postPaymentAdjustmentGlEntry({
+        tenantId,
+        userId,
+        paymentId,
+        amount: numericAmount,
+        paymentDate: entryDate,
+        paymentMethod: methodKey,
+        notes: description,
+      });
+      return;
     } else {
       return;
     }
@@ -186,29 +193,21 @@ async function recordPaymentTransaction({
     await assertPeriodOpen(tenantId, entryDate, prisma);
     const reference = await generateReferenceNumber(prisma, tenantId, entryDate);
 
-    await prisma.transaction.create({
-      data: {
-        tenantId,
-        date: entryDate,
-        reference,
-        description: description || 'Payment transaction',
-        entryType: 'Regular',
-        status: 'posted',
-        sourceType,
-        sourceId: paymentId,
-        createdById: userId,
-        postedById: userId,
-        postedDate: new Date(),
-        lines: {
-          create: lines.map((line, index) => ({
-            lineNumber: index + 1,
-            accountId: line.accountId,
-            debitAmount: line.debitAmount,
-            creditAmount: line.creditAmount,
-            description: line.description
-          }))
-        }
-      }
+    await postGlEntry({
+      tenantId,
+      userId,
+      entryDate,
+      description: description || 'Payment transaction',
+      reference,
+      sourceType,
+      sourceId: paymentId,
+      lines: lines.map((line, index) => ({
+        lineNumber: index + 1,
+        accountId: line.accountId,
+        debitAmount: line.debitAmount,
+        creditAmount: line.creditAmount,
+        description: line.description,
+      })),
     });
   } catch (error) {
     console.error('Failed to record payment transaction:', error);
@@ -638,8 +637,6 @@ export async function POST(request) {
       }
     }
 
-    const capitalAccount = await resolvePrimaryCapitalAccount(user.tenantId, prisma);
-
     let branchId = null;
     try {
       if (invoice?.branchId) {
@@ -715,80 +712,6 @@ export async function POST(request) {
           status: newStatus
         }
       });
-    }
-
-    // Helper function to normalize payment method for AccountBalance
-    const normalizePaymentMethod = (method) => {
-      if (!method) return 'cash';
-      const methodStr = method.toString().trim();
-      
-      // If it's already a normalized key (contains underscore), return as is
-      if (methodStr.includes('_')) {
-        return methodStr.toLowerCase();
-      }
-      
-      // If it looks like an account ID (CUID format: starts with letters, no spaces, long string), don't normalize
-      // CUIDs are typically 25 characters, alphanumeric, no spaces
-      if (methodStr.length > 20 && /^[a-z0-9]+$/i.test(methodStr) && !methodStr.includes(' ')) {
-        return methodStr; // Likely an account ID, return as is
-      }
-      
-      // Otherwise normalize: "Bank Transfer" -> "bank_transfer", "PayChangu" -> "paychangu"
-      return methodStr.toLowerCase().replace(/\s+/g, '_') || 'cash';
-    };
-
-    // 🔄 Handle balance updates - use payment allocations if available
-    if (paymentAllocationsList.length > 0) {
-      for (const alloc of paymentAllocationsList) {
-        const account = await prisma.paymentAccount.findUnique({
-          where: { id: alloc.paymentAccountId }
-        });
-        
-        if (account) {
-          const normalizedMethod = normalizePaymentMethod(account.name);
-          if (["invoice", "sale"].includes(type)) {
-            await updateAccountBalance(user.tenantId, normalizedMethod, alloc.amount, "add");
-          } else if (type === "expense") {
-            await updateAccountBalance(user.tenantId, normalizedMethod, alloc.amount, "subtract");
-          }
-        }
-      }
-    } else if (["invoice", "sale"].includes(type)) {
-      // Fallback to legacy method
-      const normalizedMethod = normalizePaymentMethod(paymentMethod);
-      await updateAccountBalance(user.tenantId, normalizedMethod, amount, "add");
-    } else if (type === "expense") {
-      // Fallback to legacy method
-      const normalizedSource = normalizePaymentMethod(sourceAccount);
-      await updateAccountBalance(user.tenantId, normalizedSource, amount, "subtract");
-    }
-    
-    if (type === "transfer") {
-      // Check if this is a capital account transfer
-      const isCapitalAccountTransfer = sourceAccount === capitalAccount?.id;
-      
-      if (isCapitalAccountTransfer) {
-        // For capital account transfers, use the simple balance update method
-        // since destination is a payment method key, not an Account model ID
-        await updateAccountBalance(user.tenantId, sourceAccount, amount, "subtract");
-        const normalizedDestination = normalizePaymentMethod(destinationAccount);
-        await updateAccountBalance(user.tenantId, normalizedDestination, amount, "add");
-      } else {
-        // For regular account-to-account transfers, use the enhanced function
-        try {
-          await processCapitalTransfer(user.tenantId, sourceAccount, destinationAccount, amount, notes || 'Transfer between accounts');
-        } catch (transferError) {
-          console.error('Transfer error:', transferError);
-          // Fallback to old method if the new one fails
-          const normalizedSource = normalizePaymentMethod(sourceAccount);
-          const normalizedDestination = normalizePaymentMethod(destinationAccount);
-          await updateAccountBalance(user.tenantId, normalizedSource, amount, "subtract");
-          await updateAccountBalance(user.tenantId, normalizedDestination, amount, "add");
-        }
-      }
-    } else if (type === "adjustment") {
-      const normalizedMethod = normalizePaymentMethod(paymentMethod);
-      await updateAccountBalance(user.tenantId, normalizedMethod, amount, "add");
     }
 
     await recordPaymentTransaction({

@@ -556,24 +556,40 @@ export async function POST(request) {
       select: { name: true, sku: true }
     });
     
-    // Create an audit log entry
-    await prisma.auditLog.create({
-      data: {
-        action: `INVENTORY_${body.type.replace(/\s+/g, '_').toUpperCase()}`,
-        entityType: 'PRODUCT',
-        entityId: body.productId,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          productName: productWithName?.name || 'Unknown',
-          quantity: body.quantity,
-          notes: body.notes || null,
-          oldStockLevel: product.stockLevel || 0,
-          newStockLevel: updatedProduct.stockLevel,
-          journalEntryId: result.lossJournalEntryId || null,
-        })
-      }
-    });
+    const auditDetails = {
+      productId: body.productId,
+      productName: productWithName?.name || 'Unknown',
+      type: body.type,
+      quantity: body.quantity,
+      notes: body.notes || null,
+      oldStockLevel: product.stockLevel || 0,
+      newStockLevel: updatedProduct.stockLevel,
+      journalEntryId: result.lossJournalEntryId || null,
+    };
+
+    if (body.type === 'Adjustment' || body.type === 'Stock Out') {
+      await prisma.auditLog.create({
+        data: {
+          action: 'STOCK_TRANSACTION_CREATED',
+          entityType: 'STOCK',
+          entityId: body.productId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify(auditDetails),
+        },
+      });
+    } else {
+      await prisma.auditLog.create({
+        data: {
+          action: `INVENTORY_${body.type.replace(/\s+/g, '_').toUpperCase()}`,
+          entityType: 'PRODUCT',
+          entityId: body.productId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify(auditDetails),
+        },
+      });
+    }
 
     // Record in InventoryTransaction for Stock Movement History (stock ins, outs, adjustments)
     const movementQuantity = body.type === 'Stock In' ? quantity : body.type === 'Stock Out' ? -quantity : stockChange;

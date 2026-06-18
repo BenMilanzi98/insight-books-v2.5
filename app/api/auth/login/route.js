@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { applyTenantMembershipRole, getDefaultPostLoginPath } from '@/lib/auth';
-import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
+import { applyHiddenPrimaryBranchToUser } from '@/lib/hiddenPrimaryBranch';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
 import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
 import {
@@ -150,33 +150,14 @@ export async function POST(request) {
 
     await applyTenantMembershipRole(user, user.tenantId);
 
-    // Session branch: owners / single-location tenants may use tenant or user default; assigned users only their allowed set.
+    // Session always uses the tenant's hidden primary branch (not user-selectable).
     let initialBranchId = null;
     try {
-      const ctx = await fetchUserBranchAccessContext(user.id, user.tenantId);
-      const { allowedBranchIds } = computeAllowedBranchIds({
-        userId: user.id,
-        tenantId: user.tenantId,
-        roleName: user.role ? user.role.name : null,
-        contextLoadFailed: ctx.contextLoadFailed,
-        tenantBranchCount: ctx.tenantBranchCount,
-        userBranches: ctx.userBranches,
-        tenant: ctx.tenant,
-      });
-      const preferredDefault =
-        ctx.defaultBranchId ?? ctx.tenant?.defaultBranchId ?? null;
-      if (allowedBranchIds == null) {
-        initialBranchId = preferredDefault ?? null;
-      } else if (allowedBranchIds.length > 0) {
-        initialBranchId =
-          preferredDefault && allowedBranchIds.includes(preferredDefault)
-            ? preferredDefault
-            : allowedBranchIds[0];
-      } else {
-        initialBranchId = null;
-      }
+      const branchUser = { tenantId: user.tenantId };
+      await applyHiddenPrimaryBranchToUser(branchUser);
+      initialBranchId = branchUser.primaryBranchId ?? null;
     } catch (branchError) {
-      console.error('Login branch selection failed (non-fatal, defaulting branchId to null):', branchError?.message || branchError);
+      console.error('Login primary branch resolution failed (non-fatal):', branchError?.message || branchError);
       initialBranchId = null;
     }
 

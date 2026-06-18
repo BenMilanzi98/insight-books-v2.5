@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Calendar, 
   Download, 
@@ -18,6 +18,12 @@ import { formatCurrency } from "@/lib/currencyUtils";
 import { getTimeframeLabel, getDefaultCustomRange } from "@/lib/dateUtils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
+import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
+import ReportingCurrencySelector, { useReportingCurrency } from "@/components/ReportingCurrencySelector";
+import ConsolidationDisclosure from "@/components/reports/ConsolidationDisclosure";
+import MultiBusinessComparisonPanel, {
+  TRIAL_BALANCE_COMPARE_COLUMNS,
+} from "@/components/reports/MultiBusinessComparisonPanel";
 
 const TrialBalance = () => {
   const [timeframe, setTimeframe] = useState("thisMonth");
@@ -42,6 +48,26 @@ const TrialBalance = () => {
   const [accountHistory, setAccountHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [byTenant, setByTenant] = useState(null);
+  const [consolidation, setConsolidation] = useState(null);
+
+  const {
+    mode: businessScopeMode,
+    tenantIds: businessScopeTenantIds,
+    setScope: setBusinessScope,
+  } = useBusinessScope();
+  const { reportingCurrency, setReportingCurrency } = useReportingCurrency();
+  const businessScope = useMemo(
+    () => ({
+      mode: businessScopeMode,
+      tenantIds: businessScopeTenantIds,
+      reportingCurrency,
+    }),
+    [businessScopeMode, businessScopeTenantIds, reportingCurrency]
+  );
+  const isMultiBusinessScope =
+    businessScopeMode === "all" ||
+    (businessScopeMode === "custom" && businessScopeTenantIds.length > 1);
   
   useEffect(() => {
     const fetchPermissions = async () => {   
@@ -129,8 +155,10 @@ const TrialBalance = () => {
         ? { startDate: customStartDate, endDate: customEndDate }
         : null;
       
-      const data = await fetchTrialBalance(apiTimeframe, customRange);
+      const data = await fetchTrialBalance(apiTimeframe, customRange, businessScope);
       console.log('Trial balance data received:', data);
+      setByTenant(data?.byTenant || null);
+      setConsolidation(data?.consolidation || null);
       
       // If accounts are available, process them
       if (data && data.accounts) {
@@ -196,7 +224,7 @@ const TrialBalance = () => {
   useEffect(() => {
     if (displayTimeframe === "Custom Range" && (!customStartDate || !customEndDate)) return;
     fetchData();
-  }, [displayTimeframe, customStartDate, customEndDate]);
+  }, [displayTimeframe, customStartDate, customEndDate, businessScopeMode, businessScopeTenantIds, reportingCurrency]);
 
   const handleRefresh = () => {
     fetchData();
@@ -273,7 +301,7 @@ const TrialBalance = () => {
       const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
         ? { startDate: customStartDate, endDate: customEndDate }
         : null;
-      const blob = await exportTrialBalance(apiTimeframe, exportFormat, customRange);
+      const blob = await exportTrialBalance(apiTimeframe, exportFormat, customRange, businessScope);
       
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -351,6 +379,21 @@ const TrialBalance = () => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <BusinessScopeSelector
+                  mode={businessScopeMode}
+                  selectedTenantIds={businessScopeTenantIds}
+                  onChange={setBusinessScope}
+                  compact
+                  className="[&_button]:bg-white/95 [&_button]:border-white/30"
+                />
+                {isMultiBusinessScope ? (
+                  <ReportingCurrencySelector
+                    value={reportingCurrency}
+                    onChange={setReportingCurrency}
+                    visible
+                    className="min-w-[160px] [&_select]:bg-white/95 [&_select]:border-white/30"
+                  />
+                ) : null}
                 <button
                   type="button"
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-all"
@@ -397,6 +440,19 @@ const TrialBalance = () => {
               </div>
             </div>
           </div>
+
+          {(byTenant?.length > 1 || isMultiBusinessScope) && consolidation ? (
+            <ConsolidationDisclosure consolidation={consolidation} className="mb-6" />
+          ) : null}
+
+          {byTenant?.length > 1 ? (
+            <MultiBusinessComparisonPanel
+              byTenant={byTenant}
+              columns={TRIAL_BALANCE_COMPARE_COLUMNS}
+              title="Trial balance by business"
+              className="mb-6"
+            />
+          ) : null}
 
           <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
             <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-4">

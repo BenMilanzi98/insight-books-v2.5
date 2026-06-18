@@ -8,6 +8,7 @@ import {
   pickUserForLogin,
   tenantsHintFromUserCandidates,
 } from '@/lib/userEmailResolve';
+import { applyHiddenPrimaryBranchToUser } from '@/lib/hiddenPrimaryBranch';
 
 // Ensure environment variables are loaded
 import 'dotenv/config';
@@ -121,18 +122,13 @@ export async function POST(request) {
       }
     });
     
-    // Choose a safe default branch so branch-scoped APIs behave consistently.
-    // Tenants without branches => branchId stays null.
     let initialBranchId = null;
     try {
-      const firstBranch = await prisma.branch.findFirst({
-        where: { tenantId: user.tenantId, isActive: true },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true }
-      });
-      initialBranchId = firstBranch?.id || null;
+      const branchUser = { tenantId: user.tenantId };
+      await applyHiddenPrimaryBranchToUser(branchUser);
+      initialBranchId = branchUser.primaryBranchId ?? null;
     } catch (e) {
-      console.error('OTP: failed to resolve default branch (non-fatal):', e?.message || e);
+      console.error('OTP: failed to resolve primary branch (non-fatal):', e?.message || e);
       initialBranchId = null;
     }
 

@@ -64,7 +64,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   ExpenseCategoryOption? _selectedCategory;
   PaymentAccountOption? _selectedPaymentAccount;
   SupplierOption? _selectedSupplier;
-  BranchOption? _selectedBranch;
   String? _selectedTaxTypeId;
   bool _isHistoricalEntry = false;
   final _migrationBatchCtrl = TextEditingController();
@@ -85,7 +84,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       final notifier = ref.read(expenseControllerProvider.notifier);
       notifier.loadPaymentAccounts();
       notifier.loadSuppliers();
-      notifier.loadBranches();
       Future(() async {
         await notifier.loadTaxData();
         if (!mounted) return;
@@ -111,14 +109,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       final notifier = ref.read(expenseControllerProvider.notifier);
       await notifier.loadPaymentAccounts();
       await notifier.loadSuppliers();
-      await notifier.loadBranches();
       await notifier.loadTaxData();
       if (!mounted) return;
       final expense = await ref.read(expenseDetailsProvider(widget.expenseId!).future);
       if (!mounted) return;
       final paymentAccounts = ref.read(expenseControllerProvider).paymentAccounts;
       final suppliers = ref.read(expenseControllerProvider).suppliers;
-      final branches = ref.read(expenseControllerProvider).branches;
       final taxTypes = ref.read(expenseControllerProvider).taxTypes;
       final defaultTaxTypeId = ref.read(expenseControllerProvider).defaultOutflowTaxTypeId;
       _descriptionCtrl.text = expense.description;
@@ -152,11 +148,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       if (supplierId != null && supplierId.isNotEmpty) {
         final supplierMatch = suppliers.where((s) => s.id == supplierId);
         _selectedSupplier = supplierMatch.isEmpty ? null : supplierMatch.first;
-      }
-      final branchId = expense.branchId;
-      if (branchId != null && branchId.isNotEmpty) {
-        final branchMatch = branches.where((b) => b.id == branchId);
-        _selectedBranch = branchMatch.isEmpty ? null : branchMatch.first;
       }
       final existingTaxTypeId = expense.taxTypeId;
       if (existingTaxTypeId != null && existingTaxTypeId.isNotEmpty) {
@@ -539,7 +530,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           taxAmount: taxAmount != null && taxAmount > 0 ? taxAmount : null,
           taxRate: effectiveTaxRate != null && effectiveTaxRate > 0 ? effectiveTaxRate : null,
           supplierId: _selectedSupplier?.id,
-          branchId: _selectedBranch?.id,
           taxTypeId: _selectedTaxTypeId,
         );
         await ref.read(expenseControllerProvider.notifier).updateExpense(widget.expenseId!, request);
@@ -562,7 +552,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           taxAmount: taxAmount != null && taxAmount > 0 ? taxAmount : null,
           taxRate: effectiveTaxRate != null && effectiveTaxRate > 0 ? effectiveTaxRate : null,
           supplierId: _selectedSupplier?.id,
-          branchId: _selectedBranch?.id,
           paidAmount: _paymentStatus == 'Partially' ? paidAmountVal : null,
           paymentReference: _paymentStatus == 'Partially'
               ? (_paymentReferenceCtrl.text.trim().isEmpty ? null : _paymentReferenceCtrl.text.trim())
@@ -602,7 +591,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final categories = state.categories;
     final paymentAccounts = state.paymentAccounts;
     final suppliers = state.suppliers;
-    final branches = state.branches;
     final taxTypes = state.taxTypes;
     final uniqueTax = _uniqueTaxTypes(taxTypes);
     final uniqueCat = _uniqueCategories(categories);
@@ -859,31 +847,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     ),
                   ],
                   onChanged: (v) => setState(() => _selectedSupplier = v),
-                ),
-                const SizedBox(height: 16),
-
-                const Text('Branch (optional)'),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<BranchOption?>(
-                  initialValue: _selectedBranch,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  hint: const Text('Default branch'),
-                  items: [
-                    const DropdownMenuItem<BranchOption?>(
-                      value: null,
-                      child: Text('Default branch'),
-                    ),
-                    ...branches.map(
-                      (b) => DropdownMenuItem<BranchOption?>(
-                        value: b,
-                        child: Text(b.name, overflow: TextOverflow.ellipsis),
-                      ),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => _selectedBranch = v),
                 ),
                 const SizedBox(height: 16),
 

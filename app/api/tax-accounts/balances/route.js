@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { isPayeTaxType, sumPaidPayeExpenses } from '@/lib/payeExpenseSettlement';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { getMalawiTaxCatalogEntry } from '@/lib/malawiTaxCatalog.js';
 
 /**
  * GET /api/tax-accounts/balances
@@ -624,6 +625,11 @@ export async function GET(request) {
           calculationType: taxType.calculationType,
         },
         account: taxType.account,
+        flow:
+          getMalawiTaxCatalogEntry(taxType.taxId)?.flow ||
+          getMalawiTaxCatalogEntry(taxType.taxCode)?.flow ||
+          (String(taxType.account?.accountCode || '').startsWith('2045-') ? 'outflow' : 'inflow'),
+        isSystem: Boolean(getMalawiTaxCatalogEntry(taxType.taxId)),
         totalCollected,
         totalPaid,
         totalRefunded,

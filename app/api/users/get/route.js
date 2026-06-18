@@ -44,8 +44,6 @@ export async function GET(request) {
         lastLogin: true,
         createdAt: true,
         isEmailVerified: true,
-        defaultBranchId: true,
-        userBranches: { select: { branchId: true } }
       }
     });
 
@@ -55,9 +53,6 @@ export async function GET(request) {
         { status: 404 }
       );
     }
-
-    const { userBranches, ...rest } = targetUser;
-    const allowedBranchIds = (userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
 
     let memberships = [];
     try {
@@ -71,12 +66,11 @@ export async function GET(request) {
         },
       });
     } catch (e) {
-      // Backward compatible: membership table may not be deployed yet.
       memberships = [];
     }
+
     return NextResponse.json({
-      ...rest,
-      allowedBranchIds: allowedBranchIds.length > 0 ? allowedBranchIds : [],
+      ...targetUser,
       memberships
     });
   } catch (error) {

@@ -2,22 +2,20 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
-import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 import {
   getAccessibleTenantIdsForUser,
   parseDashboardTenantScope,
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
-import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import {
   dashboardLocalThisWeekBounds,
   dashboardLocalTodayBounds,
   dashboardLocalYesterdayBounds,
 } from '@/lib/dashboardDatePeriods';
+import { fetchDashboardPeriodMetrics } from '@/lib/dashboardGlMetrics';
 import { addMoney, parseMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
@@ -265,85 +263,38 @@ export async function GET(request) {
               ? { branchId: effTxBranch }
               : {};
 
-      const [invoiceRevenue, salesRevenue, expenses, loanPayments] = await Promise.all([
-        // Revenue (cash): include invoice payments received in the period
-        prisma.payment.aggregate({
-          where: {
-            ...tw,
-            isReversal: false,
-          invoiceId: { not: null },
-            status: { in: ['Completed', 'completed'] },
-            paymentDate: { gte: filterStartDate, lte: filterEndDate },
-            ...(branchIdForPayments
-              ? {
-                  OR: [
-                    { branchId: branchIdForPayments },
-                    { invoice: { branchId: branchIdForPayments } }
-                  ]
-                }
-              : {})
-          },
-          _sum: { amount: true }
-        }),
-        // POS sales revenue (completed)
-        prisma.sale.aggregate({
-          where: addBranchFilter(userQ, {
-            ...tw,
-            saleDate: { gte: filterStartDate, lte: filterEndDate },
-            status: { in: ['completed', 'Completed'] },
-            voidedAt: null,
-            isReversal: false
-          }),
-          _sum: { total: true }
-        }),
-        // Operating expenses (cash-ish): ONLY count paid/partial expenses.
-        // This prevents pending statutory liabilities (PAYE/NPS) from showing as expenses before payment is recorded.
-        prisma.expense.aggregate({
-          where: addBranchFilterIncludeUnassigned(userQ, {
-            ...tw,
-            status: 'Approved',
-            isDeleted: false,
-            isReversal: false,
-            ...settledExpensePaymentOr(),
-            date: { gte: filterStartDate, lte: filterEndDate }
-          }),
-          _sum: { amount: true }
-        }),
-        // Loan payments (not always stored as Expense) so dashboard still reflects them
-        prisma.payment.aggregate({
-          where: {
-            ...tw,
+      const metrics = await fetchDashboardPeriodMetrics({
+        prisma,
+        tenantIds,
+        branchId: branchScoped ? getEffectiveDashboardBranchId(userQ) : null,
+        startDate: filterStartDate,
+        endDate: filterEndDate,
+        cogsAccountIds,
+        userQ,
+        tw,
+        transactionBranchSlice: transactionBranchClause,
+        branchIdForPayments,
+      });
+
+      const loanPayments = await prisma.payment.aggregate({
+        where: {
+          ...tw,
           type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
-            status: 'Completed',
-            paymentDate: { gte: filterStartDate, lte: filterEndDate }
-          },
-          _sum: { amount: true }
-        }),
-      ]);
+          status: 'Completed',
+          paymentDate: { gte: filterStartDate, lte: filterEndDate },
+        },
+        _sum: { amount: true },
+      });
 
-      const cogsAmount =
-        cogsAccountIds.length > 0
-          ? await sumNetCogsDebitMinusCredit(prisma, {
-              cogsAccountIds,
-              transactionWhere: {
-                ...tw,
-                ...transactionBranchClause,
-                date: {
-                  gte: filterStartDate,
-                  lte: filterEndDate,
-                },
-                status: 'posted',
-              },
-            })
-          : 0;
-      const loanPaymentAmount = parseMoney(loanPayments._sum.amount);
-      const totalExpenses = addMoney(expenses._sum.amount, loanPaymentAmount, cogsAmount);
+      const totalExpenses = addMoney(
+        metrics.operatingExpenses,
+        metrics.cogs,
+        parseMoney(loanPayments._sum.amount)
+      );
 
-      const invoiceIncome = parseMoney(invoiceRevenue?._sum?.amount);
-      const posIncome = parseMoney(salesRevenue?._sum?.total);
       return {
-        income: addMoney(invoiceIncome, posIncome),
-        expenses: totalExpenses
+        income: metrics.revenue,
+        expenses: totalExpenses,
       };
     };
 

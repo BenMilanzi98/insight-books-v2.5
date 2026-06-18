@@ -1,6 +1,7 @@
 // components/SalesReport.jsx
 import React, { useState } from 'react';
 import { FinancialReport, PercentageChange } from './FinancialReportComponents';
+import { extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange } from '@/lib/dateUtils';
 import { TrendingUp, BarChart, Users, Package } from 'lucide-react';
@@ -39,6 +40,7 @@ export const SalesReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <>

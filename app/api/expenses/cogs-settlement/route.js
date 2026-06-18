@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { updateAccountBalance } from '@/lib/core';
+import { postApprovedExpenseJournalIfMissing } from '@/lib/expenseGlPosting';
 
 // POST - Create COGS settlement expense
 export async function POST(request) {
@@ -78,8 +78,12 @@ export async function POST(request) {
         }
       });
 
-      // Update account balance
-      await updateAccountBalance(user.tenantId, body.paymentMethod || 'cash', amount, "subtract");
+      await postApprovedExpenseJournalIfMissing({
+        tx,
+        tenantId: user.tenantId,
+        userId: user.id,
+        expense,
+      });
 
       // Create audit log entry
       await tx.auditLog.create({

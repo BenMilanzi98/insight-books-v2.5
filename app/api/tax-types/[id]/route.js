@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isMalawiSystemTaxType, isTaxGlChildCode, isTaxGlParentCode } from '@/lib/malawiTaxCatalog.js';
 
 /**
  * GET /api/tax-types/[id]
@@ -93,6 +94,13 @@ export async function PUT(request, { params }) {
       );
     }
 
+    const isSystem = isMalawiSystemTaxType(existingTax);
+    if (isSystem && taxId !== undefined && taxId !== existingTax.taxId) {
+      return NextResponse.json(
+        { error: 'Malawi system tax types cannot be renamed (taxId is fixed).' },
+        { status: 400 }
+      );
+    }
     // Check if this is PAYE tax type
     const isPAYE = existingTax.taxId === 'PAYE' || existingTax.taxName?.toLowerCase().includes('paye');
     
@@ -132,6 +140,20 @@ export async function PUT(request, { params }) {
         if (account.accountType !== 'Liability' && account.accountType !== 'Asset') {
           return NextResponse.json(
             { error: 'Tax account must be a Liability or Asset account' },
+            { status: 400 }
+          );
+        }
+
+        const acCode = account.accountCode || account.code || '';
+        if (isTaxGlParentCode(acCode)) {
+          return NextResponse.json(
+            { error: 'Post to a child account under 2041 or 2045, not the rollup parent.' },
+            { status: 400 }
+          );
+        }
+        if (isSystem && !isTaxGlChildCode(acCode) && !acCode.startsWith('2041-') && !acCode.startsWith('2045-')) {
+          return NextResponse.json(
+            { error: 'System Malawi tax types must stay linked to their 2041-xx / 2045-xx GL account.' },
             { status: 400 }
           );
         }
@@ -240,6 +262,13 @@ export async function DELETE(request, { params }) {
       return NextResponse.json(
         { error: 'Tax type not found' },
         { status: 404 }
+      );
+    }
+
+    if (isMalawiSystemTaxType(existingTax)) {
+      return NextResponse.json(
+        { error: 'Predefined Malawi tax types cannot be deleted. Set status to Inactive instead.' },
+        { status: 400 }
       );
     }
 

@@ -1,18 +1,25 @@
 // app/api/reports/inventory-valuation/route.js
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
-import { retiredReportResponse } from '@/lib/retiredReports';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
+import { RETIRED_REPORT_MESSAGE } from '@/lib/retiredReports';
 
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
-    return retiredReportResponse('inventory-valuation');
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, scope, tenantIds } = boot;
+
+    await auditReportAccess({
+      user,
+      reportType: 'inventory-valuation',
+      tenantIds,
+      scope,
+    });
+
+    return NextResponse.json(
+      { error: RETIRED_REPORT_MESSAGE, retired: true, reportId: 'inventory-valuation', scope },
+      { status: 410 }
+    );
   } catch (error) {
     console.error('inventory-valuation:', error);
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });

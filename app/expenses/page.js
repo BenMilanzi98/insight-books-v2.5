@@ -1872,7 +1872,7 @@ const handleFileUpload = async (e) => {
                   </div>
                   <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
                   <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expense rows (this branch)
+                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expense rows
                   </div>
                   {(statistics.total?.cogsIncluded ||
                     Number(statistics.total?.salaryAdvanceAmount || 0) !== 0) ? (
@@ -1915,7 +1915,7 @@ const handleFileUpload = async (e) => {
                   <div className="text-xl sm:text-2xl font-bold text-green-700 truncate" title={`MK ${statistics.approved.amount}`}>MK {statistics.approved.amount}</div>
                   <div className="text-xs text-gray-500 mt-2">
                     <span className="font-semibold text-gray-700">{statistics.approved.count}</span> approved
-                    <span className="block mt-1 text-[11px] text-gray-400">Sub-ledger (Expense rows); current branch when selected. Should match posted GL for those rows.</span>
+                    <span className="block mt-1 text-[11px] text-gray-400">Sub-ledger (Expense rows); should match posted GL for those rows.</span>
                   </div>
                 </div>
               </div>

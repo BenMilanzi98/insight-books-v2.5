@@ -6,18 +6,14 @@
  * running balance, numeric qty (never "-").
  */
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
 import { generateStockMovementReport } from '@/lib/stockMovementService';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, userQ, scope, tenantIds, tenants, primaryTenantId, reportBranchId } = boot;
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -31,21 +27,54 @@ export async function GET(request) {
       );
     }
 
-    // Normalize branchId to string (session may store object { id: '...' })
-    let branchId = user.currentBranchId ?? null;
+    let branchId = reportBranchId ?? userQ.currentBranchId ?? null;
     if (branchId && typeof branchId !== 'string') {
       branchId = branchId?.id && typeof branchId.id === 'string' ? branchId.id : null;
     }
 
-    const report = await generateStockMovementReport(
-      user.tenantId,
-      startDate,
-      endDate,
-      productId,
-      branchId
-    );
+    let report;
+    let byTenant = null;
 
-    return NextResponse.json(report);
+    if (tenantIds.length > 1) {
+      const reports = await Promise.all(
+        tenantIds.map(async (tenantId) => {
+          const tenant = tenants.find((t) => t.id === tenantId);
+          const r = await generateStockMovementReport(
+            tenantId,
+            startDate,
+            endDate,
+            productId,
+            branchId
+          );
+          return { tenantId, tenantName: tenant?.name || tenantId, report: r };
+        })
+      );
+      report = { ...reports[0]?.report, companyName: 'Consolidated — Multiple Businesses' };
+      byTenant = reports.map(({ tenantId, tenantName, report: r }) => ({
+        tenantId,
+        tenantName,
+        totalProducts: r.metadata?.totalProducts ?? r.productMovements?.length ?? 0,
+        totalClosingQuantity: r.metadata?.totalClosingQuantity ?? 0,
+      }));
+    } else {
+      report = await generateStockMovementReport(
+        primaryTenantId,
+        startDate,
+        endDate,
+        productId,
+        branchId
+      );
+    }
+
+    await auditReportAccess({
+      user,
+      reportType: 'stock-movement',
+      tenantIds,
+      scope,
+      filters: { startDate, endDate, productId },
+    });
+
+    return NextResponse.json({ ...report, scope, byTenant });
   } catch (error) {
     console.error('Error generating stock movement report:', error);
     const message =

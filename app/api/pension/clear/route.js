@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { updateAccountBalance } from '@/lib/core';
+import { postApprovedExpenseJournalIfMissing } from '@/lib/expenseGlPosting';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
 import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
@@ -213,8 +213,12 @@ export async function POST(request) {
           },
         });
 
-        // Update payment method balance (this drives dashboard cashflow + account balances)
-        await updateAccountBalance(user.tenantId, paymentMethod, amount, 'subtract', tx);
+        await postApprovedExpenseJournalIfMissing({
+          tx,
+          tenantId: user.tenantId,
+          userId: user.id,
+          expense,
+        });
 
         // Mark payrolls as cleared (employer side) to prevent double-clearing
         for (const payrollId of payrollIds) {

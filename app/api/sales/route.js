@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { updateAccountBalance } from '@/lib/core';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 import { autoPostTaxEntry } from '@/lib/taxCalculationService';
@@ -1262,27 +1261,8 @@ export async function POST(request) {
             throw paymentError;
           }
 
-          // Update account balances for each payment allocation (by PaymentAccount id so /payments/management and POS show correct balances)
-          try {
-            for (const alloc of paymentAllocations) {
-              const accountId = alloc.paymentAccountId;
-              const amount = Number(alloc.amount);
-              if (!accountId || amount <= 0) continue;
-              await updateAccountBalance(
-                user.tenantId,
-                accountId,
-                amount,
-                'add',
-                tx
-              );
-            }
-          } catch (balanceError) {
-            console.error('Failed to update payment account balances for sale:', balanceError);
-            throw balanceError;
-          }
-
           // Create journal entries for sale (Revenue + COGS)
-          // Note: Account balances are updated automatically when transactions are created
+          // Account balances are updated automatically via postGlEntry
           console.log('🔥🔥🔥 JOURNAL ENTRY CREATION STARTING 🔥🔥🔥');
           console.log('Sale status:', saleStatus);
           console.log('Sale ID:', sale.id);

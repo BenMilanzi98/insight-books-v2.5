@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
+import { resolveHiddenPrimaryBranchId } from '@/lib/hiddenPrimaryBranch';
 
 function normalizeMemberships(memberships, legacyTenantId, legacyRoleId) {
   if (Array.isArray(memberships) && memberships.length > 0) {
@@ -42,8 +43,6 @@ export async function POST(request) {
       tenantId,
       memberships,
       primaryTenantId,
-      defaultBranchId,
-      allowedBranchIds,
     } = updateData;
 
     if (!name || !email || !status) {
@@ -149,7 +148,8 @@ export async function POST(request) {
       status,
       updatedAt: new Date(),
     };
-    if (defaultBranchId !== undefined) data.defaultBranchId = defaultBranchId || null;
+    const primaryBranchId = await resolveHiddenPrimaryBranchId(primaryTid);
+    if (primaryBranchId) data.defaultBranchId = primaryBranchId;
 
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -175,28 +175,6 @@ export async function POST(request) {
         },
       });
 
-      if (Array.isArray(allowedBranchIds)) {
-        const userBranch = tx.userBranch;
-        if (!userBranch || typeof userBranch.deleteMany !== 'function') {
-          console.warn(
-            '[admin/users/update] Prisma client missing userBranch delegate; skipping allowedBranchIds sync.'
-          );
-        } else {
-          await userBranch.deleteMany({ where: { userId } });
-          if (allowedBranchIds.length > 0) {
-            const validBranchIds = await tx.branch.findMany({
-              where: { id: { in: allowedBranchIds }, tenantId: primaryTid },
-              select: { id: true },
-            });
-            const ids = validBranchIds.map((b) => b.id);
-            if (ids.length > 0) {
-              await userBranch.createMany({
-                data: ids.map((branchId) => ({ userId, branchId })),
-              });
-            }
-          }
-        }
-      }
     });
 
     const updatedUser = await prisma.user.findUnique({

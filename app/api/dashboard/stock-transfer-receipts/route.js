@@ -3,6 +3,11 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+} from '@/lib/dashboardTenantScope';
+import {
   ensureMissingReceiptNoticesForTenant,
   buildReceiptNoticeListFromTransfers,
 } from '@/lib/stockTransferReceiptNotices';
@@ -57,18 +62,30 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const tenantId = user.tenantId;
+    const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scopeResult = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scopeResult.ok) {
+      return NextResponse.json(
+        { error: scopeResult.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds } = scopeResult;
+    const tw = tenantWhereIn(tenantIds);
 
-    await ensureMissingReceiptNoticesForTenant(tenantId).catch((e) =>
-      console.warn('[stock-transfer-receipts] ensure:', e?.message || e)
-    );
+    for (const tid of tenantIds) {
+      await ensureMissingReceiptNoticesForTenant(tid).catch((e) =>
+        console.warn('[stock-transfer-receipts] ensure:', e?.message || e)
+      );
+    }
 
     let notices = [];
     let usedFallback = false;
 
     try {
       notices = await prisma.stockTransferReceiptNotice.findMany({
-        where: { tenantId },
+        where: tw,
         orderBy: { createdAt: 'desc' },
         take: 50,
         include: {
@@ -108,32 +125,41 @@ export async function GET(request) {
         e.message?.includes('Unknown model')
       ) {
         usedFallback = true;
-        notices = await buildReceiptNoticeListFromTransfers(tenantId);
+        notices = await buildReceiptNoticeListFromTransfers(tenantIds[0]);
       } else {
         throw e;
       }
     }
 
     if (!usedFallback && notices.length === 0) {
-      const xferCount = await prisma.stockTransfer.count({
-        where: {
-          status: 'received',
-          tenantId: { not: tenantId },
-          toBranch: { tenantId, isActive: true },
-        },
-      });
-      if (xferCount > 0) {
-        try {
-          notices = await buildReceiptNoticeListFromTransfers(tenantId);
-          usedFallback = true;
-        } catch (fallbackErr) {
-          console.warn('[stock-transfer-receipts] fallback:', fallbackErr?.message || fallbackErr);
+      for (const tid of tenantIds) {
+        const xferCount = await prisma.stockTransfer.count({
+          where: {
+            status: 'received',
+            tenantId: { not: tid },
+            toBranch: { tenantId: tid, isActive: true },
+          },
+        });
+        if (xferCount > 0) {
+          try {
+            notices = await buildReceiptNoticeListFromTransfers(tid);
+            usedFallback = true;
+            break;
+          } catch (fallbackErr) {
+            console.warn('[stock-transfer-receipts] fallback:', fallbackErr?.message || fallbackErr);
+          }
         }
       }
     }
 
     const unreadCount = notices.filter((n) => !n.readAt).length;
-    const enriched = await enrichNoticesWithReceiptProduct(notices, tenantId);
+    const enriched = await Promise.all(
+      notices.map(async (n) => {
+        const noticeTenantId = n.tenantId || tenantIds[0];
+        const [row] = await enrichNoticesWithReceiptProduct([n], noticeTenantId);
+        return row;
+      })
+    );
 
     return NextResponse.json({ notices: enriched, unreadCount });
   } catch (error) {

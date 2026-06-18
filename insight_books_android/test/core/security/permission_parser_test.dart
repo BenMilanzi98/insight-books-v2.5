@@ -44,7 +44,9 @@ void main() {
       });
       expect(perms.contains('sales.view'), isTrue);
       expect(perms.contains('sales.create'), isTrue);
-      expect(perms.contains('tenants.switch'), isTrue);
+      expect(perms.contains('sales.void'), isTrue);
+      expect(perms.contains('sales.refund'), isTrue);
+      expect(perms.contains('sales.export'), isTrue);
     });
 
     test('Sales Assistant with empty map gets default sales permissions', () {
@@ -52,7 +54,7 @@ void main() {
         'role': {'name': 'Sales Assistant', 'permissions': {}},
       });
       expect(perms.contains('sales.view'), isTrue);
-      expect(perms.contains('clients.view'), isTrue);
+      expect(perms.contains('sales.create'), isTrue);
     });
 
     test('parses numeric 1 as granted permission', () {
@@ -155,6 +157,44 @@ void main() {
     test('non-inventory permissions are not interchangeable', () {
       expect(
         satisfiesPermission({'sales.view'}, 'invoices.view'),
+        isFalse,
+      );
+    });
+
+    test('sales.view grants implicit POS supporting permissions', () {
+      expect(
+        satisfiesPermission({'sales.view', 'sales.create'}, 'clients.view'),
+        isTrue,
+      );
+      expect(
+        satisfiesPermission({'sales.view', 'sales.create'}, 'inventory.view'),
+        isTrue,
+      );
+      expect(
+        satisfiesPermission({'sales.view', 'sales.create'}, 'payments.view'),
+        isTrue,
+      );
+      expect(
+        satisfiesPermission({'sales.view', 'sales.create'}, 'system.switchTenant'),
+        isTrue,
+      );
+      expect(
+        satisfiesPermission({'sales.view', 'sales.create'}, 'tenants.switch'),
+        isTrue,
+      );
+      expect(
+        satisfiesPermission({'sales.view', 'sales.create'}, 'accounts.view'),
+        isFalse,
+      );
+    });
+
+    test('sales.create grants implicit client create/update', () {
+      expect(
+        satisfiesPermission({'sales.create'}, 'clients.create'),
+        isTrue,
+      );
+      expect(
+        satisfiesPermission({'sales.view'}, 'clients.create'),
         isFalse,
       );
     });

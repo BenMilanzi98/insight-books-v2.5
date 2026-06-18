@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalance } from '@/lib/core';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { postTaxPayment } from '@/lib/taxCalculationService';
 import { applyPayeSettlementToExpenses, isPayeTaxType } from '@/lib/payeExpenseSettlement';
@@ -150,9 +149,6 @@ export async function POST(request) {
         // But for now, we'll require taxTypeId
         throw new Error('taxTypeId is required to create tax payment journal entries');
       }
-
-      // Update account balance
-      await updateAccountBalance(user.tenantId, body.paymentMethod, amount, "subtract");
 
       // Create audit log entry
       await tx.auditLog.create({

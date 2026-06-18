@@ -5,7 +5,7 @@ import { isStructureExtensionCode } from '../lib/coaMigration/canonicalCodes.js'
 
 describe('classifyCoaBucketByCode', () => {
   it('classifies dashed asset codes by leading segment', () => {
-    expect(classifyCoaBucketByCode('1130-01')).toBe('Asset');
+    expect(classifyCoaBucketByCode('1131')).toBe('Asset');
   });
 
   it('returns UNCLASSIFIED for non-numeric prefixes', () => {

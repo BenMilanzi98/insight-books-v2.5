@@ -125,9 +125,43 @@ export async function POST(request) {
         // Don't fail the payment if journal entry creation fails
       }
     } else {
-      // Update account balance for non-supplier expenses
-      const { updateAccountBalance } = await import('@/lib/core');
-      await updateAccountBalance(user.tenantId, paymentMethod, paymentAmount, "subtract");
+      try {
+        const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry');
+        const { resolvePostableExpenseAccount } = await import('@/lib/accountingMappingRules');
+        const { getPaymentAccount } = await import('@/lib/transactionJournalHelpers');
+        const expenseAccount = expense.expenseAccountId
+          ? await resolvePostableExpenseAccount(user.tenantId, expense.expenseAccountId, prisma)
+          : null;
+        const paymentAccount = await getPaymentAccount(user.tenantId, paymentMethod, prisma);
+        if (expenseAccount && paymentAccount) {
+          await postGlEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            entryDate: new Date(paymentDate),
+            description: `Expense payment - ${expense.description || expense.id}`,
+            sourceType: 'ExpensePayment',
+            sourceId: payment.id,
+            lines: [
+              {
+                lineNumber: 1,
+                accountId: expenseAccount.id,
+                debitAmount: paymentAmount,
+                creditAmount: 0,
+                description: 'Expense payment',
+              },
+              {
+                lineNumber: 2,
+                accountId: paymentAccount.id,
+                debitAmount: 0,
+                creditAmount: paymentAmount,
+                description: `Payment via ${paymentMethod}`,
+              },
+            ],
+          });
+        }
+      } catch (journalError) {
+        console.error('Error creating GL for direct expense payment:', journalError);
+      }
     }
 
     // Create audit log entry

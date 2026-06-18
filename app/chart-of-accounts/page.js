@@ -6,18 +6,20 @@ import {
   FileSpreadsheet,
   FileDown,
   Upload,
-  ChevronDown,
   CheckCircle,
   XCircle,
   AlertCircle,
   X,
   BookOpen,
-  Sparkles,
+  Calendar,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import { downloadExcel, downloadExcelWorkbook, downloadPDF } from '@/lib/exportUtils';
 import PermissionGuard from '@/components/PermissionGuard';
+import BusinessScopeSelector, { useBusinessScope } from '@/components/BusinessScopeSelector';
 import SystemLedgerCoaTable from '@/components/chart-of-accounts/SystemLedgerCoaTable';
+import { appendBusinessScopeParams } from '@/lib/businessScopeStorage';
 import { COA_SYNTHETIC_DIRECT_PREFIX, isCoaSyntheticDirectRow } from '@/lib/coaChartRollup.js';
 import { COA_RECONCILE_TOLERANCE } from '@/lib/coaMoney.js';
 import {
@@ -27,7 +29,20 @@ import {
 } from '@/lib/customExpenseRange.js';
 
 const ChartOfAccountsPage = () => {
+  const {
+    mode: businessScopeMode,
+    tenantIds: businessScopeTenantIds,
+    setScope: setBusinessScope,
+    hydrated: businessScopeHydrated,
+  } = useBusinessScope();
+  const businessScope = useMemo(
+    () => ({ mode: businessScopeMode, tenantIds: businessScopeTenantIds }),
+    [businessScopeMode, businessScopeTenantIds]
+  );
+
   const [accounts, setAccounts] = useState([]);
+  const [coaByTenant, setCoaByTenant] = useState(null);
+  const [activeCoaTenantId, setActiveCoaTenantId] = useState('consolidated');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +76,40 @@ const ChartOfAccountsPage = () => {
 
   // Account type options
   const accountTypes = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
+
+  const DATE_PRESET_OPTIONS = [
+    { value: 'day', label: 'Today' },
+    { value: 'week', label: 'This week' },
+    { value: 'month', label: 'This month' },
+    { value: 'year', label: 'This year' },
+    { value: 'custom', label: 'Custom' },
+  ];
+
+  const displayAccounts = useMemo(() => {
+    if (!coaByTenant?.length || activeCoaTenantId === 'consolidated') {
+      return accounts;
+    }
+    const tenantSlice = coaByTenant.find((t) => t.tenantId === activeCoaTenantId);
+    return tenantSlice?.accounts || accounts;
+  }, [accounts, coaByTenant, activeCoaTenantId]);
+
+  const accountCount = useMemo(
+    () => displayAccounts.filter((a) => !isCoaSyntheticDirectRow(a)).length,
+    [displayAccounts]
+  );
+
+  const hasActiveFilters =
+    Boolean(searchQuery.trim()) ||
+    accountTypeFilter !== 'All' ||
+    !activeFilter ||
+    datePreset !== 'month';
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setAccountTypeFilter('All');
+    setActiveFilter(true);
+    setDatePreset('month');
+  };
   
   // Subtype options by account type
   const accountSubtypes = {
@@ -138,6 +187,7 @@ const ChartOfAccountsPage = () => {
       if (dateTo) {
         params.append('dateTo', dateTo);
       }
+      appendBusinessScopeParams(params, businessScope);
 
       const response = await fetch(`/api/chart-of-accounts?${params.toString()}`, {
         signal,
@@ -151,6 +201,16 @@ const ChartOfAccountsPage = () => {
 
       const data = await response.json();
       if (signal.aborted) return;
+      const tenantRows = Array.isArray(data.byTenant) ? data.byTenant : null;
+      setCoaByTenant(tenantRows?.length > 1 ? tenantRows : null);
+      if (tenantRows?.length > 1) {
+        setActiveCoaTenantId((prev) => {
+          if (prev === 'consolidated') return prev;
+          return tenantRows.some((t) => t.tenantId === prev) ? prev : 'consolidated';
+        });
+      } else {
+        setActiveCoaTenantId('consolidated');
+      }
       setAccounts(data.accounts || []);
     } catch (err) {
       if (err?.name === 'AbortError' || signal.aborted) return;
@@ -161,10 +221,11 @@ const ChartOfAccountsPage = () => {
         setLoading(false);
       }
     }
-  }, [accountTypeFilter, activeFilter, searchQuery, dateFrom, dateTo]);
+  }, [accountTypeFilter, activeFilter, searchQuery, dateFrom, dateTo, businessScope]);
 
   // Single schedule: no duplicate mount fetch (previously a second effect debounced empty search and raced).
   useEffect(() => {
+    if (!businessScopeHydrated) return undefined;
     const delay = searchQuery.trim() ? 300 : 0;
     const timer = setTimeout(() => {
       void loadAccounts();
@@ -173,7 +234,7 @@ const ChartOfAccountsPage = () => {
       clearTimeout(timer);
       chartFetchAbortRef.current?.abort();
     };
-  }, [loadAccounts]);
+  }, [loadAccounts, businessScopeHydrated]);
 
   const loadMergeAccounts = async () => {
     const response = await fetch('/api/chart-of-accounts?includeInactive=true', {
@@ -539,232 +600,286 @@ const ChartOfAccountsPage = () => {
   };
 
   const coaBtnSecondary =
-    'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]';
-  const periodLabel = dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : (dateFrom ? `From ${dateFrom}` : (dateTo ? `Up to ${dateTo}` : 'All dates'));
+    'inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]';
+  const periodLabel =
+    dateFrom && dateTo
+      ? `${dateFrom} — ${dateTo}`
+      : dateFrom
+        ? `From ${dateFrom}`
+        : dateTo
+          ? `Up to ${dateTo}`
+          : 'All dates';
+  const filterPillClass = (active) =>
+    active
+      ? 'bg-slate-900 text-white shadow-sm'
+      : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm';
 
   return (
     <PermissionGuard permission="accounts.view">
-      <div className="relative min-h-screen overflow-hidden bg-slate-100">
-        <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_-15%,rgba(79,70,229,0.09),transparent_55%)]"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(148,163,184,0.12),transparent_45%)]"
-          aria-hidden
-        />
-
-        <div className="relative mx-auto max-w-[1680px] px-3 py-6 pb-20 sm:px-6 sm:py-10 lg:px-10 lg:py-12">
-          {/* Hero */}
-          <header className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.12)] backdrop-blur-md ring-1 ring-slate-900/[0.04] sm:mb-10 sm:p-8 lg:p-10">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/50 to-transparent" />
-            <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-500/[0.07] blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 left-1/4 h-48 w-48 rounded-full bg-slate-400/[0.06] blur-3xl" />
-            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex max-w-3xl gap-5 sm:gap-6">
-                <div className="relative shrink-0">
-                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-600/10 blur-md" aria-hidden />
-                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/25 ring-1 ring-white/20 sm:h-[4.25rem] sm:w-[4.25rem]">
-                    <BookOpen className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={1.6} />
-                  </div>
-                </div>
-                <div>
-                  <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-indigo-600">
-                    <Sparkles size={14} className="text-amber-500" strokeWidth={2} />
-                    General ledger
-                  </p>
-                  <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-slate-900 sm:text-[2.35rem] sm:leading-[1.15]">
-                    Chart of accounts
-                  </h1>
-                </div>
+      <div className="min-h-screen bg-[#f4f5f7]">
+        <div className="mx-auto max-w-[1680px] px-4 py-8 pb-20 sm:px-6 lg:px-10 lg:py-10">
+          {/* Header */}
+          <header className="mb-6 flex flex-col gap-5 sm:mb-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
+                <BookOpen size={20} strokeWidth={1.75} />
               </div>
-              <div className="flex flex-col gap-3 lg:items-end">
-                <p className="hidden text-right text-[11px] font-medium uppercase tracking-wider text-slate-400 lg:block">
-                  Actions
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[1.75rem]">
+                  Chart of accounts
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  {!loading && accountCount > 0 ? (
+                    <>
+                      <span className="font-medium text-slate-700">{accountCount}</span> accounts
+                      {periodLabel !== 'All dates' ? (
+                        <>
+                          {' '}
+                          · balances for <span className="font-medium text-slate-700">{periodLabel}</span>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    'General ledger structure and posted balances'
+                  )}
                 </p>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <button
-                    type="button"
-                    onClick={handleInitializeBaseline}
-                    className={coaBtnSecondary}
-                    title="Creates missing standard GL accounts, default payment accounts, and tax accounts (same as new-tenant setup)"
-                  >
-                    <CheckCircle size={17} strokeWidth={2} className="text-emerald-600" />
-                    Sync CoA
-                  </button>
-                  <button type="button" onClick={() => handleImportTemplate('retail')} className={coaBtnSecondary}>
-                    <Upload size={17} strokeWidth={2} />
-                    Templates
-                  </button>
-                  <button type="button" onClick={handleExportExcel} className={coaBtnSecondary}>
-                    <FileSpreadsheet size={17} strokeWidth={2} />
-                    Export Excel
-                  </button>
-                  <label className={`${coaBtnSecondary} cursor-pointer`}>
-                    <Upload size={17} strokeWidth={2} />
-                    Import
-                    <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetForm();
-                      setShowAddModal(true);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/25 transition hover:bg-indigo-700 active:scale-[0.99]"
-                  >
-                    <Plus size={18} strokeWidth={2.5} />
-                    Add account
-                  </button>
-                </div>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <BusinessScopeSelector
+                mode={businessScopeMode}
+                selectedTenantIds={businessScopeTenantIds}
+                onChange={setBusinessScope}
+                className="w-full sm:w-auto"
+              />
+              <button
+                type="button"
+                onClick={handleInitializeBaseline}
+                className={coaBtnSecondary}
+                title="Creates missing standard GL accounts, default payment accounts, and tax accounts"
+              >
+                <CheckCircle size={16} strokeWidth={2} className="text-emerald-600" />
+                Sync
+              </button>
+              <button type="button" onClick={() => handleImportTemplate('retail')} className={coaBtnSecondary}>
+                <Upload size={16} strokeWidth={2} />
+                Templates
+              </button>
+              <button type="button" onClick={handleExportExcel} className={coaBtnSecondary}>
+                <FileSpreadsheet size={16} strokeWidth={2} />
+                Export
+              </button>
+              <label className={`${coaBtnSecondary} cursor-pointer`}>
+                <Upload size={16} strokeWidth={2} />
+                Import
+                <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setShowAddModal(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99]"
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                Add account
+              </button>
             </div>
           </header>
 
-          {/* Toolbar */}
-          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] sm:p-5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-3">
-            <div className="relative min-w-0 w-full lg:max-w-xl lg:flex-1">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 sm:left-4"
-                strokeWidth={2}
-              />
-              <input
-                type="search"
-                placeholder="Filter by code, name, or description…"
-                className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-900 ring-1 ring-slate-200/80 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/25 sm:py-3 sm:pl-12 sm:pr-4"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:min-w-0 lg:flex-1 lg:justify-end">
-              <div className="inline-flex w-full items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-900 sm:w-auto sm:justify-start">
-                Period: {periodLabel}
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:w-auto sm:items-center sm:gap-2">
-                <select
-                  value={accountTypeFilter}
-                  onChange={(e) => setAccountTypeFilter(e.target.value)}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[8.5rem] sm:px-4"
-                >
-                  <option value="All">All types</option>
-                  {accountTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto sm:px-4">
-                  <input
-                    type="checkbox"
-                    checked={activeFilter}
-                    onChange={(e) => setActiveFilter(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
-                  />
-                  Active only
-                </label>
-                <select
-                  value={datePreset}
-                  onChange={(e) => setDatePreset(e.target.value)}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[9rem] sm:px-4"
-                >
-                  <option value="day">Today</option>
-                  <option value="week">This week</option>
-                  <option value="month">This month</option>
-                  <option value="year">This year</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => {
-                    setDatePreset('custom');
-                    setDateFrom(e.target.value);
-                  }}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[11rem] sm:px-4"
+          {/* Filters */}
+          <section
+            className="mb-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm"
+            aria-label="Chart of accounts filters"
+          >
+            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+              <div className="relative">
+                <Search
+                  size={17}
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  strokeWidth={2}
                 />
                 <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => {
-                    setDatePreset('custom');
-                    setDateTo(e.target.value);
-                  }}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[11rem] sm:px-4"
+                  type="search"
+                  placeholder="Search by code, name, or description…"
+                  className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-10 text-sm text-slate-900 ring-1 ring-slate-200/80 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200/60 hover:text-slate-700"
+                    aria-label="Clear search"
+                  >
+                    <X size={15} strokeWidth={2} />
+                  </button>
+                ) : null}
               </div>
             </div>
-          </div>
 
-          <p className="mb-6 text-xs leading-relaxed text-slate-500">
-            Posted balances use journal entries and GL transactions. With a branch selected in your session, totals
-            include only that branch (same scope as the expense register). Date filters apply to the same posting
-            dates used by the ledger. COGS, payroll, and other non-register postings still appear on expense accounts
-            under the GL.
-          </p>
+            <div className="space-y-4 px-4 py-4 sm:px-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <SlidersHorizontal size={13} strokeWidth={2} />
+                    Type
+                  </span>
+                  <div className="overflow-x-auto rounded-xl bg-slate-100/80 p-1">
+                    <div className="flex w-max gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setAccountTypeFilter('All')}
+                        className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(accountTypeFilter === 'All')}`}
+                      >
+                        All
+                      </button>
+                      {accountTypes.map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setAccountTypeFilter(type)}
+                          className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(accountTypeFilter === type)}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</span>
+                  <div className="rounded-xl bg-slate-100/80 p-1">
+                    <div className="flex gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setActiveFilter(true)}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(activeFilter)}`}
+                      >
+                        Active
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveFilter(false)}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(!activeFilter)}`}
+                      >
+                        All
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <Calendar size={13} strokeWidth={2} />
+                    Period
+                  </span>
+                  <div className="overflow-x-auto rounded-xl bg-slate-100/80 p-1">
+                    <div className="flex w-max gap-0.5">
+                      {DATE_PRESET_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setDatePreset(opt.value)}
+                          className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(datePreset === opt.value)}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      setDatePreset('custom');
+                      setDateFrom(e.target.value);
+                    }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    aria-label="Balance from date"
+                  />
+                  <span className="text-xs text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDatePreset('custom');
+                      setDateTo(e.target.value);
+                    }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    aria-label="Balance to date"
+                  />
+                </div>
+              </div>
+
+              {hasActiveFilters ? (
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                  <p className="text-xs text-slate-500">Filters applied</p>
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="text-xs font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 transition hover:text-slate-900"
+                  >
+                    Reset filters
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </section>
 
           {error && (
             <div
               role="alert"
-              className="mb-6 flex items-start gap-4 rounded-2xl border border-rose-200/90 bg-rose-50/80 px-5 py-4 text-sm font-medium text-rose-950 shadow-sm backdrop-blur-sm"
+              className="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 ring-1 ring-rose-200/60">
-                <AlertCircle size={22} strokeWidth={2} />
-              </span>
-              <span className="pt-0.5">{error}</span>
+              <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-rose-600" />
+              <span>{error}</span>
             </div>
           )}
 
-          <details className="group mb-8 overflow-hidden rounded-3xl border border-slate-200/70 bg-white/90 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] open:shadow-md">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50/80 sm:px-6 sm:py-5 [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-3.5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 text-indigo-700 ring-1 ring-indigo-100/80">
-                  <BookOpen size={18} strokeWidth={2} />
-                </span>
-                <span className="text-[15px] tracking-tight">Posting rules &amp; protected accounts</span>
-              </span>
-              <ChevronDown
-                size={20}
-                className="shrink-0 text-indigo-400 transition duration-300 group-open:rotate-180"
-                strokeWidth={2}
-              />
-            </summary>
-            <div className="border-t border-slate-100/90 bg-gradient-to-b from-slate-50/80 to-slate-50/40 px-5 py-5 sm:px-6 sm:py-6">
-              <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
-                <li className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] sm:p-5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">System</span>
-                  <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
-                    <strong className="font-semibold text-slate-800">System</strong> badges mark GL lines wired into
-                    invoices, POS, bills, and tax — read-only in the grid.
-                  </p>
-                </li>
-                <li className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] sm:p-5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">Extend</span>
-                  <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
-                    Add payment rails under{' '}
-                    <code className="rounded-md bg-slate-900/[0.06] px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-800">
-                      1130
-                    </code>{' '}
-                    as <code className="font-mono text-xs font-semibold text-slate-800">1130-xx</code>, or new expense
-                    leaves under <code className="font-mono text-xs font-semibold text-slate-800">5000</code>.
-                  </p>
-                </li>
-                <li className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] sm:p-5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-teal-600">Anchors</span>
-                  <p className="mt-2.5 font-mono text-sm font-semibold leading-relaxed text-slate-700">
-                    <span className="text-slate-900">1110</span> cash · <span className="text-slate-900">1200</span> AR ·{' '}
-                    <span className="text-slate-900">2110</span> AP · <span className="text-slate-900">4100</span> sales
-                  </p>
-                </li>
-              </ul>
+          {coaByTenant?.length > 1 ? (
+            <div className="mb-4 overflow-x-auto rounded-xl bg-slate-100/80 p-1">
+              <div className="flex w-max gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveCoaTenantId('consolidated')}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                    activeCoaTenantId === 'consolidated'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+                  }`}
+                >
+                  Consolidated
+                </button>
+                {coaByTenant.map((tenant) => (
+                  <button
+                    key={tenant.tenantId}
+                    type="button"
+                    onClick={() => setActiveCoaTenantId(tenant.tenantId)}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                      activeCoaTenantId === tenant.tenantId
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+                    }`}
+                  >
+                    {tenant.tenantName || tenant.businessName || 'Business'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </details>
+          ) : null}
 
           <SystemLedgerCoaTable
             loading={loading}
-            accounts={accounts}
+            accounts={displayAccounts}
             activeFilter={activeFilter}
             onViewAccount={openViewModal}
             onEditAccount={openEditModal}

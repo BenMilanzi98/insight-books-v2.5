@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { updateAccountBalance } from '@/lib/core';
+import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // Helper function to normalize column names (case-insensitive, handle variations)
@@ -833,8 +833,20 @@ export async function POST(request) {
             }
           });
 
-          // Update account balance
-          await updateAccountBalance(user.tenantId, normalizedPaymentMethod, total, "add");
+          // Post sale revenue (and COGS when applicable) to the general ledger
+          await createSaleJournalEntries({
+            tenantId: user.tenantId,
+            userId: user.id,
+            saleId: sale.id,
+            saleNumber: sale.saleNumber,
+            saleDate: parsedTransactionDate,
+            totalAmount: total,
+            paymentMethod: normalizedPaymentMethod,
+            taxAmount,
+            cogsAmount: 0,
+            branchId: sale.branchId || null,
+            tx,
+          });
 
           // Create audit log
           await tx.auditLog.create({

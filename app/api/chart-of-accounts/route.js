@@ -45,6 +45,7 @@ import {
   COA_ACCOUNT_TYPES,
   normalizeCoaAccountType,
 } from '@/lib/coaAccountListWhere.js';
+import { bootstrapReportRoute } from '@/lib/reportRouteBootstrap';
 
 // Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
@@ -168,13 +169,10 @@ export async function GET(request) {
     const perm = await requirePermission(request, 'accounts.view');
     if (perm) return perm;
 
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+
+    const { user, tenantIds, tenants, scope, primaryTenantId } = boot;
 
     if (!canViewChartOfAccounts(user)) {
       return NextResponse.json(
@@ -184,13 +182,66 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
+
+    const dateRangeProbe = buildChartDateRange(searchParams);
+    if (dateRangeProbe.invalid) {
+      return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
+    }
+
+    if (tenantIds.length > 1) {
+      const byTenant = [];
+      for (const t of tenants) {
+        const payload = await buildCoaPayload(t.id, user, searchParams);
+        byTenant.push({
+          tenantId: t.id,
+          tenantName: t.name,
+          accounts: payload.accounts,
+        });
+      }
+      return NextResponse.json(
+        { scope, byTenant },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            Pragma: 'no-cache',
+          },
+        }
+      );
+    }
+
+    const payload = await buildCoaPayload(primaryTenantId, user, searchParams);
+    if (payload.error) {
+      return NextResponse.json({ error: payload.error }, { status: payload.status || 400 });
+    }
+    return NextResponse.json(payload, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        Pragma: 'no-cache',
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching chart of accounts:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
+    return NextResponse.json(
+      { error: 'Failed to fetch chart of accounts', details: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
+      { status: 500 }
+    );
+  }
+}
+
+async function buildCoaPayload(tenantId, user, searchParams) {
     const dateRange = buildChartDateRange(searchParams);
     if (dateRange.invalid) {
-      return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
+      return { error: 'Invalid date range: dateFrom must be <= dateTo', status: 400 };
     }
     const hasDateFilter = Boolean(dateRange.from || dateRange.to);
 
-    const where = buildCoaAccountListWhere(user.tenantId, searchParams);
+    const where = buildCoaAccountListWhere(tenantId, searchParams);
 
     let accounts = [];
     try {
@@ -232,15 +283,21 @@ export async function GET(request) {
         ]
       });
 
+<<<<<<< Updated upstream
+=======
+      const rollupOnlyRows = await fetchChartRollupOnlyAccounts(tenantId, prisma);
+      accounts = mergeRollupOnlyAccountsForProcessing(accounts, rollupOnlyRows);
+
+>>>>>>> Stashed changes
       // Canonical-only display removed from page controls; full tenant chart stays visible.
     } catch (error) {
       console.error('Error fetching accounts:', error);
       // Return empty array if accounts query fails
-      return NextResponse.json({
+      return {
         accounts: [],
         total: 0,
         error: 'Failed to fetch accounts'
-      });
+      };
     }
 
     // Stable order for balance aggregation + duplicate-code merge (avoids tie-break drift across reloads).
@@ -261,7 +318,7 @@ export async function GET(request) {
     try {
       allInvoices = await prisma.invoice.findMany({
         where: {
-          tenantId: user.tenantId, // CRITICAL: Filter by tenant ID
+          tenantId,
           voidedAt: null,
           refundedAt: null,
           ...(dateRange.to || dateRange.from
@@ -309,7 +366,7 @@ export async function GET(request) {
     let liabilitiesForChartOverlay = [];
     try {
       liabilitiesForChartOverlay = await prisma.liability.findMany({
-        where: { tenantId: user.tenantId, status: 'active' },
+        where: { tenantId, status: 'active' },
         select: {
           id: true,
           glAccountId: true,
@@ -396,7 +453,7 @@ export async function GET(request) {
     try {
       const invAgg = await computePhysicalInventoryValuationTotal(
         prisma,
-        user.tenantId,
+        tenantId,
         user,
         inventorySearchAligned,
         {}
@@ -418,16 +475,16 @@ export async function GET(request) {
       totalAccountsReceivable,
     });
 
-    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
+    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(tenantId, prisma);
     const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
 
-    const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
+    const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(tenantId, prisma);
     let journalBySurvivor = new Map();
     let draftBySurvivor = new Map();
     let txnBySurvivor = new Map();
     try {
       const bulk = await loadCoaBulkGlAggregates(prisma, {
-        tenantId: user.tenantId,
+        tenantId,
         glBranchFilter,
         mergeRollupCtx,
         accounts,
@@ -596,8 +653,13 @@ export async function GET(request) {
     const deduplicatedAccounts = mergeDuplicateAccountCodeRows(successfulAccounts);
 
     const parentChainRows = await prisma.account.findMany({
+<<<<<<< Updated upstream
       where: { tenantId: user.tenantId },
       select: { id: true, parentAccountId: true },
+=======
+      where: { tenantId },
+      select: { id: true, parentAccountId: true, mergedIntoAccountId: true },
+>>>>>>> Stashed changes
     });
     const parentAccountIdByAccountId = new Map(
       parentChainRows.map((r) => [r.id, r.parentAccountId ?? null])
@@ -644,41 +706,20 @@ export async function GET(request) {
 
     const accountsForResponse = alignChartAccountsListToBlueprint(sortedAccounts);
 
-    return NextResponse.json(
-      {
-        accounts: accountsForResponse,
-        total: accountsForResponse.length,
-        traceability: {
-          policy:
-            'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (including reversals, so original + reversal net correctly). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. The 1300 inventory overlay uses the same live physical-stock valuation as GET /api/stock/statistics, scoped to the same branch as GL when a branch is selected (see inventoryValuationNote). Chart date filters do not restate inventory; they only change posted GL amounts on accounts. Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
-          inventoryValuationNote: inventoryValuationNote || undefined,
-        },
-        period: {
-          dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
-          dateTo: dateRange.to ? dateRange.to.toISOString() : null,
-          hasDateFilter,
-        },
+    return {
+      accounts: accountsForResponse,
+      total: accountsForResponse.length,
+      traceability: {
+        policy:
+          'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (including reversals, so original + reversal net correctly). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. The 1300 inventory overlay uses the same live physical-stock valuation as GET /api/stock/statistics, scoped to the same branch as GL when a branch is selected (see inventoryValuationNote). Chart date filters do not restate inventory; they only change posted GL amounts on accounts. Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
+        inventoryValuationNote: inventoryValuationNote || undefined,
       },
-      {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-          Pragma: 'no-cache',
-        },
-      }
-    );
-  } catch (error) {
-    console.error('Error fetching chart of accounts:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error details:', {
-      message: error.message,
-      name: error.name,
-      code: error.code
-    });
-    return NextResponse.json(
-      { error: 'Failed to fetch chart of accounts', details: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
-      { status: 500 }
-    );
-  }
+      period: {
+        dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
+        dateTo: dateRange.to ? dateRange.to.toISOString() : null,
+        hasDateFilter,
+      },
+    };
 }
 
 // POST - Create new account

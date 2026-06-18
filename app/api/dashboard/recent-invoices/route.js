@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 export async function GET(request) {
   try {
@@ -13,11 +19,20 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    
-    // Get date range from query parameters
+
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scopeResult = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scopeResult.ok) {
+      return NextResponse.json(
+        { error: scopeResult.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds, branchScoped } = scopeResult;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+    
     const dateRange = searchParams.get('dateRange') || 'month';
     
     // Calculate date range based on the parameter
@@ -128,8 +143,8 @@ export async function GET(request) {
     
     // Get the 5 most recent invoices within the date range
     const invoices = await prisma.invoice.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         isDeleted: false,
         isReversal: false,
         issueDate: {

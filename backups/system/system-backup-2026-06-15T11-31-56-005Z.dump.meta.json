@@ -1,0 +1,12 @@
+{
+  "id": "system-backup-2026-06-15T11-31-56-005Z",
+  "filename": "system-backup-2026-06-15T11-31-56-005Z.dump",
+  "name": "System Backup - 2026-06-15",
+  "type": "full",
+  "description": "Manual system backup from tenant management",
+  "status": "completed",
+  "fileSize": 34711577,
+  "createdAt": "2026-06-15T11:32:09.425Z",
+  "completedAt": "2026-06-15T11:32:09.425Z",
+  "createdBy": "cmemjq8bh0000jq5cv130xef0"
+}

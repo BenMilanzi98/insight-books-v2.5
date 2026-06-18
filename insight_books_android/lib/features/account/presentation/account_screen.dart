@@ -324,8 +324,6 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
   late TextEditingController _bankDetailsController;
   late TextEditingController _primaryColorController;
   late TextEditingController _secondaryColorController;
-  String? _defaultBranchId;
-  List<Map<String, dynamic>> _branches = const [];
   List<Map<String, dynamic>> _accounts = const [];
   String? _taxOutflowAccountId;
 
@@ -361,25 +359,11 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
     _secondaryColorController = TextEditingController(
       text: widget.settings?.secondaryColor ?? '#7c3aed',
     );
-    _defaultBranchId = widget.settings?.defaultBranchId;
     _taxOutflowAccountId = widget.settings?.taxOutflowAccountId;
-    _loadBranches();
     _loadAccounts();
   }
 
   String? _loadError;
-
-  Future<void> _loadBranches() async {
-    try {
-      final rows = await ref.read(accountRepositoryProvider).fetchBranches();
-      if (!mounted) return;
-      setState(() => _branches = rows);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loadError = 'Could not load branches');
-      debugPrint('[AccountScreen] branches load failed: $e');
-    }
-  }
 
   Future<void> _loadAccounts() async {
     try {
@@ -469,7 +453,6 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                       TextButton(
                         onPressed: () {
                           setState(() => _loadError = null);
-                          _loadBranches();
                           _loadAccounts();
                         },
                         child: const Text('Retry'),
@@ -512,30 +495,6 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                       labelText: 'Subdomain (Read-only)',
                     ),
                     enabled: false,
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: _defaultBranchId,
-                    decoration: const InputDecoration(
-                      labelText: 'Default Branch',
-                    ),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: '',
-                        child: Text('None (user default / all branches)'),
-                      ),
-                      ..._branches
-                          .where((b) => (b['isActive'] ?? true) == true)
-                          .map(
-                            (b) => DropdownMenuItem<String>(
-                              value: (b['id'] ?? '').toString(),
-                              child: Text(
-                                '${b['name'] ?? 'Branch'}${(b['code'] ?? '').toString().isNotEmpty ? ' (${b['code']})' : ''}',
-                              ),
-                            ),
-                          ),
-                    ],
-                    onChanged: (v) => setState(() => _defaultBranchId = v),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -761,7 +720,6 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                       _emailController.text = widget.settings?.businessEmail ?? '';
                       _tpinController.text = widget.settings?.tpin ?? '';
                       _bankDetailsController.text = widget.settings?.defaultBankDetails ?? '';
-                      _defaultBranchId = widget.settings?.defaultBranchId;
                       _taxOutflowAccountId = widget.settings?.taxOutflowAccountId;
                       _primaryColorController.text = widget.settings?.primaryColor ?? '#4f46e5';
                       _secondaryColorController.text = widget.settings?.secondaryColor ?? '#7c3aed';
@@ -777,9 +735,6 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                     widget.onSave(
                       widget.settings!.copyWith(
                         name: _nameController.text,
-                        defaultBranchId: (_defaultBranchId ?? '').isEmpty
-                            ? null
-                            : _defaultBranchId,
                         tpin: _tpinController.text.trim().isEmpty
                             ? null
                             : _tpinController.text.trim(),

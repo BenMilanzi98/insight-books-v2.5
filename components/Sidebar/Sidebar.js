@@ -1258,7 +1258,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         </Link>
       )}
 
-      {/* Branches/Businesses: switch active business (tenant) from sidebar */}
+      {/* Businesses: switch active business (tenant) from sidebar */}
       {!collapsed && user?.tenant && (
         <div style={{
           padding: "8px",

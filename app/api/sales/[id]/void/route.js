@@ -1,8 +1,7 @@
 // app/api/sales/[id]/void/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalance } from '@/lib/core';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { reverseSaleGlForRefundInTx } from '@/lib/transactionReversalService';
 
 export async function POST(request, { params }) {
@@ -17,6 +16,9 @@ export async function POST(request, { params }) {
         { status: 401 }
       );
     }
+
+    const perm = await requirePermission(request, 'sales.void');
+    if (perm) return perm;
     
     // Parse request body
     const { reason } = await request.json();
@@ -184,9 +186,6 @@ export async function POST(request, { params }) {
               sourceAccount: originalPayment.sourceAccount
             }
           });
-
-          // Update account balance (subtract the original payment)
-          await updateAccountBalance(user.tenantId, originalPayment.paymentMethod, originalPayment.amount, "subtract");
 
           // Update original payment status to voided
           await tx.payment.update({

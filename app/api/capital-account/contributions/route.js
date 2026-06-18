@@ -8,7 +8,14 @@ import {
   ensureCapitalParentAccount,
   createContributionSubAccount,
   listCapitalContributionAccountIds,
+  resolveContributionCashDebitAccount,
+  OWNERS_CAPITAL_GL_CODE,
+  OWNERS_CAPITAL_GL_NAME,
 } from '@/lib/capitalCoaHelpers';
+import { registerAssetFromCapitalContribution } from '@/lib/capitalContributionAssetRegister';
+import { postGlEntry, AccountingEngineError } from '@/lib/accountingEngine';
+import { fetchCapitalContributions } from '@/lib/capitalContributionsQuery';
+import { syncCapitalParentRollupBalance } from '@/lib/capitalCoaHelpers';
 
 function isCoaAssetAccount(account) {
   if (!account) return false;
@@ -70,15 +77,13 @@ export async function GET(request) {
       });
     }
 
-    const creditEntries = await prisma.journalEntry.findMany({
-      where: {
-        accountId: { in: creditAccountIds },
-        credit: { gt: 0 },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const { contributions, totalCash, totalAsset } = await fetchCapitalContributions(
+      user.tenantId,
+      creditAccountIds,
+      prisma
+    );
 
-    if (creditEntries.length === 0) {
+    if (contributions.length === 0) {
       const contributed = Number(settings?.ownerContributedCapital) || 0;
       return NextResponse.json({
         contributions: [],
@@ -91,96 +96,21 @@ export async function GET(request) {
       });
     }
 
-    const transactionIds = [
-      ...new Set(creditEntries.map((e) => e.transactionId).filter(Boolean)),
-    ];
-
-    const [transactions, debitEntries] = await Promise.all([
-      prisma.transaction.findMany({
-        where: { id: { in: transactionIds } },
-      }),
-      prisma.journalEntry.findMany({
-        where: {
-          transactionId: { in: transactionIds },
-          debit: { gt: 0 },
-        },
-      }),
-    ]);
-
-    const debitAccountIds = [
-      ...new Set(debitEntries.map((e) => e.accountId).filter(Boolean)),
-    ];
-    const debitAccounts = await prisma.account.findMany({
-      where: { id: { in: debitAccountIds } },
-    });
-
-    const txMap = Object.fromEntries(transactions.map((t) => [t.id, t]));
-    const debitMap = {};
-    for (const de of debitEntries) {
-      if (!debitMap[de.transactionId]) {
-        debitMap[de.transactionId] = de;
-      }
-    }
-    const acctMap = Object.fromEntries(debitAccounts.map((a) => [a.id, a]));
-
-    const creditAccountIdsForLookup = [
-      ...new Set(creditEntries.map((e) => e.accountId).filter(Boolean)),
-    ];
-    const creditAccounts = await prisma.account.findMany({
-      where: { id: { in: creditAccountIdsForLookup } },
-      select: { id: true, accountCode: true, code: true, accountName: true, name: true },
-    });
-    const creditAcctMap = Object.fromEntries(creditAccounts.map((a) => [a.id, a]));
-
-    let totalCash = 0;
-    let totalAsset = 0;
-
-    const contributions = creditEntries.map((entry) => {
-      const tx = txMap[entry.transactionId] || {};
-      const debit = debitMap[entry.transactionId];
-      const debitAccount = debit ? acctMap[debit.accountId] : null;
-
-      const debitAccountName =
-        debitAccount?.name || debitAccount?.accountName || 'Unknown';
-      const debitType = (debitAccount?.type || debitAccount?.accountType || '')
-        .toUpperCase();
-      const nameLower = debitAccountName.toLowerCase();
-
-      const isCash =
-        nameLower.includes('cash') ||
-        nameLower.includes('bank') ||
-        nameLower.includes('checking') ||
-        nameLower.includes('savings');
-      const type = isCash ? 'cash' : 'asset';
-
-      const amount = entry.credit || 0;
-      if (type === 'cash') {
-        totalCash += amount;
-      } else {
-        totalAsset += amount;
-      }
-
-      const cr = creditAcctMap[entry.accountId];
-      const coaCode = cr?.accountCode || cr?.code || '';
-
-      return {
-        id: entry.id,
-        date: tx.date || entry.entryDate || entry.createdAt,
-        amount,
-        type,
-        description: tx.description || entry.description || '',
-        reference: tx.reference || entry.referenceNumber || '',
-        debitAccountName,
-        coaAccountCode: coaCode,
-        createdAt: entry.createdAt,
-      };
-    });
-
     const contributed = Number(settings?.ownerContributedCapital) || 0;
     const ledgerCapital = primaryCapital?.balance ?? 0;
 
     return NextResponse.json({
-      contributions,
+      contributions: contributions.map((c) => ({
+        id: c.id,
+        date: c.date,
+        amount: c.amount,
+        type: c.type,
+        description: c.description || '',
+        reference: c.reference || '',
+        debitAccountName: c.debitAccountName,
+        coaAccountCode: c.contributionAccountCode,
+        createdAt: c.date,
+      })),
       summary: {
         totalCashContributions: totalCash,
         totalAssetContributions: totalAsset,
@@ -268,47 +198,20 @@ export async function POST(request) {
     let debitAccount = null;
 
     if (type === 'cash') {
-      if (cashAccountId) {
-        debitAccount = await prisma.account.findFirst({
-          where: { id: cashAccountId, tenantId: user.tenantId, isActive: true },
-        });
-        if (!debitAccount) {
-          return NextResponse.json(
-            { error: 'Specified cash account not found' },
-            { status: 404 }
-          );
-        }
-      }
+      debitAccount = await resolveContributionCashDebitAccount(
+        user.tenantId,
+        cashAccountId,
+        prisma
+      );
 
       if (!debitAccount) {
-        debitAccount = await prisma.account.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            isActive: true,
-            type: 'ASSET',
-            OR: [
-              { name: { contains: 'Cash', mode: 'insensitive' } },
-              { name: { contains: 'Bank', mode: 'insensitive' } },
-              { name: { contains: 'Checking', mode: 'insensitive' } },
-              { name: { contains: 'Savings', mode: 'insensitive' } },
-              { code: { startsWith: '1000' } },
-              { code: { startsWith: '1100' } },
-            ],
+        return NextResponse.json(
+          {
+            error:
+              'Could not resolve a cash GL account (1110). Sync chart of accounts or select a payment account.',
           },
-        });
-      }
-
-      if (!debitAccount) {
-        debitAccount = await prisma.account.create({
-          data: {
-            code: '1000',
-            name: 'Cash',
-            type: 'ASSET',
-            balance: 0,
-            isActive: true,
-            tenantId: user.tenantId,
-          },
-        });
+          { status: 404 }
+        );
       }
     } else {
       if (assetAccountId) {
@@ -425,112 +328,35 @@ export async function POST(request) {
         ? 'Cash capital contribution'
         : `Asset capital contribution - ${assetName || assetType || 'Asset'}`);
 
-    const transaction = await prisma.transaction.create({
-      data: {
-        date: entryDate,
-        description: txDescription,
-        reference,
-        status: 'posted',
-        tenantId: user.tenantId,
-        createdById: user.id,
-        entryType: 'Regular',
-        sourceType: 'capital_contribution',
-      },
+    const transaction = await postGlEntry({
+      tenantId: user.tenantId,
+      userId: user.id,
+      entryDate,
+      description: txDescription,
+      reference,
+      sourceType: 'capital_contribution',
+      sourceId: reference,
+      lines: [
+        {
+          accountId: debitAccount.id,
+          debitAmount: parsedAmount,
+          creditAmount: 0,
+          description: txDescription,
+        },
+        {
+          accountId: equityAccountForCredit.id,
+          debitAmount: 0,
+          creditAmount: parsedAmount,
+          description: txDescription,
+        },
+      ],
     });
 
-    const [debitEntry, creditEntry] = await prisma.$transaction([
-      prisma.journalEntry.create({
-        data: {
-          transactionId: transaction.id,
-          accountId: debitAccount.id,
-          debit: parsedAmount,
-          credit: 0,
-          description: txDescription,
-          status: 'posted',
-          entryDate,
-          tenantId: user.tenantId,
-          createdById: user.id,
-          sourceType: 'capital_contribution',
-          sourceId: transaction.id,
-        },
-      }),
-      prisma.journalEntry.create({
-        data: {
-          transactionId: transaction.id,
-          accountId: equityAccountForCredit.id,
-          debit: 0,
-          credit: parsedAmount,
-          description: txDescription,
-          status: 'posted',
-          entryDate,
-          tenantId: user.tenantId,
-          createdById: user.id,
-          sourceType: 'capital_contribution',
-          sourceId: transaction.id,
-        },
-      }),
-    ]);
-
-    const newDebitBalance = (debitAccount.balance || 0) + parsedAmount;
-    const newChildBalance = (equityAccountForCredit.balance || 0) + parsedAmount;
-    const newParentBalance = (parentCapital.balance || 0) + parsedAmount;
-
-    await prisma.$transaction([
-      prisma.account.update({
-        where: { id: debitAccount.id },
-        data: { balance: newDebitBalance },
-      }),
-      prisma.account.update({
-        where: { id: equityAccountForCredit.id },
-        data: { balance: newChildBalance },
-      }),
-      prisma.account.update({
-        where: { id: parentCapital.id },
-        data: { balance: newParentBalance },
-      }),
-      prisma.accountBalance.upsert({
-        where: {
-          tenantId_account: {
-            tenantId: user.tenantId,
-            account: debitAccount.id,
-          },
-        },
-        update: { balance: newDebitBalance },
-        create: {
-          tenantId: user.tenantId,
-          account: debitAccount.id,
-          balance: newDebitBalance,
-        },
-      }),
-      prisma.accountBalance.upsert({
-        where: {
-          tenantId_account: {
-            tenantId: user.tenantId,
-            account: equityAccountForCredit.id,
-          },
-        },
-        update: { balance: newChildBalance },
-        create: {
-          tenantId: user.tenantId,
-          account: equityAccountForCredit.id,
-          balance: newChildBalance,
-        },
-      }),
-      prisma.accountBalance.upsert({
-        where: {
-          tenantId_account: {
-            tenantId: user.tenantId,
-            account: parentCapital.id,
-          },
-        },
-        update: { balance: newParentBalance },
-        create: {
-          tenantId: user.tenantId,
-          account: parentCapital.id,
-          balance: newParentBalance,
-        },
-      }),
-    ]);
+    const parentRollupBalance = await syncCapitalParentRollupBalance(
+      user.tenantId,
+      parentCapital.id,
+      prisma
+    );
 
     await prisma.tenantSettings.upsert({
       where: { tenantId: user.tenantId },
@@ -562,20 +388,59 @@ export async function POST(request) {
           capitalParentAccountId: parentCapital.id,
           contributionAccountId: equityAccountForCredit.id,
           contributionAccountCode: equityAccountForCredit.accountCode,
+          capitalParentGlCode: OWNERS_CAPITAL_GL_CODE,
           transactionId: transaction.id,
-          debitEntryId: debitEntry.id,
-          creditEntryId: creditEntry.id,
+          debitLineAccountId: debitAccount.id,
+          creditLineAccountId: equityAccountForCredit.id,
           assetName: assetName || null,
           assetType: assetType || null,
         }),
       },
     });
 
+    let registeredAsset = null;
+    if (type === 'asset') {
+      try {
+        registeredAsset = await registerAssetFromCapitalContribution(
+          {
+            tenantId: user.tenantId,
+            userId: user.id,
+            transactionId: transaction.id,
+            reference,
+            assetName,
+            assetType,
+            debitAccount,
+            amount: parsedAmount,
+            purchaseDate: entryDate,
+            description: txDescription,
+          },
+          prisma
+        );
+      } catch (registerErr) {
+        console.error('Capital contribution asset register failed:', registerErr);
+      }
+    }
+
+    const [refreshedDebit, refreshedCredit, refreshedParent] = await Promise.all([
+      prisma.account.findUnique({
+        where: { id: debitAccount.id },
+        select: { id: true, balance: true, name: true, accountName: true },
+      }),
+      prisma.account.findUnique({
+        where: { id: equityAccountForCredit.id },
+        select: { id: true, balance: true, accountCode: true, name: true, accountName: true },
+      }),
+      prisma.account.findUnique({
+        where: { id: parentCapital.id },
+        select: { id: true, balance: true, name: true, accountName: true },
+      }),
+    ]);
+
     return NextResponse.json(
       {
         message: 'Capital contribution recorded successfully',
         contribution: {
-          id: creditEntry.id,
+          id: transaction.id,
           date: entryDate,
           amount: parsedAmount,
           type,
@@ -584,28 +449,38 @@ export async function POST(request) {
           debitAccountName: debitAccount.name || debitAccount.accountName,
           transactionId: transaction.id,
           coaAccountCode: equityAccountForCredit.accountCode,
+          capitalParentGlCode: OWNERS_CAPITAL_GL_CODE,
+          capitalParentGlName: OWNERS_CAPITAL_GL_NAME,
           capitalAccount: {
             id: parentCapital.id,
-            name: parentCapital.name || parentCapital.accountName,
-            newBalance: newParentBalance,
+            name: refreshedParent?.name || refreshedParent?.accountName,
+            newBalance: parentRollupBalance,
           },
           contributionAccount: {
             id: equityAccountForCredit.id,
             code: equityAccountForCredit.accountCode,
             name: equityAccountForCredit.accountName || equityAccountForCredit.name,
-            newBalance: newChildBalance,
+            newBalance: refreshedCredit?.balance ?? parsedAmount,
           },
           debitAccount: {
             id: debitAccount.id,
-            name: debitAccount.name || debitAccount.accountName,
-            newBalance: newDebitBalance,
+            name: refreshedDebit?.name || refreshedDebit?.accountName,
+            newBalance: refreshedDebit?.balance,
           },
+          registeredAsset: registeredAsset
+            ? {
+                id: registeredAsset.id,
+                name: registeredAsset.name,
+                category: registeredAsset.category?.name,
+                glAccountId: registeredAsset.glAccountId,
+              }
+            : null,
         },
       },
       { status: 201 }
     );
   } catch (error) {
-    if (error.message?.includes('period') || error.message?.includes('closed')) {
+    if (error instanceof AccountingEngineError || error.message?.includes('period') || error.message?.includes('closed')) {
       return NextResponse.json(
         { error: error.message },
         { status: 400 }

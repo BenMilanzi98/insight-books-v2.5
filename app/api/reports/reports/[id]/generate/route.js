@@ -1,25 +1,20 @@
-// app/api/financial/reports/[id]/generate/route.js
+// app/api/reports/reports/[id]/generate/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
 import { calculateDateRange } from '@/lib/dateUtils';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
 import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
 // POST - Generate a specific report
 export async function POST(request, context) {
   try {
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+
+    const { user, tw, tenantIds, scope, primaryTenantId } = boot;
     const params = await context.params;
     const reportId = params?.id;
-
-    // Get user from session
-    const user = await getUserFromSession(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
 
     if (reportId && RETIRED_REPORT_IDS.has(reportId)) {
       return retiredReportResponse(reportId);
@@ -39,44 +34,53 @@ export async function POST(request, context) {
         entityType: 'REPORT',
         entityId: reportId,
         userId: user.id,
-        tenantId: user.tenantId,
+        tenantId: primaryTenantId,
         details: JSON.stringify({
           reportId,
           timeframe,
           format,
-          detailed
+          detailed,
+          tenantIds,
         })
       }
+    });
+
+    await auditReportAccess({
+      user,
+      reportType: reportId,
+      tenantIds,
+      scope,
+      filters: { timeframe, detailed },
     });
     
     // Generate different reports based on the reportId
     switch (reportId) {
       case 'profit-loss':
-        return generateProfitLossReport(user.tenantId, startDate, endDate, detailed);
+        return generateProfitLossReport(tw, startDate, endDate, detailed, scope);
         
       case 'balance-sheet':
-        return generateBalanceSheetReport(user.tenantId, detailed);
+        return generateBalanceSheetReport(tw, detailed, scope);
         
       case 'cash-flow':
-        return generateCashFlowReport(user.tenantId, startDate, endDate, detailed);
+        return generateCashFlowReport(tw, startDate, endDate, detailed, scope);
         
       case 'tax-summary':
-        return generateTaxSummaryReport(user.tenantId, startDate, endDate);
+        return generateTaxSummaryReport(tw, startDate, endDate, scope);
         
       case 'accounts-receivable':
-        return generateAccountsReceivableReport(user.tenantId);
+        return generateAccountsReceivableReport(tw, scope);
         
       case 'accounts-payable':
-        return generateAccountsPayableReport(user.tenantId);
+        return generateAccountsPayableReport(tw, scope);
         
       case 'expense-report':
-        return generateExpenseReport(user.tenantId, startDate, endDate, detailed);
+        return generateExpenseReport(tw, startDate, endDate, detailed, scope);
         
       case 'sales-report':
-        return generateSalesReport(user.tenantId, startDate, endDate, detailed);
+        return generateSalesReport(tw, startDate, endDate, detailed, scope);
         
       case 'financial-ratios':
-        return generateFinancialRatiosReport(user.tenantId, timeframe);
+        return generateFinancialRatiosReport(tw, timeframe, scope);
         
       default:
         return NextResponse.json(
@@ -94,11 +98,11 @@ export async function POST(request, context) {
 }
 
 // Helper function to generate the Profit & Loss report
-async function generateProfitLossReport(tenantId, startDate, endDate, detailed) {
+async function generateProfitLossReport(tw, startDate, endDate, detailed, scope) {
   // Get revenue data (invoices)
   const invoices = await prisma.invoice.findMany({
     where: {
-      tenantId,
+      ...tw,
       issueDate: {
         gte: startDate,
         lte: endDate
@@ -112,7 +116,7 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
   // Get expense data (includes supplier/PO-approved expenses)
   const expenses = await prisma.expense.findMany({
     where: {
-      tenantId,
+      ...tw,
       date: {
         gte: startDate,
         lte: endDate
@@ -162,6 +166,7 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
   // Return formatted report
   return NextResponse.json({
     title: "Profit & Loss Statement",
+    scope,
     period: {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
@@ -184,13 +189,13 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
 }
 
 // Helper function to generate the Balance Sheet report
-async function generateBalanceSheetReport(tenantId, detailed) {
+async function generateBalanceSheetReport(tw, detailed, scope) {
   // For balance sheet, we use the current point in time
   
   // Get unpaid invoices for accounts receivable
   const unpaidInvoices = await prisma.invoice.findMany({
     where: {
-      tenantId,
+      ...tw,
       status: { in: ['Pending', 'Partial'] }
     },
     include: {
@@ -207,7 +212,7 @@ async function generateBalanceSheetReport(tenantId, detailed) {
   // Get inventory value
   const products = await prisma.product.findMany({
     where: {
-      tenantId,
+      ...tw,
       isService: false
     }
   });
@@ -253,6 +258,7 @@ async function generateBalanceSheetReport(tenantId, detailed) {
   // Return formatted report
   return NextResponse.json({
     title: "Balance Sheet",
+    scope,
     reportDate: new Date().toISOString(),
     summary: {
       totalAssets,
@@ -314,10 +320,11 @@ async function generateBalanceSheetReport(tenantId, detailed) {
 
 // Helper function to generate reports for other types
 // This is a simplified implementation
-async function generateCashFlowReport(tenantId, startDate, endDate, detailed) {
+async function generateCashFlowReport(tw, startDate, endDate, detailed, scope) {
   // A simple implementation that returns a placeholder
   return NextResponse.json({
     title: "Cash Flow Statement",
+    scope,
     period: {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
@@ -333,10 +340,11 @@ async function generateCashFlowReport(tenantId, startDate, endDate, detailed) {
   });
 }
 
-async function generateTaxSummaryReport(tenantId, startDate, endDate) {
+async function generateTaxSummaryReport(tw, startDate, endDate, scope) {
   // Calculate and return tax summary
   return NextResponse.json({
     title: "Tax Summary",
+    scope,
     period: {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
@@ -355,11 +363,11 @@ async function generateTaxSummaryReport(tenantId, startDate, endDate) {
   });
 }
 
-async function generateAccountsReceivableReport(tenantId) {
+async function generateAccountsReceivableReport(tw, scope) {
   // Get unpaid invoices
   const unpaidInvoices = await prisma.invoice.findMany({
     where: {
-      tenantId,
+      ...tw,
       status: { in: ['Pending', 'Partial'] }
     },
     include: {
@@ -414,6 +422,7 @@ async function generateAccountsReceivableReport(tenantId) {
   // Return the report
   return NextResponse.json({
     title: "Accounts Receivable Aging",
+    scope,
     reportDate: today.toISOString(),
     summary: {
       totalReceivables: unpaidInvoices.reduce((total, invoice) => {
@@ -436,10 +445,11 @@ async function generateAccountsReceivableReport(tenantId) {
 }
 
 // Implement other report generation functions similarly
-async function generateAccountsPayableReport(tenantId) {
+async function generateAccountsPayableReport(tw, scope) {
   // Return a placeholder
   return NextResponse.json({
     title: "Accounts Payable Aging",
+    scope,
     reportDate: new Date().toISOString(),
     summary: {
       totalPayables: 1230000,
@@ -449,11 +459,11 @@ async function generateAccountsPayableReport(tenantId) {
   });
 }
 
-async function generateExpenseReport(tenantId, startDate, endDate, detailed) {
+async function generateExpenseReport(tw, startDate, endDate, detailed, scope) {
   // Get expenses in date range
   const expenses = await prisma.expense.findMany({
     where: {
-      tenantId,
+      ...tw,
       date: {
         gte: startDate,
         lte: endDate
@@ -472,6 +482,7 @@ async function generateExpenseReport(tenantId, startDate, endDate, detailed) {
   
   return NextResponse.json({
     title: "Expense Report",
+    scope,
     period: {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
@@ -494,11 +505,11 @@ async function generateExpenseReport(tenantId, startDate, endDate, detailed) {
   });
 }
 
-async function generateSalesReport(tenantId, startDate, endDate, detailed) {
+async function generateSalesReport(tw, startDate, endDate, detailed, scope) {
   // Get sales data
   const sales = await prisma.sale.findMany({
     where: {
-      tenantId,
+      ...tw,
       saleDate: {
         gte: startDate,
         lte: endDate
@@ -517,7 +528,7 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
   // Get invoices as well
   const invoices = await prisma.invoice.findMany({
     where: {
-      tenantId,
+      ...tw,
       issueDate: {
         gte: startDate,
         lte: endDate
@@ -572,6 +583,7 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
   
   return NextResponse.json({
     title: "Sales Report",
+    scope,
     period: {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
@@ -618,7 +630,7 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
   });
 }
 
-async function generateFinancialRatiosReport(tenantId, timeframe) {
+async function generateFinancialRatiosReport(tw, timeframe, scope) {
   // Get financial data from summarized reports
   
   // In a real implementation, you would get these values from the accounting system
@@ -634,6 +646,7 @@ async function generateFinancialRatiosReport(tenantId, timeframe) {
   
   return NextResponse.json({
     title: "Financial Ratios",
+    scope,
     reportDate: new Date().toISOString(),
     liquidityRatios: {
       currentRatio: currentAssets / currentLiabilities,

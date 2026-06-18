@@ -123,10 +123,7 @@ export async function POST(request) {
         }
       });
 
-      // Update account balance (drives dashboard cashflow/account balances)
-      await updateAccountBalance(user.tenantId, method, payAmount, 'subtract', tx);
-
-      // Best-effort journal entry
+      // GL via createExpenseJournalEntry (postGlEntry)
       try {
         await createExpenseJournalEntry({
           tenantId: user.tenantId,

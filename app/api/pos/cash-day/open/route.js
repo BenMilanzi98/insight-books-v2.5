@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
 import { openPosCashDay } from '@/lib/posCashDayService';
 
 export async function POST(request) {
   try {
+    const perm = await requireAnyPermission(request, ['sales.create', 'sales.update']);
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user?.tenantId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

@@ -25,9 +25,9 @@ bool canAccessSwitchTenant({
   required int tenantCount,
 }) {
   if (tenantCount <= 1) return false;
-  return hasPermission(permissions, 'tenants.switch') ||
-      hasPermission(permissions, 'system.view') ||
-      hasPermission(permissions, 'users.view');
+  return satisfiesPermission(permissions, 'tenants.switch') ||
+      satisfiesPermission(permissions, 'system.view') ||
+      satisfiesPermission(permissions, 'users.view');
 }
 
 /// First screen a user should see (most common default: dashboard, then POS, etc.).

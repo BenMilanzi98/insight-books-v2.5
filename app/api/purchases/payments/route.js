@@ -275,17 +275,7 @@ export async function POST(request) {
         throw new Error(`Failed to create journal entry for payment: ${error.message}`);
       }
 
-      // Update account balance to reflect the payment
-      // Normalize payment method to match AccountBalance format (e.g., "Airtel Money" -> "airtel_money")
-      const normalizedPaymentMethod = normalizePaymentMethod(paymentMethodInput);
-      await updateAccountBalance(
-        user.tenantId,
-        normalizedPaymentMethod, // Use normalized payment method key for AccountBalance
-        Number(body.totalAmount),
-        'subtract',
-        tx
-      );
-
+      // Supplier payment GL via createSupplierPaymentEntry updates Account.balance
       await tx.supplierPayment.update({
         where: { id: payment.id },
         data: { journalEntryId: journalEntry?.journalEntryId || journalEntry?.id || null }
@@ -396,6 +386,29 @@ export async function POST(request) {
           console.error('Supplier payment: tax posting failed for bill', bill.id, taxErr);
         }
       }
+
+      await tx.auditLog.create({
+        data: {
+          action: 'SUPPLIER_PAYMENT_CREATED',
+          entityType: 'SUPPLIER_PAYMENT',
+          entityId: payment.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            paymentNumber: payment.paymentNumber,
+            supplierId: supplier.id,
+            supplierName: supplier.supplierName,
+            totalAmount: Number(body.totalAmount),
+            paymentMethod: paymentMethodInput,
+            referenceNumber: body.referenceNumber || null,
+            allocations: allocations.map(({ bill, amount }) => ({
+              billId: bill.id,
+              billNumber: bill.billNumber,
+              amount,
+            })),
+          }),
+        },
+      });
 
       return payment;
     });

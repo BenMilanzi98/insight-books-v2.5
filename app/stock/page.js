@@ -93,7 +93,8 @@ const StockManagement = () => {
     serviceCount: 0,
     totalValue: "0.00",
     lowStock: 0,
-    outOfStock: 0
+    outOfStock: 0,
+    glAccount: { code: "1310", name: "Stock on Hand", id: null, postedBalance: null },
   });
   /** products = physical stock; services = billable catalog (same Product table, isService) */
   const [stockCatalog, setStockCatalog] = useState("products");
@@ -1100,7 +1101,7 @@ const StockManagement = () => {
       const res = await fetch(`/api/stock-by-branch${query ? `?${query}` : ''}`);
       if (!res.ok) return setStockByBusiness([]);
       const data = await res.json();
-      setStockByBusiness(data.branches || []);
+      setStockByBusiness(data.businesses || data.branches || []);
     } catch (err) {
       console.error('Error fetching stock by business:', err);
       setStockByBusiness([]);
@@ -1116,7 +1117,7 @@ const StockManagement = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          directTransfer: true // Auto-complete the transfer
+          directTransfer: formData.directTransfer !== false,
         }),
       });
       
@@ -1144,7 +1145,9 @@ const StockManagement = () => {
         result.transfer?.fromBranch?.tenant?.name || result.transfer?.fromBranch?.name || "source";
       const toLabel =
         result.transfer?.toBranch?.tenant?.name || result.transfer?.toBranch?.name || "destination";
-      showToast("success", `Stock transferred successfully from ${fromLabel} to ${toLabel}`);
+      showToast("success", formData.directTransfer === false
+        ? "Transfer submitted for approval"
+        : `Stock transferred successfully from ${fromLabel} to ${toLabel}`);
       return true;
     } catch (err) {
       console.error('[Frontend] Error creating transfer:', err);
@@ -1164,6 +1167,8 @@ const StockManagement = () => {
         return null;
       }
       await fetchTransfers();
+      await fetchStockByBusiness();
+      await loadInventory();
       showToast('success', 'Transfer approved');
       return await res.json();
     } catch (err) {
@@ -1183,7 +1188,8 @@ const StockManagement = () => {
       }
       await fetchTransfers();
       await fetchStockByBusiness();
-      showToast('success', 'Transfer received');
+      await loadInventory();
+      showToast('success', 'Transfer received — stock updated at destination');
       return await res.json();
     } catch (err) {
       console.error('Error receiving transfer:', err);
@@ -2683,7 +2689,7 @@ const StockManagement = () => {
         {/* Stock value card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-500">Stock value</p>
               <div className="mt-2">
                 {statisticsLoading ? (
@@ -2692,9 +2698,24 @@ const StockManagement = () => {
                   <p className="text-3xl font-bold text-gray-900">{formatCurrency(statistics.totalValue)}</p>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">Total stock worth</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Linked to GL{" "}
+                <a
+                  href={`/chart-of-accounts?search=${encodeURIComponent(statistics.glAccount?.code || "1310")}`}
+                  className="font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                >
+                  {statistics.glAccount?.code || "1310"}
+                </a>
+                {" — "}
+                {statistics.glAccount?.name || "Stock on Hand"}
+              </p>
+              {!statisticsLoading && statistics.glAccount?.postedBalance != null ? (
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Posted GL balance: {formatCurrency(statistics.glAccount.postedBalance)}
+                </p>
+              ) : null}
             </div>
-            <div className="p-3 bg-purple-50 rounded-xl">
+            <div className="p-3 bg-purple-50 rounded-xl shrink-0">
               <BarChart2 size={24} className="text-purple-600" />
             </div>
           </div>
@@ -2874,7 +2895,6 @@ const StockManagement = () => {
             }`}
             onClick={() => {
               setView('transfers');
-              setShowTransferModal(true);
             }}
           >
             <Truck size={16} />
@@ -4442,16 +4462,27 @@ const StockManagement = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Stock Transfers</h2>
-              <p className="text-gray-500 mt-1">Manage stock movements between businesses</p>
+              <p className="text-gray-500 mt-1">Move inventory between businesses with FIFO cost tracking</p>
             </div>
-            <button
-              onClick={() => { fetchTransfers(); fetchStockByBusiness(); }}
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:shadow-sm transition-all duration-200 flex items-center gap-2"
-              title="Refresh"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTransferModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 text-sm font-medium"
+              >
+                <Truck size={16} />
+                New transfer
+              </button>
+              <button
+                type="button"
+                onClick={() => { fetchTransfers(); fetchStockByBusiness(); }}
+                className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:shadow-sm transition-all duration-200 flex items-center gap-2"
+                title="Refresh"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -4466,6 +4497,9 @@ const StockManagement = () => {
               transfers={transfers}
               loading={transfersLoading}
               onRefresh={() => fetchTransfers()}
+              onApprove={handleApproveTransfer}
+              onReceive={handleReceiveTransfer}
+              onReject={handleRejectTransfer}
             />
           </div>
 

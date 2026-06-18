@@ -8,6 +8,15 @@ import {
   resolvePrimaryCapitalAccount,
   getCapitalLedgerBalanceForTransfers,
 } from '@/lib/resolveCapitalAccount';
+import {
+  ensureCapitalParentAccount,
+  createContributionSubAccount,
+  resolveContributionCashDebitAccount,
+  syncCapitalParentRollupBalance,
+  OWNERS_CAPITAL_GL_CODE,
+  OWNERS_CAPITAL_GL_NAME,
+} from '@/lib/capitalCoaHelpers';
+import { postGlEntry, AccountingEngineError } from '@/lib/accountingEngine';
 
 // GET - Get capital account information and balance
 export async function GET(request) {
@@ -72,6 +81,13 @@ export async function GET(request) {
 
     return NextResponse.json({
       ownerContributedCapital,
+      glAccount: {
+        id: capitalAccount.id,
+        code: capitalAccount.accountCode || capitalAccount.code || OWNERS_CAPITAL_GL_CODE,
+        name: capitalAccount.accountName || capitalAccount.name || OWNERS_CAPITAL_GL_NAME,
+        parentCode: '3000',
+        parentName: 'Equity',
+      },
       capitalAccount: {
         id: capitalAccount.id,
         code: capitalAccount.code || capitalAccount.accountCode,
@@ -80,6 +96,7 @@ export async function GET(request) {
         type: capitalAccount.type,
         balance: ledgerBalance,
         isActive: capitalAccount.isActive,
+        glLinked: (capitalAccount.accountCode || capitalAccount.code) === OWNERS_CAPITAL_GL_CODE,
       },
       recentTransfers: recentTransfers.map(transfer => ({
         id: transfer.id,
@@ -284,7 +301,7 @@ export async function DELETE(request) {
   }
 }
 
-// POST - Set initial capital balance
+// POST - Set initial capital balance (posts under 3100 via contribution sub-account 3101+)
 export async function POST(request) {
   try {
     const user = await getUserFromSession(request);
@@ -298,168 +315,117 @@ export async function POST(request) {
     const body = await request.json();
     const { initialBalance, cashAccountId } = body;
 
-    if (!initialBalance || parseFloat(initialBalance) <= 0) {
+    const parsedAmount = parseFloat(initialBalance);
+    if (!initialBalance || isNaN(parsedAmount) || parsedAmount <= 0) {
       return NextResponse.json(
         { error: 'Valid initial balance is required' },
         { status: 400 }
       );
     }
 
-    // Find or create capital account
-    let capitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        type: 'EQUITY',
-        name: { contains: 'Capital', mode: 'insensitive' }
-      }
-    });
+    const parentCapital = await ensureCapitalParentAccount(user.tenantId, prisma);
+    const equityAccountForCredit = await createContributionSubAccount(
+      user.tenantId,
+      parentCapital,
+      prisma,
+      'Initial capital balance'
+    );
 
-    if (!capitalAccount) {
-      // Create capital account if it doesn't exist
-      capitalAccount = await prisma.account.create({
-        data: {
-          code: '3000',
-          name: 'Owner\'s Capital',
-          type: 'EQUITY',
-          balance: 0,
-          isActive: true,
-          tenantId: user.tenantId
-        }
-      });
-    }
-
-    // Find cash account for the debit entry
-    let cashAccount = null;
-    if (cashAccountId) {
-      cashAccount = await prisma.account.findUnique({
-        where: { id: cashAccountId, tenantId: user.tenantId }
-      });
-    }
-
+    const cashAccount = await resolveContributionCashDebitAccount(
+      user.tenantId,
+      cashAccountId,
+      prisma
+    );
     if (!cashAccount) {
-      // Try to find any existing cash/asset account with more flexible search
-      cashAccount = await prisma.account.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          type: 'ASSET',
-          OR: [
-            { name: { contains: 'Cash', mode: 'insensitive' } },
-            { name: { contains: 'Bank', mode: 'insensitive' } },
-            { name: { contains: 'Checking', mode: 'insensitive' } },
-            { name: { contains: 'Savings', mode: 'insensitive' } },
-            { code: { startsWith: '1000' } }, // Asset accounts typically start with 1000
-            { code: { startsWith: '1100' } }
-          ]
-        }
-      });
-    }
-
-    // If still no cash account found, create a default one
-    if (!cashAccount) {
-      cashAccount = await prisma.account.create({
-        data: {
-          code: '1000',
-          name: 'Cash',
-          type: 'ASSET',
-          balance: 0,
-          isActive: true,
-          tenantId: user.tenantId
-        }
-      });
+      return NextResponse.json(
+        { error: 'Could not resolve cash GL account (1110) for initial capital debit.' },
+        { status: 404 }
+      );
     }
 
     const entryDate = new Date();
     await assertPeriodOpen(user.tenantId, entryDate, prisma);
-    // Create journal entry for initial capital
-    const transaction = await prisma.transaction.create({
-      data: {
-        date: entryDate,
-        description: 'Initial Capital Contribution',
-        reference: 'INIT-CAP',
-        status: 'posted',
-        tenantId: user.tenantId
-      }
-    });
 
-    // Create journal entry lines
-    await prisma.$transaction([
-      // Credit capital account
-      prisma.journalEntry.create({
-        data: {
-          transactionId: transaction.id,
-          accountId: capitalAccount.id,
-          debit: 0,
-          credit: parseFloat(initialBalance),
-          description: 'Initial capital contribution',
-          status: 'posted'
-        }
-      }),
-      // Debit cash account
-      prisma.journalEntry.create({
-        data: {
-          transactionId: transaction.id,
+    const reference = 'INIT-CAP';
+    const txDescription = 'Initial capital contribution';
+
+    const transaction = await postGlEntry({
+      tenantId: user.tenantId,
+      userId: user.id,
+      entryDate,
+      description: txDescription,
+      reference,
+      sourceType: 'capital_contribution',
+      sourceId: reference,
+      lines: [
+        {
           accountId: cashAccount.id,
-          debit: parseFloat(initialBalance),
-          credit: 0,
-          description: 'Initial capital contribution',
-          status: 'posted'
-        }
-      })
-    ]);
-
-    // Update account balances
-    const capitalBalance = parseFloat(initialBalance);
-    const cashBalance = (cashAccount.balance || 0) + parseFloat(initialBalance);
-    
-    await prisma.account.update({
-      where: { id: capitalAccount.id },
-      data: { balance: capitalBalance }
+          debitAmount: parsedAmount,
+          creditAmount: 0,
+          description: txDescription,
+        },
+        {
+          accountId: equityAccountForCredit.id,
+          debitAmount: 0,
+          creditAmount: parsedAmount,
+          description: txDescription,
+        },
+      ],
     });
 
-    await prisma.account.update({
-      where: { id: cashAccount.id },
-      data: { balance: cashBalance }
+    const parentRollupBalance = await syncCapitalParentRollupBalance(
+      user.tenantId,
+      parentCapital.id,
+      prisma
+    );
+
+    await prisma.tenantSettings.upsert({
+      where: { tenantId: user.tenantId },
+      create: {
+        tenantId: user.tenantId,
+        enabledModules: [],
+        ownerContributedCapital: parsedAmount,
+      },
+      update: {
+        ownerContributedCapital: { increment: parsedAmount },
+      },
     });
 
-    // Also update AccountBalance records to keep them in sync
-    await prisma.accountBalance.upsert({
-      where: { tenantId_account: { tenantId: user.tenantId, account: capitalAccount.id } },
-      update: { balance: capitalBalance },
-      create: { tenantId: user.tenantId, account: capitalAccount.id, balance: capitalBalance }
-    });
-
-    await prisma.accountBalance.upsert({
-      where: { tenantId_account: { tenantId: user.tenantId, account: cashAccount.id } },
-      update: { balance: cashBalance },
-      create: { tenantId: user.tenantId, account: cashAccount.id, balance: cashBalance }
-    });
-
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         action: 'INITIAL_CAPITAL_SET',
         entityType: 'ACCOUNT',
-        entityId: capitalAccount.id,
+        entityId: parentCapital.id,
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
-          initialBalance: parseFloat(initialBalance),
+          initialBalance: parsedAmount,
+          capitalParentGlCode: OWNERS_CAPITAL_GL_CODE,
+          contributionAccountCode: equityAccountForCredit.accountCode,
           cashAccountId: cashAccount.id,
-          cashAccountName: cashAccount.name
-        })
-      }
+          cashAccountName: cashAccount.accountName || cashAccount.name,
+          transactionId: transaction.id,
+        }),
+      },
     });
 
-    return NextResponse.json({
-      message: 'Initial capital balance set successfully',
-      capitalAccount: {
-        id: capitalAccount.id,
-        code: capitalAccount.code,
-        name: capitalAccount.name,
-        balance: parseFloat(initialBalance)
-      }
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        message: 'Initial capital balance set successfully',
+        capitalAccount: {
+          id: parentCapital.id,
+          code: OWNERS_CAPITAL_GL_CODE,
+          name: OWNERS_CAPITAL_GL_NAME,
+          balance: parentRollupBalance,
+          contributionAccountCode: equityAccountForCredit.accountCode,
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
+    if (error instanceof AccountingEngineError || error.message?.includes('period') || error.message?.includes('closed')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Error setting initial capital:', error);
     return NextResponse.json(
       { error: 'Failed to set initial capital balance' },

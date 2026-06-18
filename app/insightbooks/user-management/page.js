@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
@@ -56,7 +56,6 @@ export default function UserManagementPage() {
   const [success, setSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [tenants, setTenants] = useState([]);
-  const [branches, setBranches] = useState([]);
 
   // Fetch users from API
   const fetchUsers = async (page = 1, search = '', role = '', status = '') => {
@@ -127,26 +126,6 @@ export default function UserManagementPage() {
       console.error('Error fetching tenants:', error);
     }
   };
-
-  // Fetch branches for a tenant (admin session — use admin API, not /api/branches which needs tenant user session)
-  const fetchBranches = useCallback(async (tenantId) => {
-    if (!tenantId) return;
-    try {
-      const response = await fetch(
-        `/api/admin/branches?tenantId=${encodeURIComponent(tenantId)}&includeInactive=false`,
-        { cache: 'no-store' }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setBranches(data.branches || []);
-      } else {
-        setBranches([]);
-      }
-    } catch (error) {
-      console.error('Error fetching branches:', error);
-      setBranches([]);
-    }
-  }, []);
 
   // Initial data fetch
   useEffect(() => {
@@ -641,10 +620,6 @@ export default function UserManagementPage() {
                             onClick={() => {
                               setSelectedUser(user);
                               setShowEditModal(true);
-                              const tid =
-                                user.tenantId ||
-                                tenants.find((t) => t.name === user.tenant)?.id;
-                              if (tid) fetchBranches(tid);
                             }}
                             className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                             title="Edit User"
@@ -765,8 +740,6 @@ export default function UserManagementPage() {
           onSubmit={handleEditUser}
           loading={actionLoading}
           tenants={tenants}
-          branches={branches}
-          onTenantChange={fetchBranches}
           onActivated={() => {
             fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
             fetchStats();
@@ -802,12 +775,8 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
     status: 'active',
     password: '',
     department: '',
-    defaultBranchId: '',
-    allowedBranchIds: [],
   });
-  const [modalBranches, setModalBranches] = useState([]);
   const [modalDepartments, setModalDepartments] = useState([]);
-  const [branchesLoading, setBranchesLoading] = useState(false);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [showNewDepartment, setShowNewDepartment] = useState(false);
   const [newDepartmentName, setNewDepartmentName] = useState('');
@@ -829,23 +798,10 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
 
   useEffect(() => {
     if (!primaryTenantId) {
-      setModalBranches([]);
       setModalDepartments([]);
-      setFormData((prev) => ({ ...prev, defaultBranchId: '', allowedBranchIds: [], department: '' }));
+      setFormData((prev) => ({ ...prev, department: '' }));
       return;
     }
-    const loadBranches = async () => {
-      setBranchesLoading(true);
-      try {
-        const res = await fetch(`/api/admin/branches?tenantId=${primaryTenantId}`, { cache: 'no-store' });
-        const data = await res.json();
-        setModalBranches(data.branches || []);
-      } catch (e) {
-        setModalBranches([]);
-      } finally {
-        setBranchesLoading(false);
-      }
-    };
     const loadDepartments = async () => {
       setDepartmentsLoading(true);
       try {
@@ -858,7 +814,6 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
         setDepartmentsLoading(false);
       }
     };
-    loadBranches();
     loadDepartments();
   }, [primaryTenantId]);
 
@@ -873,8 +828,6 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
       status: 'active',
       password: '',
       department: '',
-      defaultBranchId: '',
-      allowedBranchIds: [],
     });
     setShowNewDepartment(false);
     setNewDepartmentName('');
@@ -920,13 +873,9 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
       memberships: filled.map((r) => ({ tenantId: r.tenantId, roleId: r.roleId })),
       primaryTenantId: primaryRow.tenantId,
       department: formData.department || undefined,
-      defaultBranchId: formData.defaultBranchId || undefined,
-      allowedBranchIds: Array.isArray(formData.allowedBranchIds) ? formData.allowedBranchIds : [],
     };
     onSubmit(payload);
   };
-
-  const tenantBranches = modalBranches.filter((b) => b.tenantId === primaryTenantId || !b.tenantId);
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -1131,56 +1080,6 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
               )}
             </div>
 
-            {/* Default branch */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Default branch (optional)</label>
-              {primaryTenantId && (
-                <select
-                  value={formData.defaultBranchId || ''}
-                  onChange={(e) => setFormData({ ...formData, defaultBranchId: e.target.value || null })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  disabled={branchesLoading}
-                >
-                  <option value="">None</option>
-                  {tenantBranches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>
-                  ))}
-                </select>
-              )}
-              <p className="mt-1 text-xs text-gray-500">Login and transactions default to this branch when not specified</p>
-            </div>
-
-            {/* Allowed branches */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Allowed branches (optional)</label>
-              <p className="mt-1 text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
-              {primaryTenantId && tenantBranches.length > 0 && (
-                <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
-                  {tenantBranches.map((branch) => (
-                    <label key={branch.id} className="flex items-center gap-2 py-1">
-                      <input
-                        type="checkbox"
-                        checked={formData.allowedBranchIds.includes(branch.id)}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            allowedBranchIds: e.target.checked
-                              ? [...formData.allowedBranchIds, branch.id]
-                              : formData.allowedBranchIds.filter((id) => id !== branch.id)
-                          })
-                        }
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm">{branch.name}{branch.code ? ` (${branch.code})` : ''}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              {primaryTenantId && tenantBranches.length === 0 && !branchesLoading && (
-                <p className="text-xs text-gray-500">No branches for this tenant</p>
-              )}
-            </div>
-
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
@@ -1213,7 +1112,7 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
 }
 
 // Edit User Modal Component
-function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, onTenantChange, onActivated }) {
+function EditUserModal({ user, onClose, onSubmit, loading, tenants, onActivated }) {
   const [detailLoading, setDetailLoading] = useState(true);
   const [detailError, setDetailError] = useState('');
   const [activationLoading, setActivationLoading] = useState(false);
@@ -1231,8 +1130,6 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
     email: user.email,
     phone: user.phone || '',
     status: user.status,
-    defaultBranchId: user.defaultBranchId || null,
-    allowedBranchIds: Array.isArray(user.allowedBranchIds) ? [...user.allowedBranchIds] : [],
   });
 
   const primaryTenantId = membershipRows[primaryIndex]?.tenantId || '';
@@ -1267,8 +1164,6 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
           email: d.email,
           phone: d.phone || '',
           status: d.status,
-          defaultBranchId: d.defaultBranchId || null,
-          allowedBranchIds: Array.isArray(d.allowedBranchIds) ? [...d.allowedBranchIds] : [],
         });
         setVerificationData({
           isEmailVerified: Boolean(d.isEmailVerified),
@@ -1283,8 +1178,6 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
         const pIdx = mems.findIndex((m) => m.tenantId === d.primaryTenantId);
         const nextPrimary = pIdx >= 0 ? pIdx : 0;
         setPrimaryIndex(nextPrimary);
-        const tidForBranches = mems[nextPrimary]?.tenantId;
-        if (tidForBranches && onTenantChange) onTenantChange(tidForBranches);
       } catch (e) {
         if (!cancelled) setDetailError(e.message || 'Load failed');
       } finally {
@@ -1295,12 +1188,6 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
       cancelled = true;
     };
   }, [user.id]);
-
-  useEffect(() => {
-    if (primaryTenantId && onTenantChange) {
-      onTenantChange(primaryTenantId);
-    }
-  }, [primaryTenantId, onTenantChange]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1597,62 +1484,6 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
                   </div>
                 ))}
               </div>
-
-              {primaryTenantId && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Default Branch (Optional)</label>
-                    <select
-                      value={formData.defaultBranchId || ''}
-                      onChange={(e) =>
-                        setFormData({ ...formData, defaultBranchId: e.target.value || null })
-                      }
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">-- No Default Branch --</option>
-                      {branches
-                        .filter((b) => b.tenantId === primaryTenantId || !b.tenantId)
-                        .map((branch) => (
-                          <option key={branch.id} value={branch.id}>
-                            {branch.name} {branch.code ? `(${branch.code})` : ''}
-                          </option>
-                        ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Applies to the primary business. Login defaults to this branch when not specified.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Allowed Branches</label>
-                    <p className="mt-1 text-xs text-gray-500 mb-2">
-                      For the primary business only. Leave empty for all branches.
-                    </p>
-                    <div className="mt-1 border border-gray-300 rounded-md p-2 max-h-32 overflow-y-auto bg-gray-50">
-                      {branches
-                        .filter((b) => b.tenantId === primaryTenantId || !b.tenantId)
-                        .map((branch) => (
-                          <label key={branch.id} className="flex items-center gap-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={formData.allowedBranchIds.includes(branch.id)}
-                              onChange={(e) => {
-                                const next = e.target.checked
-                                  ? [...formData.allowedBranchIds, branch.id]
-                                  : formData.allowedBranchIds.filter((id) => id !== branch.id);
-                                setFormData({ ...formData, allowedBranchIds: next });
-                              }}
-                              className="rounded border-gray-300"
-                            />
-                            <span className="text-sm">
-                              {branch.name}
-                              {branch.code ? ` (${branch.code})` : ''}
-                            </span>
-                          </label>
-                        ))}
-                    </div>
-                  </div>
-                </>
-              )}
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button

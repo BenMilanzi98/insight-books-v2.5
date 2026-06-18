@@ -1,0 +1,650 @@
+{
+  "generatedAt": "2026-06-15T12:18:30.915Z",
+  "tenant": {
+    "id": "cmff4eqli02h5jq2grs29src9",
+    "name": "Insight Books",
+    "subdomain": "insight-books-1757577743910"
+  },
+  "summary": {
+    "totalAccounts": 362,
+    "duplicateCodeGroups": 8,
+    "worstDuplicate": {
+      "code": "1300",
+      "count": 211,
+      "names": [
+        "Inventory",
+        "Salary Advance Receivable"
+      ]
+    },
+    "parentDirectPostingCount": 7,
+    "templateAccountsToCreate": 40,
+    "semanticMergesPending": 3,
+    "misplacedUnder5200": 5
+  },
+  "duplicateCodes": [
+    {
+      "code": "1300",
+      "count": 211,
+      "names": [
+        "Inventory",
+        "Salary Advance Receivable"
+      ]
+    },
+    {
+      "code": "5000",
+      "count": 2,
+      "names": [
+        "Expense",
+        "Expenses"
+      ]
+    },
+    {
+      "code": "1000",
+      "count": 2,
+      "names": [
+        "Assets",
+        null
+      ]
+    },
+    {
+      "code": "2100",
+      "count": 2,
+      "names": [
+        "Current Liabilities"
+      ]
+    },
+    {
+      "code": "1100",
+      "count": 2,
+      "names": [
+        "Current Assets",
+        null
+      ]
+    },
+    {
+      "code": "2000",
+      "count": 2,
+      "names": [
+        "Liabilities",
+        null
+      ]
+    },
+    {
+      "code": "3000",
+      "count": 2,
+      "names": [
+        "Equity",
+        null
+      ]
+    },
+    {
+      "code": "1200",
+      "count": 2,
+      "names": [
+        "Accounts Receivable",
+        null
+      ]
+    }
+  ],
+  "parentDirectPostings": [
+    {
+      "code": "4000",
+      "name": "Revenue",
+      "balance": -18926987,
+      "lineCount": 62,
+      "childCount": 6,
+      "suggestedTarget": "4900"
+    },
+    {
+      "code": "3100",
+      "name": "Owner's Capital",
+      "balance": -14000000,
+      "lineCount": 10,
+      "childCount": 1,
+      "suggestedTarget": "3110"
+    },
+    {
+      "code": "1000",
+      "name": "Assets",
+      "balance": 4206600,
+      "lineCount": 21,
+      "childCount": 4,
+      "suggestedTarget": "1999"
+    },
+    {
+      "code": "5000",
+      "name": "Expenses",
+      "balance": 1742200,
+      "lineCount": 37,
+      "childCount": 12,
+      "suggestedTarget": "5900"
+    },
+    {
+      "code": "5200",
+      "name": "Salaries & Wages",
+      "balance": 1662630,
+      "lineCount": 14,
+      "childCount": 10,
+      "suggestedTarget": "5201"
+    },
+    {
+      "code": "5340",
+      "name": "Travel & Transport",
+      "balance": 1392000,
+      "lineCount": 21,
+      "childCount": 4,
+      "suggestedTarget": "5341"
+    },
+    {
+      "code": "5900",
+      "name": "Other Expenses",
+      "balance": 105000,
+      "lineCount": 3,
+      "childCount": 3,
+      "suggestedTarget": "(leaf child needed)"
+    }
+  ],
+  "semanticMerges": [
+    {
+      "fromCode": "5015",
+      "toCode": "5702",
+      "reason": "Duplicate IT & Hosting",
+      "fromId": "cmlspkhnv00gj54ej1o3jjnqx",
+      "toId": "cmomt38wb000t542gkx2wkv70",
+      "fromBalance": 573300,
+      "canMerge": true
+    },
+    {
+      "fromCode": "5230",
+      "toCode": "5201",
+      "reason": "Salaries Expense → Admin & Management Salaries",
+      "fromId": "cmlspsuka0br754zfm7ie7rq7",
+      "toId": "cmlspkhf300fz54ejds8st8xr",
+      "fromBalance": 1000000,
+      "canMerge": true
+    },
+    {
+      "fromCode": "1020",
+      "toCode": "1130-01",
+      "reason": "Legacy Bank → primary bank slot",
+      "fromId": "cmie6l0ej05sejqerdj7zc71w",
+      "toId": "cmo211mj50exr54pqvfcqpbhs",
+      "fromBalance": -2207013.4299999997,
+      "canMerge": true
+    }
+  ],
+  "misplacedUnder5200": [
+    {
+      "childCode": "5220",
+      "childName": "Utilities Expense",
+      "currentParent": "5200",
+      "newParentCode": "5310"
+    },
+    {
+      "childCode": "5240",
+      "childName": "Marketing & Advertising",
+      "currentParent": "5200",
+      "newParentCode": "5330"
+    },
+    {
+      "childCode": "5250",
+      "childName": "Office Supplies",
+      "currentParent": "5200",
+      "newParentCode": "5320"
+    },
+    {
+      "childCode": "5260",
+      "childName": "Professional Services",
+      "currentParent": "5200",
+      "newParentCode": "5360"
+    },
+    {
+      "childCode": "5280",
+      "childName": "Vehicle Expenses",
+      "currentParent": "5200",
+      "newParentCode": "5340"
+    }
+  ],
+  "templateImportPlan": [
+    {
+      "templateCode": "1060",
+      "templateName": "Allowance for Doubtful Debts",
+      "targetCode": "1205",
+      "parentCode": "1100",
+      "accountType": "Asset",
+      "accountName": "Allowance for Doubtful Debts",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1090",
+      "templateName": "Inventory - Work in Progress",
+      "targetCode": "1335",
+      "parentCode": "1300",
+      "accountType": "Asset",
+      "accountName": "Work in Progress",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1120",
+      "templateName": "VAT Input / VAT Receivable",
+      "targetCode": "1220",
+      "parentCode": "1100",
+      "accountType": "Asset",
+      "accountName": "VAT Input / VAT Receivable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1130",
+      "templateName": "Other Receivables",
+      "targetCode": "1230",
+      "parentCode": "1100",
+      "accountType": "Asset",
+      "accountName": "Other Receivables",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1300",
+      "templateName": "Land",
+      "targetCode": "1515",
+      "parentCode": "1500",
+      "accountType": "Asset",
+      "accountName": "Land",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1310",
+      "templateName": "Buildings",
+      "targetCode": "1516",
+      "parentCode": "1500",
+      "accountType": "Asset",
+      "accountName": "Buildings",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1320",
+      "templateName": "Machinery & Equipment",
+      "targetCode": "1517",
+      "parentCode": "1500",
+      "accountType": "Asset",
+      "accountName": "Machinery & Equipment",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1360",
+      "templateName": "Leasehold Improvements",
+      "targetCode": "1550",
+      "parentCode": "1500",
+      "accountType": "Asset",
+      "accountName": "Leasehold Improvements",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "1380",
+      "templateName": "Investments",
+      "targetCode": "1930",
+      "parentCode": "1900",
+      "accountType": "Asset",
+      "accountName": "Long-term Investments",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2020",
+      "templateName": "Salaries Payable",
+      "targetCode": "2145",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "Salaries Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2030",
+      "templateName": "Interest Payable",
+      "targetCode": "2146",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "Interest Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2050",
+      "templateName": "Tax Payable - Corporate Income Tax",
+      "targetCode": "2170",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "Corporate Income Tax Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2070",
+      "templateName": "Withholding Tax Payable",
+      "targetCode": "2125",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "Withholding Tax Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2080",
+      "templateName": "Dividends Payable",
+      "targetCode": "2147",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "Dividends Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2110",
+      "templateName": "Pension Contributions Payable",
+      "targetCode": "2135",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "Pension Contributions Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2120",
+      "templateName": "TEVET Levy Payable",
+      "targetCode": "2136",
+      "parentCode": "2100",
+      "accountType": "Liability",
+      "accountName": "TEVET Levy Payable",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2310",
+      "templateName": "Lease Liability",
+      "targetCode": "2530",
+      "parentCode": "2500",
+      "accountType": "Liability",
+      "accountName": "Lease Liability",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "2320",
+      "templateName": "Deferred Tax Liability",
+      "targetCode": "2540",
+      "parentCode": "2500",
+      "accountType": "Liability",
+      "accountName": "Deferred Tax Liability",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "3010",
+      "templateName": "Additional Paid-in Capital",
+      "targetCode": "3110",
+      "parentCode": "3000",
+      "accountType": "Equity",
+      "accountName": "Additional Paid-in Capital",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "3030",
+      "templateName": "Reserves",
+      "targetCode": "3210",
+      "parentCode": "3000",
+      "accountType": "Equity",
+      "accountName": "Reserves",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "3040",
+      "templateName": "Owner Drawings / Dividends",
+      "targetCode": "3220",
+      "parentCode": "3000",
+      "accountType": "Equity",
+      "accountName": "Owner Drawings / Dividends",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "4020",
+      "templateName": "Consultancy Fees",
+      "targetCode": "4160",
+      "parentCode": "4000",
+      "accountType": "Income",
+      "accountName": "Consultancy Fees",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "4030",
+      "templateName": "Commission Income",
+      "targetCode": "4170",
+      "parentCode": "4000",
+      "accountType": "Income",
+      "accountName": "Commission Income",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "4040",
+      "templateName": "Rental Income",
+      "targetCode": "4180",
+      "parentCode": "4000",
+      "accountType": "Income",
+      "accountName": "Rental Income",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "4060",
+      "templateName": "Grant / Donation Income",
+      "targetCode": "4310",
+      "parentCode": "4000",
+      "accountType": "Income",
+      "accountName": "Grant / Donation Income",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "5020",
+      "templateName": "Import Duties",
+      "targetCode": "5135",
+      "parentCode": "5100",
+      "accountType": "Expense",
+      "accountName": "Import Duties",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "5050",
+      "templateName": "Production Supplies",
+      "targetCode": "5145",
+      "parentCode": "5100",
+      "accountType": "Expense",
+      "accountName": "Production Supplies",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "5060",
+      "templateName": "Manufacturing Overheads",
+      "targetCode": "5146",
+      "parentCode": "5100",
+      "accountType": "Expense",
+      "accountName": "Manufacturing Overheads",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6050",
+      "templateName": "Internet & Communication",
+      "targetCode": "5315",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Internet & Communication",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6060",
+      "templateName": "Insurance",
+      "targetCode": "5350",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Insurance",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6090",
+      "templateName": "Legal & Professional Fees",
+      "targetCode": "5360",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Legal & Professional Fees",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6110",
+      "templateName": "Sales Commissions",
+      "targetCode": "5335",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Sales Commissions",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6120",
+      "templateName": "Delivery Expenses",
+      "targetCode": "5345",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Delivery Expenses",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6140",
+      "templateName": "Fuel & Vehicle Expenses",
+      "targetCode": "5341",
+      "parentCode": "5340",
+      "accountType": "Expense",
+      "accountName": "Fuel & Vehicle Expenses",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "6150",
+      "templateName": "Packaging",
+      "targetCode": "5147",
+      "parentCode": "5100",
+      "accountType": "Expense",
+      "accountName": "Packaging",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "7000",
+      "templateName": "Interest Expense",
+      "targetCode": "5510",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Interest Expense",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "7010",
+      "templateName": "Foreign Exchange Loss",
+      "targetCode": "5520",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Foreign Exchange Loss",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "7020",
+      "templateName": "Bad Debts Write-off",
+      "targetCode": "5530",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Bad Debts Write-off",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "7030",
+      "templateName": "Loss on Asset Disposal",
+      "targetCode": "5540",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Loss on Asset Disposal",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    },
+    {
+      "templateCode": "7040",
+      "templateName": "Penalties & Fines",
+      "targetCode": "5550",
+      "parentCode": "5000",
+      "accountType": "Expense",
+      "accountName": "Penalties & Fines",
+      "createIfMissing": true,
+      "action": "create",
+      "status": "to_create"
+    }
+  ]
+}

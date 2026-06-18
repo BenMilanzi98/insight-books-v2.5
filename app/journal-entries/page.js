@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
+import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
+import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
 import { getPermission } from "@/lib/permissions";
 import {
   filterCoaAccountsForPostingPicker,
@@ -55,6 +57,14 @@ const JournalEntries = () => {
   const [alertType, setAlertType] = useState("success");
   const [roleDenied, setRoleDenied] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
+
+  const {
+    mode: businessScopeMode,
+    tenantIds: businessScopeTenantIds,
+    setScope: setBusinessScope,
+    hydrated: businessScopeHydrated,
+  } = useBusinessScope();
+  const businessScope = { mode: businessScopeMode, tenantIds: businessScopeTenantIds };
   
   // Form data
   const [entryFormData, setEntryFormData] = useState({
@@ -98,8 +108,24 @@ const JournalEntries = () => {
   
   // Fetch journal entries when filters change
   useEffect(() => {
+<<<<<<< Updated upstream
     fetchJournalEntries();
   }, [page, limit, dateRange, statusFilter, sourceTypeFilter, searchTerm]);
+=======
+    if (!businessScopeHydrated) return;
+    if (dateRange === "Custom Range" && (!customStartDate || !customEndDate)) return;
+    fetchJournalEntries();
+  }, [page, limit, dateRange, customStartDate, customEndDate, statusFilter, sourceTypeFilter, searchTerm, businessScopeMode, businessScopeTenantIds, businessScopeHydrated]);
+
+  // Initialize custom range dates when first selected
+  useEffect(() => {
+    if (dateRange === "Custom Range" && (!customStartDate || !customEndDate)) {
+      const def = getDefaultCustomRange();
+      setCustomStartDate(def.startDate);
+      setCustomEndDate(def.endDate);
+    }
+  }, [dateRange, customStartDate, customEndDate]);
+>>>>>>> Stashed changes
   
   // Calculate date range based on selected option
   const getDateRangeParams = () => {
@@ -198,6 +224,8 @@ const JournalEntries = () => {
       if (sourceTypeFilter !== "All Types") {
         params.append('sourceType', sourceTypeFilter);
       }
+      
+      appendBusinessScopeParams(params, businessScope);
       
       const response = await fetch(`/api/journal-entries?${params.toString()}`);
       
@@ -532,6 +560,8 @@ const handleDeleteEntry = async (entryId) => {
       if (sourceTypeFilter !== "All Types") {
         params.append('sourceType', sourceTypeFilter);
       }
+
+      appendBusinessScopeParams(params, businessScope);
       
       const response = await fetch(`/api/journal-entries/export?${params.toString()}`);
       
@@ -663,7 +693,14 @@ const handleDeleteEntry = async (entryId) => {
                       <p className="text-indigo-100 text-sm mt-0.5">View and manage general ledger entries</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+                    <BusinessScopeSelector
+                      mode={businessScopeMode}
+                      selectedTenantIds={businessScopeTenantIds}
+                      onChange={setBusinessScope}
+                      compact
+                      className="[&_button]:bg-white/95 [&_button]:border-white/30"
+                    />
                     {pagePermissions.canCreateJournal && (
                       <button
                         type="button"

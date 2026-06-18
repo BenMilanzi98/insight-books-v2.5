@@ -4,6 +4,9 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateBalanceSheetFromAccounts } from '@/lib/balanceSheetService';
 import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { resolveReportTenantScope } from '@/lib/reportTenantScope';
+import { generateScopedBalanceSheet } from '@/lib/reportingEngine/multiTenantReporting';
+import { logReportAccess } from '@/lib/reportAuditLog';
 
 /**
  * Professional Balance Sheet (Statement of Financial Position) API
@@ -13,12 +16,27 @@ export async function GET(request) {
   try {
     // Get user from session
     const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
     }
+
+    const scopeResult = await resolveReportTenantScope(request, user);
+    if (!scopeResult.ok) {
+      return NextResponse.json({ error: scopeResult.error }, { status: scopeResult.status });
+    }
+    const {
+      tenantIds,
+      tenants,
+      scope,
+      branchId: scopeBranchId,
+      branchScoped,
+      reportingCurrency,
+    } = scopeResult;
+    const primaryTenantId = tenantIds[0];
+    const reportBranchId = branchScoped ? scopeBranchId : null;
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -32,6 +50,34 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+
+    if (tenantIds.length > 1 && compareYear) {
+      return NextResponse.json(
+        { error: 'Year comparison is available for a single selected business only.' },
+        { status: 400 }
+      );
+    }
+
+    if (tenantIds.length > 1) {
+      const sheet = await generateScopedBalanceSheet({
+        tenantIds,
+        tenants,
+        asOfDate,
+        branchId: reportBranchId,
+        scope,
+        reportingCurrency,
+      });
+      await logReportAccess({
+        userId: user.id,
+        tenantId: primaryTenantId,
+        reportType: 'balance-sheet',
+        action: 'REPORT_GENERATED',
+        tenantIds,
+        businessNames: scope.businessNames,
+        filters: { asOfDate },
+      });
+      return NextResponse.json(sheet);
+    }
     
     // Parse date properly to avoid timezone issues
     const [year, month, day] = asOfDate.split('-').map(Number);
@@ -40,17 +86,17 @@ export async function GET(request) {
     
     // Get tenant name and logo
     const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
+      where: { id: primaryTenantId },
       select: { name: true, logoUrl: true }
     });
     
     // Generate current balance sheet using Phase 2 enhanced service
     const currentBalanceSheet = await generateBalanceSheetFromAccounts(
-      user.tenantId, 
+      primaryTenantId, 
       asOfDate, 
       tenant?.name || 'Company', 
       tenant?.logoUrl || null,
-      user.currentBranchId || null
+      reportBranchId
     );
     
     // Generate previous year balance sheet if requested
@@ -60,19 +106,30 @@ export async function GET(request) {
       prevYearDate.setFullYear(prevYearDate.getFullYear() - 1);
       const prevYearAsOfDate = prevYearDate.toISOString().split('T')[0];
       previousYearBalanceSheet = await generateBalanceSheetFromAccounts(
-        user.tenantId, 
+        primaryTenantId, 
         prevYearAsOfDate, 
         tenant?.name || 'Company', 
         tenant?.logoUrl || null,
-        user.currentBranchId || null
+        reportBranchId
       );
     }
+
+    await logReportAccess({
+      userId: user.id,
+      tenantId: primaryTenantId,
+      reportType: 'balance-sheet',
+      action: 'REPORT_GENERATED',
+      tenantIds,
+      businessNames: scope.businessNames,
+      filters: { asOfDate },
+    });
     
     return NextResponse.json({
       ...currentBalanceSheet,
       asOfDate: currentBalanceSheet?.asOfDate || asOfDate,
       previousYear: previousYearBalanceSheet,
-      comparisonType: compareYear ? 'previousYear' : null
+      comparisonType: compareYear ? 'previousYear' : null,
+      scope,
     });
   } catch (error) {
     console.error('Error generating balance sheet:', error);

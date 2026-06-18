@@ -1,12 +1,12 @@
 // app/api/general-ledger/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
 import { getParallelGoodsReceiptTransactionIds } from '@/lib/generalLedgerGoodsReceiptDedup';
 import {
   fetchTenantAccountsForMergeRollup,
   buildMergeRollupContext,
 } from '@/lib/accountMergeRollup';
+import { bootstrapReportRoute, tenantNameMap } from '@/lib/reportRouteBootstrap';
 
 const toDateRange = (startDate, endDate) => {
   const range = {};
@@ -33,18 +33,28 @@ const getNormalBalance = (accountType, normalBalance) => {
 // GET - Fetch general ledger transactions with filtering, sorting, and pagination
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated with this user' },
-        { status: 401 }
-      );
-    }
-    const tenantId = user.tenantId;
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
 
-    const excludeParallelGrTxIds = await getParallelGoodsReceiptTransactionIds(tenantId, prisma);
+    const {
+      tenantIds,
+      tenants,
+      scope,
+      primaryTenantId,
+      reportBranchId,
+      tw,
+    } = boot;
+    const multiTenant = tenantIds.length > 1;
+    const nameByTenantId = tenantNameMap(tenants);
+
+    const excludeParallelGrTxIds = [];
+    for (const tid of tenantIds) {
+      const ids = await getParallelGoodsReceiptTransactionIds(tid, prisma);
+      excludeParallelGrTxIds.push(...ids);
+    }
+    const uniqueExcludeIds = [...new Set(excludeParallelGrTxIds)];
     const transactionIdNotInParallelGr =
-      excludeParallelGrTxIds.length > 0 ? { id: { notIn: excludeParallelGrTxIds } } : {};
+      uniqueExcludeIds.length > 0 ? { id: { notIn: uniqueExcludeIds } } : {};
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -60,7 +70,7 @@ export async function GET(request) {
     const branchIdParam = searchParams.get('branchId');
     const branchId =
       branchIdParam === 'all' || branchIdParam === '' ? null :
-      (branchIdParam ?? user.currentBranchId ?? null);
+      (branchIdParam ?? reportBranchId ?? null);
     
     // Filtering parameters
     const accountId = searchParams.get('accountId');
@@ -81,10 +91,12 @@ export async function GET(request) {
     
     const dateRange = toDateRange(startDate, endDate);
 
-    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(tenantId, prisma);
+    const mergeRollupRows = multiTenant
+      ? []
+      : await fetchTenantAccountsForMergeRollup(primaryTenantId, prisma);
     const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
     const ledgerAccountIds =
-      accountId && accountId !== 'all'
+      !multiTenant && accountId && accountId !== 'all'
         ? mergeRollupCtx.allIdsRollingInto(mergeRollupCtx.survivorOf(accountId))
         : null;
 
@@ -93,8 +105,10 @@ export async function GET(request) {
       ...(balanceType === 'debit' ? { debitAmount: { gt: 0 } } : {}),
       ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
       journalEntry: {
-        tenantId,
+        ...tw,
         status: { in: ['Posted', 'posted'] },
+        /** Exclude mirrored system journals — those lines live on TransactionLine already. */
+        transactionId: null,
         ...(Object.keys(dateRange).length > 0 ? { entryDate: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
         ...(reference ? {
@@ -120,7 +134,7 @@ export async function GET(request) {
       ...(balanceType === 'debit' ? { debitAmount: { gt: 0 } } : {}),
       ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
       transaction: {
-        tenantId,
+        ...tw,
         status: { in: ['posted', 'Posted'] },
         ...transactionIdNotInParallelGr,
         ...reversalTxnClause,
@@ -160,7 +174,7 @@ export async function GET(request) {
               normalBalance: true,
             },
           },
-          journalEntry: { select: { id: true, entryDate: true, referenceNumber: true, description: true, branchId: true, sourceType: true, sourceId: true } },
+          journalEntry: { select: { id: true, entryDate: true, referenceNumber: true, description: true, branchId: true, sourceType: true, sourceId: true, tenantId: true } },
         },
       }),
       prisma.transactionLine.findMany({
@@ -187,6 +201,7 @@ export async function GET(request) {
               branchId: true,
               sourceType: true,
               sourceId: true,
+              tenantId: true,
               isReversal: true,
               entryType: true,
               reversedTransactionId: true,
@@ -202,7 +217,7 @@ export async function GET(request) {
     
     let openingBalance = null;
     let running = 0;
-    if (accountId && accountId !== 'all' && startDate) {
+    if (!multiTenant && accountId && accountId !== 'all' && startDate) {
       const openingDate = new Date(startDate);
       openingDate.setHours(0, 0, 0, 0);
       const survivorId = mergeRollupCtx.survivorOf(accountId);
@@ -241,8 +256,8 @@ export async function GET(request) {
       running = openingBalance;
     }
 
-    const mapGlLine = (line, entryType, extras) => {
-      const d = mergeRollupCtx.displayFieldsForPostingAccountId(line.accountId);
+    const mapGlLine = (line, entryType, extras, rowTenantId) => {
+      const d = multiTenant ? null : mergeRollupCtx.displayFieldsForPostingAccountId(line.accountId);
       const orig = line.account;
       const postingCode = orig?.accountCode || orig?.code || '';
       const postingName = orig?.accountName || orig?.name || '';
@@ -264,6 +279,9 @@ export async function GET(request) {
         normalBalance: displayNormal,
         debit: line.debitAmount || 0,
         credit: line.creditAmount || 0,
+        ...(multiTenant && rowTenantId
+          ? { tenantId: rowTenantId, businessName: nameByTenantId.get(rowTenantId) || rowTenantId }
+          : {}),
       };
     };
 
@@ -276,7 +294,7 @@ export async function GET(request) {
           reference: line.journalEntry?.referenceNumber || '',
           sourceType: line.journalEntry?.sourceType || 'JournalEntry',
           sourceId: line.journalEntry?.sourceId || null,
-        })
+        }, line.journalEntry?.tenantId)
       ),
       ...transactionLines.map((line) =>
         mapGlLine(line, line.transaction?.entryType || 'Transaction', {
@@ -296,7 +314,7 @@ export async function GET(request) {
           reference: line.transaction?.reference || '',
           sourceType: line.transaction?.sourceType || 'Transaction',
           sourceId: line.transaction?.sourceId || null,
-        })
+        }, line.transaction?.tenantId)
       ),
     ];
 
@@ -307,7 +325,7 @@ export async function GET(request) {
     });
 
     const transactions = combined.map((entry) => {
-      if (accountId && accountId !== 'all') {
+      if (!multiTenant && accountId && accountId !== 'all') {
         const normal = getNormalBalance(entry.accountType, entry.normalBalance);
         const delta = normal === 'debit' ? (entry.debit - entry.credit) : (entry.credit - entry.debit);
         running += delta;
@@ -333,6 +351,7 @@ export async function GET(request) {
     // Return the formatted response
     const totalPages = Math.ceil(totalCount / limit);
     return NextResponse.json({
+      scope,
       transactions: paginated,
       openingBalance,
       pagination: {

@@ -22,8 +22,21 @@ import { formatCurrency } from "@/lib/currencyUtils";
 import { cn } from "@/lib/utils";
 import { getPermission } from "@/lib/permissions";
 import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
+import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
+import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
 
 const GeneralLedger = () => {
+<<<<<<< Updated upstream
+=======
+  const searchParams = useSearchParams();
+  const {
+    mode: businessScopeMode,
+    tenantIds: businessScopeTenantIds,
+    setScope: setBusinessScope,
+  } = useBusinessScope();
+  const businessScope = { mode: businessScopeMode, tenantIds: businessScopeTenantIds };
+  const [showBusinessColumn, setShowBusinessColumn] = useState(false);
+>>>>>>> Stashed changes
   // Helper function to format dates safely
   const formatDateString = (dateString) => {
     if (!dateString) return "";
@@ -215,6 +228,8 @@ const GeneralLedger = () => {
         if (reversalFilter !== "all") {
           queryParams.append("reversalFilter", reversalFilter);
         }
+
+        appendBusinessScopeParams(queryParams, businessScope);
         
         const response = await fetch(`/api/general-ledger?${queryParams}`);
         
@@ -226,6 +241,10 @@ const GeneralLedger = () => {
         
         // Handle API response
         if (data.transactions) {
+          setShowBusinessColumn(
+            data.scope?.mode === 'multi' ||
+              data.transactions.some((t) => Boolean(t.businessName))
+          );
           setTransactions(data.transactions);
           setSummary({
             totalTransactions: data.totalCount || data.transactions.length,
@@ -258,7 +277,7 @@ const GeneralLedger = () => {
     if (dateRange.startDate && dateRange.endDate) {
       fetchTransactions();
     }
-  }, [dateRange, page, limit, accountFilter, searchTerm, referenceFilter, balanceFilter, reversalFilter]);
+  }, [dateRange, page, limit, accountFilter, searchTerm, referenceFilter, balanceFilter, reversalFilter, businessScopeMode, businessScopeTenantIds]);
 
   // Function to generate mock transactions for demo purposes
   const generateMockTransactions = () => {
@@ -388,6 +407,8 @@ const GeneralLedger = () => {
       if (reversalFilter !== "all") {
         queryParams.append("reversalFilter", reversalFilter);
       }
+
+      appendBusinessScopeParams(queryParams, businessScope);
       
       // Trigger file download
       window.location.href = `/api/general-ledger/export?${queryParams}`;
@@ -506,6 +527,13 @@ const GeneralLedger = () => {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-3">
+              <BusinessScopeSelector
+                mode={businessScopeMode}
+                selectedTenantIds={businessScopeTenantIds}
+                onChange={setBusinessScope}
+                compact
+                className="[&_button]:bg-white/95 [&_button]:border-white/30"
+              />
               {pagePermissions.canExportLedger && (
                 <button
                   onClick={handleExport}
@@ -752,6 +780,9 @@ const GeneralLedger = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                      {showBusinessColumn && (
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Business</th>
+                      )}
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
@@ -772,6 +803,9 @@ const GeneralLedger = () => {
                           idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
                         )}
                       >
+                        {showBusinessColumn && (
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{transaction.businessName || '—'}</td>
+                        )}
                         <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateDisplay(transaction.date)}</td>
                         <td className="px-4 py-3 text-slate-800 max-w-[200px] truncate" title={transaction.description}>{transaction.description}</td>
                         <td className="px-4 py-3">

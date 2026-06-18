@@ -66,5 +66,20 @@ describe('RBAC permission checks (hasPermission)', () => {
     expect(hasPermission(sales, 'dashboard.view')).toBe(false);
     expect(hasPermission(sales, 'sales.create')).toBe(true);
   });
+
+  it('grants POS supporting permissions when user has sales.* only', () => {
+    const cashier = {
+      role: {
+        name: 'Cashier',
+        permissions: {
+          sales: { view: true, create: true, void: true, refund: true, export: true },
+        },
+      },
+    };
+    expect(hasPermission(cashier, 'clients.view')).toBe(true);
+    expect(hasPermission(cashier, 'tax.view')).toBe(true);
+    expect(hasPermission(cashier, 'system.switchTenant')).toBe(true);
+    expect(hasPermission(cashier, 'accounts.view')).toBe(false);
+  });
 });
 

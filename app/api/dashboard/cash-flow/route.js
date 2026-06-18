@@ -4,6 +4,12 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 export async function GET(request) {
   try {
@@ -14,12 +20,21 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    const now = new Date();
-    
-    // Get date range from query parameters
+
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scopeResult = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scopeResult.ok) {
+      return NextResponse.json(
+        { error: scopeResult.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds, branchScoped } = scopeResult;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+
+    const now = new Date();
     const dateRange = searchParams.get('dateRange') || 'month';
     
     // Calculate date range based on the parameter
@@ -159,8 +174,8 @@ export async function GET(request) {
     ] = await Promise.all([
       // Invoice payments (cash in)
       prisma.payment.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           type: 'invoice',
           status: 'Completed',
           paymentDate: {
@@ -189,8 +204,8 @@ export async function GET(request) {
       
       // Sales payments (cash in)
       prisma.payment.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           type: 'sale',
           status: 'Completed',
           paymentDate: {
@@ -218,11 +233,9 @@ export async function GET(request) {
       // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
       prisma.payment.findMany({
         where: (() => {
-          if (user?.currentBranchId) {
-            // When branch is selected, require expense to have matching branchId
-            // Payment branchId is optional (for legacy data compatibility)
+          if (userQ?.currentBranchId) {
             return {
-              tenantId,
+              ...tw,
               type: 'expense',
               status: 'Completed',
               paymentDate: {
@@ -230,14 +243,13 @@ export async function GET(request) {
                 lte: endDate
               },
               expense: {
-                branchId: user.currentBranchId // STRICT: Expense must have matching branchId
+                branchId: userQ.currentBranchId
               }
             };
           }
           
-          // No branch selected, show all
           return {
-            tenantId,
+            ...tw,
             type: 'expense',
             status: 'Completed',
             paymentDate: {
@@ -265,7 +277,7 @@ export async function GET(request) {
       // Supplier payments (cash out)
       prisma.supplierPayment.findMany({
         where: {
-          tenantId,
+          ...tw,
           paymentDate: {
             gte: startDate,
             lte: endDate
@@ -287,8 +299,8 @@ export async function GET(request) {
       
       // Outstanding receivables (money owed to us)
       prisma.invoice.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           status: { in: ['Pending', 'Partial'] }
         }),
         select: {
@@ -309,8 +321,8 @@ export async function GET(request) {
       
       // Outstanding payables (money we owe)
       prisma.expense.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           paymentStatus: { in: ['Pending', 'Partially'] }
         }),
         select: {
@@ -327,7 +339,7 @@ export async function GET(request) {
       
       // Account balances
       prisma.accountBalance.findMany({
-        where: { tenantId },
+        where: tw,
         select: {
           account: true,
           balance: true

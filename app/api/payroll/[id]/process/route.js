@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { resolveCanonicalSalaryExpenseAccount } from '@/lib/accountingMappingRules';
+import { postApprovedExpenseJournalIfMissing } from '@/lib/expenseGlPosting';
 
 const PAYROLL_EXPENSE_NOTE_PREFIX = 'payrollDashboardExpense:';
 
@@ -91,6 +93,8 @@ export async function POST(request, context) {
       );
     }
 
+    const salaryAccount = await resolveCanonicalSalaryExpenseAccount(user.tenantId, prisma);
+
     const result = await prisma.$transaction(async (tx) => {
       const updatedPayroll = await tx.payroll.update({
         where: { id: payrollId },
@@ -104,12 +108,13 @@ export async function POST(request, context) {
         },
       });
 
-      await tx.expense.create({
+      const expense = await tx.expense.create({
         data: {
           description: `Payroll — ${existingPayroll.employee.name} (${existingPayroll.periodStart.toLocaleDateString()} – ${existingPayroll.periodEnd.toLocaleDateString()})`,
           amount: expenseAmount,
           date: paymentDate,
           category: 'Salary',
+          expenseAccountId: salaryAccount.id,
           employeeId: existingPayroll.employeeId,
           paymentMethod,
           status: 'Approved',
@@ -119,6 +124,13 @@ export async function POST(request, context) {
           tenantId: user.tenantId,
           notes: `${duplicateMarker} | Total payroll cost for dashboard operating expenses.`,
         },
+      });
+
+      await postApprovedExpenseJournalIfMissing({
+        tx,
+        tenantId: user.tenantId,
+        userId: user.id,
+        expense,
       });
 
       await tx.auditLog.create({

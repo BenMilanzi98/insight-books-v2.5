@@ -46,13 +46,24 @@ describe('accounting mapping rules', () => {
     const duplicate = {
       ...baseExpense,
       id: 'salary-dup',
+<<<<<<< Updated upstream
       accountCode: '5201',
       accountName: 'Admin & Management Salaries',
+=======
+      accountCode: '5301',
+      accountName: 'Salaries & Wages (legacy duplicate)',
+>>>>>>> Stashed changes
     };
 
     expect(isCanonicalSalaryExpenseAccount(canonical)).toBe(true);
     expect(isSalaryLikeExpenseAccount(duplicate)).toBe(true);
+<<<<<<< Updated upstream
     expect(getExpenseAccountValidationError(duplicate)).toMatch(/must use 5200 - Salaries & Wages/);
+=======
+    expect(getExpenseAccountValidationError(duplicate)).toMatch(
+      /must use 5200 - Salaries & Wages/
+    );
+>>>>>>> Stashed changes
     expect(isSalaryLikeExpenseAccount({
       ...baseExpense,
       id: 'salary-5301',

@@ -1,8 +1,7 @@
 // app/api/sales/[id]/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalance } from '@/lib/core';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
@@ -153,6 +152,9 @@ export async function GET(request, { params }) {
         { status: 401 }
       );
     }
+
+    const viewPerm = await requirePermission(request, 'sales.view');
+    if (viewPerm) return viewPerm;
     
     // Get sale with validation
     const result = await getSaleWithValidation(saleId, user.id, user.tenantId);
@@ -188,6 +190,9 @@ export async function PUT(request, { params }) {
         { status: 401 }
       );
     }
+
+    const updatePerm = await requirePermission(request, 'sales.update');
+    if (updatePerm) return updatePerm;
     
     // Get sale with validation
     const result = await getSaleWithValidation(saleId, user.id, user.tenantId);
@@ -360,7 +365,6 @@ export async function PUT(request, { params }) {
               sourceAccount: body.paymentMethod || sale.paymentMethod
             }
           });
-          await updateAccountBalance(user.tenantId, body.paymentMethod || sale.paymentMethod, sale.total, "add");
 
           // Create transactions for sale (Revenue + COGS) if they don't already exist
           try {
@@ -482,6 +486,9 @@ export async function DELETE(request, { params }) {
         { status: 401 }
       );
     }
+
+    const deletePerm = await requirePermission(request, 'sales.delete');
+    if (deletePerm) return deletePerm;
     
     // Get sale with validation
     const result = await getSaleWithValidation(saleId, user.id, user.tenantId);

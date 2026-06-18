@@ -5,9 +5,8 @@ import { ChevronDown, Check, Building2 } from 'lucide-react';
 import { checkPermission } from '@/lib/permissions';
 
 /**
- * Sidebar control labeled "Branches/Businesses": opens a dropdown to switch
- * the active business (tenant). Uses /api/tenant/list + /api/tenant/switch
- * (same behavior as /switch-tenant).
+ * Sidebar control to switch the active business (tenant).
+ * Uses /api/tenant/list + /api/tenant/switch (same behavior as /switch-tenant).
  */
 export default function BranchSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
@@ -89,7 +88,7 @@ export default function BranchSwitcher() {
         <div className="w-full flex items-center justify-between rounded border border-gray-600 px-3 py-2 text-white bg-gray-800 animate-pulse">
           <div className="flex flex-col items-start gap-0.5 min-w-0">
             <span className="text-[10px] uppercase tracking-wide text-gray-400">
-              Branches/Businesses
+              Businesses
             </span>
             <div className="flex items-center gap-2">
               <Building2 size={16} />
@@ -105,7 +104,7 @@ export default function BranchSwitcher() {
     return (
       <div className="w-full rounded border border-gray-600 px-3 py-2 text-white bg-gray-800 text-sm">
         <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-          Branches/Businesses
+          Businesses
         </div>
         {canManageBusinesses ? (
           <Link
@@ -133,7 +132,7 @@ export default function BranchSwitcher() {
       >
         <div className="flex flex-col items-start gap-0.5 min-w-0 text-left">
           <span className="text-[10px] uppercase tracking-wide text-gray-400">
-            Branches/Businesses
+            Businesses
           </span>
           <div className="flex items-center gap-2 min-w-0">
             <Building2 size={16} className="flex-shrink-0" />

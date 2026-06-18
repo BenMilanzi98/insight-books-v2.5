@@ -94,6 +94,18 @@ export async function GET(request) {
         Object.assign(where, poMarkerFilter);
       }
     }
+
+    if (source === 'capital') {
+      const capitalMarkerFilter = {
+        notes: { contains: 'CAPITAL_CONTRIBUTION:', mode: 'insensitive' },
+      };
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, capitalMarkerFilter];
+        delete where.OR;
+      } else {
+        Object.assign(where, capitalMarkerFilter);
+      }
+    }
     
     // Get total count
     const totalCount = await prisma.asset.count({
@@ -195,9 +207,34 @@ export async function POST(request) {
     const body = await request.json();
     
     // Validate required fields
-    if (!body.name || !body.categoryId || !body.purchaseDate || !body.originalCost || !body.usefulLifeYears) {
+    if (!body.name || !body.purchaseDate || !body.originalCost || !body.usefulLifeYears) {
       return NextResponse.json(
         { error: 'Invalid request. Missing required fields.' },
+        { status: 400 }
+      );
+    }
+
+    let categoryId = body.categoryId;
+    if (!categoryId && body.newCategoryName?.trim()) {
+      const categoryName = body.newCategoryName.trim();
+      let category = await prisma.assetCategory.findFirst({
+        where: { tenantId, name: { equals: categoryName, mode: 'insensitive' } },
+      });
+      if (!category) {
+        category = await prisma.assetCategory.create({
+          data: {
+            tenantId,
+            name: categoryName,
+            description: body.newCategoryDescription?.trim() || null,
+          },
+        });
+      }
+      categoryId = category.id;
+    }
+
+    if (!categoryId) {
+      return NextResponse.json(
+        { error: 'Category is required. Select a category or provide a new category name.' },
         { status: 400 }
       );
     }
@@ -214,7 +251,7 @@ export async function POST(request) {
     // Verify category exists
     const category = await prisma.assetCategory.findFirst({
       where: {
-        id: body.categoryId,
+        id: categoryId,
         tenantId: tenantId
       }
     });
@@ -276,7 +313,7 @@ export async function POST(request) {
       data: {
         name: body.name,
         description: body.description,
-        categoryId: body.categoryId,
+        categoryId: categoryId,
         purchaseDate: new Date(body.purchaseDate),
         originalCost: parseFloat(body.originalCost) || 0,
         usefulLifeYears: parseInt(body.usefulLifeYears) || 1,
@@ -582,12 +619,10 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
         
         console.log('Transaction created:', transaction.id);
         
-        // Update payment method balance
-        if (paymentMethodKey) {
-          console.log('Updating account balance for payment method:', paymentMethodKey, 'amount:', asset.originalCost);
-          await updateAccountBalance(tenantId, paymentMethodKey, asset.originalCost, "subtract");
-          console.log('Account balance updated');
-        }
+      // Update payment method balance
+      if (paymentMethodKey) {
+        console.log('Asset GL posted via createAssetGlTransaction; balance updated on CoA accounts.');
+      }
       }
     }
     

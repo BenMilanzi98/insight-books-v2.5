@@ -170,9 +170,34 @@ export async function POST(request) {
     const body = await request.json();
     
     // Validate required fields
-    if (!body.name || !body.categoryId || !body.liabilityType || !body.principalAmount || !body.startDate) {
+    if (!body.name || !body.liabilityType || !body.principalAmount || !body.startDate) {
       return NextResponse.json(
         { error: 'Invalid request. Missing required fields.' },
+        { status: 400 }
+      );
+    }
+
+    let categoryId = body.categoryId;
+    if (!categoryId && body.newCategoryName?.trim()) {
+      const categoryName = body.newCategoryName.trim();
+      let category = await prisma.liabilityCategory.findFirst({
+        where: { tenantId, name: { equals: categoryName, mode: 'insensitive' } },
+      });
+      if (!category) {
+        category = await prisma.liabilityCategory.create({
+          data: {
+            tenantId,
+            name: categoryName,
+            description: body.newCategoryDescription?.trim() || null,
+          },
+        });
+      }
+      categoryId = category.id;
+    }
+
+    if (!categoryId) {
+      return NextResponse.json(
+        { error: 'Category is required. Select a category or provide a new category name.' },
         { status: 400 }
       );
     }
@@ -180,7 +205,7 @@ export async function POST(request) {
     // Verify category exists
     const category = await prisma.liabilityCategory.findFirst({
       where: {
-        id: body.categoryId,
+        id: categoryId,
         tenantId: tenantId
       }
     });
@@ -219,7 +244,7 @@ export async function POST(request) {
       data: {
         name: body.name,
         description: body.description,
-        categoryId: body.categoryId,
+        categoryId: categoryId,
         liabilityType: body.liabilityType,
         principalAmount: principalAmount,
         interestRate: body.interestRate ? parseFloat(body.interestRate) : 0,

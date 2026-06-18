@@ -20,6 +20,11 @@ import {
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange, stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
 import { getPermission } from '@/lib/permissions';
+<<<<<<< Updated upstream
+=======
+import { buildCoaAccountSourceHref } from '@/lib/coaReportAccountLinks';
+import { ReportReconciliationBadge, extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
+>>>>>>> Stashed changes
 /**
  * Generic FinancialReport component that displays a report with a header and content
  */
@@ -32,6 +37,7 @@ export const FinancialReport = ({
   onExport, 
   loading,
   error,
+  reconciliationMeta,
   children 
 }) => {
   const [canExportReports, setCanExportReports] = useState();
@@ -111,6 +117,11 @@ export const FinancialReport = ({
           </div>
         </div>
       </div>
+      {reconciliationMeta?.reconciliation && (
+        <div className="px-4 sm:px-6 pt-4 border-b border-slate-100 bg-slate-50/50">
+          <ReportReconciliationBadge reconciliationMeta={reconciliationMeta} />
+        </div>
+      )}
       {error ? (
         <div className="p-6 sm:p-8 text-center">
           <div className="p-4 mb-4 text-red-700 bg-red-50 border border-red-200 rounded-xl">
@@ -260,6 +271,7 @@ export const ProfitLossReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <div className="space-y-6">
@@ -752,6 +764,7 @@ export const BalanceSheetReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <div className="space-y-6">
@@ -1568,6 +1581,7 @@ export const TaxSummaryReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <>
@@ -1861,6 +1875,7 @@ export const AgingReportTable = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <>
@@ -2119,6 +2134,7 @@ export const CashFlowReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <div className="space-y-6">

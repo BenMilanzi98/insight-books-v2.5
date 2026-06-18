@@ -2,13 +2,20 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { getEffectiveDashboardBranchId } from '@/lib/branchAccess';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  buildFinancialPositionReconciliation,
+  fetchGlFinancialPositionMetrics,
+  FINANCIAL_POSITION_GL_CODES,
+} from '@/lib/dashboardGlMetrics';
 import {
   getAccessibleTenantIdsForUser,
   parseDashboardTenantScope,
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { endOfLocalDay } from '@/lib/dateUtils';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
 // Prevent caching to ensure fresh data on branch switch
@@ -416,6 +423,31 @@ export async function GET(request) {
     const totalAccountBalances = Array.isArray(accountBalances)
       ? accountBalances.reduce((sum, acc) => addMoney(sum, acc.balance), 0)
       : 0;
+
+    const asOfDate = endOfLocalDay(today);
+    const branchIdForGl = branchScoped ? getEffectiveDashboardBranchId(userQ) : null;
+    const glMetrics = await fetchGlFinancialPositionMetrics({
+      prisma,
+      tenantIds,
+      branchId: branchIdForGl,
+      asOfDate,
+    });
+
+    const totalReceivablesGl = glMetrics.accountsReceivable;
+    const totalPayablesGl = glMetrics.accountsPayable;
+    const totalCashGl = glMetrics.totalCash;
+    const glCashBalances = glMetrics.cashAccounts.reduce((acc, line) => {
+      const key = line.accountCode || line.accountName;
+      acc[key] = line.balance;
+      return acc;
+    }, {});
+
+    const reconciliation = buildFinancialPositionReconciliation({
+      glMetrics,
+      operationalReceivables: totalReceivables,
+      operationalPayables: totalPayables,
+      operationalCash: totalAccountBalances,
+    });
     
     // Calculate aging for receivables
     const receivablesAging = {
@@ -498,19 +530,29 @@ export async function GET(request) {
     
     return NextResponse.json({
       financialPosition: {
+        source: glMetrics.source,
+        asOfDate: asOfDate.toISOString(),
+        glAccountCodes: FINANCIAL_POSITION_GL_CODES,
+        reconciliation,
         summary: {
-          totalReceivables,
+          totalReceivables: totalReceivablesGl,
           totalPotentialReceivables,
-          totalPayables,
-          netPosition: subtractMoney(totalReceivables, totalPayables),
+          totalPayables: totalPayablesGl,
+          netPosition: subtractMoney(totalReceivablesGl, totalPayablesGl),
           totalCashIn,
           totalCashOut,
           netCashFlow,
-          totalAccountBalances,
-          inventoryValue: inventoryValue.totalValue || 0
+          totalAccountBalances: totalCashGl,
+          inventoryValue: inventoryValue.totalValue || 0,
+          operational: {
+            totalReceivables,
+            totalPayables,
+            totalAccountBalances,
+          },
         },
         receivables: {
-          total: totalReceivables,
+          total: totalReceivablesGl,
+          operationalTotal: totalReceivables,
           aging: receivablesAging,
           invoices: outstandingInvoices.map(inv => ({
             id: inv.id,
@@ -531,7 +573,8 @@ export async function GET(request) {
           }))
         },
         payables: {
-          total: totalPayables,
+          total: totalPayablesGl,
+          operationalTotal: totalPayables,
           aging: payablesAging,
           expenses: outstandingExpenses.map(exp => {
             const amountOwed = exp.paymentStatus === 'Partially' && exp.paidAmount 
@@ -580,11 +623,16 @@ export async function GET(request) {
           }))
         },
         accounts: {
-          balances: accountBalances.reduce((acc, balance) => {
-            acc[balance.account] = balance.balance;
-            return acc;
-          }, {}),
-          total: totalAccountBalances
+          balances: glCashBalances,
+          total: totalCashGl,
+          operational: {
+            balances: accountBalances.reduce((acc, balance) => {
+              acc[balance.account] = balance.balance;
+              return acc;
+            }, {}),
+            total: totalAccountBalances,
+          },
+          controlAccounts: glMetrics.controlAccounts,
         }
       }
     });

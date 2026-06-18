@@ -5,6 +5,8 @@ import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { formatJournalEntries } from '@/lib/journalEntryFormatter';
+import { bootstrapReportRoute, auditReportAccess, tenantNameMap } from '@/lib/reportRouteBootstrap';
+import { buildExportHeaderRows, prependHeaderRowsToCsv } from '@/lib/reportExportScope';
 
 const MANUAL_SOURCE_TYPES = ['Manual', 'ManualJournalEntry', 'ManualAdjustment'];
 
@@ -30,17 +32,10 @@ function canExportJournalEntries(user) {
  */
 export async function GET(request) {
   try {
-    // Authenticate user and get tenant ID
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated with this user' },
-        { status: 401 }
-      );
-    }
-    
-    const tenantId = user.tenantId;
-    
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, tw, scope, tenantIds, tenants } = boot;
+
     if (!canExportJournalEntries(user)) {
       return NextResponse.json(
         { error: 'Access denied. You do not have permission to export journal entries.' },
@@ -48,19 +43,16 @@ export async function GET(request) {
       );
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     
-    // Parse query parameters
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const status = searchParams.get('status');
     const search = searchParams.get('search');
-    const format = searchParams.get('format') || 'csv'; // Default to CSV
+    const format = searchParams.get('format') || 'csv';
     
-    // Build filter object for Prisma
     const where = {
-      tenantId,
+      ...tw,
       OR: [
         { sourceType: { in: MANUAL_SOURCE_TYPES } },
         { sourceType: null },
@@ -112,7 +104,7 @@ export async function GET(request) {
 
     if (entries.length === 0) {
       const legacyWhere = {
-        tenantId,
+        ...tw,
         OR: [
           { sourceType: { in: MANUAL_SOURCE_TYPES } },
           { sourceType: null },
@@ -160,7 +152,14 @@ export async function GET(request) {
     
     // Process data based on the requested format
     if (format.toLowerCase() === 'csv') {
-      return generateCsvResponse(formatJournalEntries(entries));
+      return generateCsvResponse(formatJournalEntries(entries), {
+        scope,
+        tenantIds,
+        tenants,
+        user,
+        startDate,
+        endDate,
+      });
     } else {
       // Unsupported format
       return NextResponse.json(
@@ -178,19 +177,24 @@ export async function GET(request) {
 }
 
 /**
- * Generate CSV response from transactions data
+ * Generate CSV response from journal entries data
  */
-function generateCsvResponse(entries) {
+async function generateCsvResponse(entries, ctx) {
   try {
-    // Prepare data for CSV
+    const { scope, tenantIds, tenants, user, startDate, endDate } = ctx;
     const csvData = [];
-    
+    const tMap = tenantNameMap(tenants);
+    const multiTenant = tenantIds.length > 1;
+
     entries.forEach(entry => {
       if (!entry.lines || !entry.lines.length) return;
 
       entry.lines.forEach(line => {
         const account = line.account || {};
         csvData.push({
+          ...(multiTenant
+            ? { business: tMap.get(entry.tenantId) || entry.tenantId || '' }
+            : {}),
           date: (entry.entryDate || entry.date)
             ? new Date(entry.entryDate || entry.date).toISOString().split('T')[0]
             : '',
@@ -210,9 +214,9 @@ function generateCsvResponse(entries) {
     });
     
     // Define CSV header
-    const csvStringifier = createObjectCsvStringifier({
-      header: [
-        { id: 'date', title: 'Date' },
+    const csvHeaders = [
+      ...(multiTenant ? [{ id: 'business', title: 'Business' }] : []),
+      { id: 'date', title: 'Date' },
         { id: 'reference', title: 'Reference' },
         { id: 'description', title: 'Description' },
         { id: 'account_code', title: 'Account Code' },
@@ -221,13 +225,23 @@ function generateCsvResponse(entries) {
         { id: 'debit', title: 'Debit' },
         { id: 'credit', title: 'Credit' },
         { id: 'status', title: 'Status' }
-      ]
+    ];
+    const csvStringifier = createObjectCsvStringifier({ header: csvHeaders });
+    
+    const headerRows = buildExportHeaderRows(scope, { startDate, endDate });
+    const tableCsv =
+      csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(csvData);
+    const csvString = prependHeaderRowsToCsv(tableCsv, headerRows);
+
+    await auditReportAccess({
+      user,
+      reportType: 'journal-entries',
+      tenantIds,
+      scope,
+      filters: { startDate, endDate },
+      format: 'csv',
     });
     
-    // Generate CSV string
-    const csvString = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(csvData);
-    
-    // Set response headers
     const headers = new Headers();
     headers.append('Content-Type', 'text/csv');
     headers.append('Content-Disposition', `attachment; filename="journal_entries_${new Date().toISOString().split('T')[0]}.csv"`);

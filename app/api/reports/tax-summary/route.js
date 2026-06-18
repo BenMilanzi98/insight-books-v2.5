@@ -1,31 +1,31 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
 import {
-  validInvoiceReportWhere,
+  validInvoiceReportWhereScoped,
   validPurchaseDocumentStatusFilter,
-  validSaleReportWhere,
+  validSaleReportWhereScoped,
 } from '@/lib/reportingSourceRules';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 import {
   invoiceItemNetRevenueExTax,
   roundReportAmount,
   saleItemNetRevenueExTax,
 } from '@/lib/reportLineNetRevenue';
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
+import {
+  buildTaxSummaryFromGl,
+  buildReconciliationItem,
+  buildReconciliationSummary,
+} from '@/lib/reportingEngine/index.js';
 
 export async function GET(request) {
   try {
-    // Get user from session
-    const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required or no tenant associated' },
-        { status: 401 }
-      );
-    }
-    
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, userQ, tw, scope, tenantIds, reportBranchId } = boot;
+
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -44,8 +44,8 @@ export async function GET(request) {
     // Get invoice items with tax data - filter by branch
     const invoiceItems = await prisma.invoiceItem.findMany({
       where: {
-        invoice: addBranchFilter(user, {
-          ...validInvoiceReportWhere(user.tenantId, 'issueDate', start, end)
+        invoice: addBranchFilter(userQ, {
+          ...validInvoiceReportWhereScoped(tw, 'issueDate', start, end)
         })
       },
       include: {
@@ -67,8 +67,8 @@ export async function GET(request) {
     // Get sale items with tax data - filter by branch
     const saleItems = await prisma.saleItem.findMany({
       where: {
-        sale: addBranchFilter(user, {
-          ...validSaleReportWhere(user.tenantId, 'saleDate', start, end)
+        sale: addBranchFilter(userQ, {
+          ...validSaleReportWhereScoped(tw, 'saleDate', start, end)
         })
       },
       include: {
@@ -119,8 +119,8 @@ export async function GET(request) {
     
     // Get tax-related expenses (exclude deleted ones) - filter by branch
     const taxExpenses = await prisma.expense.findMany({
-      where: addBranchFilter(user, {
-        tenantId: user.tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         status: 'Approved',
         category: {
           contains: 'Tax' // This assumes tax expenses are categorized with "Tax" in the name
@@ -395,7 +395,7 @@ export async function GET(request) {
     // Input VAT: tax on purchases (Supplier Bills + Purchase Order line tax in period)
     const supplierBillsInPeriod = await prisma.supplierBill.findMany({
       where: {
-        tenantId: user.tenantId,
+        ...tw,
         status: validPurchaseDocumentStatusFilter(),
         billDate: {
           gte: start,
@@ -409,7 +409,7 @@ export async function GET(request) {
     const poItemsInPeriod = await prisma.purchaseOrderItem.findMany({
       where: {
         purchaseOrder: {
-          tenantId: user.tenantId,
+          ...tw,
           status: validPurchaseDocumentStatusFilter(),
           supplierBills: { none: {} },
           poDate: {
@@ -426,7 +426,57 @@ export async function GET(request) {
     // Output VAT = tax collected on sales/invoices
     const outputVat = roundReportAmount(totalCollectedTax);
     const netVatPayable = roundReportAmount(subtractMoney(outputVat, inputVat));
+
+    let glTaxSummary = null;
+    try {
+      for (const tenantId of tenantIds) {
+        const t = await buildTaxSummaryFromGl({
+          tenantId,
+          startDate,
+          endDate,
+          branchId: reportBranchId,
+          prisma,
+        });
+        if (!glTaxSummary) {
+          glTaxSummary = { ...t };
+        } else {
+          glTaxSummary.hasGlActivity = glTaxSummary.hasGlActivity || t.hasGlActivity;
+          glTaxSummary.outputTax = {
+            ...glTaxSummary.outputTax,
+            total: addMoney(glTaxSummary.outputTax?.total ?? 0, t.outputTax?.total ?? 0),
+          };
+          glTaxSummary.inputTax = {
+            ...glTaxSummary.inputTax,
+            total: addMoney(glTaxSummary.inputTax?.total ?? 0, t.inputTax?.total ?? 0),
+          };
+          glTaxSummary.netTaxPayable = addMoney(glTaxSummary.netTaxPayable ?? 0, t.netTaxPayable ?? 0);
+          glTaxSummary.netTaxReceivable = addMoney(glTaxSummary.netTaxReceivable ?? 0, t.netTaxReceivable ?? 0);
+        }
+      }
+    } catch (glTaxErr) {
+      console.warn('Tax summary: GL tax fetch failed', glTaxErr?.message || glTaxErr);
+    }
+
+    const useGlTax = glTaxSummary?.hasGlActivity;
+    const glOutputTax = glTaxSummary?.outputTax?.total ?? 0;
+    const glInputTax = glTaxSummary?.inputTax?.total ?? 0;
+    const glNetTaxPayable = glTaxSummary?.netTaxPayable ?? 0;
+
+    const primaryOutputTax = useGlTax ? glOutputTax : totalCollectedTax;
+    const primaryInputTax = useGlTax ? glInputTax : inputVat;
+    const primaryNetTaxLiability = useGlTax ? glNetTaxPayable : netTaxLiability;
+    const primaryNetVatPayable = useGlTax
+      ? roundReportAmount(subtractMoney(glOutputTax, glInputTax))
+      : netVatPayable;
     
+    await auditReportAccess({
+      user,
+      reportType: 'tax-summary',
+      tenantIds,
+      scope,
+      filters: { startDate, endDate },
+    });
+
     return NextResponse.json({
       period: {
         startDate,
@@ -435,20 +485,60 @@ export async function GET(request) {
       collectedTaxes: {
         byRate: Object.values(collectedTaxesByRate),
         totalTaxableAmount,
-        totalCollectedTax
+        totalCollectedTax: primaryOutputTax,
+        operationalTotal: totalCollectedTax,
+        fromGeneralLedger: useGlTax,
       },
       paidTaxes: {
         expenses: taxExpenses,
-        totalTaxPaid
+        totalTaxPaid: primaryInputTax,
+        operationalTotal: totalTaxPaid,
+        fromGeneralLedger: useGlTax,
       },
-      netTaxLiability,
+      netTaxLiability: primaryNetTaxLiability,
       vatSummary: {
-        inputVat,
+        inputVat: primaryInputTax,
         inputVatFromBills,
         inputVatFromPOs,
-        outputVat,
-        netVatPayable
-      }
+        outputVat: primaryOutputTax,
+        netVatPayable: primaryNetVatPayable,
+        operational: {
+          inputVat,
+          outputVat,
+          netVatPayable,
+        },
+      },
+      generalLedger: glTaxSummary
+        ? {
+            outputTax: glTaxSummary.outputTax,
+            inputTax: glTaxSummary.inputTax,
+            netTaxPayable: glTaxSummary.netTaxPayable,
+            netTaxReceivable: glTaxSummary.netTaxReceivable,
+            sourcePolicy: glTaxSummary.sourcePolicy,
+          }
+        : null,
+      metadata: {
+        ledgerSource: 'general_ledger',
+        fromGeneralLedger: useGlTax,
+        reconciliation: buildReconciliationSummary([
+          buildReconciliationItem({
+            label: 'Output tax',
+            glAmount: glOutputTax,
+            operationalAmount: totalCollectedTax,
+          }),
+          buildReconciliationItem({
+            label: 'Input tax',
+            glAmount: glInputTax,
+            operationalAmount: inputVat,
+          }),
+          buildReconciliationItem({
+            label: 'Net tax payable',
+            glAmount: glNetTaxPayable,
+            operationalAmount: netTaxLiability,
+          }),
+        ]),
+      },
+      scope,
     });
   } catch (error) {
     console.error('Error generating tax summary:', error);

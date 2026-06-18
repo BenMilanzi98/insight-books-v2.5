@@ -614,7 +614,7 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Text(
-          'Branches/Businesses: unavailable',
+          'Businesses: unavailable',
           style: TextStyle(color: Colors.red.shade200, fontSize: 12),
         ),
       );

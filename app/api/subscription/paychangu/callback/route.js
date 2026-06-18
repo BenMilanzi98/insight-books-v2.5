@@ -128,7 +128,7 @@ export async function GET(request) {
       });
 
       console.log('[PayChangu Callback] Branch subscription activated:', branchSub.id);
-      return NextResponse.redirect(`${appUrl()}/branches?success=true&scope=branch`);
+      return NextResponse.redirect(`${appUrl()}/dashboard?subscription=branch`);
     }
 
     // --- Tenant (account) subscription activation ---

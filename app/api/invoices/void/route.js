@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
-import { generateReferenceNumber } from '@/lib/journalService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { reverseGlEntry } from '@/lib/accountingEngine/reverseGlEntry.js';
+import { POSTED_TRANSACTION_STATUSES } from '@/lib/accountingEngine/constants.js';
 import { addMoney } from '@/lib/money';
 
 export async function POST(request) {
@@ -99,99 +99,30 @@ export async function POST(request) {
         }
       });
 
-      // Reverse all journal entries for this invoice
-      try {
-        const originalTransactions = await tx.transaction.findMany({
-          where: {
-            tenantId: user.tenantId,
-            sourceId: invoiceId,
-            status: 'posted',
-          },
-          include: { lines: true },
+      const voidDate = new Date();
+      const reversalReason = reason.trim();
+      await assertPeriodOpen(user.tenantId, voidDate, tx);
+
+      const originalTransactions = await tx.transaction.findMany({
+        where: {
+          tenantId: user.tenantId,
+          sourceId: invoiceId,
+          status: { in: POSTED_TRANSACTION_STATUSES },
+          isReversal: false,
+        },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      for (const origTxn of originalTransactions) {
+        await reverseGlEntry({
+          tenantId: user.tenantId,
+          userId: user.id,
+          originalTransactionId: origTxn.id,
+          reason: reversalReason,
+          entryDate: voidDate,
+          tx,
         });
-
-        const voidDate = new Date();
-        await assertPeriodOpen(user.tenantId, voidDate, tx);
-
-        for (const origTxn of originalTransactions) {
-          const reversalRef = await generateReferenceNumber(tx, user.tenantId, voidDate);
-          const reversedLines = origTxn.lines.map((line, idx) => ({
-            lineNumber: idx + 1,
-            accountId: line.accountId,
-            debitAmount: Number(line.creditAmount || 0),
-            creditAmount: Number(line.debitAmount || 0),
-            description: `VOID reversal: ${line.description || ''}`,
-          }));
-
-          const reversalTxn = await tx.transaction.create({
-            data: {
-              tenantId: user.tenantId,
-              date: voidDate,
-              reference: reversalRef,
-              description: `VOID reversal for invoice ${invoice.invoiceNumber} (${origTxn.sourceType})`,
-              entryType: 'Regular',
-              status: 'posted',
-              sourceType: `${origTxn.sourceType}-Void`,
-              sourceId: invoiceId,
-              createdById: user.id,
-              postedById: user.id,
-              postedDate: voidDate,
-              lines: { create: reversedLines },
-            },
-            include: { lines: true },
-          });
-
-          for (const line of reversalTxn.lines) {
-            await updateAccountBalanceOnTransaction(
-              line.accountId,
-              line.debitAmount,
-              line.creditAmount,
-              tx
-            );
-          }
-        }
-      } catch (reversalError) {
-        console.error('Error reversing journal entries for voided invoice:', reversalError);
-      }
-
-      // Reverse tax postings for voided invoice
-      try {
-        const { reverseAutoPostTaxEntry } = await import('@/lib/taxCalculationService');
-        const taxTransactions = await tx.transaction.findMany({
-          where: {
-            sourceType: 'Tax-Invoice',
-            sourceId: invoiceId,
-            tenantId: user.tenantId,
-            status: 'posted',
-          },
-          include: { lines: true },
-        });
-
-        for (const taxTxn of taxTransactions) {
-          for (const line of taxTxn.lines) {
-            const taxAmt = Number(line.creditAmount || 0) || Number(line.debitAmount || 0);
-            if (taxAmt <= 0) continue;
-
-            const taxType = await tx.taxType.findFirst({
-              where: { accountId: line.accountId, tenantId: user.tenantId, status: 'Active' },
-            });
-            if (!taxType) continue;
-
-            await reverseAutoPostTaxEntry({
-              tenantId: user.tenantId,
-              userId: user.id,
-              taxTypeId: taxType.id,
-              taxAmount: taxAmt,
-              transactionDate: new Date(),
-              sourceType: 'InvoiceVoid',
-              sourceId: invoiceId,
-              description: `Tax reversal for voided invoice ${invoice.invoiceNumber}`,
-              tx,
-            });
-          }
-        }
-      } catch (taxReversalError) {
-        console.error('Error reversing tax for voided invoice:', taxReversalError);
       }
 
       // Create audit log
@@ -231,8 +162,29 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error voiding invoice:', error);
+
+    if (error.code === 'PERIOD_LOCKED') {
+      const base = error.message || `Cannot void in closed accounting period: ${error.period?.periodName || 'unknown'}.`;
+      const message = base.includes('Reopen') ? base : `${base} Reopen the period in Accounting Periods to void this invoice.`;
+      return NextResponse.json(
+        {
+          success: false,
+          error: message,
+          details: { code: 'PERIOD_LOCKED', periodName: error.period?.periodName },
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.code === 'ALREADY_REVERSED') {
+      return NextResponse.json(
+        { success: false, error: error.message || 'Invoice journals have already been reversed.' },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: 'Failed to void invoice. Please try again.' },
+      { success: false, error: error.message || 'Failed to void invoice. Please try again.' },
       { status: 500 }
     );
   }

@@ -328,7 +328,15 @@ export async function GET(request) {
         notDue,
         aging
       },
-      payables: outstandingPayables
+      payables: outstandingPayables,
+      glVerification:
+        tenantIds.length === 1
+          ? (
+              await import('@/lib/apAgingService').then((m) =>
+                m.generateAPAgingFromTransactions(tenantIds[0], new Date(), branchScoped ? userQ.currentBranchId : null)
+              )
+            ).verification
+          : null,
     });
   } catch (error) {
     console.error('Error getting payables data:', error);

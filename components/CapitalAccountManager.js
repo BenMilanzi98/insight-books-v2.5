@@ -5,6 +5,7 @@ import { paymentMethods } from "@/lib/paymentMethods";
 
 const CapitalAccountManager = ({ onboarding = false }) => {
   const [capitalAccount, setCapitalAccount] = useState(null);
+  const [glAccount, setGlAccount] = useState({ code: "3100", name: "Owner's Capital" });
   /** Actual payment accounts from /payments/management with real balances */
   const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [recentTransfers, setRecentTransfers] = useState([]);
@@ -86,6 +87,12 @@ const CapitalAccountManager = ({ onboarding = false }) => {
             }
           : null;
         setCapitalAccount(ca);
+        setGlAccount(
+          capitalData.glAccount || {
+            code: ca?.accountCode || ca?.code || "3100",
+            name: ca?.name || "Owner's Capital",
+          }
+        );
         setRecentTransfers(capitalData.recentTransfers || []);
         setBalanceHistory(capitalData.balanceHistory || []);
         
@@ -452,12 +459,26 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       )}
       {/* Capital Account Overview */}
       <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <Wallet className="h-6 w-6 text-indigo-600" />
             Capital Account
           </h2>
-          <div className="flex flex-wrap gap-2">
+          <p className="text-sm text-slate-500 lg:text-right">
+            Linked to GL{" "}
+            <a
+              href={`/chart-of-accounts?search=${encodeURIComponent(glAccount?.code || "3100")}`}
+              className="font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+            >
+              {glAccount?.code || "3100"}
+            </a>
+            {" — "}
+            {glAccount?.name || "Owner's Capital"}
+            <span className="block text-xs text-slate-400 mt-0.5">
+              Contributions credit sub-accounts (3101+) under this parent; pool balance is available for transfers.
+            </span>
+          </p>
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             <button
               type="button"
               onClick={() => setShowEditModal(true)}
@@ -560,8 +581,11 @@ const CapitalAccountManager = ({ onboarding = false }) => {
           <div className="p-5 rounded-xl bg-violet-50 border border-violet-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-violet-600 uppercase tracking-wider">Account Code</p>
-                <p className="text-lg font-bold text-violet-900 mt-1">{capitalAccount?.code || 'N/A'}</p>
+                <p className="text-sm font-medium text-violet-600 uppercase tracking-wider">GL account</p>
+                <p className="text-lg font-bold font-mono text-violet-900 mt-1">
+                  {glAccount?.code || capitalAccount?.code || "3100"}
+                </p>
+                <p className="text-xs text-violet-700/80 mt-1">{glAccount?.name || "Owner's Capital"}</p>
               </div>
               <div className="p-3 rounded-xl bg-violet-100">
                 <Wallet className="h-8 w-8 text-violet-600" />
@@ -1134,7 +1158,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                   <select value={contributionData.cashAccountId}
                     onChange={(e) => setContributionData(d => ({ ...d, cashAccountId: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                    <option value="">Auto-detect</option>
+                    <option value="">Default — GL 1110 Cash - Main Account</option>
                     {paymentAccounts.map(a => (
                       <option key={a.id} value={a.id}>{a.name}</option>
                     ))}

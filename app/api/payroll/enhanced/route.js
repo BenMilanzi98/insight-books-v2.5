@@ -12,6 +12,7 @@ import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveSalaryAdvanceReceivableAccount } from '@/lib/salaryAdvanceGlAccount';
+import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
 import {
   CANONICAL_SALARY_ACCOUNT_CODE,
   CANONICAL_SALARY_ACCOUNT_NAME,
@@ -1083,37 +1084,17 @@ export async function POST(request) {
           const referenceNumber = await generateReferenceNumber(tx, user.tenantId, paymentDate);
 
           // Salaries are recorded on the date they are processed (paymentDate)
-          const createdTransaction = await tx.transaction.create({
-            data: {
-              tenantId: user.tenantId,
-              date: paymentDate,
-              reference: referenceNumber,
-              description: `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
-              entryType: 'Regular',
-              status: 'posted',
-              sourceType: 'Payroll',
-              sourceId: payrollEntry.id,
-              createdById: user.id,
-              postedById: user.id,
-              postedDate: new Date(),
-              notes: `Enhanced payroll run with Malawi tax compliance`,
-              lines: {
-                create: transactionLines
-              }
-            },
-            include: {
-              lines: true
-            }
+          const createdTransaction = await postGlEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            entryDate: paymentDate,
+            description: `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
+            reference: referenceNumber,
+            sourceType: 'Payroll',
+            sourceId: payrollEntry.id,
+            lines: transactionLines,
+            tx,
           });
-
-          for (const line of createdTransaction.lines) {
-            await updateAccountBalanceOnTransaction(
-              line.accountId,
-              line.debitAmount,
-              line.creditAmount,
-              tx
-            );
-          }
 
           // PAYE is already included in the main transaction lines above for proper balance
           // We still track it via tax service for reconciliation, but it's part of the main balanced transaction

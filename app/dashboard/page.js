@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
@@ -39,8 +40,13 @@ import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanne
 import SetupWizardReminderBanner from "@/components/SetupWizardReminderBanner";
 import SetupWizardWelcomeModal from "@/components/SetupWizardWelcomeModal";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
+import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
+import MultiBusinessComparisonPanel, {
+  DASHBOARD_METRICS_COMPARE_COLUMNS,
+} from "@/components/reports/MultiBusinessComparisonPanel";
 import { formatCurrency, formatDate, getDateRange, toYmdLocal } from "@/lib/dateUtils";
 import { addMoney, parseMoney } from "@/lib/money";
+import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
 
 // Animated Counter Component
 const CountUp = ({ end, duration = 2000, format = (val) => val }) => {
@@ -503,16 +509,20 @@ const BusinessOwnerDashboard = () => {
   const [userTenants, setUserTenants] = useState([]);
   const [hasMultipleBusinesses, setHasMultipleBusinesses] = useState(false);
 
-  /** 'session' = active business only (API default); 'all' = aggregate=all; 'custom' = tenantIds= */
-  const [dashboardBusinessScope, setDashboardBusinessScope] = useState("session");
-  const [dashboardCustomTenantIds, setDashboardCustomTenantIds] = useState([]);
-  const dashboardScopeHydrated = useRef(false);
-
-  const DASH_SCOPE_KEY = "insightbooks:dashboard-business-scope";
-  const DASH_SCOPE_IDS_KEY = "insightbooks:dashboard-custom-tenant-ids";
+  const {
+    mode: dashboardBusinessScope,
+    tenantIds: dashboardCustomTenantIds,
+    setScope: setDashboardBusinessScope,
+    hydrated: dashboardScopeHydrated,
+  } = useBusinessScope();
+  const businessScope = {
+    mode: dashboardBusinessScope,
+    tenantIds: dashboardCustomTenantIds,
+  };
 
   // State for dashboard data
   const [metrics, setMetrics] = useState(null);
+  const [metricsByTenant, setMetricsByTenant] = useState(null);
   const [dailyPerformance, setDailyPerformance] = useState(null);
   const [receivables, setReceivables] = useState(null);
   const [payables, setPayables] = useState(null);
@@ -538,34 +548,6 @@ const BusinessOwnerDashboard = () => {
   const [stockAlertsPage, setStockAlertsPage] = useState(1);
   const stockAlertsPageSize = 3;
   
-  // State for current branch (to trigger refetch on branch change)
-  const [currentBranchId, setCurrentBranchId] = useState(null);
-  
-  // Fetch current branch on mount and when it changes
-  useEffect(() => {
-    const fetchCurrentBranch = async () => {
-      try {
-        const branchRes = await fetch('/api/branches/switch', { cache: 'no-store' });
-        if (branchRes.ok) {
-          const branchData = await branchRes.json();
-          setCurrentBranchId(branchData.branchId);
-        }
-      } catch (e) {
-        console.error('Failed to get current branch:', e);
-      }
-    };
-    fetchCurrentBranch();
-
-    // Listen for branch changes triggered in another tab/window (no polling).
-    const handleStorage = (event) => {
-      if (event.key === 'insightbooks:branch-switch') {
-        fetchCurrentBranch();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
   // Refresh cross-tenant stock receipts when returning to the tab (e.g. after a transfer elsewhere).
   useEffect(() => {
     const loadReceipts = async () => {
@@ -701,39 +683,19 @@ const BusinessOwnerDashboard = () => {
     fetchUserTenants();
   }, []);
 
+  // Fetch dashboard data when date range, branch, or business scope changes (only if user may view dashboard)
   useEffect(() => {
-    if (dashboardScopeHydrated.current || userTenants.length < 2) return;
-    dashboardScopeHydrated.current = true;
-    try {
-      const saved = localStorage.getItem(DASH_SCOPE_KEY);
-      if (saved === "all" || saved === "session" || saved === "custom") {
-        setDashboardBusinessScope(saved);
-      }
-      const rawIds = localStorage.getItem(DASH_SCOPE_IDS_KEY);
-      if (rawIds) {
-        const parsed = JSON.parse(rawIds);
-        if (Array.isArray(parsed)) {
-          const allowed = new Set(userTenants.map((t) => t.id));
-          setDashboardCustomTenantIds(parsed.filter((id) => allowed.has(id)));
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [userTenants]);
-
-  useEffect(() => {
-    if (userTenants.length < 2) return;
-    try {
-      localStorage.setItem(DASH_SCOPE_KEY, dashboardBusinessScope);
-      localStorage.setItem(
-        DASH_SCOPE_IDS_KEY,
-        JSON.stringify(dashboardCustomTenantIds)
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [dashboardBusinessScope, dashboardCustomTenantIds, userTenants.length]);
+    if (!dashboardPermissionResolved || !pagePermissions.canViewDashboard) return;
+    if (!dashboardScopeHydrated) return;
+    fetchDashboardData();
+  }, [
+    selectedDateRange,
+    dashboardBusinessScope,
+    dashboardCustomTenantIds,
+    dashboardPermissionResolved,
+    pagePermissions.canViewDashboard,
+    dashboardScopeHydrated,
+  ]);
 
   useEffect(() => {
     if (!dashboardPermissionResolved || !pagePermissions.canViewDashboard || !authContextLoaded) return;
@@ -784,19 +746,6 @@ const BusinessOwnerDashboard = () => {
     }
     setShowAndroidAppNotice(false);
   };
-
-  // Fetch dashboard data when date range, branch, or business scope changes (only if user may view dashboard)
-  useEffect(() => {
-    if (!dashboardPermissionResolved || !pagePermissions.canViewDashboard) return;
-    fetchDashboardData();
-  }, [
-    selectedDateRange,
-    currentBranchId,
-    dashboardBusinessScope,
-    dashboardCustomTenantIds,
-    dashboardPermissionResolved,
-    pagePermissions.canViewDashboard,
-  ]);
 
   // Enhanced data fetching with date range filtering
   const fetchDashboardData = async () => {
@@ -849,14 +798,7 @@ const BusinessOwnerDashboard = () => {
       // Note: Branch filtering is handled server-side via session (user.currentBranchId)
       // Add cache-busting to ensure fresh data when branch changes
       const appendDashboardScopeParams = (params) => {
-        if (dashboardBusinessScope === "all") {
-          params.set("aggregate", "all");
-        } else if (
-          dashboardBusinessScope === "custom" &&
-          dashboardCustomTenantIds.length > 0
-        ) {
-          params.set("tenantIds", dashboardCustomTenantIds.join(","));
-        }
+        appendBusinessScopeParams(params, businessScope);
       };
 
       const buildApiUrl = (endpoint) => {
@@ -901,6 +843,7 @@ const BusinessOwnerDashboard = () => {
 
       // Update state with actual data
       setMetrics(metricsData.financialSummary);
+      setMetricsByTenant(metricsData.byTenant || null);
       setDailyPerformance(dailyPerformanceData.dailyMetrics);
       setReceivables(receivablesData.accountsReceivable);
       setPayables(payablesData.accountsPayable);
@@ -922,14 +865,7 @@ const BusinessOwnerDashboard = () => {
         const revParams = new URLSearchParams();
         revParams.set('startDate', toYmdLocal(sd));
         revParams.set('endDate', toYmdLocal(ed));
-        if (dashboardBusinessScope === "all") {
-          revParams.set("aggregate", "all");
-        } else if (
-          dashboardBusinessScope === "custom" &&
-          dashboardCustomTenantIds.length > 0
-        ) {
-          revParams.set("tenantIds", dashboardCustomTenantIds.join(","));
-        }
+        appendBusinessScopeParams(revParams, businessScope);
         const revRes = await fetch(
           `/api/dashboard/revenue-by-category?${revParams.toString()}&_cb=${Date.now()}`,
           { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
@@ -1313,66 +1249,12 @@ const BusinessOwnerDashboard = () => {
                       />
                     </div>
                     {hasMultipleBusinesses && (
-                      <div className="flex flex-col gap-1 min-w-[11rem] max-w-[220px]">
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold px-0.5">
-                          Data scope
-                        </span>
-                        <select
-                          value={dashboardBusinessScope}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setDashboardBusinessScope(next);
-                            if (
-                              next === "custom" &&
-                              dashboardCustomTenantIds.length === 0 &&
-                              userTenants.length
-                            ) {
-                              setDashboardCustomTenantIds(
-                                userTenants.map((t) => t.id)
-                              );
-                            }
-                          }}
-                          className="text-sm border border-gray-200 rounded-lg px-2 py-2 bg-white text-gray-800 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          aria-label="Dashboard data scope across businesses"
-                        >
-                          <option value="session">Current business only</option>
-                          <option value="all">All my businesses</option>
-                          <option value="custom">Selected businesses…</option>
-                        </select>
-                        {dashboardBusinessScope === "custom" && (
-                          <div className="max-h-28 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-inner text-xs space-y-1">
-                            {userTenants.map((t) => (
-                              <label
-                                key={t.id}
-                                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                  checked={dashboardCustomTenantIds.includes(
-                                    t.id
-                                  )}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setDashboardCustomTenantIds((prev) =>
-                                        prev.includes(t.id)
-                                          ? prev
-                                          : [...prev, t.id]
-                                      );
-                                    } else {
-                                      setDashboardCustomTenantIds((prev) => {
-                                        if (prev.length <= 1) return prev;
-                                        return prev.filter((id) => id !== t.id);
-                                      });
-                                    }
-                                  }}
-                                />
-                                <span className="truncate">{t.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <BusinessScopeSelector
+                        mode={dashboardBusinessScope}
+                        selectedTenantIds={dashboardCustomTenantIds}
+                        onChange={setDashboardBusinessScope}
+                        className="min-w-[11rem] max-w-[220px]"
+                      />
                     )}
                     <button
                       onClick={refreshDashboard}
@@ -1392,13 +1274,13 @@ const BusinessOwnerDashboard = () => {
                       </button>
                     )}
                     {!hasMultipleBusinesses && tenantInfo && (
-                      <button
-                        onClick={() => window.location.href = '/auth/business-setup'}
+                      <Link
+                        href="/account?tab=business"
                         className="inline-flex items-center px-4 py-2.5 bg-white text-gray-700 rounded-xl font-semibold shadow-lg shadow-gray-200 border border-gray-200 hover:shadow-xl hover:shadow-gray-200 hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <Settings className="h-4 w-4 mr-2" />
                         Manage Business
-                      </button>
+                      </Link>
                     )}
                   </div>
                 </div>
@@ -1536,6 +1418,14 @@ const BusinessOwnerDashboard = () => {
           
           {/* Financial Summary Cards */}
           <div className="mb-6 sm:mb-8">
+            {metricsByTenant?.length > 1 ? (
+              <MultiBusinessComparisonPanel
+                byTenant={metricsByTenant}
+                columns={DASHBOARD_METRICS_COMPARE_COLUMNS}
+                title="Financial summary by business"
+                className="mb-5"
+              />
+            ) : null}
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
                 <BarChart3 size={20} className="text-white" />

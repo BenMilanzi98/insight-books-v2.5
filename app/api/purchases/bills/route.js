@@ -11,6 +11,7 @@ import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { finalizeExpenseBill } from '@/lib/supplierBillExpenseFinalize';
 import { addMoney, multiplyMoney, roundMoney } from '@/lib/money';
 import { resolvePostableExpenseAccount } from '@/lib/accountingMappingRules';
+import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense', 'stock'];
@@ -400,43 +401,61 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
     }
   }
 
+  // Skip inventory/AP GL when goods receipt already posted Dr Inventory / Cr AP
+  let existingGrTransaction = null;
+  if (isFromGoodsReceipt && billWithReceipt.goodsReceiptId) {
+    existingGrTransaction = await tx.transaction.findFirst({
+      where: {
+        tenantId,
+        sourceType: 'GoodsReceipt',
+        sourceId: billWithReceipt.goodsReceiptId,
+        status: 'posted',
+      },
+      select: { id: true },
+    });
+  }
+
+  if (existingGrTransaction) {
+    console.log(
+      `Skipping inventory/AP posting for bill ${bill.billNumber} - GoodsReceipt GL already posted (${billWithReceipt.goodsReceiptId})`
+    );
+    await tx.supplierBill.update({
+      where: { id: bill.id },
+      data: { journalEntryId: existingGrTransaction.id },
+    });
+    return;
+  }
+
   // Create journal entry
   const entryDate = bill.billDate instanceof Date ? bill.billDate : new Date(bill.billDate);
   await assertPeriodOpen(tenantId, entryDate, tx);
   const referenceNumber = await generateReferenceNumber(tx, tenantId, entryDate);
 
-  const transaction = await tx.transaction.create({
-    data: {
-      tenantId,
-      date: entryDate,
-      reference: referenceNumber,
-      description: `Purchase Bill ${bill.billNumber} - ${bill.supplier.supplierName}`,
-      entryType: 'Regular',
-      status: 'posted',
-      sourceType: 'SupplierBill',
-      sourceId: bill.id,
-      createdById: userId,
-      postedById: userId,
-      postedDate: new Date(),
-      lines: {
-        create: [
-          {
-            lineNumber: 1,
-            accountId: inventoryAccount.id,
-            debitAmount: bill.totalAmount,
-            creditAmount: 0,
-            description: `Inventory purchase - ${bill.billNumber}`
-          },
-          {
-            lineNumber: 2,
-            accountId: apAccount.id,
-            debitAmount: 0,
-            creditAmount: bill.totalAmount,
-            description: `Accounts Payable - ${bill.supplier.supplierName}`
-          }
-        ]
-      }
-    }
+  const transaction = await postGlEntry({
+    tenantId,
+    userId,
+    entryDate,
+    description: `Purchase Bill ${bill.billNumber} - ${bill.supplier.supplierName}`,
+    reference: referenceNumber,
+    sourceType: 'SupplierBill',
+    sourceId: bill.id,
+    lines: [
+      {
+        lineNumber: 1,
+        accountId: inventoryAccount.id,
+        debitAmount: bill.totalAmount,
+        creditAmount: 0,
+        description: `Inventory purchase - ${bill.billNumber}`,
+      },
+      {
+        lineNumber: 2,
+        accountId: apAccount.id,
+        debitAmount: 0,
+        creditAmount: bill.totalAmount,
+        description: `Accounts Payable - ${bill.supplier.supplierName}`,
+      },
+    ],
+    tx,
   });
 
   // Link journal entry to bill

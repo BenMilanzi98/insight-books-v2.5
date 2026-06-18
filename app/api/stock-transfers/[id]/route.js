@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { createFifoBatch } from '@/lib/fifoCosting';
+import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
+import { upsertReceiptNoticeForTransfer } from '@/lib/stockTransferReceiptNotices';
+import {
+  executeStockTransferMovement,
+  resolveSourceProductForTransfer,
+} from '@/lib/stockTransferService';
 
 // GET — Transfer detail (source or receiving business)
 export async function GET(request, { params }) {
@@ -109,8 +114,8 @@ export async function PUT(request, { params }) {
       },
       include: {
         product: true,
-        fromBranch: true,
-        toBranch: true
+        fromBranch: { include: { tenant: { select: { id: true, name: true } } } },
+        toBranch: { include: { tenant: { select: { id: true, name: true } } } },
       }
     });
 
@@ -141,6 +146,28 @@ export async function PUT(request, { params }) {
         return NextResponse.json(
           { error: `Cannot reject transfer with status: ${transfer.status}` },
           { status: 400 }
+        );
+      }
+    }
+
+    const fromTenantId = transfer.fromBranch?.tenant?.id || transfer.tenantId;
+    const toTenantId = transfer.toBranch?.tenant?.id || transfer.tenantId;
+
+    if (action === 'approve') {
+      const canApprove = await userHasAccessToTenant(user, fromTenantId);
+      if (!canApprove) {
+        return NextResponse.json(
+          { error: 'Only users with access to the sending business can approve this transfer' },
+          { status: 403 }
+        );
+      }
+    }
+    if (action === 'receive') {
+      const canReceive = await userHasAccessToTenant(user, toTenantId);
+      if (!canReceive) {
+        return NextResponse.json(
+          { error: 'Only users with access to the receiving business can receive this transfer' },
+          { status: 403 }
         );
       }
     }
@@ -199,184 +226,88 @@ export async function PUT(request, { params }) {
 
         return updatedTransfer;
       } else if (action === 'receive') {
-        // This is where we actually move the stock
-        const transferQuantity = parseFloat(transfer.quantity);
-        
-        // Verify source product still has sufficient stock
-        const sourceProduct = await tx.product.findFirst({
-          where: {
-            id: transfer.productId,
-            tenantId: user.tenantId,
-            branchId: transfer.fromBranchId,
-            isDeleted: false
-          }
-        });
-
+        const sourceProduct = await resolveSourceProductForTransfer(tx, transfer, fromTenantId);
         if (!sourceProduct) {
-          throw new Error('Source product not found in source branch');
+          throw new Error('Source product not found at the sending business');
         }
 
-        const availableStock = parseFloat(sourceProduct.stockLevel || 0);
-        if (availableStock < transferQuantity) {
-          throw new Error(`Insufficient stock in source branch. Available: ${availableStock}, Required: ${transferQuantity}`);
-        }
-
-        // Get or create destination product
-        let destinationProduct = await tx.product.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            branchId: transfer.toBranchId,
-            sku: transfer.product.sku,
-            isDeleted: false
-          }
+        const { destinationProduct } = await executeStockTransferMovement({
+          tx,
+          transfer,
+          sourceProduct,
+          fromTenantId,
+          toTenantId,
+          fromBranchId: transfer.fromBranchId,
+          toBranchId: transfer.toBranchId,
+          fromBranchName: transfer.fromBranch?.name,
+          toBranchName: transfer.toBranch?.name,
+          userId: user.id,
+          sameTenantTransfer: fromTenantId === toTenantId,
         });
 
-        const productCost = parseFloat(transfer.product.cost || 0);
-        const unitCost = productCost > 0 ? productCost : 0;
-
-        if (!destinationProduct) {
-          // Create product in destination branch (copy from source)
-          destinationProduct = await tx.product.create({
-            data: {
-              name: transfer.product.name,
-              sku: transfer.product.sku,
-              description: transfer.product.description,
-              price: transfer.product.price,
-              cost: transfer.product.cost,
-              category: transfer.product.category,
-              location: transfer.product.location,
-              reorderPoint: transfer.product.reorderPoint,
-              image: transfer.product.image,
-              isService: transfer.product.isService || false,
-              stockLevel: 0, // Will be updated by FIFO batch
-              tenantId: user.tenantId,
-              branchId: transfer.toBranchId,
-              categoryId: transfer.product.categoryId,
-              inventoryAccountId: transfer.product.inventoryAccountId,
-              cogsAccountId: transfer.product.cogsAccountId
-            }
-          });
-        }
-
-        // Reduce stock from source product
-        await tx.product.update({
-          where: { id: sourceProduct.id },
-          data: {
-            stockLevel: {
-              decrement: transferQuantity
-            }
-          }
-        });
-
-        // Add stock to destination product using FIFO
-        // This ensures proper cost tracking
-        try {
-          const sourceId = `stock-transfer-${transferId}-${Date.now()}`;
-          await createFifoBatch({
-            tenantId: user.tenantId,
-            branchId: transfer.toBranchId,
-            productId: destinationProduct.id,
-            quantityPurchased: transferQuantity,
-            unitCost: unitCost,
-            purchaseDate: new Date(),
-            sourceType: 'StockTransfer',
-            sourceId: sourceId,
-            tx: tx
-          });
-        } catch (fifoError) {
-          console.error('Error creating FIFO batch for transfer:', fifoError);
-          // Fallback: update stock directly if FIFO fails
-          await tx.product.update({
-            where: { id: destinationProduct.id },
-            data: {
-              stockLevel: {
-                increment: transferQuantity
-              }
-            }
-          });
-        }
-
-        // Status only: compatible with Prisma clients that predate StockTransfer received* fields.
         const updatedTransfer = await tx.stockTransfer.update({
           where: { id: transferId },
-          data: { status: 'received' },
+          data: {
+            status: 'received',
+            receivedById: user.id,
+            receivedAt: new Date(),
+          },
           include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                sku: true
-              }
-            },
+            product: { select: { id: true, name: true, sku: true } },
             fromBranch: {
-              select: {
-                id: true,
-                name: true
-              }
+              select: { id: true, name: true, tenant: { select: { id: true, name: true } } },
             },
             toBranch: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        });
-
-        // Create inventory transactions for audit trail
-        await tx.inventoryTransaction.createMany({
-          data: [
-            {
-              type: 'Stock Out',
-              quantity: -transferQuantity,
-              notes: `Stock transfer to ${transfer.toBranch.name}`,
-              productId: sourceProduct.id,
-              userId: user.id,
-              tenantId: user.tenantId,
-              branchId: transfer.fromBranchId
+              select: { id: true, name: true, tenant: { select: { id: true, name: true } } },
             },
-            {
-              type: 'Stock In',
-              quantity: transferQuantity,
-              notes: `Stock transfer from ${transfer.fromBranch.name}`,
-              productId: destinationProduct.id,
-              userId: user.id,
-              tenantId: user.tenantId,
-              branchId: transfer.toBranchId
-            }
-          ]
+          },
         });
 
-        // Create audit log
         await tx.auditLog.create({
           data: {
             action: 'STOCK_TRANSFER_RECEIVED',
             entityType: 'STOCK_TRANSFER',
             entityId: transferId,
             userId: user.id,
-            tenantId: user.tenantId,
+            tenantId: toTenantId,
             details: JSON.stringify({
               transferId,
               productName: transfer.product.name,
               fromBranch: transfer.fromBranch.name,
               toBranch: transfer.toBranch.name,
-              quantity: transferQuantity,
+              quantity: transfer.quantity,
               sourceProductId: sourceProduct.id,
-              destinationProductId: destinationProduct.id
-            })
-          }
+              destinationProductId: destinationProduct.id,
+            }),
+          },
         });
+
+        if (fromTenantId !== toTenantId) {
+          try {
+            await upsertReceiptNoticeForTransfer({
+              tenantId: toTenantId,
+              stockTransferId: transferId,
+              sourceTenantId: fromTenantId,
+              sourceTenantName: transfer.fromBranch?.tenant?.name ?? null,
+            });
+          } catch (noticeErr) {
+            console.warn('[Stock Transfer] Receipt notice failed:', noticeErr?.message);
+          }
+        }
 
         return updatedTransfer;
       } else if (action === 'reject') {
-        const rejectNote = rejectionReason?.trim()
-          ? `Rejected: ${rejectionReason.trim()}`
-          : null;
-        const mergedNotes = [transfer.notes, rejectNote].filter(Boolean).join('\n');
+        const rejectNote = rejectionReason?.trim() || null;
+        const mergedNotes = [transfer.notes, rejectNote ? `Rejected: ${rejectNote}` : null]
+          .filter(Boolean)
+          .join('\n');
         const updatedTransfer = await tx.stockTransfer.update({
           where: { id: transferId },
           data: {
             status: 'rejected',
+            rejectedById: user.id,
+            rejectedAt: new Date(),
+            rejectionReason: rejectNote,
             ...(mergedNotes ? { notes: mergedNotes } : {}),
           },
           include: {

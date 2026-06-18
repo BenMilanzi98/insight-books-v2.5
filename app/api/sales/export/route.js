@@ -1,7 +1,7 @@
 // app/api/sales/export/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { getPaymentMethodName } from '@/lib/paymentMethods';
 import { exportToNumber, exportSumField } from '@/lib/exportNumberUtils';
@@ -17,6 +17,9 @@ export async function GET(request) {
         { status: 401 }
       );
     }
+
+    const perm = await requirePermission(request, 'sales.export');
+    if (perm) return perm;
     
     const { searchParams } = new URL(request.url);
     
@@ -102,7 +105,7 @@ export async function GET(request) {
     
     // For CSV format
     if (format === 'csv') {
-      return generateCsvResponse(sales);
+      return generateCsvResponse(sales, user.tenantId);
     }
     
     // For other formats (could implement PDF, Excel, etc.)
@@ -119,8 +122,47 @@ export async function GET(request) {
   }
 }
 
+const POSTED_GL_STATUSES = ['posted', 'Posted'];
+
+async function fetchJournalRefsBySourceIds(prismaClient, tenantId, sourceType, entityIds) {
+  if (!entityIds.length) return new Map();
+
+  const sourceIdCandidates = entityIds.flatMap((id) => [id, `${id}-revenue`]);
+  const transactions = await prismaClient.transaction.findMany({
+    where: {
+      tenantId,
+      sourceType,
+      sourceId: { in: sourceIdCandidates },
+      isReversal: false,
+      status: { in: POSTED_GL_STATUSES },
+    },
+    select: { id: true, reference: true, sourceId: true },
+  });
+
+  const txBySourceId = new Map(transactions.map((tx) => [tx.sourceId, tx]));
+  const journalByEntityId = new Map();
+
+  for (const entityId of entityIds) {
+    const tx =
+      txBySourceId.get(`${entityId}-revenue`) || txBySourceId.get(entityId) || null;
+    journalByEntityId.set(entityId, {
+      transactionId: tx?.id || '',
+      journalReference: tx?.reference || '',
+    });
+  }
+
+  return journalByEntityId;
+}
+
 // Generate CSV response
-async function generateCsvResponse(sales) {
+async function generateCsvResponse(sales, tenantId) {
+  const journalBySaleId = await fetchJournalRefsBySourceIds(
+    prisma,
+    tenantId,
+    'Sale',
+    sales.map((sale) => sale.id)
+  );
+
   // Define CSV header
   const csvStringifier = createObjectCsvStringifier({
     header: [
@@ -137,7 +179,9 @@ async function generateCsvResponse(sales) {
       { id: 'paymentMethod', title: 'Payment Method' },
       { id: 'status', title: 'Status' },
       { id: 'createdBy', title: 'Created By' },
-      { id: 'notes', title: 'Notes' }
+      { id: 'notes', title: 'Notes' },
+      { id: 'journalReference', title: 'Journal Reference' },
+      { id: 'transactionId', title: 'Transaction ID' },
     ]
   });
   
@@ -159,6 +203,11 @@ async function generateCsvResponse(sales) {
     if (taxForExport === 0) taxForExport = legacyTax;
     if (taxForExport === 0) taxForExport = lineTaxSum;
 
+    const journal = journalBySaleId.get(sale.id) || {
+      transactionId: '',
+      journalReference: '',
+    };
+
     return {
       saleNumber: sale.saleNumber,
       date: sale.saleDate.toISOString().split('T')[0],
@@ -173,7 +222,9 @@ async function generateCsvResponse(sales) {
       paymentMethod: getPaymentMethodName(sale.paymentMethod),
       status: formatStatus(sale.status),
       createdBy: sale.createdBy?.name || '',
-      notes: sale.notes || ''
+      notes: sale.notes || '',
+      journalReference: journal.journalReference,
+      transactionId: journal.transactionId,
     };
   });
   

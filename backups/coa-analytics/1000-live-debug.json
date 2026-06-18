@@ -1,0 +1,76 @@
+{
+  "stockOverlay": 0,
+  "productCount": 3,
+  "products": [
+    {
+      "name": "Annual Subscription",
+      "totalStockValue": "0",
+      "stockLevel": "90",
+      "cost": "0"
+    },
+    {
+      "name": "Monthly Subscription",
+      "totalStockValue": "0",
+      "stockLevel": "78",
+      "cost": "0"
+    },
+    {
+      "name": "Custom Software",
+      "totalStockValue": "0",
+      "stockLevel": "1",
+      "cost": "0"
+    }
+  ],
+  "duplicateCodes": [],
+  "pipeline1000": 27931529.57,
+  "pipeline1000WithJuneDateFilter": 27931529.57,
+  "row1300Dated": 0,
+  "row1200Dated": 10564743,
+  "uiDisplay": 27931529.57,
+  "uiLeafSelf": 27931529.57,
+  "uiChildrenSum": 27931529.57,
+  "rows": [
+    {
+      "code": "1100",
+      "currentBalance": 9814929.57,
+      "postedDirectBalance": 0
+    },
+    {
+      "code": "1500",
+      "currentBalance": 14000000,
+      "postedDirectBalance": 0
+    },
+    {
+      "code": "1900",
+      "currentBalance": 4116600,
+      "postedDirectBalance": 0
+    },
+    {
+      "code": "1300",
+      "currentBalance": 0,
+      "postedDirectBalance": 0,
+      "inventoryBalanceSource": "stock_management_aggregate"
+    },
+    {
+      "code": "1310",
+      "currentBalance": 0,
+      "postedDirectBalance": 0,
+      "inventoryBalanceSource": "stock_management_aggregate"
+    },
+    {
+      "code": "1200",
+      "currentBalance": 10564743,
+      "postedDirectBalance": 10564743
+    },
+    {
+      "code": "1999",
+      "currentBalance": 4116600,
+      "postedDirectBalance": 4116600
+    },
+    {
+      "code": "1540",
+      "currentBalance": 14000000,
+      "postedDirectBalance": 14000000
+    }
+  ]
+}

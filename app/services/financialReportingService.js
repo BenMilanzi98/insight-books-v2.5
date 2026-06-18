@@ -7,9 +7,27 @@
 import { formatCurrency } from '@/lib/currencyUtils';
 import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 import { normalizeReportYmdParam } from '@/lib/reportingSourceRules';
+import { appendBusinessScopeParams } from '@/lib/businessScopeStorage';
+
+/** Append authorized business scope to a report API URL. */
+export function withBusinessScope(url, businessScope) {
+  if (!businessScope || businessScope.mode === 'session') return url;
+  const sep = url.includes('?') ? '&' : '?';
+  const params = new URLSearchParams();
+  appendBusinessScopeParams(params, businessScope);
+  const qs = params.toString();
+  return qs ? `${url}${sep}${qs}` : url;
+}
 
 // Financial periods align to calendar year (1 January – 31 December). All annual report ranges use 1 Jan – 31 Dec.
 const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
+  if (customDateRange?.startDate && customDateRange?.endDate) {
+    const { startDate, endDate } = calculateDateRange('custom', false, customDateRange);
+    return {
+      startDate: formatYmdInTimeZone(startDate),
+      endDate: formatYmdInTimeZone(endDate),
+    };
+  }
   if (timeframe === 'custom' && customDateRange?.startDate && customDateRange?.endDate) {
     const { startDate, endDate } = calculateDateRange('custom', false, customDateRange);
     return {
@@ -48,11 +66,14 @@ const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
 /**
  * Fetch financial summary data
  */
-export const fetchFinancialSummary = async (timeframe, customDateRange = null) => {
+export const fetchFinancialSummary = async (timeframe, customDateRange = null, businessScope = null) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
-    const response = await fetch(`/api/reports/summary?startDate=${startDate}&endDate=${endDate}`);
+    const response = await fetch(withBusinessScope(
+      `/api/reports/summary?startDate=${startDate}&endDate=${endDate}`,
+      businessScope
+    ));
     
     if (!response.ok) {
       throw new Error(`Error fetching financial summary: ${response.statusText}`);
@@ -69,7 +90,7 @@ export const fetchFinancialSummary = async (timeframe, customDateRange = null) =
 /**
  * Fetch income statement (profit & loss) data
  */
-export const fetchIncomeStatement = async ({ timeframe, compareWithPrevious = false, customDateRange = null }) => {
+export const fetchIncomeStatement = async ({ timeframe, compareWithPrevious = false, customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
@@ -78,6 +99,8 @@ export const fetchIncomeStatement = async ({ timeframe, compareWithPrevious = fa
     if (compareWithPrevious) {
       url += '&compare=true';
     }
+
+    url = withBusinessScope(url, businessScope);
     
     const response = await fetch(url);
     
@@ -96,15 +119,16 @@ export const fetchIncomeStatement = async ({ timeframe, compareWithPrevious = fa
 /**
  * Fetch balance sheet data
  */
-export const fetchBalanceSheet = async ({ timeframe, customDateRange = null }) => {
+export const fetchBalanceSheet = async ({ timeframe, customDateRange = null, businessScope = null }) => {
   try {
     const { endDate } = getDateRange(timeframe, customDateRange);
     
-    // endDate is already in YYYY-MM-DD format from getDateRange, so use it directly
-    // Only convert if it's not already in the correct format
     const asOfDate = endDate || formatYmdInTimeZone(new Date());
 
-    const response = await fetch(`/api/reports/balance-sheet?asOfDate=${encodeURIComponent(asOfDate)}`);
+    const response = await fetch(withBusinessScope(
+      `/api/reports/balance-sheet?asOfDate=${encodeURIComponent(asOfDate)}`,
+      businessScope
+    ));
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -122,11 +146,14 @@ export const fetchBalanceSheet = async ({ timeframe, customDateRange = null }) =
 /**
  * Fetch cash flow statement data
  */
-export const fetchCashFlowStatement = async ({ timeframe, customDateRange = null }) => {
+export const fetchCashFlowStatement = async ({ timeframe, customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
-    const response = await fetch(`/api/reports/cash-flow?startDate=${startDate}&endDate=${endDate}`);
+    const response = await fetch(withBusinessScope(
+      `/api/reports/cash-flow?startDate=${startDate}&endDate=${endDate}`,
+      businessScope
+    ));
     
     if (!response.ok) {
       throw new Error(`Error fetching cash flow statement: ${response.statusText}`);
@@ -143,11 +170,14 @@ export const fetchCashFlowStatement = async ({ timeframe, customDateRange = null
 /**
  * Fetch tax summary data
  */
-export const fetchTaxSummary = async ({ timeframe, customDateRange = null }) => {
+export const fetchTaxSummary = async ({ timeframe, customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
-    const response = await fetch(`/api/reports/tax-summary?startDate=${startDate}&endDate=${endDate}`);
+    const response = await fetch(withBusinessScope(
+      `/api/reports/tax-summary?startDate=${startDate}&endDate=${endDate}`,
+      businessScope
+    ));
     
     if (!response.ok) {
       throw new Error(`Error fetching tax summary: ${response.statusText}`);
@@ -164,15 +194,17 @@ export const fetchTaxSummary = async ({ timeframe, customDateRange = null }) => 
 /**
  * Fetch expense report data
  */
-export const fetchExpenseReport = async ({ timeframe, category, customDateRange = null }) => {
+export const fetchExpenseReport = async ({ timeframe, category, customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
     let url = `/api/reports/expenses?startDate=${startDate}&endDate=${endDate}`;
     
     if (category) {
-      url += `&category=${category}`;
+      url += `&category=${encodeURIComponent(category)}`;
     }
+
+    url = withBusinessScope(url, businessScope);
     
     const response = await fetch(url);
     
@@ -191,11 +223,14 @@ export const fetchExpenseReport = async ({ timeframe, category, customDateRange 
 /**
  * Fetch sales report data
  */
-export const fetchSalesReport = async ({ timeframe, groupBy = 'day', customDateRange = null }) => {
+export const fetchSalesReport = async ({ timeframe, groupBy = 'day', customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
-    const response = await fetch(`/api/reports/sales?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`);
+    const response = await fetch(withBusinessScope(
+      `/api/reports/sales?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`,
+      businessScope
+    ));
     
     if (!response.ok) {
       throw new Error(`Error fetching sales report: ${response.statusText}`);
@@ -212,11 +247,14 @@ export const fetchSalesReport = async ({ timeframe, groupBy = 'day', customDateR
 /**
  * Fetch financial ratios data
  */
-export const fetchFinancialRatios = async ({ timeframe, customDateRange = null }) => {
+export const fetchFinancialRatios = async ({ timeframe, customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
-    const response = await fetch(`/api/reports/financial-ratios?startDate=${startDate}&endDate=${endDate}`);
+    const response = await fetch(withBusinessScope(
+      `/api/reports/financial-ratios?startDate=${startDate}&endDate=${endDate}`,
+      businessScope
+    ));
     
     if (!response.ok) {
       throw new Error(`Error fetching financial ratios: ${response.statusText}`);
@@ -233,7 +271,7 @@ export const fetchFinancialRatios = async ({ timeframe, customDateRange = null }
 /**
  * Fetch stock movement report data
  */
-export const fetchStockMovement = async ({ timeframe, productId = null, customDateRange = null }) => {
+export const fetchStockMovement = async ({ timeframe, productId = null, customDateRange = null, businessScope = null }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
@@ -241,6 +279,8 @@ export const fetchStockMovement = async ({ timeframe, productId = null, customDa
     if (productId) {
       url += `&productId=${productId}`;
     }
+
+    url = withBusinessScope(url, businessScope);
     
     const response = await fetch(url);
     
@@ -263,6 +303,7 @@ export const fetchInventoryLossReport = async ({
   timeframe,
   customDateRange = null,
   eventType = 'all',
+  businessScope = null,
 }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
@@ -271,6 +312,7 @@ export const fetchInventoryLossReport = async ({
       endDate,
       eventType,
     });
+    appendBusinessScopeParams(params, businessScope);
     const response = await fetch(`/api/reports/inventory-losses?${params.toString()}`);
     if (!response.ok) {
       throw new Error(`Error fetching inventory loss report: ${response.statusText}`);
@@ -286,10 +328,12 @@ export const fetchInventoryLossReport = async ({
  * Fetch Daily POS report for a single date (default: today).
  * @param {string} [date] - YYYY-MM-DD; defaults to today
  */
-export const fetchPosDailyReport = async (date = null) => {
+export const fetchPosDailyReport = async (date = null, businessScope = null) => {
   try {
     const dateStr = normalizeReportYmdParam(date);
-    const response = await fetch(`/api/reports/pos-daily?date=${dateStr}`);
+    const params = new URLSearchParams({ date: dateStr });
+    appendBusinessScopeParams(params, businessScope);
+    const response = await fetch(`/api/reports/pos-daily?${params.toString()}`);
     if (!response.ok) {
       throw new Error(`Error fetching daily POS report: ${response.statusText}`);
     }
@@ -308,7 +352,8 @@ export const fetchFinancialAnalytics = async ({
   timeframe,
   groupBy = 'month',
   customDateRange = null,
-  categoryId = ''
+  categoryId = '',
+  businessScope = null,
 }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
@@ -321,6 +366,7 @@ export const fetchFinancialAnalytics = async ({
     if (categoryId) {
       params.append('categoryId', categoryId);
     }
+    appendBusinessScopeParams(params, businessScope);
     
     const response = await fetch(`/api/reports/financial-analytics?${params.toString()}`);
     
@@ -344,11 +390,13 @@ export const fetchProductProfitDetail = async ({
   timeframe,
   customDateRange = null,
   categoryId = '',
+  businessScope = null,
 }) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     const params = new URLSearchParams({ startDate, endDate });
     if (categoryId) params.append('categoryId', categoryId);
+    appendBusinessScopeParams(params, businessScope);
 
     const response = await fetch(`/api/reports/product-profit-detail?${params.toString()}`);
 
@@ -376,7 +424,7 @@ export const fetchAvailableReports = async () => {
     }
     
     const data = await response.json();
-    return data;
+    return Array.isArray(data) ? data : data.reports || [];
   } catch (error) {
     console.error('Error fetching available reports:', error);
     throw new Error('Failed to load available reports');
@@ -392,20 +440,21 @@ export const exportReport = async (reportType, format, params = {}) => {
     
     // Calendar-aligned range (default: full current month, 1st–last day; this year = 1 Jan–31 Dec)
     const tf = params.timeframe || 'thisMonth';
-    const { startDate, endDate } = getDateRange(
-      tf,
-      tf === 'singleDay' || tf === 'custom' ? params.customDateRange : null
-    );
+    const { startDate, endDate } = getDateRange(tf, params.customDateRange || null);
     queryParams.append('startDate', startDate);
     queryParams.append('endDate', endDate);
     
     // Add any other params (skip timeframe + customDateRange — range is already startDate/endDate)
     Object.entries(params).forEach(([key, value]) => {
-      if (key === 'timeframe' || key === 'customDateRange' || value == null) return;
+      if (key === 'timeframe' || key === 'customDateRange' || key === 'businessScope' || value == null) return;
       if (typeof value === 'object') return;
       queryParams.append(key, String(value));
     });
-    
+
+    if (params.businessScope) {
+      appendBusinessScopeParams(queryParams, params.businessScope);
+    }
+
     queryParams.append('format', format);
     
     const url = `/api/reports/${reportType}/export?${queryParams.toString()}`;
@@ -437,4 +486,16 @@ export const exportReport = async (reportType, format, params = {}) => {
     console.error(`Error exporting ${reportType} report:`, error);
     throw error;
   }
+};
+
+/**
+ * Fetch accounting periods for report date filtering.
+ */
+export const fetchAccountingPeriodsForReports = async () => {
+  const response = await fetch('/api/reports/accounting-periods');
+  if (!response.ok) {
+    throw new Error('Failed to load accounting periods');
+  }
+  const data = await response.json();
+  return data.periods || [];
 };

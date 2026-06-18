@@ -1,42 +1,27 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   PlusCircle,
   RefreshCw,
-  CreditCard,
-  DollarSign,
-  Landmark,
-  Smartphone,
   AlertCircle,
   Settings,
   X,
   Loader,
-  ChevronRight,
   CheckCircle,
   XCircle,
-  Plus,
-  Save,
   FileDown,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import PaymentModal from "@/components/PaymentModal";
+import PaymentChannelsPanel from "@/components/payments/PaymentChannelsPanel";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
-const ACCOUNT_TYPES = [
-  { value: "Cash", label: "Cash" },
-  { value: "Bank", label: "Bank" },
-  { value: "Mobile Money", label: "Mobile Money" },
-  { value: "Wallet", label: "Wallet" },
-  { value: "POS Terminal", label: "POS Terminal" },
-];
-
 const PaymentAccountsPage = () => {
   const router = useRouter();
-  const [paymentAccounts, setPaymentAccounts] = useState([]);
-  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [channelRefreshKey, setChannelRefreshKey] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncingPayments, setSyncingPayments] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -49,14 +34,7 @@ const PaymentAccountsPage = () => {
   const [historyRows, setHistoryRows] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const [accountFormSaving, setAccountFormSaving] = useState(false);
-  const [accountFormData, setAccountFormData] = useState({
-    name: "",
-    accountType: "Cash",
-    reference: "",
-    isActive: true,
-  });
+  const refreshChannels = () => setChannelRefreshKey((k) => k + 1);
 
   useEffect(() => {
     const fetchPermissions = async () => {
@@ -65,35 +43,6 @@ const PaymentAccountsPage = () => {
     };
     fetchPermissions();
   }, []);
-
-  const loadPaymentAccounts = useCallback(async () => {
-    try {
-      setLoadingAccounts(true);
-      const response = await fetch("/api/payment-accounts/balances");
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.accounts) {
-          setPaymentAccounts(data.accounts);
-        }
-      } else {
-        const accountsResponse = await fetch("/api/payment-accounts?activeOnly=true");
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          if (accountsData.success) {
-            setPaymentAccounts(accountsData.paymentAccounts || []);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error loading payment accounts:", error);
-    } finally {
-      setLoadingAccounts(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadPaymentAccounts();
-  }, [loadPaymentAccounts]);
 
   const showNotification = (message, type = "info") => {
     setNotification({ message, type });
@@ -113,7 +62,7 @@ const PaymentAccountsPage = () => {
     }
 
     showNotification("Transfer completed successfully", "success");
-    await loadPaymentAccounts();
+    refreshChannels();
   };
 
   const handleSyncPayments = async () => {
@@ -127,7 +76,7 @@ const PaymentAccountsPage = () => {
       } else {
         showNotification("No new payments to sync", "info");
       }
-      await loadPaymentAccounts();
+      refreshChannels();
     } catch (error) {
       console.error(error);
       showNotification(error.message || "Error syncing payments", "error");
@@ -143,13 +92,6 @@ const PaymentAccountsPage = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(amount) || 0);
-
-  const totalBalance = useMemo(() => {
-    return paymentAccounts.reduce((s, a) => {
-      const b = typeof a.balance === "number" ? a.balance : parseFloat(a.balance) || 0;
-      return s + Math.max(0, b);
-    }, 0);
-  }, [paymentAccounts]);
 
   const downloadHistoryExport = async (format) => {
     if (!historyAccount?.id) return;
@@ -183,54 +125,6 @@ const PaymentAccountsPage = () => {
     }
   };
 
-  const resetAccountForm = () => {
-    setAccountFormData({
-      name: "",
-      accountType: "Cash",
-      reference: "",
-      isActive: true,
-    });
-  };
-
-  const submitNewAccount = async (e) => {
-    e.preventDefault();
-    if (!accountFormData.name?.trim()) {
-      showNotification("Account name is required", "error");
-      return;
-    }
-    setAccountFormSaving(true);
-    try {
-      const res = await fetch("/api/payment-accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: accountFormData.name.trim(),
-          accountType: accountFormData.accountType,
-          reference: accountFormData.reference?.trim() || undefined,
-          isActive: accountFormData.isActive,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (data.code === "PAYMENT_GL_SLOTS_EXHAUSTED") {
-          window.alert(
-            data.error ||
-              `Bank/Mobile/Wallet/POS registers use GL codes 1130-01 … 1130-99 under group 1130. That range is full — remove or merge an account. Cash uses GL 1110 only.`
-          );
-        }
-        throw new Error(data.error || "Failed to create account");
-      }
-      showNotification("Payment account created", "success");
-      setAccountModalOpen(false);
-      resetAccountForm();
-      await loadPaymentAccounts();
-    } catch (err) {
-      showNotification(err.message || "Could not create account", "error");
-    } finally {
-      setAccountFormSaving(false);
-    }
-  };
-
   const openHistory = async (account) => {
     setHistoryAccount(account);
     setHistoryOpen(true);
@@ -247,14 +141,6 @@ const PaymentAccountsPage = () => {
     } finally {
       setHistoryLoading(false);
     }
-  };
-
-  const accountIcon = (type) => {
-    const t = (type || "").toLowerCase();
-    if (t === "bank") return Landmark;
-    if (t === "mobile money") return Smartphone;
-    if (t === "cash") return DollarSign;
-    return CreditCard;
   };
 
   const StatusBadge = ({ status }) => {
@@ -309,11 +195,8 @@ const PaymentAccountsPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payment Accounts</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Balances match{" "}
-              <a href="/payments/management" className="text-indigo-600 font-medium hover:underline">
-                Payment Accounts management
-              </a>
-              . Tap a method to view its transaction history.
+              Malawi banks (1131–1138), mobile money (1140–1141), and cash (1110). Parent GL rows show rollup totals;
+              your accounts post to child codes such as 1131-01.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -334,17 +217,6 @@ const PaymentAccountsPage = () => {
               <RefreshCw size={16} className={syncingPayments ? "animate-spin" : ""} />
               {syncingPayments ? "Syncing…" : "Sync payments"}
             </button>
-            <button
-              type="button"
-              className="px-4 py-2 border border-indigo-200 bg-indigo-50 text-indigo-800 rounded-lg text-sm font-semibold hover:bg-indigo-100 inline-flex items-center gap-2 shadow-sm"
-              onClick={() => {
-                resetAccountForm();
-                setAccountModalOpen(true);
-              }}
-            >
-              <Plus size={18} />
-              Add account
-            </button>
             {pagePermissions.canCreatePayments && (
               <button
                 type="button"
@@ -358,93 +230,11 @@ const PaymentAccountsPage = () => {
           </div>
         </div>
 
-        <section className="rounded-2xl border border-gray-100 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Payment method distribution</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Share of funds across active accounts · Total {formatCurrency(totalBalance)}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => loadPaymentAccounts()}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-800 self-start sm:self-auto"
-            >
-              Refresh balances
-            </button>
-          </div>
-
-          {loadingAccounts ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 gap-2">
-              <Loader className="h-5 w-5 animate-spin" />
-              Loading accounts…
-            </div>
-          ) : paymentAccounts.length === 0 ? (
-            <div className="text-center py-14 text-gray-500 text-sm space-y-3">
-              <p>No payment accounts yet.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  resetAccountForm();
-                  setAccountModalOpen(true);
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-              >
-                <Plus size={16} />
-                Add payment account
-              </button>
-              <p>
-                Or use{" "}
-                <a href="/payments/management" className="text-indigo-600 font-medium hover:underline">
-                  Payment Accounts management
-                </a>
-                .
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {paymentAccounts.map((account) => {
-                const bal = typeof account.balance === "number" ? account.balance : parseFloat(account.balance) || 0;
-                const pct = totalBalance > 0 ? Math.min(100, Math.round((Math.max(0, bal) / totalBalance) * 100)) : 0;
-                const Icon = accountIcon(account.accountType);
-                return (
-                  <button
-                    key={account.id}
-                    type="button"
-                    onClick={() => openHistory(account)}
-                    className="group text-left rounded-xl border border-gray-200/80 bg-white/90 backdrop-blur px-5 py-4 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600 shrink-0">
-                          <Icon size={20} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{account.name}</p>
-                          <p className="text-xs text-gray-500">{account.accountType || "Account"}</p>
-                        </div>
-                      </div>
-                      <ChevronRight
-                        size={18}
-                        className="text-gray-300 group-hover:text-indigo-500 shrink-0 mt-1"
-                        aria-hidden
-                      />
-                    </div>
-                    <p className="mt-4 text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(bal)}</p>
-                    <div className="mt-3 h-2 rounded-full bg-gray-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-gray-400 font-medium">{pct}% of tracked balance</p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        <PaymentChannelsPanel
+          mode="dashboard"
+          refreshKey={channelRefreshKey}
+          onSelectAccount={openHistory}
+        />
 
         <PaymentModal
           isOpen={isModalOpen}
@@ -453,99 +243,6 @@ const PaymentAccountsPage = () => {
           mode="create"
           transferFundsOnly
         />
-
-        {accountModalOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/45">
-            <div
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="add-acct-title"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 id="add-acct-title" className="text-lg font-semibold text-gray-900">
-                  Add payment account
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAccountModalOpen(false);
-                    resetAccountForm();
-                  }}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-                  aria-label="Close"
-                >
-                  <X size={22} />
-                </button>
-              </div>
-              <form onSubmit={submitNewAccount} className="px-5 py-4 space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={accountFormData.name}
-                    onChange={(e) => setAccountFormData((p) => ({ ...p, name: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    placeholder="e.g. Business cheque account"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
-                  <select
-                    value={accountFormData.accountType}
-                    onChange={(e) => setAccountFormData((p) => ({ ...p, accountType: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                  >
-                    {ACCOUNT_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Reference (optional)</label>
-                  <input
-                    type="text"
-                    value={accountFormData.reference}
-                    onChange={(e) => setAccountFormData((p) => ({ ...p, reference: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    placeholder="Account number, wallet ID…"
-                  />
-                </div>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={accountFormData.isActive}
-                    onChange={(e) => setAccountFormData((p) => ({ ...p, isActive: e.target.checked }))}
-                  />
-                  Active
-                </label>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAccountModalOpen(false);
-                      resetAccountForm();
-                    }}
-                    className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={accountFormSaving}
-                    className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 inline-flex items-center gap-2 disabled:opacity-60"
-                  >
-                    {accountFormSaving ? <Loader className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {historyOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45">

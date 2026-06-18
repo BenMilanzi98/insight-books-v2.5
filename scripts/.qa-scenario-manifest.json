@@ -1,0 +1,144 @@
+{
+  "scenarios": {
+    "1": {
+      "name": "POS cash sale",
+      "status": "ok",
+      "seededAt": "2026-06-17T19:51:36.866Z",
+      "saleId": "cmqhge09a00078s20b8i4mv24",
+      "transactionId": "cmqhge0fx00098s20pkscwtfl",
+      "cogsTransactionId": "cmqihlgmc00018saswx9m5zwt",
+      "cogsAmount": 4000
+    },
+    "2": {
+      "name": "POS mobile money sale",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:31:04.958Z",
+      "saleId": "cmqhge0h2000e8s20l85jl63a",
+      "transactionId": "cmqhgfbvo00038sy05htclplh",
+      "mobileAccountId": "cmqhgfboi00018sy0jq4dckxe"
+    },
+    "3": {
+      "name": "POS sale reversal",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:03.536Z",
+      "reversalTransactionId": "cmqhge0hr000g8s20dr490kfh"
+    },
+    "4": {
+      "name": "Invoice creation",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:03.594Z",
+      "invoiceId": "cmqhge0in000l8s206wc905so",
+      "transactionId": "cmqhge0iz000n8s20k46k68aa"
+    },
+    "5": {
+      "name": "Invoice partial + full payment",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:03.705Z",
+      "invoiceId": "cmqhge0ke000s8s20yxw23ym5",
+      "finalPaymentTxnId": "cmqhge0mi00188s20hgy1ckfi"
+    },
+    "6": {
+      "name": "Invoice void/cancel",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:03.863Z",
+      "invoiceId": "cmqhge0n3001d8s206trgth4g",
+      "reversalTransactionId": "cmqhge0q4001k8s20ht7b5gri"
+    },
+    "7": {
+      "name": "Expense paid immediately",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:04.043Z",
+      "expenseId": "cmqhge0ti001p8s20inzdqejv",
+      "transactionId": "cmqhge0ux001r8s20cs7t0mdv"
+    },
+    "8": {
+      "name": "Expense on AP",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:04.176Z",
+      "expenseId": "cmqhge0xa001w8s20a8juk2h4",
+      "transactionId": "cmqhge0yp001y8s20g8km7gka"
+    },
+    "9": {
+      "name": "Supplier bill + payment",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:04.414Z",
+      "billId": "cmqhge11g00238s20iyql0jdh",
+      "transactionId": "cmqhge155002f8s20oalasc07"
+    },
+    "10": {
+      "name": "Manual journal entry",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:31:05.000Z",
+      "journalEntryId": "cmqhgfbww00088sy0w0kc72n1"
+    },
+    "11": {
+      "name": "Journal reversal",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:31:05.022Z",
+      "reversalJournalEntryId": "cmqhgfbxs000d8sy0ehlf09y2"
+    },
+    "12": {
+      "name": "Capital contribution",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:05.395Z",
+      "transactionId": "cmqhge1wu00308s20ypp42jd1",
+      "equityAccountId": "cmqhge1ul002y8s202ry74nd7"
+    },
+    "13": {
+      "name": "Owner withdrawal",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:05.486Z",
+      "transactionId": "cmqhge1zb00358s20yxejgyf4"
+    },
+    "14": {
+      "name": "Bank transfer",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:31:05.059Z",
+      "transactionId": "cmqhgfbyp000k8sy0td3pnkmf",
+      "bankAccountId": "cmqhgfbyg000i8sy0y2jhhend"
+    },
+    "15": {
+      "name": "Payroll run",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:05.638Z",
+      "transactionId": "cmqhge238003a8s205nzbl5ea"
+    },
+    "16": {
+      "name": "Open accounting period",
+      "status": "open",
+      "seededAt": "2026-06-17T19:51:36.870Z",
+      "accountingPeriodId": "cmqhge07u00058s20oq7knrsx"
+    },
+    "17": {
+      "name": "Closed period block test",
+      "status": "closed",
+      "seededAt": "2026-06-17T19:51:36.877Z",
+      "accountingPeriodId": "cmqhge24z003g8s20blzet9qk"
+    },
+    "18": {
+      "name": "Intentional AR mismatch",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:05.722Z",
+      "invoiceId": "cmqhge25p003i8s20f6yx7jtt",
+      "invoiceTotal": 35000,
+      "postedAr": 20000,
+      "expectedMismatch": 15000,
+      "note": "Sub-ledger balance exceeds GL 1200 by design (Phase 4 reconciliation test)",
+      "sourceId": "QA-ar-mismatch-mismatch"
+    },
+    "19": {
+      "name": "Legacy capital header-only row",
+      "status": "ok",
+      "seededAt": "2026-06-17T02:30:05.799Z",
+      "legacyJournalIds": [
+        "cmqhge282003r8s20gv84dufo",
+        "cmqhge287003t8s20nlh7qjjg"
+      ]
+    }
+  },
+  "tenantId": "cmqhgd27r00088s9so9tzjh7s",
+  "tenantName": "QA-Accounting",
+  "email": "qa@accounting.test",
+  "updatedAt": "2026-06-17T19:51:36.417Z",
+  "seededAt": "2026-06-17T19:51:36.417Z"
+}

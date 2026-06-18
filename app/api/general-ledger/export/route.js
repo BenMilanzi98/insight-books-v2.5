@@ -1,7 +1,7 @@
 // app/api/general-ledger/export/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { getParallelGoodsReceiptTransactionIds } from '@/lib/generalLedgerGoodsReceiptDedup';
 import {
@@ -10,6 +10,8 @@ import {
   resolveReversedEntryLabelsBatch,
   resolveSourceDocumentLabelsBatch,
 } from '@/lib/userFacingLabels';
+import { bootstrapReportRoute, tenantNameMap } from '@/lib/reportRouteBootstrap';
+import { buildExportHeaderRows } from '@/lib/reportExportScope';
 
 const toDateRange = (startDate, endDate) => {
   const range = {};
@@ -35,18 +37,33 @@ const getNormalBalance = (accountType, normalBalance) => {
 
 export async function GET(request) {
   try {
-    // Check for authentication and permissions
     const permissionCheck = await requirePermission(request, "generalLedger.export");
     if (permissionCheck) {
-      return permissionCheck; // Returns 401 or 403 response if not authorized
+      return permissionCheck;
     }
 
-    const user = await getUserFromSession(request);
-    const tenantId = user.tenantId;
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
 
-    const excludeParallelGrTxIds = await getParallelGoodsReceiptTransactionIds(tenantId, prisma);
+    const {
+      tenantIds,
+      tenants,
+      scope,
+      primaryTenantId,
+      reportBranchId,
+      tw,
+    } = boot;
+    const multiTenant = tenantIds.length > 1;
+    const nameByTenantId = tenantNameMap(tenants);
+
+    const excludeParallelGrTxIds = [];
+    for (const tid of tenantIds) {
+      const ids = await getParallelGoodsReceiptTransactionIds(tid, prisma);
+      excludeParallelGrTxIds.push(...ids);
+    }
+    const uniqueExcludeIds = [...new Set(excludeParallelGrTxIds)];
     const transactionIdNotInParallelGr =
-      excludeParallelGrTxIds.length > 0 ? { id: { notIn: excludeParallelGrTxIds } } : {};
+      uniqueExcludeIds.length > 0 ? { id: { notIn: uniqueExcludeIds } } : {};
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -65,7 +82,7 @@ export async function GET(request) {
     const branchIdParam = searchParams.get('branchId');
     const branchId =
       branchIdParam === 'all' || branchIdParam === '' ? null :
-      (branchIdParam ?? user.currentBranchId ?? null);
+      (branchIdParam ?? reportBranchId ?? null);
 
     const reversalFilter = (searchParams.get('reversalFilter') || 'all').toLowerCase();
     const reversalTxnClause =
@@ -80,7 +97,7 @@ export async function GET(request) {
     const journalWhere = {
       ...(accountId && accountId !== 'all' ? { accountId } : {}),
       journalEntry: {
-        tenantId,
+        ...tw,
         status: { in: ['Posted', 'posted'] },
         ...(Object.keys(dateRange).length > 0 ? { entryDate: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
@@ -99,7 +116,7 @@ export async function GET(request) {
     const transactionWhere = {
       ...(accountId && accountId !== 'all' ? { accountId } : {}),
       transaction: {
-        tenantId,
+        ...tw,
         status: { in: ['posted', 'Posted'] },
         ...transactionIdNotInParallelGr,
         ...reversalTxnClause,
@@ -129,6 +146,7 @@ export async function GET(request) {
               description: true,
               sourceType: true,
               sourceId: true,
+              tenantId: true,
             },
           },
         },
@@ -146,6 +164,7 @@ export async function GET(request) {
               description: true,
               sourceType: true,
               sourceId: true,
+              tenantId: true,
               entryType: true,
               isReversal: true,
               reversalReason: true,
@@ -160,7 +179,7 @@ export async function GET(request) {
 
     let running = 0;
     let openingBalance = null;
-    if (accountId && accountId !== 'all' && startDate) {
+    if (!multiTenant && accountId && accountId !== 'all' && startDate) {
       const openingDate = new Date(startDate);
       openingDate.setHours(0, 0, 0, 0);
       const [openingJournal, openingTransaction, acc] = await Promise.all([
@@ -212,6 +231,7 @@ export async function GET(request) {
         reversalReason: '',
         reversedTransactionId: '',
         reversalNotes: '',
+        tenantId: l.journalEntry?.tenantId || primaryTenantId,
       })),
       ...transactionLines.map((l) => ({
         date: l.transaction?.date || null,
@@ -232,23 +252,26 @@ export async function GET(request) {
         reversalReason: l.transaction?.reversalReason || '',
         reversedTransactionId: l.transaction?.reversedTransactionId || '',
         reversalNotes: l.transaction?.notes || '',
+        tenantId: l.transaction?.tenantId || primaryTenantId,
       })),
     ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 
     const sourceLabels = await resolveSourceDocumentLabelsBatch(
       prisma,
-      tenantId,
+      primaryTenantId,
       combined.map((l) => ({ sourceType: l.sourceType, sourceId: l.sourceId }))
     );
     const reversedLabels = await resolveReversedEntryLabelsBatch(
       prisma,
-      tenantId,
+      primaryTenantId,
       combined.map((l) => l.reversedTransactionId).filter(Boolean)
     );
 
+    const exportHeaderRows = buildExportHeaderRows(scope, { startDate, endDate });
+
     const exportData = combined.map((l) => {
       let balance = '';
-      if (accountId && accountId !== 'all') {
+      if (!multiTenant && accountId && accountId !== 'all') {
         const normal = getNormalBalance(l.accountType, null);
         const delta = normal === 'debit' ? (l.debit - l.credit) : (l.credit - l.debit);
         running += delta;
@@ -256,7 +279,7 @@ export async function GET(request) {
       }
 
       const formattedDate = l.date ? new Date(l.date).toISOString().split('T')[0] : '';
-      return {
+      const row = {
         Date: formattedDate,
         Reference: l.reference || '',
         Description: l.description || '',
@@ -278,35 +301,43 @@ export async function GET(request) {
           : '',
         Notes: l.reversalNotes || '',
       };
+      if (multiTenant) {
+        row.Business = nameByTenantId.get(l.tenantId) || l.tenantId;
+      }
+      return row;
     });
     
     if (format === 'csv') {
-      // Create CSV headers
-      const csvStringifier = createObjectCsvStringifier({
-        header: [
-          { id: 'Date', title: 'Date' },
-          { id: 'Reference', title: 'Reference' },
-          { id: 'Description', title: 'Description' },
-          { id: 'Line description', title: 'Line description' },
-          { id: 'Account Code', title: 'Account Code' },
-          { id: 'Account Name', title: 'Account Name' },
-          { id: 'Account Type', title: 'Account Type' },
-          { id: 'Debit', title: 'Debit' },
-          { id: 'Credit', title: 'Credit' },
-          { id: 'Balance', title: 'Balance' },
-          { id: 'Record kind', title: 'Record kind' },
-          { id: 'Source', title: 'Source' },
-          { id: 'Source type', title: 'Source type' },
-          { id: 'Entry type', title: 'Entry type' },
-          { id: 'Is reversal', title: 'Is reversal' },
-          { id: 'Reversal reason', title: 'Reversal reason' },
-          { id: 'Reverses', title: 'Reverses' },
-          { id: 'Notes', title: 'Notes' },
-        ]
-      });
-      
-      // Generate CSV string
-      const csvData = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(exportData);
+      const csvColumns = [
+        ...(multiTenant ? [{ id: 'Business', title: 'Business' }] : []),
+        { id: 'Date', title: 'Date' },
+        { id: 'Reference', title: 'Reference' },
+        { id: 'Description', title: 'Description' },
+        { id: 'Line description', title: 'Line description' },
+        { id: 'Account Code', title: 'Account Code' },
+        { id: 'Account Name', title: 'Account Name' },
+        { id: 'Account Type', title: 'Account Type' },
+        { id: 'Debit', title: 'Debit' },
+        { id: 'Credit', title: 'Credit' },
+        { id: 'Balance', title: 'Balance' },
+        { id: 'Record kind', title: 'Record kind' },
+        { id: 'Source', title: 'Source' },
+        { id: 'Source type', title: 'Source type' },
+        { id: 'Entry type', title: 'Entry type' },
+        { id: 'Is reversal', title: 'Is reversal' },
+        { id: 'Reversal reason', title: 'Reversal reason' },
+        { id: 'Reverses', title: 'Reverses' },
+        { id: 'Notes', title: 'Notes' },
+      ];
+
+      const csvStringifier = createObjectCsvStringifier({ header: csvColumns });
+      const headerBlock = exportHeaderRows
+        .map((r) => `"${r.label}","${String(r.value).replace(/"/g, '""')}"`)
+        .join('\n');
+      const csvData =
+        `${headerBlock}\n\n` +
+        csvStringifier.getHeaderString() +
+        csvStringifier.stringifyRecords(exportData);
       
       // Generate filename with date range
       const filename = `general_ledger_${startDate || 'all'}_to_${endDate || 'all'}.csv`;
@@ -322,7 +353,7 @@ export async function GET(request) {
     } else {
       // For other formats, return JSON (can be expanded to support other formats like PDF)
       return NextResponse.json(
-        { data: exportData },
+        { scope, data: exportData },
         { status: 200 }
       );
     }

@@ -4,19 +4,19 @@
  * Service for fetching and processing trial balance data
  */
 import { calculateDateRange } from '@/lib/dateUtils';
+import { appendBusinessScopeParams } from '@/lib/businessScopeStorage';
 
 /**
  * Fetch trial balance data for a specific timeframe
  * @param {string} timeframe - Timeframe identifier (e.g., 'thisMonth', 'lastMonth', 'custom')
  * @param {Object} [customRange] - For timeframe 'custom': { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
+ * @param {{ mode: string, tenantIds: string[] }} [businessScope]
  * @returns {Promise<Object>} Trial balance data
  */
-export const fetchTrialBalance = async (timeframe = 'thisMonth', customRange = null) => {
+export const fetchTrialBalance = async (timeframe = 'thisMonth', customRange = null, businessScope = null) => {
   try {
-    // Calculate date range based on timeframe (pass customRange when timeframe is 'custom')
     const { startDate, endDate } = calculateDateRange(timeframe, false, customRange);
     
-    // Format dates as YYYY-MM-DD strings
     const formatDate = (date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -24,10 +24,10 @@ export const fetchTrialBalance = async (timeframe = 'thisMonth', customRange = n
       return `${year}-${month}-${day}`;
     };
     
-    // Build query parameters
     const queryParams = new URLSearchParams();
     queryParams.append('startDate', formatDate(startDate));
     queryParams.append('endDate', formatDate(endDate));
+    appendBusinessScopeParams(queryParams, businessScope);
     
     const response = await fetch(`/api/reports/trial-balance?${queryParams.toString()}`);
     
@@ -48,14 +48,18 @@ export const fetchTrialBalance = async (timeframe = 'thisMonth', customRange = n
  * @param {string} timeframe - Timeframe identifier
  * @param {string} format - Export format (csv, pdf, excel)
  * @param {Object} [customRange] - For timeframe 'custom': { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
+ * @param {{ mode: string, tenantIds: string[] }} [businessScope]
  * @returns {Promise<Blob>} Exported data as blob
  */
-export const exportTrialBalance = async (timeframe = 'thisMonth', format = 'pdf', customRange = null) => {
+export const exportTrialBalance = async (
+  timeframe = 'thisMonth',
+  format = 'pdf',
+  customRange = null,
+  businessScope = null
+) => {
   try {
-    // Calculate date range based on timeframe (pass customRange when timeframe is 'custom')
     const { startDate, endDate } = calculateDateRange(timeframe, false, customRange);
     
-    // Format dates as YYYY-MM-DD strings
     const formatDate = (date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -63,11 +67,11 @@ export const exportTrialBalance = async (timeframe = 'thisMonth', format = 'pdf'
       return `${year}-${month}-${day}`;
     };
     
-    // Build query parameters
     const queryParams = new URLSearchParams();
     queryParams.append('startDate', formatDate(startDate));
     queryParams.append('endDate', formatDate(endDate));
     queryParams.append('format', format);
+    appendBusinessScopeParams(queryParams, businessScope);
     
     const response = await fetch(`/api/reports/trial-balance/export?${queryParams.toString()}`);
     
@@ -75,7 +79,6 @@ export const exportTrialBalance = async (timeframe = 'thisMonth', format = 'pdf'
       throw new Error(`Error exporting trial balance: ${response.statusText}`);
     }
     
-    // Return the blob data for downloading
     return await response.blob();
   } catch (error) {
     console.error('Error exporting trial balance:', error);

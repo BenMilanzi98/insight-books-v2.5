@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-06-15T12:57:09.059Z",
+  "tenant": {
+    "id": "cmff4eqli02h5jq2grs29src9",
+    "name": "Insight Books",
+    "subdomain": "insight-books-1757577743910"
+  },
+  "summary": {
+    "totalAccounts": 403,
+    "duplicateCodeGroups": 0,
+    "worstDuplicate": null,
+    "parentDirectPostingCount": 1,
+    "templateAccountsToCreate": 0,
+    "semanticMergesPending": 0,
+    "misplacedUnder5200": 0
+  },
+  "duplicateCodes": [],
+  "parentDirectPostings": [
+    {
+      "code": "5360",
+      "name": "Legal & Professional Fees",
+      "balance": 960000,
+      "lineCount": 3,
+      "childCount": 1,
+      "suggestedTarget": "(leaf child needed)"
+    }
+  ],
+  "semanticMerges": [
+    {
+      "fromCode": "5015",
+      "toCode": "5702",
+      "reason": "Duplicate IT & Hosting",
+      "toId": "cmomt38wb000t542gkx2wkv70",
+      "fromBalance": 0,
+      "canMerge": false
+    },
+    {
+      "fromCode": "5230",
+      "toCode": "5201",
+      "reason": "Salaries Expense → Admin & Management Salaries",
+      "toId": "cmlspkhf300fz54ejds8st8xr",
+      "fromBalance": 0,
+      "canMerge": false
+    },
+    {
+      "fromCode": "1020",
+      "toCode": "1130-01",
+      "reason": "Legacy Bank → primary bank slot",
+      "toId": "cmo211mj50exr54pqvfcqpbhs",
+      "fromBalance": 0,
+      "canMerge": false
+    }
+  ],
+  "misplacedUnder5200": [],
+  "templateImportPlan": []
+}

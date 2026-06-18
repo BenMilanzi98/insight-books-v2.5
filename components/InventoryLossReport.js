@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { FinancialReport } from './FinancialReportComponents';
+import { extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange } from '@/lib/dateUtils';
 
@@ -46,6 +47,7 @@ export const InventoryLossReport = ({
       onExport={onExport}
       loading={loading}
       error={error}
+      reconciliationMeta={extractReportReconciliationMeta(data)}
     >
       {data && (
         <div className="space-y-6">
@@ -94,14 +96,13 @@ export const InventoryLossReport = ({
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Date</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Type</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Description</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Branch</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">
                       No write-off or stock-out events found for this period.
                     </td>
                   </tr>
@@ -117,7 +118,6 @@ export const InventoryLossReport = ({
                           {item.eventType === 'write_off' ? 'Write-off' : 'Stock-out'}
                         </td>
                         <td className="px-4 py-2.5 text-sm text-slate-800">{item.description || 'Inventory adjustment loss'}</td>
-                        <td className="px-4 py-2.5 text-sm text-slate-700">{item.branchName || 'Unassigned'}</td>
                         <td className="px-4 py-2.5 text-sm text-right font-medium text-slate-800">{formatCurrency(item.amount || 0)}</td>
                       </tr>
                       {expandedRowId === item.id && (

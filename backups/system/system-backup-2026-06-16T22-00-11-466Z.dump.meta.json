@@ -1,0 +1,27 @@
+{
+  "id": "system-backup-2026-06-16T22-00-11-466Z",
+  "filename": "system-backup-2026-06-16T22-00-11-466Z.dump",
+  "name": "System Backup - 2026-06-16",
+  "type": "full",
+  "description": "Manual system backup from tenant management",
+  "status": "completed",
+  "fileSize": 34725029,
+  "createdAt": "2026-06-16T22:00:23.182Z",
+  "completedAt": "2026-06-16T22:00:23.182Z",
+  "createdBy": "cmemjq8bh0000jq5cv130xef0",
+  "verification": {
+    "tableDataEntries": 0,
+    "liveTableCount": 129,
+    "includesSchema": false,
+    "includesData": false,
+    "verified": false,
+    "note": "System backup uses pg_dump and includes all public schema tables, indexes, constraints, and data."
+  },
+  "scope": {
+    "includesAllTenants": true,
+    "includesAdminTables": true,
+    "includesGlobalCatalogs": true,
+    "liveTableCount": 129,
+    "backedTableDataEntries": 0
+  }
+}

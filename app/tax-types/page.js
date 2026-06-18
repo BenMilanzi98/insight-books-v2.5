@@ -40,6 +40,8 @@ export default function TaxTypesPage() {
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [flowFilter, setFlowFilter] = useState("All");
+  const [syncingCatalog, setSyncingCatalog] = useState(false);
   const [formData, setFormData] = useState({
     taxId: "",
     taxName: "",
@@ -236,7 +238,11 @@ export default function TaxTypesPage() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, tax) => {
+    if (tax?.isSystem) {
+      setError("Predefined Malawi tax types cannot be deleted. Set status to Inactive instead.");
+      return;
+    }
     if (!confirm("Are you sure you want to delete this tax type?")) return;
 
     try {
@@ -244,13 +250,35 @@ export default function TaxTypesPage() {
         method: "DELETE"
       });
 
-      if (!response.ok) throw new Error("Failed to delete tax type");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to delete tax type");
+      }
 
       setSuccess("Tax type deleted successfully");
       loadData();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const syncMalawiCatalog = async () => {
+    setSyncingCatalog(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tax-types/seed", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+      setSuccess(
+        `Malawi tax catalog synced (${data.created || 0} new, ${data.updated || 0} updated, ${data.glCreated || 0} GL accounts).`
+      );
+      await loadData();
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncingCatalog(false);
     }
   };
 
@@ -394,12 +422,113 @@ export default function TaxTypesPage() {
     const matchesSearch = 
       tax.taxName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tax.taxCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tax.taxId?.toLowerCase().includes(searchTerm.toLowerCase());
+      tax.taxId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tax.account?.accountCode?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === "All" || tax.status === statusFilter;
+    const flow = tax.catalogEntry?.flow || (String(tax.account?.accountCode || "").startsWith("2045-") ? "outflow" : "inflow");
+    const matchesFlow = flowFilter === "All" || flow === flowFilter;
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesFlow;
   });
+
+  const getTaxFlow = (tax) =>
+    tax.catalogEntry?.flow ||
+    (String(tax.account?.accountCode || "").startsWith("2045-") ? "outflow" : "inflow");
+
+  const inflowTaxTypes = filteredTaxTypes.filter((t) => getTaxFlow(t) === "inflow");
+  const outflowTaxTypes = filteredTaxTypes.filter((t) => getTaxFlow(t) === "outflow");
+
+  const renderTaxCard = (tax) => {
+    const balance = taxBalances[tax.id] || {};
+    const flow = tax.catalogEntry?.flow || (String(tax.account?.accountCode || "").startsWith("2045-") ? "outflow" : "inflow");
+    return (
+      <div key={tax.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+        <div className="p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h3 className="font-semibold text-gray-900">{tax.taxName}</h3>
+                {tax.isSystem && (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800">MRA</span>
+                )}
+                <span className={`px-2 py-0.5 text-xs rounded-full ${
+                  flow === "inflow" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"
+                }`}>
+                  {flow === "inflow" ? "2041 Inflow" : "2045 Outflow"}
+                </span>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${
+                  tax.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                }`}>
+                  {tax.status}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500">{tax.taxCode || tax.taxId}</p>
+              {tax.account?.accountCode && (
+                <a
+                  href={`/chart-of-accounts?search=${encodeURIComponent(tax.account.accountCode)}`}
+                  className="text-xs font-mono text-indigo-600 hover:underline mt-1 inline-block"
+                >
+                  GL {tax.account.accountCode} — {tax.account.accountName}
+                </a>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-gray-900">
+                {tax.calculationType === "Percentage" ? `${tax.taxRate}%` : formatCurrency(tax.taxRate)}
+              </p>
+              <p className="text-xs text-gray-500">Tax Rate</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t border-gray-100">
+            {balance.totalCollected !== undefined && (
+              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-600">Collected (period)</span>
+                <span className="font-semibold text-blue-600">{formatCurrency(balance.totalCollected)}</span>
+              </div>
+            )}
+            {balance.totalPaid !== undefined && (
+              <div className="flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-600">Paid (period)</span>
+                <span className="font-semibold text-amber-700">{formatCurrency(balance.totalPaid)}</span>
+              </div>
+            )}
+            {balance.totalRefunded !== undefined && Number(balance.totalRefunded) > 0 && (
+              <div className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-600">Reversed / voided (period)</span>
+                <span className="font-semibold text-yellow-800">{formatCurrency(balance.totalRefunded)}</span>
+              </div>
+            )}
+            {balance.netDueInPeriod !== undefined && (
+              <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Net due (period)</span>
+                  <span className="font-semibold text-purple-600">{formatCurrency(balance.netDueInPeriod)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-gray-50 px-5 py-3 border-t border-gray-100">
+          <div className="flex items-center justify-end gap-2">
+            <button onClick={() => handleViewReports(tax)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="View Reports">
+              <FileText size={18} />
+            </button>
+            <button onClick={() => handleEdit(tax)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+              <Edit size={18} />
+            </button>
+            {!tax.isSystem && (
+              <button onClick={() => handleDelete(tax.id, tax)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                <Trash2 size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const activeTaxCount = taxTypes.filter(t => t.status === "Active").length;
   const totalTaxRate = taxTypes.reduce((sum, t) => sum + (t.taxRate || 0), 0);
@@ -428,10 +557,18 @@ export default function TaxTypesPage() {
               Tax Management
             </h1>
             <p className="text-gray-500 mt-1">
-              Create and manage taxes linked to accounts for automatic tax posting
+              Malawi MRA tax types linked to GL <strong>2041 Tax Inflow</strong> and <strong>2045 Tax Outflow</strong> — reversals and voids are reflected in period balances.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              onClick={syncMalawiCatalog}
+              disabled={syncingCatalog}
+              className="flex items-center gap-2 px-4 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={18} className={syncingCatalog ? "animate-spin" : ""} />
+              Sync MRA Catalog
+            </button>
             <a
               href="/tax-accounts"
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-sm"
@@ -501,8 +638,9 @@ export default function TaxTypesPage() {
           </div>
           <div>
             <p className="text-sm text-blue-800 font-medium">How it works</p>
-              <p className="text-sm text-blue-600 mt-1">
-              Each tax type is linked to an account (usually a Liability account). <strong>Taxes collected</strong> come from sales and invoices; <strong>taxes paid</strong> come from purchases (purchase orders, expenses, supplier bills). <strong>Reversed / refunded</strong> includes invoice voids and GL tax reversals in the period. <strong>Net due</strong> is the amount still owed for the selected window (never shown as a confusing negative total).
+            <p className="text-sm text-blue-600 mt-1">
+              Each tax type posts to a dedicated GL child under <strong>2041</strong> (collected / withheld) or <strong>2045</strong> (paid / input VAT).
+              Invoice voids, sale refunds, and expense deletions create matching tax reversals — see <strong>Reversed Taxes</strong> below.
             </p>
           </div>
         </div>
@@ -515,18 +653,18 @@ export default function TaxTypesPage() {
           <h2 className="text-base font-semibold text-gray-900">Default tax accounts (fixed)</h2>
         </div>
         <p className="text-sm text-gray-600 mb-4">
-          Tax is always recorded to these system accounts. They cannot be changed.
+          Roll-up parents only — all postings go to child accounts (2041-01 … / 2045-01 …). Cannot post directly to 2041 or 2045.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Tax from sales, invoices and POS</p>
+            <p className="text-xs text-gray-500 mt-0.5">VAT, PAYE, WHT, excise — child accounts 2041-01+</p>
           </div>
           <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Tax on expenses and supplier bills</p>
+            <p className="text-xs text-gray-500 mt-0.5">Input VAT, CIT, levies — child accounts 2045-01+</p>
           </div>
         </div>
       </div>
@@ -599,153 +737,78 @@ export default function TaxTypesPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="relative min-w-[160px]">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <div className="relative min-w-[140px]">
             <select
-              className="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all"
+              className="w-full pl-3 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="All">All Status</option>
+              <option value="All">All status</option>
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="relative min-w-[140px]">
+            <select
+              className="w-full pl-3 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+              value={flowFilter}
+              onChange={(e) => setFlowFilter(e.target.value)}
+            >
+              <option value="All">All flows</option>
+              <option value="inflow">2041 Inflow</option>
+              <option value="outflow">2045 Outflow</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Tax Types Grid */}
+      {/* Tax Types — grouped by 2041 / 2045 */}
       {filteredTaxTypes.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
           <div className="p-4 bg-gray-50 rounded-full inline-block mb-4">
             <Calculator className="text-gray-400" size={48} />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No tax types found</h3>
-          <p className="text-gray-500 mb-6">Create your first tax type to get started</p>
+          <p className="text-gray-500 mb-6">Sync the Malawi MRA catalog or add a custom tax type</p>
           <button
-            onClick={() => {
-              resetForm();
-              setEditingId(null);
-              setShowAddModal(true);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={syncMalawiCatalog}
+            disabled={syncingCatalog}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors mr-2"
           >
-            <Plus size={18} />
-            Add Tax Type
+            <RefreshCw size={18} className={syncingCatalog ? "animate-spin" : ""} />
+            Sync MRA Catalog
           </button>
         </div>
-      ) : (
+      ) : flowFilter !== "All" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTaxTypes.map((tax) => {
-            const balance = taxBalances[tax.id] || {};
-            return (
-              <div key={tax.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{tax.taxName}</h3>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          tax.status === "Active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {tax.status}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">{tax.taxCode}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-gray-900">
-                        {tax.calculationType === "Percentage" 
-                          ? `${tax.taxRate}%`
-                          : formatCurrency(tax.taxRate)}
-                      </p>
-                      <p className="text-xs text-gray-500">Tax Rate</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-4 border-t border-gray-100">
-                    {tax.account && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <LinkIcon size={14} className="text-gray-400" />
-                        <span className="text-gray-600">{tax.account.accountName}</span>
-                      </div>
-                    )}
-                    
-                    {balance.totalCollected !== undefined && (
-                      <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
-                        <span className="text-sm text-gray-600">Taxes collected (sales)</span>
-                        <span className="font-semibold text-blue-600">
-                          {formatCurrency(balance.totalCollected)}
-                        </span>
-                      </div>
-                    )}
-                    {balance.totalPaid !== undefined && (
-                      <div className="flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2">
-                        <span className="text-sm text-gray-600">Taxes paid (purchases)</span>
-                        <span className="font-semibold text-amber-700">
-                          {formatCurrency(balance.totalPaid)}
-                        </span>
-                      </div>
-                    )}
-                    {balance.totalRefunded !== undefined && Number(balance.totalRefunded) > 0 && (
-                      <div className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
-                        <span className="text-sm text-gray-600">Reversed / refunded (period)</span>
-                        <span className="font-semibold text-yellow-800">
-                          {formatCurrency(balance.totalRefunded)}
-                        </span>
-                      </div>
-                    )}
-                    {balance.netDueInPeriod !== undefined && (
-                      <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-3 py-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Net due (period)</span>
-                          <span className="font-semibold text-purple-600">
-                            {formatCurrency(balance.netDueInPeriod)}
-                          </span>
-                        </div>
-                        {Number(balance.periodReversalOverhang) > 0 && (
-                          <p className="text-xs text-amber-800 border-t border-amber-100 pt-1">
-                            Reversals in this date window exceed collections shown here by{" "}
-                            <span className="font-semibold">{formatCurrency(balance.periodReversalOverhang)}</span>
-                            . Widen the period or see <strong>Reversed Taxes</strong> below for invoice void/refund
-                            detail.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 px-5 py-3 border-t border-gray-100">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => handleViewReports(tax)}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="View Reports"
-                    >
-                      <FileText size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(tax)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Edit"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tax.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
+          {filteredTaxTypes.map(renderTaxCard)}
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {inflowTaxTypes.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                2041 — Tax Inflow (Collected)
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">VAT output, PAYE withheld, WHT, excise, levies collected on sales and payroll.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {inflowTaxTypes.map(renderTaxCard)}
               </div>
-            );
-          })}
+            </section>
+          )}
+          {outflowTaxTypes.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-orange-500" />
+                2045 — Tax Outflow (Paid)
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">Input VAT, income/CIT, provisional tax, TEVET levy, and other taxes paid or recoverable on purchases.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {outflowTaxTypes.map(renderTaxCard)}
+              </div>
+            </section>
+          )}
         </div>
       )}
 

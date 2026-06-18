@@ -4,6 +4,7 @@ import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/network/network_error_mapper.dart';
 import 'package:insightbooks_android/core/security/permission_parser.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
+import 'package:insightbooks_android/core/security/pos_implicit_permissions.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
 /// Last user-facing reason `/api/auth/me` could not populate permissions (shown on `/access-denied`).
@@ -133,6 +134,7 @@ bool hasPermission(Set<String> permissions, String requiredPermission) {
 }
 
 /// Stored roles use `inventory.*`; newer UI checks may use `stock.*`. Treat as equivalent (no DB change).
+/// Anyone with `sales.*` implicitly gets supporting POS permissions (mirrors web posPermissions.js).
 bool satisfiesPermission(Set<String> permissions, String requiredPermission) {
   if (hasPermission(permissions, requiredPermission)) return true;
   if (requiredPermission.startsWith('stock.')) {
@@ -143,5 +145,6 @@ bool satisfiesPermission(Set<String> permissions, String requiredPermission) {
     final modern = 'stock.${requiredPermission.substring(10)}';
     if (hasPermission(permissions, modern)) return true;
   }
+  if (posGrantsPermission(permissions, requiredPermission)) return true;
   return false;
 }

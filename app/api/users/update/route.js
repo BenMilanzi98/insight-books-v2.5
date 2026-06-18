@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
+import { resolveHiddenPrimaryBranchId } from '@/lib/hiddenPrimaryBranch';
 
 function normalizeRoleId(role) {
   if (role == null) return null;
@@ -104,30 +105,12 @@ export async function PUT(request) {
     }
     if (updateData.department !== undefined) dataToUpdate.department = updateData.department;
     if (updateData.status !== undefined) dataToUpdate.status = updateData.status;
-    if (updateData.defaultBranchId !== undefined) dataToUpdate.defaultBranchId = updateData.defaultBranchId || null;
+    const primaryBranchId = await resolveHiddenPrimaryBranchId(user.tenantId);
+    if (primaryBranchId) dataToUpdate.defaultBranchId = primaryBranchId;
 
     // Hash password if provided
     if (updateData.password) {
       dataToUpdate.password = await bcrypt.hash(updateData.password, 10);
-    }
-
-    // Sync allowed branches (user-branch assignment): empty array = all branches, non-empty = restrict to those
-    const allowedBranchIds = updateData.allowedBranchIds;
-    if (Array.isArray(allowedBranchIds)) {
-      const uniqueBranchIds = [...new Set(allowedBranchIds.filter((id) => typeof id === 'string' && id.trim()))];
-      await prisma.userBranch.deleteMany({ where: { userId } });
-      if (uniqueBranchIds.length > 0) {
-        const validBranchIds = await prisma.branch.findMany({
-          where: { id: { in: uniqueBranchIds }, tenantId: user.tenantId },
-          select: { id: true }
-        });
-        const ids = validBranchIds.map((b) => b.id);
-        if (ids.length > 0) {
-          await prisma.userBranch.createMany({
-            data: ids.map((branchId) => ({ userId, branchId }))
-          });
-        }
-      }
     }
 
     // Multi-business memberships (role per business)

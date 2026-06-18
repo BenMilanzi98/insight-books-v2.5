@@ -8,6 +8,7 @@ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveSalaryAdvanceReceivableAccount } from '@/lib/salaryAdvanceGlAccount';
+import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
 
 /**
  * GET - Get all salary advances for the tenant
@@ -177,42 +178,32 @@ export async function POST(request) {
       await assertPeriodOpen(user.tenantId, entryDate, tx);
       const referenceNumber = await generateReferenceNumber(tx, user.tenantId, entryDate);
 
-      await tx.transaction.create({
-        data: {
-          tenantId: user.tenantId,
-          date: entryDate,
-          reference: referenceNumber,
-          description: `Salary Advance: ${employee.name}${reference ? ` (${reference})` : ''}`,
-          entryType: 'Regular',
-          status: 'posted',
-          sourceType: 'SalaryAdvance',
-          sourceId: advance.id,
-          createdById: user.id,
-          postedById: user.id,
-          postedDate: new Date(),
-          lines: {
-            create: [
-              {
-                lineNumber: 1,
-                accountId: receivableAccount.id,
-                debitAmount: advanceAmount,
-                creditAmount: 0,
-                description: `Salary Advance Receivable: ${employee.name}`,
-              },
-              {
-                lineNumber: 2,
-                accountId: paymentAccount.id,
-                debitAmount: 0,
-                creditAmount: advanceAmount,
-                description: `Payment for salary advance: ${employee.name}`,
-              },
-            ],
+      await postGlEntry({
+        tenantId: user.tenantId,
+        userId: user.id,
+        entryDate,
+        description: `Salary Advance: ${employee.name}${reference ? ` (${reference})` : ''}`,
+        reference: referenceNumber,
+        sourceType: 'SalaryAdvance',
+        sourceId: advance.id,
+        lines: [
+          {
+            lineNumber: 1,
+            accountId: receivableAccount.id,
+            debitAmount: advanceAmount,
+            creditAmount: 0,
+            description: `Salary Advance Receivable: ${employee.name}`,
           },
-        },
+          {
+            lineNumber: 2,
+            accountId: paymentAccount.id,
+            debitAmount: 0,
+            creditAmount: advanceAmount,
+            description: `Payment for salary advance: ${employee.name}`,
+          },
+        ],
+        tx,
       });
-
-      await updateAccountBalanceOnTransaction(receivableAccount.id, advanceAmount, 0, tx);
-      await updateAccountBalanceOnTransaction(paymentAccount.id, 0, advanceAmount, tx);
 
       return advance;
     });

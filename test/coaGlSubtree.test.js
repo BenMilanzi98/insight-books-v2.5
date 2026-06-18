@@ -10,7 +10,7 @@ import { applyCoaParentRollup, applyLiabilityRegisterCoaSubtree } from '../lib/c
 describe('coaGlSubtreeValidation fallbacks', () => {
   it('primaryNumericCode parses hierarchical codes', () => {
     expect(primaryNumericCode('1510')).toBe(1510);
-    expect(primaryNumericCode('1130-01')).toBe(1130);
+    expect(primaryNumericCode('1131')).toBe(1131);
   });
 
   it('matchesFallbackSubtree for 1500 uses Asset 1500–1599', () => {

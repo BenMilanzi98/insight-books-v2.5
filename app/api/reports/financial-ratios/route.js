@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
 import { generateBalanceSheetFromAccounts } from '@/lib/balanceSheetService';
+import { resolveReportTenantScope } from '@/lib/reportTenantScope';
+import {
+  generateScopedBalanceSheet,
+  generateScopedIncomeStatement,
+} from '@/lib/reportingEngine/multiTenantReporting';
+import { logReportAccess } from '@/lib/reportAuditLog';
 
 /**
  * Financial ratios for /reports — derived from the same GL-backed engines as
@@ -11,12 +16,26 @@ import { generateBalanceSheetFromAccounts } from '@/lib/balanceSheetService';
 export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
-    if (!user || !user.tenantId) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
     }
+
+    const scopeResult = await resolveReportTenantScope(request, user);
+    if (!scopeResult.ok) {
+      return NextResponse.json({ error: scopeResult.error }, { status: scopeResult.status });
+    }
+    const {
+      tenantIds,
+      tenants,
+      scope,
+      branchId: scopeBranchId,
+      branchScoped,
+      reportingCurrency,
+    } = scopeResult;
+    const reportBranchId = branchScoped ? scopeBranchId : null;
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -29,32 +48,52 @@ export async function GET(request) {
       );
     }
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { name: true, logoUrl: true }
-    });
-
-    const company = tenant?.name || 'Company';
-    const logo = tenant?.logoUrl || null;
-    const branchId = user.currentBranchId || null;
-
     const [income, balance] = await Promise.all([
-      generateIncomeStatementFromAccounts(
-        user.tenantId,
-        startDate,
-        endDate,
-        company,
-        logo,
-        branchId
-      ),
-      generateBalanceSheetFromAccounts(
-        user.tenantId,
-        endDate,
-        company,
-        logo,
-        branchId
-      )
+      tenantIds.length > 1
+        ? generateScopedIncomeStatement({
+            tenantIds,
+            tenants,
+            startDate,
+            endDate,
+            branchId: reportBranchId,
+            scope,
+            reportingCurrency,
+          })
+        : generateIncomeStatementFromAccounts(
+            tenantIds[0],
+            startDate,
+            endDate,
+            tenants[0]?.name || 'Company',
+            tenants[0]?.logoUrl || null,
+            reportBranchId
+          ),
+      tenantIds.length > 1
+        ? generateScopedBalanceSheet({
+            tenantIds,
+            tenants,
+            asOfDate: endDate,
+            branchId: reportBranchId,
+            scope,
+            reportingCurrency,
+          })
+        : generateBalanceSheetFromAccounts(
+            tenantIds[0],
+            endDate,
+            tenants[0]?.name || 'Company',
+            tenants[0]?.logoUrl || null,
+            reportBranchId
+          ),
     ]);
+
+    await logReportAccess({
+      userId: user.id,
+      tenantId: tenantIds[0],
+      reportType: 'financial-ratios',
+      action: 'REPORT_GENERATED',
+      tenantIds,
+      businessNames: scope.businessNames,
+      filters: { startDate, endDate },
+    });
 
     const totalRevenue = Number(income.totalRevenue) || 0;
     const cogsAmount =
@@ -162,7 +201,15 @@ export async function GET(request) {
         accountsReceivable: ar,
         inventory,
         cash
-      }
+      },
+      metadata: {
+        source: 'general_ledger',
+        reconciliation: {
+          incomeStatement: income.metadata?.reconciliation ?? null,
+          balanceSheet: balance.metadata?.reconciliation ?? null,
+        },
+        scope,
+      },
     });
   } catch (error) {
     console.error('Error generating financial ratios report:', error);

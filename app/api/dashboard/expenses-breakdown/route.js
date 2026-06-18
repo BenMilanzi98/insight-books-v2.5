@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { endOfLocalDay } from '@/lib/dateUtils';
-import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
+import { settledExpensePaymentOr, excludePayrollDashboardMirrorExpenses } from '@/lib/dashboardExpenseFilters';
 import {
   getAccessibleTenantIdsForUser,
   parseDashboardTenantScope,
@@ -157,6 +157,7 @@ export async function GET(request) {
       // Pending liabilities (e.g. PAYE/NPS created during payroll) should not inflate dashboard expenses.
       status: { in: ['Approved'] },
       ...settledExpensePaymentOr(),
+      ...excludePayrollDashboardMirrorExpenses(),
       isDeleted: false
     });
 

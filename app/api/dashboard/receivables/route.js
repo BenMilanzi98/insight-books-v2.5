@@ -365,7 +365,15 @@ export async function GET(request) {
         notDue,
         aging
       },
-      invoices: outstandingInvoices
+      invoices: outstandingInvoices,
+      glVerification:
+        tenantIds.length === 1
+          ? (
+              await import('@/lib/arAgingService').then((m) =>
+                m.generateARAgingFromTransactions(tenantIds[0], new Date(), branchScoped ? userQ.currentBranchId : null)
+              )
+            ).verification
+          : null,
     });
   } catch (error) {
     console.error('Error getting receivables data:', error);
