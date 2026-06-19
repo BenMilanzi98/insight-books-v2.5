@@ -175,6 +175,7 @@ const POSPage = () => {
   const [customProduct, setCustomProduct] = useState({
     name: "",
     price: "",
+    orderPrice: "",
     description: ""
   });
   
@@ -1210,10 +1211,14 @@ const POSPage = () => {
   
   // Add custom product to the current sale
   const addCustomProduct = () => {
-    const { name, price, description } = customProduct;
+    const { name, price, orderPrice, description } = customProduct;
     
     if (!name.trim() || !price || parseFloat(price) <= 0) {
-      setSaleError("Please enter a valid product name and price");
+      setSaleError("Please enter a valid product name and selling price");
+      return;
+    }
+    if (orderPrice === '' || orderPrice == null || parseFloat(orderPrice) < 0) {
+      setSaleError("Please enter a valid order price (0 or greater)");
       return;
     }
 
@@ -1228,6 +1233,7 @@ const POSPage = () => {
         }]
       : [];
     const customPrice = roundMoney(price);
+    const customOrderPrice = roundMoney(orderPrice);
     const customTaxCalc = defaultTaxes.length > 0
       ? calculateSaleItemTaxes({ quantity, unitPrice: customPrice, discountAmount: 0, taxes: defaultTaxes })
       : { totalTaxAmount: 0, taxBreakdown: [] };
@@ -1236,6 +1242,7 @@ const POSPage = () => {
       name: name.trim(),
       description: description.trim(),
       price: customPrice,
+      orderPrice: customOrderPrice,
       stockLevel: null,
       isCustom: true,
       quantity: quantity,
@@ -1253,7 +1260,7 @@ const POSPage = () => {
     showCartAddedToast(customProd.name);
     
     // Reset form
-    setCustomProduct({ name: "", price: "", description: "" });
+    setCustomProduct({ name: "", price: "", orderPrice: "", description: "" });
     setQuantity(1);
     setShowCustomProduct(false);
   };
@@ -1747,7 +1754,20 @@ const POSPage = () => {
           taxBreakdown: product.taxBreakdown || [], // Include tax breakdown for multiple taxes
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
-          isCustom: product.isCustom || false
+          isCustom: product.isCustom || false,
+          ...(product.isCustom
+            ? {
+                orderPrice: product.orderPrice ?? 0,
+                customProductData: {
+                  name: product.name,
+                  price: product.price,
+                  description: product.description || product.name,
+                  orderPrice: product.orderPrice ?? 0,
+                  cost: product.orderPrice ?? 0,
+                  productCostAtSale: product.orderPrice ?? 0,
+                },
+              }
+            : {}),
         })),
         paymentMethod: paymentMethod,
         notes: saleNotes,
@@ -2020,7 +2040,20 @@ const POSPage = () => {
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false,
-          accountId: resolvedIncomeAccountId // Always use default revenue account for POS transactions
+          accountId: resolvedIncomeAccountId, // Always use default revenue account for POS transactions
+          ...(product.isCustom
+            ? {
+                orderPrice: product.orderPrice ?? 0,
+                customProductData: {
+                  name: product.name,
+                  price: product.price,
+                  description: product.description || product.name,
+                  orderPrice: product.orderPrice ?? 0,
+                  cost: product.orderPrice ?? 0,
+                  productCostAtSale: product.orderPrice ?? 0,
+                },
+              }
+            : {}),
           };
           
           // Validate accountId is present
@@ -4217,16 +4250,30 @@ const POSPage = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">Price *</label>
+                <label className="block text-sm font-medium mb-1">Selling Price (MWK) *</label>
                 <input
                   type="number"
                   className="w-full p-2 border border-gray-200 rounded-md"
-                  placeholder="Enter price"
+                  placeholder="Selling price"
                   min="0"
                   step="0.01"
                   value={customProduct.price}
                   onChange={(e) => setCustomProduct({...customProduct, price: e.target.value})}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Order Price (MWK) *</label>
+                <input
+                  type="number"
+                  className="w-full p-2 border border-gray-200 rounded-md"
+                  placeholder="Purchase / cost price"
+                  min="0"
+                  step="0.01"
+                  value={customProduct.orderPrice}
+                  onChange={(e) => setCustomProduct({...customProduct, orderPrice: e.target.value})}
+                />
+                <p className="mt-1 text-xs text-gray-500">Used for COGS on custom line items (use 0 for pure services)</p>
               </div>
               
               <div>

@@ -24,6 +24,15 @@ import {
   sumMoney,
 } from '@/lib/money';
 
+function resolveCustomItemOrderPrice(customProductData) {
+  if (!customProductData || typeof customProductData !== 'object') return 0;
+  for (const key of ['productCostAtSale', 'orderPrice', 'costPrice', 'cost']) {
+    const n = parseMoney(customProductData[key]);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
 /** Local calendar YYYYMMDD for sale number prefix (matches business sale date). */
 function saleNumberDatePrefixFromDate(d) {
   const x = d instanceof Date ? d : new Date(d);
@@ -1412,6 +1421,30 @@ export async function POST(request) {
                     stack: cogsError.stack
                   });
                   // Continue with other items
+                }
+              } else if (dataItem.isCustom) {
+                const unitCost = resolveCustomItemOrderPrice(
+                  dataItem.customProductData || saleItem.customProductData
+                );
+                if (unitCost > 0) {
+                  const qty = Number(dataItem.quantity) || 1;
+                  const itemCOGS = multiplyMoney(unitCost, qty);
+                  await tx.saleItem.update({
+                    where: { id: saleItem.id },
+                    data: {
+                      customProductData: {
+                        ...(saleItem.customProductData || {}),
+                        ...(dataItem.customProductData || {}),
+                        productCostAtSale: unitCost,
+                        orderPrice: unitCost,
+                        cost: unitCost,
+                      },
+                    },
+                  });
+                  totalCOGS = addMoney(totalCOGS, itemCOGS);
+                  console.log(
+                    `[Custom Sale] COGS from order price: ${unitCost} × ${qty} = ${itemCOGS}`
+                  );
                 }
               }
             }

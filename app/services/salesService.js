@@ -116,11 +116,35 @@ export const createSale = async (saleData) => {
         discount: Number(item.discount || 0),
         discountAmount: Number(item.discountAmount || 0),
         isCustom: Boolean(item.isCustom || false),
-        customProductData: item.isCustom ? {
-          name: String(item.description),
-          price: Number(item.unitPrice),
-          description: String(item.description)
-        } : null,
+        customProductData: item.isCustom
+          ? {
+              ...(item.customProductData && typeof item.customProductData === 'object'
+                ? item.customProductData
+                : {}),
+              name: String(item.customProductData?.name || item.description),
+              price: Number(item.unitPrice),
+              description: String(item.customProductData?.description || item.description),
+              orderPrice: Number(
+                item.orderPrice ??
+                  item.customProductData?.orderPrice ??
+                  item.customProductData?.cost ??
+                  0
+              ),
+              cost: Number(
+                item.orderPrice ??
+                  item.customProductData?.cost ??
+                  item.customProductData?.orderPrice ??
+                  0
+              ),
+              productCostAtSale: Number(
+                item.customProductData?.productCostAtSale ??
+                  item.orderPrice ??
+                  item.customProductData?.orderPrice ??
+                  item.customProductData?.cost ??
+                  0
+              ),
+            }
+          : null,
         // Include tax breakdown for detailed tax tracking per tax type
         taxBreakdown: item.taxBreakdown || [],
         // Include accountId for Chart of Accounts requirement (preserve non-empty strings; '' is treated as missing upstream)
