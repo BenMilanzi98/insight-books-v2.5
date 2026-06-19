@@ -163,7 +163,15 @@ export const fetchQuotations = async (params = {}) => {
       });
       
       if (!response.ok) {
-        throw new Error(`Error converting quotation to invoice: ${response.statusText}`);
+        const errorText = await response.text();
+        let message = `Error converting quotation to invoice: ${response.statusText}`;
+        try {
+          const body = JSON.parse(errorText);
+          if (body?.error && typeof body.error === 'string') message = body.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(message);
       }
       
       const data = await response.json();

@@ -7,6 +7,10 @@ import { calculateCOGS } from '@/lib/inventoryCosting';
 import { reverseAndDeleteInvoiceRecord } from '@/lib/invoiceDeleteService';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { addMoney, parseMoney, subtractMoney, sumMoney } from '@/lib/money';
+import {
+  requireInvoiceItemAccountIdColumn,
+  buildInvoiceItemCreateData,
+} from '@/lib/ensureInvoiceItemAccountId';
 
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
@@ -150,6 +154,10 @@ export async function PUT(request, { params }) {
         { status: 404 }
       );
     }
+
+    const columnCheck = await requireInvoiceItemAccountIdColumn();
+    if (!columnCheck.ok) return columnCheck.response;
+    const invoiceItemHasAccountId = columnCheck.hasColumn;
     
     // Only allow editing if invoice is in Draft or Pending status
     if (existingInvoice.status !== 'Draft' && existingInvoice.status !== 'Pending') {
@@ -302,16 +310,7 @@ export async function PUT(request, { params }) {
           tx.invoiceItem.create({
             data: {
               invoiceId,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              taxRate: Number(item.taxRate || 0),
-              discountRate: 0,
-              discountAmount: item.discountAmount || 0,
-              netAmount: item.netAmount || 0,
-              amount: item.amount,
-              productId: item.productId || null,
-              accountId: item.accountId
+              ...buildInvoiceItemCreateData(item, invoiceItemHasAccountId),
             }
           })
         )

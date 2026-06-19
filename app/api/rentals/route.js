@@ -10,6 +10,10 @@ import { computeBillableUnits } from '@/lib/rentalBilling';
 import { assertCanBook } from '@/lib/rentalAvailability';
 import { releaseExpiredRentals } from '@/lib/rentalLifecycle';
 import { getDefaultRentalRevenueAccount } from '@/lib/defaultRentalRevenueAccount';
+import {
+  requireInvoiceItemAccountIdColumn,
+  buildInvoiceItemCreateData,
+} from '@/lib/ensureInvoiceItemAccountId';
 
 function canCreateRental(user) {
   return (
@@ -87,6 +91,10 @@ export async function POST(request) {
     if (!canCreateRental(user)) {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
+
+    const columnCheck = await requireInvoiceItemAccountIdColumn();
+    if (!columnCheck.ok) return columnCheck.response;
+    const invoiceItemHasAccountId = columnCheck.hasColumn;
 
     await releaseExpiredRentals(prisma, user.tenantId);
 
@@ -246,18 +254,9 @@ export async function POST(request) {
           remainingBalance: calculations.total,
           originalTotal: calculations.total,
           items: {
-            create: itemsWithTitles.map((item) => ({
-              description: item.description,
-              quantity: Number(item.quantity),
-              unitPrice: Number(item.unitPrice),
-              taxRate: Number(item.taxRate || 0),
-              discountRate: 0,
-              discountAmount: Number(item.discountAmount || 0),
-              netAmount: Number(item.netAmount || 0),
-              amount: Number(item.amount),
-              productId: item.productId || null,
-              accountId: item.accountId,
-            })),
+            create: itemsWithTitles.map((item) =>
+              buildInvoiceItemCreateData(item, invoiceItemHasAccountId),
+            ),
           },
         },
         include: { items: true },

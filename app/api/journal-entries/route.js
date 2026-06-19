@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { extractApiErrorMessage } from '@/lib/apiErrorUtils';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
@@ -653,7 +654,7 @@ export async function POST(request) {
     console.error('Error creating journal entry:', error);
     return NextResponse.json(
       {
-        error: error.message || 'Failed to create journal entry',
+        error: extractApiErrorMessage(error, 'Failed to create journal entry'),
       },
       { status: 400 }
     );

@@ -45,7 +45,8 @@
     "remap:accounting-mappings": "node scripts/remap-accounting-mappings.js",
     "coa:snapshot": "node scripts/coa-snapshot-export.cjs",
     "audit:gl": "node scripts/audit-gl.cjs",
-    "audit:rbac": "node scripts/rbac-audit.js"
+    "audit:rbac": "node scripts/rbac-audit.js",
+    "db:sync-schema-gaps": "node scripts/sync-deployment-schema-gaps.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",

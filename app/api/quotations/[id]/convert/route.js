@@ -11,6 +11,10 @@ import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { parseMoney } from '@/lib/money';
 import { classifyApiError } from '@/lib/apiErrorUtils';
+import {
+  requireInvoiceItemAccountIdColumn,
+  buildInvoiceItemCreateData,
+} from '@/lib/ensureInvoiceItemAccountId';
 
 // POST - Convert a quotation to an invoice
 export async function POST(request, { params }) {
@@ -21,6 +25,10 @@ export async function POST(request, { params }) {
     }
 
     const { id: quotationId } = await params;
+
+    const columnCheck = await requireInvoiceItemAccountIdColumn();
+    if (!columnCheck.ok) return columnCheck.response;
+    const invoiceItemHasAccountId = columnCheck.hasColumn;
 
     const quotation = await prisma.quotation.findFirst({
       where: { id: quotationId, tenantId: user.tenantId },
@@ -130,18 +138,9 @@ export async function POST(request, { params }) {
           tenantId: user.tenantId,
           branchId,
           items: {
-            create: processedItems.map((item) => ({
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              taxRate: item.taxRate,
-              discountAmount: item.discountAmount,
-              discountRate: 0,
-              netAmount: Math.max(0, item.amount - item.discountAmount),
-              amount: item.amount,
-              productId: item.productId,
-              accountId: item.accountId,
-            })),
+            create: processedItems.map((item) =>
+              buildInvoiceItemCreateData(item, invoiceItemHasAccountId),
+            ),
           },
         },
         include: { client: true, items: true },

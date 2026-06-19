@@ -16,6 +16,11 @@ import {
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
+import {
+  ensureInvoiceItemAccountIdColumn,
+  requireInvoiceItemAccountIdColumn,
+  buildInvoiceItemCreateData,
+} from '@/lib/ensureInvoiceItemAccountId';
 
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {
@@ -33,6 +38,8 @@ export async function GET(request) {
         { status: 401 }
       );
     }
+
+    await ensureInvoiceItemAccountIdColumn();
     
     // Parse query parameters
     const page = parseInt(searchParams.get('page')) || 1;
@@ -329,6 +336,10 @@ export async function POST(request) {
         { status: 401 }
       );
     }
+
+    const columnCheck = await requireInvoiceItemAccountIdColumn();
+    if (!columnCheck.ok) return columnCheck.response;
+    const invoiceItemHasAccountId = columnCheck.hasColumn;
     
     // Validate required fields
     if (!body.clientId || !body.items || body.items.length === 0) {
@@ -512,19 +523,10 @@ export async function POST(request) {
           footerPhoneOverride: body.footerPhoneOverride || null,
           footerBankDetailsOverride: body.footerBankDetailsOverride || null,
           items: {
-            create: itemsWithTitles.map(item => ({
-              description: item.description,
-              quantity: Number(item.quantity),
-              unitPrice: Number(item.unitPrice),
-              taxRate: Number(item.taxRate || 0),
-              discountRate: 0, // Legacy field, keep for backward compatibility
-              discountAmount: Number(item.discountAmount || 0),
-              netAmount: Number(item.netAmount || 0),
-              amount: Number(item.amount),
-              productId: item.productId || null,
-              accountId: item.accountId // Use direct field assignment instead of relation connect
-            }))
-          }
+            create: itemsWithTitles.map((item) =>
+              buildInvoiceItemCreateData(item, invoiceItemHasAccountId),
+            ),
+          },
         },
         include: {
           client: true,
