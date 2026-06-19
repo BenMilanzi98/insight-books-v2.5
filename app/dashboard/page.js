@@ -38,7 +38,8 @@ import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
 import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanner";
 import SetupWizardReminderBanner from "@/components/SetupWizardReminderBanner";
-import SetupWizardWelcomeModal from "@/components/SetupWizardWelcomeModal";
+import { SetupWizardProvider } from "@/components/setup/SetupWizardContext";
+import SetupWizardHost from "@/components/setup/SetupWizardHost";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
 import MultiBusinessComparisonPanel, {
@@ -1041,7 +1042,12 @@ const BusinessOwnerDashboard = () => {
     );
   }
 
-  return renderDashboard();
+  return (
+    <SetupWizardProvider>
+      {renderDashboard()}
+      <SetupWizardHost />
+    </SetupWizardProvider>
+  );
 
   async function openStockReceiptDetail(notice) {
     try {
@@ -1069,7 +1075,6 @@ const BusinessOwnerDashboard = () => {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
-        <SetupWizardWelcomeModal />
         {showAndroidAppNotice && (
           <div
             className="fixed inset-0 z-[220] flex items-center justify-center bg-gray-900/55 p-4 backdrop-blur-sm"

@@ -49,7 +49,7 @@ const JournalEntries = () => {
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [sourceTypeFilter, setSourceTypeFilter] = useState("Manual");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState("All Types");
   const [searchTerm, setSearchTerm] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -418,7 +418,16 @@ const handleDeleteEntry = async (entryId) => {
   const statusOptions = ["All Status", "Posted", "Draft"];
   
   // Source type options for the filter dropdown
-  const sourceTypeOptions = ["Manual"];
+  const sourceTypeOptions = [
+    "All Types",
+    "Manual",
+    "Sale",
+    "Invoice",
+    "Expense",
+    "Payment",
+    "Payroll",
+    "Reversal",
+  ];
   
   // Date range options for the filter dropdown
   const dateRangeOptions = [

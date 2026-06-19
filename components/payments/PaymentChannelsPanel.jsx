@@ -97,7 +97,7 @@ export function PaymentAccountFormModal({
         reference: form.reference?.trim() || undefined,
         isActive: form.isActive,
       };
-      if (!editingAccount && needsChannel) {
+      if (needsChannel && form.parentGlCode) {
         body.parentGlCode = form.parentGlCode;
       }
       const res = await fetch(url, {

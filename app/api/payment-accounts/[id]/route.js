@@ -5,6 +5,27 @@ import {
   ALLOWED_PAYMENT_ACCOUNT_TYPES,
   PaymentGlSlotsExhaustedError,
 } from '@/lib/paymentAccountCoaLink';
+import {
+  isPaymentGlChildCode,
+  isPaymentGlParentCode,
+  resolvePaymentParentGlCode,
+} from '@/lib/paymentGlChannels.js';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+async function inferParentGlCodeFromCoaAccount(tenantId, coaAccountId, tx = prisma) {
+  if (!coaAccountId) return null;
+  const acc = await tx.account.findFirst({
+    where: { id: coaAccountId, tenantId },
+    select: { accountCode: true, code: true },
+  });
+  if (!acc) return null;
+  const code = String(acc.accountCode ?? acc.code ?? '').trim();
+  if (isPaymentGlParentCode(code)) return code;
+  if (isPaymentGlChildCode(code)) return code.split('-')[0];
+  return null;
+}
 
 // GET - Get a specific payment account
 export async function GET(request, { params }) {
@@ -14,7 +35,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const paymentAccount = await prisma.paymentAccount.findFirst({
       where: {
@@ -72,9 +93,14 @@ export async function PUT(request, { params }) {
       }
     }
 
-    const { id } = params;
-    const body = await request.json();
-    const { name, accountType, reference, isActive } = body;
+    const { id } = await params;
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { name, accountType, reference, isActive, parentGlCode } = body || {};
 
     if (accountType !== undefined && !ALLOWED_PAYMENT_ACCOUNT_TYPES.includes(String(accountType).trim())) {
       return NextResponse.json(
@@ -136,6 +162,45 @@ export async function PUT(request, { params }) {
       updateData.coaAccountId = null;
     }
 
+    const effectiveType =
+      accountType !== undefined ? String(accountType).trim() : String(existing.accountType || '').trim();
+    const effectiveName = name !== undefined ? String(name).trim() : existing.name;
+    const typeChanged =
+      accountType !== undefined &&
+      String(accountType).trim() !== String(existing.accountType || '').trim();
+    const coaLinkCleared = typeChanged;
+
+    let resolvedParent = null;
+    if (effectiveType !== 'Cash') {
+      resolvedParent = resolvePaymentParentGlCode({
+        accountType: effectiveType,
+        name: effectiveName,
+        parentGlCode: parentGlCode != null ? String(parentGlCode).trim() : null,
+      });
+      if (!resolvedParent && !coaLinkCleared && existing.coaAccountId) {
+        resolvedParent = await inferParentGlCodeFromCoaAccount(
+          user.tenantId,
+          existing.coaAccountId,
+          prisma
+        );
+      }
+    }
+
+    if (
+      ['Bank', 'Mobile Money', 'Wallet'].includes(effectiveType) &&
+      (coaLinkCleared || !existing.coaAccountId) &&
+      !resolvedParent
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Select a bank or mobile money channel (1131–1138, 1140, or 1141). The GL sub-account will be created automatically under that parent.',
+          code: 'PAYMENT_PARENT_GL_REQUIRED',
+        },
+        { status: 400 }
+      );
+    }
+
     const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
 
     let refreshed;
@@ -145,10 +210,11 @@ export async function PUT(request, { params }) {
           where: { id },
           data: updateData,
         });
-        await ensurePaymentAccountCoaLink(user.tenantId, updated, tx);
-        return tx.paymentAccount.findFirst({
-          where: { id, tenantId: user.tenantId },
-        });
+        return ensurePaymentAccountCoaLink(
+          user.tenantId,
+          { ...updated, parentGlCode: resolvedParent },
+          tx
+        );
       });
     } catch (linkErr) {
       if (linkErr instanceof PaymentGlSlotsExhaustedError) {
@@ -160,26 +226,46 @@ export async function PUT(request, { params }) {
       throw linkErr;
     }
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'PAYMENT_ACCOUNT_UPDATED',
-        entityType: 'PAYMENT_ACCOUNT',
-        entityId: refreshed.id,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          name: refreshed.name,
-          accountType: refreshed.accountType,
-          isActive: refreshed.isActive
-        })
-      }
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'PAYMENT_ACCOUNT_UPDATED',
+          entityType: 'PAYMENT_ACCOUNT',
+          entityId: refreshed.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            name: refreshed.name,
+            accountType: refreshed.accountType,
+            isActive: refreshed.isActive,
+          }),
+        },
+      });
+    } catch (auditErr) {
+      console.warn('Audit log failed for payment account update:', auditErr?.message || auditErr);
+    }
 
     return NextResponse.json({ success: true, paymentAccount: refreshed });
   } catch (error) {
     console.error('Error updating payment account:', error);
-    return NextResponse.json({ error: 'Failed to update payment account' }, { status: 500 });
+    const code = error?.code;
+    if (code === 'P2002') {
+      return NextResponse.json(
+        {
+          error: 'A payment account or ledger code already exists for this business.',
+          code: 'PAYMENT_ACCOUNT_DUPLICATE',
+        },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: 'Failed to update payment account',
+        hint: error?.message?.slice(0, 300) || undefined,
+        code: code || undefined,
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -203,7 +289,7 @@ export async function DELETE(request, { params }) {
       }
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Find the payment account
     const existing = await prisma.paymentAccount.findFirst({

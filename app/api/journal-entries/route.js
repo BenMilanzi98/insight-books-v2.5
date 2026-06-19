@@ -84,7 +84,7 @@ function canCreateJournalEntries(user) {
   );
 }
 
-function buildWhereClause(tenantScope, searchParams) {
+function buildWhereClause(tenantScope, searchParams, { includeAllSourceTypes = false } = {}) {
   const where = { ...tenantScope, AND: [] };
 
   const status = searchParams.get('status');
@@ -123,9 +123,21 @@ function buildWhereClause(tenantScope, searchParams) {
     });
   }
 
-  const sourceType = searchParams.get('sourceType');
-  if (sourceType && sourceType.toLowerCase() !== 'all' && sourceType.toLowerCase() !== 'all types') {
-    if (sourceType.toLowerCase() === 'manual') {
+  if (!includeAllSourceTypes) {
+    const sourceType = searchParams.get('sourceType');
+    if (sourceType && sourceType.toLowerCase() !== 'all' && sourceType.toLowerCase() !== 'all types') {
+      if (sourceType.toLowerCase() === 'manual') {
+        where.AND.push({
+          OR: [
+            { sourceType: { in: MANUAL_SOURCE_TYPES } },
+            { sourceType: null },
+            { sourceType: '' },
+          ],
+        });
+      } else {
+        where.AND.push({ sourceType });
+      }
+    } else {
       where.AND.push({
         OR: [
           { sourceType: { in: MANUAL_SOURCE_TYPES } },
@@ -133,17 +145,7 @@ function buildWhereClause(tenantScope, searchParams) {
           { sourceType: '' },
         ],
       });
-    } else {
-      where.AND.push({ sourceType });
     }
-  } else {
-    where.AND.push({
-      OR: [
-        { sourceType: { in: MANUAL_SOURCE_TYPES } },
-        { sourceType: null },
-        { sourceType: '' },
-      ],
-    });
   }
 
   return where;
@@ -293,7 +295,7 @@ export async function GET(request) {
     const mergeJournalCtx = buildMergeRollupContext(mergeRollupRows);
 
     const tMap = tenantNameMap(tenants);
-    const where = buildWhereClause(tw, searchParams);
+    const where = buildWhereClause(tw, searchParams, { includeAllSourceTypes: isAllSourceTypes });
     const sortBy = searchParams.get('sortBy') || 'entryDate';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
     const sourceType = searchParams.get('sourceType');

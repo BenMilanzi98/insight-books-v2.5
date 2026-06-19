@@ -59,6 +59,7 @@ export async function GET(request) {
       fiscalYearStartMonth: Number(settings?.fiscalYearStartMonth) || 1,
       setupReminderSnoozedUntil: settings?.setupReminderSnoozedUntil ?? null,
       setupWizardState: settings?.setupWizardState ?? null,
+      facts,
       steps,
       pendingStepIds: pendingSteps.map((s) => s.id),
       pendingCount: pendingSteps.length,

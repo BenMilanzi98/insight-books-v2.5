@@ -15,6 +15,21 @@ import {
   resolveExpenseAccountSelection
 } from '@/lib/accountingMappingRules';
 
+function isOptionalExpenseFieldSchemaError(err) {
+  const msg = String(err?.message || '');
+  return (
+    msg.includes('Unknown argument') ||
+    msg.includes('does not exist in the current database') ||
+    msg.includes('taxTypeId') ||
+    msg.includes('supplierId')
+  );
+}
+
+function stripOptionalExpenseCreateFields(data) {
+  const { taxTypeId: _t, supplierId: _s, ...rest } = data;
+  return rest;
+}
+
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
   try {
@@ -783,11 +798,13 @@ export async function POST(request) {
       try {
         expense = await tx.expense.create({ data: expenseCreateData });
       } catch (createErr) {
-        const isUnknownArg = createErr?.message && typeof createErr.message === 'string' &&
-          (createErr.message.includes('Unknown argument') || createErr.message.includes('taxTypeId') || createErr.message.includes('supplierId'));
-        if (isUnknownArg && (expenseCreateData.taxTypeId != null || expenseCreateData.supplierId != null)) {
-          const { taxTypeId: _t, supplierId: _s, ...fallbackData } = expenseCreateData;
-          expense = await tx.expense.create({ data: fallbackData });
+        if (
+          isOptionalExpenseFieldSchemaError(createErr) &&
+          (expenseCreateData.taxTypeId != null || expenseCreateData.supplierId != null)
+        ) {
+          expense = await tx.expense.create({
+            data: stripOptionalExpenseCreateFields(expenseCreateData),
+          });
         } else {
           throw createErr;
         }

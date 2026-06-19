@@ -140,8 +140,18 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching recurring expenses:', error);
+    const msg = String(error?.message || '');
+    const schemaDrift =
+      msg.includes('does not exist in the current database') ||
+      msg.includes('expenseAccountId');
     return NextResponse.json(
-      { error: 'Failed to fetch recurring expenses. Please try again.' },
+      {
+        error: 'Failed to fetch recurring expenses. Please try again.',
+        hint: schemaDrift
+          ? 'Database schema is out of date. Run migrations or scripts/add-expense-schema-columns-if-missing.js on the server.'
+          : msg.slice(0, 300) || undefined,
+        code: error?.code || undefined,
+      },
       { status: 500 }
     );
   }

@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { mergeWizardStep, SETUP_WIZARD_STEP_DEFS } from '@/lib/setupWizardService';
+import { mergeWizardStep, mergeSkipAllSteps, SETUP_WIZARD_STEP_DEFS } from '@/lib/setupWizardService';
 
 const STEP_IDS = new Set(SETUP_WIZARD_STEP_DEFS.map((s) => s.id));
 
 /**
  * POST body:
  * - { action: 'complete' | 'skip', stepId: string }
+ * - { action: 'skipAll', stepIds?: string[] } — skip all listed (or all wizard steps)
  * - { action: 'snooze', days?: number } (default 7)
- * - { action: 'complete', stepId: 'fiscalYear', fiscalYearStartMonth: 1-12 }
  */
 export async function POST(request) {
   try {
@@ -56,6 +56,26 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'skipAll') {
+      const requested = Array.isArray(body.stepIds) ? body.stepIds.map(String) : SETUP_WIZARD_STEP_DEFS.map((s) => s.id);
+      const stepIds = requested.filter((id) => STEP_IDS.has(id));
+      const existing = await prisma.tenantSettings.findUnique({
+        where: { tenantId: user.tenantId },
+        select: { setupWizardState: true },
+      });
+      const nextState = mergeSkipAllSteps(existing?.setupWizardState, stepIds);
+      await prisma.tenantSettings.upsert({
+        where: { tenantId: user.tenantId },
+        create: {
+          tenantId: user.tenantId,
+          enabledModules: [],
+          setupWizardState: nextState,
+        },
+        update: { setupWizardState: nextState },
+      });
+      return NextResponse.json({ success: true, setupWizardState: nextState });
+    }
+
     if (action !== 'complete' && action !== 'skip') {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
@@ -63,35 +83,6 @@ export async function POST(request) {
     const stepId = body.stepId;
     if (!stepId || !STEP_IDS.has(stepId)) {
       return NextResponse.json({ error: 'Invalid or missing stepId' }, { status: 400 });
-    }
-
-    if (stepId === 'fiscalYear' && action === 'complete') {
-      const m = parseInt(String(body.fiscalYearStartMonth ?? ''), 10);
-      if (!Number.isFinite(m) || m < 1 || m > 12) {
-        return NextResponse.json(
-          { error: 'fiscalYearStartMonth must be between 1 and 12' },
-          { status: 400 }
-        );
-      }
-      const existing = await prisma.tenantSettings.findUnique({
-        where: { tenantId: user.tenantId },
-        select: { setupWizardState: true },
-      });
-      const nextState = mergeWizardStep(existing?.setupWizardState, 'complete', 'fiscalYear');
-      await prisma.tenantSettings.upsert({
-        where: { tenantId: user.tenantId },
-        create: {
-          tenantId: user.tenantId,
-          enabledModules: [],
-          fiscalYearStartMonth: m,
-          setupWizardState: nextState,
-        },
-        update: {
-          fiscalYearStartMonth: m,
-          setupWizardState: nextState,
-        },
-      });
-      return NextResponse.json({ success: true, setupWizardState: nextState, fiscalYearStartMonth: m });
     }
 
     const existing = await prisma.tenantSettings.findUnique({

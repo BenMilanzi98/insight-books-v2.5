@@ -1,32 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState, useCallback } from "react";
 import { AlertCircle, X, ChevronRight } from "lucide-react";
+import { useSetupWizard } from "@/components/setup/SetupWizardContext";
 
 /**
- * Non-blocking reminder for tenant owners to finish optional /setup steps.
+ * Non-blocking reminder for tenant owners to finish optional setup steps.
  */
 export default function SetupWizardReminderBanner() {
+  const { openWizard } = useSetupWizard();
   const [data, setData] = useState(null);
   const [dismissed, setDismissed] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/tenant/setup-wizard-status", { credentials: "include" });
-        const json = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok) setData(json);
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tenant/setup-wizard-status", { credentials: "include" });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) setData(json);
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  useEffect(() => {
+    const onUpdate = () => loadStatus();
+    window.addEventListener("setup-wizard-updated", onUpdate);
+    return () => window.removeEventListener("setup-wizard-updated", onUpdate);
+  }, [loadStatus]);
 
   const snooze = async () => {
     try {
@@ -47,7 +52,13 @@ export default function SetupWizardReminderBanner() {
     return null;
   }
 
-  const preview = data.pendingStepIds.slice(0, 4).join(", ");
+  const preview = data.pendingStepIds
+    .slice(0, 4)
+    .map((id) => {
+      const step = data.steps?.find((s) => s.id === id);
+      return step?.label?.split(" ")[0] ?? id;
+    })
+    .join(", ");
   const more = data.pendingCount > 4 ? ` +${data.pendingCount - 4} more` : "";
 
   return (
@@ -58,20 +69,21 @@ export default function SetupWizardReminderBanner() {
             <AlertCircle className="h-5 w-5 text-amber-700" aria-hidden />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-amber-950">Complete your financial setup</p>
+            <p className="text-sm font-semibold text-amber-950">Finish your business setup</p>
             <p className="mt-1 text-xs text-amber-900/90">
-              Optional steps help align reporting, tax, and cash accounts. Pending:{" "}
+              Optional: capital, assets, payments, taxes, clients & suppliers. Still pending:{" "}
               <span className="font-medium">{preview}</span>
               {more}.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Link
-                href="/setup"
+              <button
+                type="button"
+                onClick={() => openWizard()}
                 className="inline-flex items-center rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
               >
                 Open setup wizard
                 <ChevronRight className="ml-1 h-3.5 w-3.5" aria-hidden />
-              </Link>
+              </button>
               <button
                 type="button"
                 onClick={snooze}
