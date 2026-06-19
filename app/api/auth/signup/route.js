@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { generateFullPermissions } from '@/lib/permissionsMap';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
@@ -279,8 +279,33 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error creating account:', error);
+
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'This email is already registered. Sign in instead, or use a different email for a new business.' },
+        { status: 409 }
+      );
+    }
+
+    if (error?.code === 'P2021' || error?.code === 'P2022') {
+      console.error('Signup failed: database schema out of date. Run: npx prisma migrate deploy');
+      return NextResponse.json(
+        { error: 'Account setup is unavailable until the server database is updated. Please contact support.' },
+        { status: 503 }
+      );
+    }
+
+    const exposeDetails =
+      process.env.EXPOSE_SIGNUP_ERRORS === 'true' ||
+      String(process.env.APP_URL || '').includes('development.');
+
     return NextResponse.json(
-      { error: 'Failed to create account. Please try again.' },
+      {
+        error: 'Failed to create account. Please try again.',
+        ...(exposeDetails
+          ? { details: error?.message, code: error?.code || null }
+          : {}),
+      },
       { status: 500 }
     );
   }
