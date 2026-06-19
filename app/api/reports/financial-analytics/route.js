@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import {
   calculateDateRange,
@@ -14,7 +15,13 @@ import {
 import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { getCOGSTransactionStats } from '@/lib/cogsIntegration';
-import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
+import { getSalesRevenueForPeriod, generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
+import {
+  applyIncomeStatementCogsPolicy,
+  tenantIncludesCogsInReports,
+} from '@/lib/tenantCogsReporting';
+import { filterExpensesForIncomeStatementOperating } from '@/lib/incomeStatementExpenseDedup';
+import { resolveIncomeStatementExpenseAccountFields } from '@/lib/incomeStatementExpenseAccountResolution';
 import {
   invoiceItemNetRevenueExTax,
   invoiceNetRevenueTotalExTax,
@@ -22,14 +29,11 @@ import {
   saleNetRevenueTotalExTax,
 } from '@/lib/reportLineNetRevenue';
 import {
-  validInvoiceReportWhereScoped,
+  validInvoiceReportWhere,
   validPurchaseDocumentStatusFilter,
-  validSaleReportWhereScoped,
+  validSaleReportWhere,
 } from '@/lib/reportingSourceRules';
 import { addMoney, parseMoney, roundMoney, subtractMoney } from '@/lib/money';
-import { buildProfitAnalysisFromPl } from '@/lib/reportingEngine/index.js';
-import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
-import { generateScopedIncomeStatement } from '@/lib/reportingEngine/multiTenantReporting';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -97,21 +101,20 @@ function compareExpenseBreakdownKeys(aKey, bKey) {
 
 /** One row per GL / mapping bucket so custom category labels do not duplicate accounts. */
 function expenseBreakdownBucketForExpense(expense) {
-  const acc = expense.expenseAccount;
-  if (acc?.accountCode) {
-    const code = String(acc.accountCode).trim();
+  const resolved = resolveIncomeStatementExpenseAccountFields({
+    expenseAccount: expense.expenseAccount,
+    category: expense.category,
+    description: expense.description,
+    notes: expense.notes,
+    tenantNameByCode: BLUEPRINT_ACCOUNT_NAME_BY_CODE,
+  });
+  if (resolved.accountCode && !String(resolved.accountCode).startsWith('cat:')) {
+    const code = String(resolved.accountCode).trim();
     const blueprintName = BLUEPRINT_ACCOUNT_NAME_BY_CODE.get(code);
-    const displayName = blueprintName || acc.accountName?.trim() || code;
+    const displayName = blueprintName || resolved.accountName?.trim() || code;
     return { key: code, label: `${code} — ${displayName}` };
   }
-  const mapped = lookupStandardExpenseCodeFromCategorySync(expense.category);
-  if (mapped) {
-    const blueprintName = BLUEPRINT_ACCOUNT_NAME_BY_CODE.get(mapped);
-    const fallback = expense.category?.trim() || 'Expense';
-    const displayName = blueprintName || fallback;
-    return { key: mapped, label: `${mapped} — ${displayName}` };
-  }
-  const raw = expense.category?.trim() || 'Unclassified';
+  const raw = expense.category?.trim() || resolved.accountName || 'Unclassified';
   const norm = normalizeCategoryNameForReporting(raw) || 'unclassified';
   return { key: `cat:${norm}`, label: raw };
 }
@@ -146,19 +149,13 @@ function getDateRange(searchParams) {
 
 export async function GET(request) {
   try {
-    const boot = await bootstrapReportRoute(request);
-    if (boot.error) return boot.error;
-    const {
-      user,
-      userQ,
-      tw,
-      scope,
-      tenantIds,
-      tenants,
-      primaryTenantId,
-      reportBranchId,
-      reportingCurrency,
-    } = boot;
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated' },
+        { status: 401 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const { startDate, endDate } = getDateRange(searchParams);
@@ -166,26 +163,20 @@ export async function GET(request) {
     const groupBy = VALID_GROUPS.includes(groupByParam) ? groupByParam : 'month';
     const categoryIdFilter = searchParams.get('categoryId');
 
-    const accessEff = getEffectiveDashboardBranchId(userQ);
+    const accessEff = getEffectiveDashboardBranchId(user);
     /** Same argument as P&L → `getSalesRevenueForPeriod(tenant, …, branchId)` (`user.currentBranchId` normalized). */
     const plRevenueBranchId =
-      accessEff === false ? null : normalizeBranchId(userQ.currentBranchId) ?? reportBranchId ?? null;
+      accessEff === false ? null : normalizeBranchId(user.currentBranchId) ?? null;
 
-<<<<<<< Updated upstream
-=======
-    const includeCogsInReports =
-      tenantIds.length === 1
-        ? await tenantIncludesCogsInReports(prisma, primaryTenantId)
-        : (await Promise.all(tenantIds.map((id) => tenantIncludesCogsInReports(prisma, id)))).some(Boolean);
+    const includeCogsInReports = await tenantIncludesCogsInReports(prisma, user.tenantId);
 
->>>>>>> Stashed changes
     // Revenue: valid issued invoices + completed POS sales, net of tax and discounts (matches P&L).
     const [invoices, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
       accessEff === false
         ? Promise.resolve([])
         : prisma.invoice.findMany({
             where: {
-              ...validInvoiceReportWhereScoped(tw, 'issueDate', startDate, endDate),
+              ...validInvoiceReportWhere(user.tenantId, 'issueDate', startDate, endDate),
               ...(plRevenueBranchId ? { branchId: plRevenueBranchId } : {})
             },
             select: {
@@ -216,7 +207,7 @@ export async function GET(request) {
         ? Promise.resolve([])
         : prisma.sale.findMany({
             where: {
-              ...validSaleReportWhereScoped(tw, 'saleDate', startDate, endDate),
+              ...validSaleReportWhere(user.tenantId, 'saleDate', startDate, endDate),
               ...(plRevenueBranchId ? { branchId: plRevenueBranchId } : {})
             },
             select: {
@@ -244,8 +235,8 @@ export async function GET(request) {
             }
           }),
       prisma.expense.findMany({
-        where: addBranchFilter(userQ, {
-          ...tw,
+        where: addBranchFilter(user, {
+          tenantId: user.tenantId,
           status: 'Approved',
           isDeleted: false,
           isReversal: false,
@@ -256,6 +247,8 @@ export async function GET(request) {
           date: true,
           category: true,
           description: true,
+          notes: true,
+          expenseAccountId: true,
           expenseAccount: {
             select: {
               accountCode: true,
@@ -266,7 +259,7 @@ export async function GET(request) {
       }),
       prisma.supplierBill.findMany({
         where: {
-          ...tw,
+          tenantId: user.tenantId,
           billDate: { gte: startDate, lte: endDate },
           status: validPurchaseDocumentStatusFilter()
         },
@@ -290,7 +283,7 @@ export async function GET(request) {
       }),
       prisma.budget.findMany({
         where: {
-          ...tw,
+          tenantId: user.tenantId,
           status: { in: ['active', 'draft'] },
           startDate: { lte: endDate },
           endDate: { gte: startDate }
@@ -318,15 +311,13 @@ export async function GET(request) {
       })
     ]);
 
-<<<<<<< Updated upstream
-=======
     const cogsAccountIds = includeCogsInReports
-      ? await getCogsAccountIdsForExpenseRegister(prisma, tw)
+      ? await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId)
       : [];
     let useGlCogs = false;
     let glPeriodTotal = 0;
     const cogsTransactionWhere = {
-      ...tw,
+      tenantId: user.tenantId,
       date: { gte: startDate, lte: endDate },
       status: 'posted',
       isReversal: false
@@ -363,7 +354,6 @@ export async function GET(request) {
       glCogsLineCount: cogsLines.length,
     });
 
->>>>>>> Stashed changes
     const trendMap = new Map();
     /** @type {Map<string, { label: string; value: number }>} */
     const expenseBreakdownBuckets = new Map();
@@ -455,7 +445,7 @@ export async function GET(request) {
       }
     });
 
-    expenses.forEach((expense) => {
+    filteredExpenses.forEach((expense) => {
       const amount = parseMoney(expense.amount);
       const label = formatLabel(expense.date, groupBy);
       addToBucket(trendMap, label, 'expenses', amount);
@@ -468,44 +458,8 @@ export async function GET(request) {
     });
 
     /** COGS in trend + totals — aligned with P&L (GL net on COGS accounts, else activity fallback). */
-    const operatingExpenseTotal = Array.from(trendMap.values()).reduce(
-      (sum, item) => addMoney(sum, item.expenses),
-      0
-    );
     let totalCogsApplied = 0;
-    const cogsTransactionWhere = {
-      tenantId: user.tenantId,
-      date: { gte: startDate, lte: endDate },
-      status: 'posted',
-      isReversal: false
-    };
-    if (accessEff === false) {
-      cogsTransactionWhere.branchId = { in: [] };
-    } else if (plRevenueBranchId) {
-      cogsTransactionWhere.OR = [{ branchId: plRevenueBranchId }, { branchId: null }];
-    }
-
-    let useGlCogs = false;
-    let glPeriodTotal = 0;
-    const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId);
-    if (cogsAccountIds.length > 0) {
-      const cogsLines = await prisma.transactionLine.findMany({
-        where: {
-          accountId: { in: cogsAccountIds },
-          transaction: cogsTransactionWhere
-        },
-        select: {
-          debitAmount: true,
-          creditAmount: true,
-          transaction: { select: { date: true } }
-        }
-      });
-      for (const line of cogsLines) {
-        const net = subtractMoney(line.debitAmount, line.creditAmount);
-        glPeriodTotal = addMoney(glPeriodTotal, net);
-      }
-      glPeriodTotal = round2(glPeriodTotal);
-      useGlCogs = Math.abs(glPeriodTotal) > 1e-6;
+    if (includeCogsInReports) {
       if (useGlCogs) {
         for (const line of cogsLines) {
           const net = subtractMoney(line.debitAmount, line.creditAmount);
@@ -514,32 +468,10 @@ export async function GET(request) {
           addToBucket(trendMap, label, 'expenses', net);
         }
         totalCogsApplied = glPeriodTotal;
-<<<<<<< Updated upstream
-      }
-    }
-
-    if (!useGlCogs && accessEff !== false) {
-      try {
-        const stats = await getCOGSTransactionStats(
-          user.tenantId,
-          startDate,
-          endDate,
-          plRevenueBranchId || undefined
-        );
-        const activityTotal = round2(stats?.totalAmount);
-        if (activityTotal > 0) {
-          const labels = Array.from(trendMap.keys());
-          const revenues = labels.map((lb) => parseMoney(trendMap.get(lb)?.revenue));
-          const totalRev = revenues.reduce((a, b) => addMoney(a, b), 0);
-          if (totalRev > 0) {
-            for (let i = 0; i < labels.length; i++) {
-              const share = revenues[i] / totalRev;
-              addToBucket(trendMap, labels[i], 'expenses', activityTotal * share);
-=======
       } else if (accessEff !== false) {
         try {
           const stats = await getCOGSTransactionStats(
-            primaryTenantId,
+            user.tenantId,
             startDate,
             endDate,
             plRevenueBranchId || undefined
@@ -556,15 +488,12 @@ export async function GET(request) {
               }
             } else {
               addToBucket(trendMap, formatLabel(startDate, groupBy), 'expenses', activityTotal);
->>>>>>> Stashed changes
             }
-          } else {
-            addToBucket(trendMap, formatLabel(startDate, groupBy), 'expenses', activityTotal);
+            totalCogsApplied = activityTotal;
           }
-          totalCogsApplied = activityTotal;
+        } catch (cogsErr) {
+          console.warn('Financial analytics: COGS activity fallback failed:', cogsErr?.message || cogsErr);
         }
-      } catch (cogsErr) {
-        console.warn('Financial analytics: COGS activity fallback failed:', cogsErr?.message || cogsErr);
       }
     }
 
@@ -616,7 +545,7 @@ export async function GET(request) {
         return b.value - a.value;
       });
 
-    if (totalCogsApplied > 0) {
+    if (includeCogsInReports && totalCogsApplied > 0) {
       expenseBreakdownArr.push({
         key: '5100',
         name: '5100 — Cost of goods sold',
@@ -640,41 +569,25 @@ export async function GET(request) {
       .slice(0, 5);
 
     const totalRevenue = trend.reduce((sum, item) => addMoney(sum, item.revenue), 0);
-<<<<<<< Updated upstream
-    const totalExpenses = trend.reduce((sum, item) => addMoney(sum, item.expenses), 0);
-    const totalProfit = subtractMoney(totalRevenue, totalExpenses);
-=======
     let totalExpenses = trend.reduce((sum, item) => addMoney(sum, item.expenses), 0);
     let totalProfit = subtractMoney(totalRevenue, totalExpenses);
 
     let plStatement = null;
     if (accessEff !== false) {
       try {
-        if (tenantIds.length > 1) {
-          plStatement = await generateScopedIncomeStatement({
-            tenantIds,
-            tenants,
-            startDate: formatYmdInTimeZone(startDate),
-            endDate: formatYmdInTimeZone(endDate),
-            branchId: reportBranchId,
-            scope,
-            reportingCurrency,
-          });
-        } else {
-          plStatement = await generateIncomeStatementFromAccounts(
-            primaryTenantId,
-            formatYmdInTimeZone(startDate),
-            formatYmdInTimeZone(endDate),
-            'Company',
-            null,
-            plRevenueBranchId
-          );
-          plStatement = applyIncomeStatementCogsPolicy(plStatement, includeCogsInReports);
-        }
+        plStatement = await generateIncomeStatementFromAccounts(
+          user.tenantId,
+          formatYmdInTimeZone(startDate),
+          formatYmdInTimeZone(endDate),
+          'Company',
+          null,
+          plRevenueBranchId
+        );
+        plStatement = applyIncomeStatementCogsPolicy(plStatement, includeCogsInReports);
         totalExpenses = includeCogsInReports
           ? addMoney(plStatement.cogs?.total ?? 0, plStatement.totalOperatingExpenses ?? 0)
           : parseMoney(plStatement.totalOperatingExpenses ?? 0);
-        totalProfit = parseMoney(plStatement.netIncome ?? subtractMoney(totalRevenue, totalExpenses));
+        totalProfit = subtractMoney(totalRevenue, totalExpenses);
       } catch (plErr) {
         console.warn('Financial analytics: P&L alignment failed:', plErr?.message || plErr);
       }
@@ -684,12 +597,11 @@ export async function GET(request) {
       plStatement != null
         ? parseMoney(plStatement.totalOperatingExpenses ?? 0)
         : subtractMoney(totalExpenses, totalCogsApplied);
->>>>>>> Stashed changes
 
     let plSalesRevenueTotal = null;
-    if (accessEff !== false && tenantIds.length === 1) {
+    if (accessEff !== false) {
       plSalesRevenueTotal = await getSalesRevenueForPeriod(
-        primaryTenantId,
+        user.tenantId,
         formatYmdInTimeZone(startDate),
         formatYmdInTimeZone(endDate),
         plRevenueBranchId
@@ -760,14 +672,6 @@ export async function GET(request) {
     revenueByCategory.sort((a, b) => b.actualAmount - a.actualAmount);
     expenseByCategory.sort((a, b) => b.actualAmount - a.actualAmount);
 
-    const profitAnalysis = buildProfitAnalysisFromPl(plStatement, {
-      revenue: round2(totalRevenue),
-    });
-
-    const headlineRevenue = plStatement
-      ? round2(plStatement.totalRevenue)
-      : round2(totalRevenue);
-
     const analytics = {
       period: {
         startDate: formatYmdInTimeZone(startDate),
@@ -789,33 +693,23 @@ export async function GET(request) {
         expenses: expenseByCategory
       },
       totals: {
-        revenue: headlineRevenue,
+        revenue: totalRevenue,
         /** Approved expense-register amounts only (excludes COGS). */
         operatingExpenses: round2(operatingExpenseTotal),
-        cogs: plStatement && includeCogsInReports
-          ? round2(plStatement.cogs?.total ?? totalCogsApplied)
-          : round2(totalCogsApplied),
+        cogs: round2(totalCogsApplied),
         /** Operating expenses + COGS (matches P&L cost side for profit). */
         expenses: totalExpenses,
         profit: totalProfit,
         avgRevenue,
-        avgExpenses,
-        analyticsRevenue: round2(totalRevenue),
+        avgExpenses
       },
       metadata: {
         revenueBasis:
           'Valid invoice sales by issueDate and completed POS sales by saleDate, net of tax and line discounts (same rules as P&L sales revenue).',
         plSalesRevenueTotal,
         analyticsRevenueTotal: round2(totalRevenue),
-<<<<<<< Updated upstream
         revenueBranchId: plRevenueBranchId
-=======
-        revenueBranchId: plRevenueBranchId,
-        ledgerSource: plStatement?.metadata?.ledgerSource ?? 'general_ledger',
-        fromGeneralLedger: plStatement?.metadata?.fromGeneralLedger ?? null,
-        reconciliation: plStatement?.metadata?.reconciliation ?? profitAnalysis?.reconciliation ?? null,
       },
-      profitAnalysis,
       reporting: {
         includeCogsInReports,
         ...(includeCogsInReports
@@ -824,23 +718,10 @@ export async function GET(request) {
               cogsNote:
                 'Cost of goods sold is not shown because this business does not track inventory purchases for resale.',
             }),
->>>>>>> Stashed changes
       }
     };
 
-    await auditReportAccess({
-      user,
-      reportType: 'financial-analytics',
-      tenantIds,
-      scope,
-      filters: {
-        startDate: formatYmdInTimeZone(startDate),
-        endDate: formatYmdInTimeZone(endDate),
-        groupBy,
-      },
-    });
-
-    return NextResponse.json({ ...analytics, scope });
+    return NextResponse.json(analytics);
   } catch (error) {
     console.error('Error generating financial analytics:', error);
     return NextResponse.json(

@@ -24,10 +24,9 @@ import { getPermission } from "@/lib/permissions";
 import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
 import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
 import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
+import { useSearchParams } from "next/navigation";
 
 const GeneralLedger = () => {
-<<<<<<< Updated upstream
-=======
   const searchParams = useSearchParams();
   const {
     mode: businessScopeMode,
@@ -36,7 +35,6 @@ const GeneralLedger = () => {
   } = useBusinessScope();
   const businessScope = { mode: businessScopeMode, tenantIds: businessScopeTenantIds };
   const [showBusinessColumn, setShowBusinessColumn] = useState(false);
->>>>>>> Stashed changes
   // Helper function to format dates safely
   const formatDateString = (dateString) => {
     if (!dateString) return "";

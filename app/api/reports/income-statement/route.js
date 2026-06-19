@@ -5,19 +5,12 @@ import { getUserFromSession } from '@/lib/auth';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
 import { getCOGSSummary } from '@/lib/cogsIntegration';
 import { stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
-<<<<<<< Updated upstream
-import { addMoney, parseMoney } from '@/lib/money';
-=======
 import { addMoney, isNonZeroMoneyAmount, parseMoney } from '@/lib/money';
 import { filterNonZeroOperatingExpenseLines } from '@/lib/incomeStatementOperatingAccountDisplay';
 import {
   applyIncomeStatementCogsPolicy,
   tenantIncludesCogsInReports,
 } from '@/lib/tenantCogsReporting';
-import { resolveReportTenantScope } from '@/lib/reportTenantScope';
-import { generateScopedIncomeStatement } from '@/lib/reportingEngine/multiTenantReporting';
-import { logReportAccess } from '@/lib/reportAuditLog';
->>>>>>> Stashed changes
 
 /**
  * Professional Income Statement (Profit & Loss Statement) API
@@ -27,27 +20,12 @@ export async function GET(request) {
   try {
     // Get user from session
     const user = await getUserFromSession(request);
-    if (!user) {
+    if (!user || !user.tenantId) {
       return NextResponse.json(
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
     }
-
-    const scopeResult = await resolveReportTenantScope(request, user);
-    if (!scopeResult.ok) {
-      return NextResponse.json({ error: scopeResult.error }, { status: scopeResult.status });
-    }
-    const {
-      tenantIds,
-      tenants,
-      scope,
-      branchId: scopeBranchId,
-      branchScoped,
-      reportingCurrency,
-    } = scopeResult;
-    const primaryTenantId = tenantIds[0];
-    const reportBranchId = branchScoped ? scopeBranchId : null;
     
     // Get query parameters (Next.js: use nextUrl when available)
     const url = request.nextUrl ?? request.url;
@@ -63,35 +41,6 @@ export async function GET(request) {
         { error: 'Start date and end date are required' },
         { status: 400 }
       );
-    }
-
-    if (tenantIds.length > 1 && (compare || compareYear)) {
-      return NextResponse.json(
-        { error: 'Period comparison is available for a single selected business only.' },
-        { status: 400 }
-      );
-    }
-
-    if (tenantIds.length > 1) {
-      const statement = await generateScopedIncomeStatement({
-        tenantIds,
-        tenants,
-        startDate,
-        endDate,
-        branchId: reportBranchId,
-        scope,
-        reportingCurrency,
-      });
-      await logReportAccess({
-        userId: user.id,
-        tenantId: primaryTenantId,
-        reportType: 'income-statement',
-        action: 'REPORT_GENERATED',
-        tenantIds,
-        businessNames: scope.businessNames,
-        filters: { startDate, endDate },
-      });
-      return NextResponse.json(statement);
     }
     
     const start = new Date(startDate);
@@ -115,7 +64,7 @@ export async function GET(request) {
     
     // Get tenant and settings
     const tenant = await prisma.tenant.findUnique({
-      where: { id: primaryTenantId },
+      where: { id: user.tenantId },
       select: { 
         name: true,
         logoUrl: true
@@ -123,25 +72,22 @@ export async function GET(request) {
     });
     
     const tenantSettings = await prisma.tenantSettings.findUnique({
-      where: { tenantId: primaryTenantId }
+      where: { tenantId: user.tenantId }
     });
     const taxRate = tenantSettings?.defaultTaxRate || 30; // Default 30%
-<<<<<<< Updated upstream
-=======
-    const includeCogsInReports = await tenantIncludesCogsInReports(prisma, primaryTenantId);
->>>>>>> Stashed changes
+    const includeCogsInReports = await tenantIncludesCogsInReports(prisma, user.tenantId);
     
     // Generate current period income statement using Phase 2 enhanced service
     // This pulls data directly from General Ledger (Transaction/TransactionLine records)
     let currentPeriod;
     try {
       currentPeriod = await generateIncomeStatementFromAccounts(
-        primaryTenantId,
+        user.tenantId,
         startDate,
         endDate,
         tenant?.name || 'Company',
         tenant?.logoUrl || null,
-        reportBranchId,
+        user.currentBranchId || null
       );
       
       // Validate that we have data
@@ -167,7 +113,7 @@ export async function GET(request) {
       console.error('Error details:', {
         message: error.message,
         stack: error.stack,
-        tenantId: primaryTenantId,
+        tenantId: user.tenantId,
         startDate,
         endDate
       });
@@ -178,22 +124,27 @@ export async function GET(request) {
     let previousPeriod = null;
     if (compare && prevStartDate && prevEndDate) {
       previousPeriod = await generateIncomeStatementFromAccounts(
-        primaryTenantId,
+        user.tenantId,
         prevStartDate,
         prevEndDate,
         tenant?.name || 'Company',
         tenant?.logoUrl || null,
-        reportBranchId,
+        user.currentBranchId || null
       );
     } else if (compareYear && prevStartDate && prevEndDate) {
       previousPeriod = await generateIncomeStatementFromAccounts(
-        primaryTenantId,
+        user.tenantId,
         prevStartDate,
         prevEndDate,
         tenant?.name || 'Company',
         tenant?.logoUrl || null,
-        reportBranchId,
+        user.currentBranchId || null
       );
+    }
+    
+    currentPeriod = applyIncomeStatementCogsPolicy(currentPeriod, includeCogsInReports);
+    if (previousPeriod) {
+      previousPeriod = applyIncomeStatementCogsPolicy(previousPeriod, includeCogsInReports);
     }
     
     // Transform response to match frontend expectations
@@ -214,10 +165,13 @@ export async function GET(request) {
           ...data.revenue,
           total: totalRevenue,
           // Dynamic revenue lines (per revenue account)
-          lineItems: (data.revenue?.lineItems || []).map(li => ({
-            ...li,
-            percentage: totalRevenue > 0 ? (parseMoney(li.amount) / totalRevenue) * 100 : 0
-          })),
+          lineItems: (data.revenue?.lineItems || [])
+            .map(li => ({
+              ...li,
+              amount: parseMoney(li.amount),
+              percentage: totalRevenue > 0 ? (parseMoney(li.amount) / totalRevenue) * 100 : 0
+            }))
+            .filter((li) => isNonZeroMoneyAmount(li.amount)),
           // Legacy buckets (for fallback views)
           salesRevenue: {
             amount: parseMoney(data.revenue?.salesRevenue),
@@ -236,10 +190,13 @@ export async function GET(request) {
           ...data.cogs,
           total: addMoney(data.cogs?.costOfProductsSold, data.cogs?.freightShippingCosts),
           // Dynamic COGS lines
-          lineItems: (data.cogs?.lineItems || []).map(li => ({
-            ...li,
-            percentage: totalRevenue > 0 ? (parseMoney(li.amount) / totalRevenue) * 100 : 0
-          })),
+          lineItems: (data.cogs?.lineItems || [])
+            .map(li => ({
+              ...li,
+              amount: parseMoney(li.amount),
+              percentage: totalRevenue > 0 ? (parseMoney(li.amount) / totalRevenue) * 100 : 0
+            }))
+            .filter((li) => isNonZeroMoneyAmount(li.amount)),
           costOfProductsSold: {
             amount: parseMoney(data.cogs?.costOfProductsSold),
             percentage: totalRevenue > 0 ? (parseMoney(data.cogs?.costOfProductsSold) / totalRevenue) * 100 : 0
@@ -257,7 +214,8 @@ export async function GET(request) {
           ...data.operatingExpenses,
           total: parseMoney(data.totalOperatingExpenses || data.operatingExpenses?.total),
           // Operating expenses: rolled up to Chart of Accounts main lines (same as lib/incomeStatementService)
-          categories: (data.operatingExpenses?.categories || []).map((cat) => {
+          categories: filterNonZeroOperatingExpenseLines(
+            (data.operatingExpenses?.categories || []).map((cat) => {
             const cleanName = stripEmbeddedPeriodFromReportLabel(
               cat.accountName || cat.category || ''
             );
@@ -274,8 +232,10 @@ export async function GET(request) {
                   : d.category
               }))
             };
-          }),
-          accountLines: (data.operatingExpenses?.accountLines || []).map((line) => {
+          })
+          ),
+          accountLines: filterNonZeroOperatingExpenseLines(
+            (data.operatingExpenses?.accountLines || []).map((line) => {
             const cleanName = stripEmbeddedPeriodFromReportLabel(line.accountName || '');
             return {
               ...line,
@@ -289,7 +249,8 @@ export async function GET(request) {
                   : d.category
               }))
             };
-          }),
+          })
+          ),
           // Keep legacy fields for backward compatibility (will be empty if using dynamic categories)
           salariesWages: {
             amount: parseMoney(data.operatingExpenses?.salaries),
@@ -363,26 +324,11 @@ export async function GET(request) {
       };
     };
 
-    await logReportAccess({
-      userId: user.id,
-      tenantId: primaryTenantId,
-      reportType: 'income-statement',
-      action: 'REPORT_GENERATED',
-      tenantIds,
-      businessNames: scope.businessNames,
-      filters: { startDate, endDate },
-    });
-
     return NextResponse.json({
       ...transformResponse(currentPeriod),
       previous: transformResponse(previousPeriod),
-<<<<<<< Updated upstream
-      comparisonType: compare ? 'previousPeriod' : compareYear ? 'previousYear' : null
-=======
       comparisonType: compare ? 'previousPeriod' : compareYear ? 'previousYear' : null,
       reporting: currentPeriod?.reporting || { includeCogsInReports: includeCogsInReports },
-      scope,
->>>>>>> Stashed changes
     });
   } catch (error) {
     console.error('Error generating income statement:', error);

@@ -25,6 +25,7 @@ import {
   sortAccountsForJournalSelect,
 } from "@/lib/journalAccountSelect";
 import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
+import { getDefaultCustomRange } from "@/lib/dateUtils";
 
 function formatJournalAmountCell(amount) {
   return formatCurrency(coerceJournalAmount(amount));
@@ -49,6 +50,8 @@ const JournalEntries = () => {
   
   // Filters
   const [dateRange, setDateRange] = useState("This Year");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [sourceTypeFilter, setSourceTypeFilter] = useState("Manual");
   const [searchTerm, setSearchTerm] = useState("");
@@ -108,10 +111,6 @@ const JournalEntries = () => {
   
   // Fetch journal entries when filters change
   useEffect(() => {
-<<<<<<< Updated upstream
-    fetchJournalEntries();
-  }, [page, limit, dateRange, statusFilter, sourceTypeFilter, searchTerm]);
-=======
     if (!businessScopeHydrated) return;
     if (dateRange === "Custom Range" && (!customStartDate || !customEndDate)) return;
     fetchJournalEntries();
@@ -125,7 +124,6 @@ const JournalEntries = () => {
       setCustomEndDate(def.endDate);
     }
   }, [dateRange, customStartDate, customEndDate]);
->>>>>>> Stashed changes
   
   // Calculate date range based on selected option
   const getDateRangeParams = () => {
@@ -162,6 +160,10 @@ const JournalEntries = () => {
       case "This Year":
         startDate = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
         endDate = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+        break;
+      case "Custom Range":
+        startDate = customStartDate;
+        endDate = customEndDate;
         break;
       default:
         startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];

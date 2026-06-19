@@ -31,10 +31,15 @@ import {
   computePhysicalInventoryValuationTotal,
 } from '@/lib/stockValuationAggregate.js';
 import {
+  fetchChartRollupOnlyAccounts,
+  filterAccountsFromChartDisplay,
+  mergeRollupOnlyAccountsForProcessing,
+} from '@/lib/coaChartHiddenRollup.js';
+import {
   blueprintCatalogTitleForCode,
   alignChartAccountsListToBlueprint,
 } from '@/lib/coaBlueprintDisplayTitles.js';
-import { CODE_ACCOUNTS_RECEIVABLE } from '@/lib/coaPostingCodes.js';
+import { isAccountsReceivableSubledgerLeaf } from '@/lib/coaPostingCodes.js';
 import { reattachOrphanParentsForCoaRollup } from '@/lib/coaOrphanParentAttach.js';
 import {
   assignNextCustomExpenseAccountCode,
@@ -45,7 +50,6 @@ import {
   COA_ACCOUNT_TYPES,
   normalizeCoaAccountType,
 } from '@/lib/coaAccountListWhere.js';
-import { bootstrapReportRoute } from '@/lib/reportRouteBootstrap';
 
 // Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
@@ -169,10 +173,13 @@ export async function GET(request) {
     const perm = await requirePermission(request, 'accounts.view');
     if (perm) return perm;
 
-    const boot = await bootstrapReportRoute(request);
-    if (boot.error) return boot.error;
-
-    const { user, tenantIds, tenants, scope, primaryTenantId } = boot;
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated' },
+        { status: 401 }
+      );
+    }
 
     if (!canViewChartOfAccounts(user)) {
       return NextResponse.json(
@@ -182,66 +189,13 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-
-    const dateRangeProbe = buildChartDateRange(searchParams);
-    if (dateRangeProbe.invalid) {
-      return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
-    }
-
-    if (tenantIds.length > 1) {
-      const byTenant = [];
-      for (const t of tenants) {
-        const payload = await buildCoaPayload(t.id, user, searchParams);
-        byTenant.push({
-          tenantId: t.id,
-          tenantName: t.name,
-          accounts: payload.accounts,
-        });
-      }
-      return NextResponse.json(
-        { scope, byTenant },
-        {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-            Pragma: 'no-cache',
-          },
-        }
-      );
-    }
-
-    const payload = await buildCoaPayload(primaryTenantId, user, searchParams);
-    if (payload.error) {
-      return NextResponse.json({ error: payload.error }, { status: payload.status || 400 });
-    }
-    return NextResponse.json(payload, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        Pragma: 'no-cache',
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching chart of accounts:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error details:', {
-      message: error.message,
-      name: error.name,
-      code: error.code
-    });
-    return NextResponse.json(
-      { error: 'Failed to fetch chart of accounts', details: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
-      { status: 500 }
-    );
-  }
-}
-
-async function buildCoaPayload(tenantId, user, searchParams) {
     const dateRange = buildChartDateRange(searchParams);
     if (dateRange.invalid) {
-      return { error: 'Invalid date range: dateFrom must be <= dateTo', status: 400 };
+      return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
     }
     const hasDateFilter = Boolean(dateRange.from || dateRange.to);
 
-    const where = buildCoaAccountListWhere(tenantId, searchParams);
+    const where = buildCoaAccountListWhere(user.tenantId, searchParams);
 
     let accounts = [];
     try {
@@ -283,21 +237,18 @@ async function buildCoaPayload(tenantId, user, searchParams) {
         ]
       });
 
-<<<<<<< Updated upstream
-=======
-      const rollupOnlyRows = await fetchChartRollupOnlyAccounts(tenantId, prisma);
+      const rollupOnlyRows = await fetchChartRollupOnlyAccounts(user.tenantId, prisma);
       accounts = mergeRollupOnlyAccountsForProcessing(accounts, rollupOnlyRows);
 
->>>>>>> Stashed changes
       // Canonical-only display removed from page controls; full tenant chart stays visible.
     } catch (error) {
       console.error('Error fetching accounts:', error);
       // Return empty array if accounts query fails
-      return {
+      return NextResponse.json({
         accounts: [],
         total: 0,
         error: 'Failed to fetch accounts'
-      };
+      });
     }
 
     // Stable order for balance aggregation + duplicate-code merge (avoids tie-break drift across reloads).
@@ -318,7 +269,7 @@ async function buildCoaPayload(tenantId, user, searchParams) {
     try {
       allInvoices = await prisma.invoice.findMany({
         where: {
-          tenantId,
+          tenantId: user.tenantId, // CRITICAL: Filter by tenant ID
           voidedAt: null,
           refundedAt: null,
           ...(dateRange.to || dateRange.from
@@ -366,7 +317,7 @@ async function buildCoaPayload(tenantId, user, searchParams) {
     let liabilitiesForChartOverlay = [];
     try {
       liabilitiesForChartOverlay = await prisma.liability.findMany({
-        where: { tenantId, status: 'active' },
+        where: { tenantId: user.tenantId, status: 'active' },
         select: {
           id: true,
           glAccountId: true,
@@ -437,7 +388,7 @@ async function buildCoaPayload(tenantId, user, searchParams) {
       return addMoney(sum, Math.max(0, inv.actualRemaining)); // Use actual calculated remaining
     }, 0);
 
-    /** When set, GL transaction lines match branch-scoped registers (e.g. expenses). */
+    /** When set, GL includes this branch plus tenant-wide (null branchId) postings — same as income statement. */
     const glBranchFilter =
       user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
         ? { branchId: user.currentBranchId }
@@ -453,7 +404,7 @@ async function buildCoaPayload(tenantId, user, searchParams) {
     try {
       const invAgg = await computePhysicalInventoryValuationTotal(
         prisma,
-        tenantId,
+        user.tenantId,
         user,
         inventorySearchAligned,
         {}
@@ -475,16 +426,16 @@ async function buildCoaPayload(tenantId, user, searchParams) {
       totalAccountsReceivable,
     });
 
-    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(tenantId, prisma);
+    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
     const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
 
-    const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(tenantId, prisma);
+    const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
     let journalBySurvivor = new Map();
     let draftBySurvivor = new Map();
     let txnBySurvivor = new Map();
     try {
       const bulk = await loadCoaBulkGlAggregates(prisma, {
-        tenantId,
+        tenantId: user.tenantId,
         glBranchFilter,
         mergeRollupCtx,
         accounts,
@@ -529,16 +480,7 @@ async function buildCoaPayload(tenantId, user, searchParams) {
           (Array.isArray(account.childAccounts) && account.childAccounts.length > 0) ||
           parentIdsWithChildren.has(account.id);
 
-        const isAccountsReceivableLeaf =
-          !hasChildren &&
-          (accountType === 'ASSET' || accountType === 'Asset') &&
-          (accountCode === CODE_ACCOUNTS_RECEIVABLE ||
-            (accountName.includes('receivable') &&
-              !accountName.includes('payable') &&
-              !accountName.includes('prepaid') &&
-              accountCode.startsWith('12') &&
-              accountCode !== '1210' &&
-              accountCode !== '1215'));
+        const isAccountsReceivableLeaf = isAccountsReceivableSubledgerLeaf(account, { hasChildren });
 
         // Add balances from other sources based on account type and name
         let additionalBalance = 0;
@@ -586,7 +528,7 @@ async function buildCoaPayload(tenantId, user, searchParams) {
           finalBalance = balance;
         } else if (subledgerOverlayBeforeSuppress > 0) {
           finalBalance = subledgerOverlayBeforeSuppress;
-        } else if (!hasChildren && legacyBalance !== 0) {
+        } else if (!hasChildren && legacyBalance !== 0 && !hasPostedGlActivity) {
           finalBalance = legacyBalance;
         } else {
           finalBalance = 0;
@@ -653,21 +595,22 @@ async function buildCoaPayload(tenantId, user, searchParams) {
     const deduplicatedAccounts = mergeDuplicateAccountCodeRows(successfulAccounts);
 
     const parentChainRows = await prisma.account.findMany({
-<<<<<<< Updated upstream
       where: { tenantId: user.tenantId },
-      select: { id: true, parentAccountId: true },
-=======
-      where: { tenantId },
       select: { id: true, parentAccountId: true, mergedIntoAccountId: true },
->>>>>>> Stashed changes
     });
     const parentAccountIdByAccountId = new Map(
       parentChainRows.map((r) => [r.id, r.parentAccountId ?? null])
     );
+    const mergedIntoByAccountId = new Map(
+      parentChainRows
+        .filter((r) => r.mergedIntoAccountId)
+        .map((r) => [r.id, r.mergedIntoAccountId])
+    );
     // Orphans whose DB parent row is not in this chart response roll up under nearest in-list ancestor (display-only parent tweak).
     const rollupReadyAccounts = reattachOrphanParentsForCoaRollup(
       deduplicatedAccounts,
-      parentAccountIdByAccountId
+      parentAccountIdByAccountId,
+      mergedIntoByAccountId
     );
 
     // Inventory (1300 subtree): always reconcile to Stock Management aggregate (never unexplained GL on parent).
@@ -687,17 +630,16 @@ async function buildCoaPayload(tenantId, user, searchParams) {
     const accountsWithCatchAllDisplay = apply3100CapitalBucketAncestorPropagation(afterCatchAllRollup);
 
     const codeOf = (a) => String(a.accountCode || a.code || '');
-    const parentCap =
-      accountsWithCatchAllDisplay.find((a) => codeOf(a) === '3100') ||
-      accountsWithCatchAllDisplay.find((a) => codeOf(a) === '500000');
+    const parentCap = accountsWithCatchAllDisplay.find((a) => codeOf(a) === '3100');
     const sortedAccounts = (() => {
+      const forDisplay = filterAccountsFromChartDisplay(accountsWithCatchAllDisplay);
       if (!parentCap) {
-        return [...accountsWithCatchAllDisplay].sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
+        return [...forDisplay].sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
       }
-      const children = accountsWithCatchAllDisplay
+      const children = forDisplay
         .filter((a) => a.parentAccountId === parentCap.id)
         .sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
-      const rest = accountsWithCatchAllDisplay.filter(
+      const rest = forDisplay.filter(
         (a) => a.id !== parentCap.id && a.parentAccountId !== parentCap.id
       );
       const restSorted = rest.sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
@@ -706,20 +648,41 @@ async function buildCoaPayload(tenantId, user, searchParams) {
 
     const accountsForResponse = alignChartAccountsListToBlueprint(sortedAccounts);
 
-    return {
-      accounts: accountsForResponse,
-      total: accountsForResponse.length,
-      traceability: {
-        policy:
-          'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (including reversals, so original + reversal net correctly). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. The 1300 inventory overlay uses the same live physical-stock valuation as GET /api/stock/statistics, scoped to the same branch as GL when a branch is selected (see inventoryValuationNote). Chart date filters do not restate inventory; they only change posted GL amounts on accounts. Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
-        inventoryValuationNote: inventoryValuationNote || undefined,
+    return NextResponse.json(
+      {
+        accounts: accountsForResponse,
+        total: accountsForResponse.length,
+        traceability: {
+          policy:
+            'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (including reversals, so original + reversal net correctly). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. The 1300 inventory overlay uses the same live physical-stock valuation as GET /api/stock/statistics, scoped to the same branch as GL when a branch is selected (see inventoryValuationNote). Chart date filters do not restate inventory; they only change posted GL amounts on accounts. Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
+          inventoryValuationNote: inventoryValuationNote || undefined,
+        },
+        period: {
+          dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
+          dateTo: dateRange.to ? dateRange.to.toISOString() : null,
+          hasDateFilter,
+        },
       },
-      period: {
-        dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
-        dateTo: dateRange.to ? dateRange.to.toISOString() : null,
-        hasDateFilter,
-      },
-    };
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+        },
+      }
+    );
+  } catch (error) {
+    console.error('Error fetching chart of accounts:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
+    return NextResponse.json(
+      { error: 'Failed to fetch chart of accounts', details: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
+      { status: 500 }
+    );
+  }
 }
 
 // POST - Create new account

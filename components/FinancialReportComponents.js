@@ -20,11 +20,8 @@ import {
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange, stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
 import { getPermission } from '@/lib/permissions';
-<<<<<<< Updated upstream
-=======
 import { buildCoaAccountSourceHref } from '@/lib/coaReportAccountLinks';
 import { ReportReconciliationBadge, extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
->>>>>>> Stashed changes
 /**
  * Generic FinancialReport component that displays a report with a header and content
  */

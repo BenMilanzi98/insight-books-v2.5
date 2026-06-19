@@ -5,43 +5,20 @@ import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
 import { addMoney, parseMoney } from '@/lib/money';
-<<<<<<< Updated upstream
-=======
 import {
   applyIncomeStatementCogsPolicy,
   tenantIncludesCogsInReports,
 } from '@/lib/tenantCogsReporting';
-import { resolveReportTenantScope } from '@/lib/reportTenantScope';
-import { generateScopedIncomeStatement } from '@/lib/reportingEngine/multiTenantReporting';
-import { logReportAccess } from '@/lib/reportAuditLog';
->>>>>>> Stashed changes
 
 export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
-    if (!user) {
+    if (!user || !user.tenantId) {
       return NextResponse.json(
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
     }
-
-    const scopeResult = await resolveReportTenantScope(request, user);
-    if (!scopeResult.ok) {
-      return NextResponse.json({ error: scopeResult.error }, { status: scopeResult.status });
-    }
-    const {
-      tenantIds,
-      tenants,
-      scope,
-      tw,
-      userQ,
-      branchScoped,
-      branchId,
-      reportingCurrency,
-    } = scopeResult;
-    const primaryTenantId = tenantIds[0];
-    const reportBranchId = branchScoped ? branchId : null;
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -54,13 +31,12 @@ export async function GET(request) {
       );
     }
 
-<<<<<<< Updated upstream
     // Same logic as Income Statement (system rule): revenue and COGS system-generated; operating expenses drive structure
     const tenant = await prisma.tenant.findUnique({
       where: { id: user.tenantId },
       select: { name: true }
     });
-    const statement = await generateIncomeStatementFromAccounts(
+    const statementRaw = await generateIncomeStatementFromAccounts(
       user.tenantId,
       startDate,
       endDate,
@@ -68,76 +44,53 @@ export async function GET(request) {
       null,
       user.currentBranchId || null
     );
-=======
-    let statement;
-    if (tenantIds.length > 1) {
-      statement = await generateScopedIncomeStatement({
-        tenantIds,
-        tenants,
-        startDate,
-        endDate,
-        branchId: reportBranchId,
-        scope,
-        reportingCurrency,
-      });
-    } else {
-      const tenant = tenants[0];
-      const statementRaw = await generateIncomeStatementFromAccounts(
-        primaryTenantId,
-        startDate,
-        endDate,
-        tenant?.name || 'Company',
-        null,
-        reportBranchId
-      );
-      const includeCogs = await tenantIncludesCogsInReports(prisma, primaryTenantId);
-      statement = applyIncomeStatementCogsPolicy(statementRaw, includeCogs);
-    }
-
-    const includeCogsInReports =
-      tenantIds.length === 1
-        ? await tenantIncludesCogsInReports(prisma, primaryTenantId)
-        : true;
->>>>>>> Stashed changes
+    const includeCogsInReports = await tenantIncludesCogsInReports(prisma, user.tenantId);
+    const statement = applyIncomeStatementCogsPolicy(statementRaw, includeCogsInReports);
     const totalRevenue = parseMoney(statement?.totalRevenue);
-    const cogsAmount = parseMoney(
-      statement?.cogs?.total ?? statement?.cogs?.costOfProductsSold ?? 0
-    );
+    const cogsAmount = includeCogsInReports
+      ? parseMoney(statement?.cogs?.total ?? statement?.cogs?.costOfProductsSold ?? 0)
+      : 0;
     const operatingExpenses = parseMoney(statement?.totalOperatingExpenses);
+    /** Operating + COGS — matches what net profit subtracts from revenue. */
     const totalCosts = addMoney(cogsAmount, operatingExpenses);
     const profit = parseMoney(statement?.netIncome ?? statement?.operatingIncome);
     
+    // Count outstanding invoices - filter by branch
     const outstandingInvoices = await prisma.invoice.aggregate({
-      where: addBranchFilter(userQ, {
-        ...tw,
+      where: addBranchFilter(user, {
+        tenantId: user.tenantId,
         status: 'Pending',
-        dueDate: { lt: new Date() },
+        dueDate: {
+          lt: new Date() // Due date has passed
+        }
       }),
       _count: true,
-      _sum: { total: true },
+      _sum: {
+        total: true
+      }
     });
     
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     weekAgo.setHours(0, 0, 0, 0);
     const recentSales = await prisma.sale.count({
-      where: addBranchFilter(userQ, {
-        ...tw,
+      where: addBranchFilter(user, {
+        tenantId: user.tenantId,
         status: 'completed',
         voidedAt: null,
         refundedAt: null,
-        saleDate: { gte: weekAgo },
-      }),
+        saleDate: { gte: weekAgo }
+      })
     });
 
     const allProducts = await prisma.product.findMany({
       where: {
-        ...tw,
+        tenantId: user.tenantId,
         isDeleted: false,
         isService: false,
-        stockLevel: { not: null },
+        stockLevel: { not: null }
       },
-      select: { stockLevel: true, reorderPoint: true },
+      select: { stockLevel: true, reorderPoint: true }
     });
     const lowStockProducts = allProducts.filter((p) => {
       const level = Number(p.stockLevel ?? 0);
@@ -146,16 +99,6 @@ export async function GET(request) {
     }).length;
 
     const profitMargin = totalRevenue > 0 ? ((profit / totalRevenue) * 100).toFixed(2) : 0;
-
-    await logReportAccess({
-      userId: user.id,
-      tenantId: primaryTenantId,
-      reportType: 'summary',
-      action: 'REPORT_GENERATED',
-      tenantIds,
-      businessNames: scope.businessNames,
-      filters: { startDate, endDate },
-    });
 
     return NextResponse.json({
       revenue: totalRevenue.toFixed(2),
@@ -173,14 +116,8 @@ export async function GET(request) {
       timeframe: {
         startDate,
         endDate
-<<<<<<< Updated upstream
-      }
-=======
       },
       reporting: statement?.reporting || { includeCogsInReports },
-      scope,
-      byTenant: statement?.byTenant || null,
->>>>>>> Stashed changes
     });
   } catch (error) {
     console.error('Error generating financial summary:', error);
