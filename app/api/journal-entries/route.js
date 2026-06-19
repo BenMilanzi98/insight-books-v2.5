@@ -295,11 +295,14 @@ export async function GET(request) {
     const mergeJournalCtx = buildMergeRollupContext(mergeRollupRows);
 
     const tMap = tenantNameMap(tenants);
+    const sourceType = searchParams.get('sourceType');
+    const isAllSourceTypes =
+      !sourceType ||
+      sourceType.toLowerCase() === 'all' ||
+      sourceType.toLowerCase() === 'all types';
     const where = buildWhereClause(tw, searchParams, { includeAllSourceTypes: isAllSourceTypes });
     const sortBy = searchParams.get('sortBy') || 'entryDate';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
-    const sourceType = searchParams.get('sourceType');
-    const isAllSourceTypes = !sourceType || sourceType.toLowerCase() === 'all' || sourceType.toLowerCase() === 'all types';
 
     let orderBy;
     if (sortBy === 'referenceNumber' || sortBy === 'reference') {
