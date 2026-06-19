@@ -1,6 +1,7 @@
 // app/api/reports/cash-flow/route.js
 import { NextResponse } from 'next/server';
 import { generateCashFlowFromAccounts } from '@/lib/cashFlowService';
+import { getCashFlowReport } from '@/lib/accountingReportService';
 import { addMoney, roundMoney } from '@/lib/money';
 import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
@@ -116,14 +117,13 @@ export async function GET(request) {
       }));
     } else {
       const tenant = tenants[0];
-      cashFlow = await generateCashFlowFromAccounts(
-        primaryTenantId,
+      cashFlow = await getCashFlowReport({
+        tenantId: primaryTenantId,
         startDate,
         endDate,
-        tenant?.name || 'Company',
-        tenant?.logoUrl || null,
-        reportBranchId
-      );
+        branchId: reportBranchId,
+        companyName: tenant?.name || 'Company',
+      });
     }
 
     await auditReportAccess({

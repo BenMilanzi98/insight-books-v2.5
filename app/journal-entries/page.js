@@ -427,6 +427,9 @@ const handleDeleteEntry = async (entryId) => {
     "Payment",
     "Payroll",
     "Reversal",
+    "LiabilityPayment",
+    "capital_contribution",
+    "liability_opening",
   ];
   
   // Date range options for the filter dropdown

@@ -389,6 +389,36 @@ describe('apply3100CapitalBucketAncestorPropagation', () => {
     const eqRow = patched.find((a) => a.id === 'eq');
     expect(eqRow.currentBalance).toBe(50);
   });
+
+  it('does not double-count 3101 child already parented under 3100', () => {
+    const eq = {
+      id: 'eq',
+      parentAccountId: null,
+      accountCode: '3000',
+      postedDirectBalance: 0,
+      currentBalance: 0,
+    };
+    const cap = {
+      id: 'cap',
+      parentAccountId: 'eq',
+      accountCode: '3100',
+      postedDirectBalance: 0,
+      currentBalance: 0,
+    };
+    const cap3101 = {
+      id: 'c3101',
+      parentAccountId: 'cap',
+      accountCode: '3101',
+      postedDirectBalance: 1_000_000,
+      currentBalance: 1_000_000,
+    };
+    const rolled = applyCoaParentRollup([eq, cap, cap3101]);
+    const patched = apply3100CapitalBucketAncestorPropagation(rolled);
+    const capRow = patched.find((a) => a.id === 'cap');
+    const eqRow = patched.find((a) => a.id === 'eq');
+    expect(capRow.currentBalance).toBe(1_000_000);
+    expect(eqRow.currentBalance).toBe(1_000_000);
+  });
 });
 
 describe('structureRowDisplayBalance', () => {

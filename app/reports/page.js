@@ -72,6 +72,7 @@ import MultiBusinessComparisonPanel, {
   SALES_COMPARE_COLUMNS,
 } from "@/components/reports/MultiBusinessComparisonPanel";
 import { ReportReconciliationBadge, extractReportReconciliationMeta } from "@/components/ReportReconciliationBadge";
+import ReportIntegrityPanel from "@/components/reports/ReportIntegrityPanel";
 import {
   ReportLoadingState,
   ReportHubSkeleton,
@@ -1780,6 +1781,8 @@ const FinancialReportingPage = () => {
         {summaryPlStatement && extractReportReconciliationMeta(summaryPlStatement) && (
           <ReportReconciliationBadge reconciliationMeta={extractReportReconciliationMeta(summaryPlStatement)} />
         )}
+
+        <ReportIntegrityPanel />
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

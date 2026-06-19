@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
+import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
+import { resolveOperatingCashGlAccount } from '@/lib/paymentAccountCoaLink.js';
 
 function calculateTermMonths(startDate, maturityDate) {
   try {
@@ -279,6 +281,39 @@ export async function POST(request) {
       }
     });
     
+    if (principalAmount > 0) {
+      try {
+        const cashAccount = await resolveOperatingCashGlAccount(tenantId, prisma);
+        if (cashAccount?.id) {
+          await postGlEntry({
+            tenantId,
+            userId: user.id,
+            entryDate: new Date(body.startDate || new Date()),
+            description: `Liability recorded — ${body.name}`,
+            reference: `LIAB-OPEN-${liability.id.slice(-8).toUpperCase()}`,
+            sourceType: 'liability_opening',
+            sourceId: liability.id,
+            lines: [
+              {
+                accountId: cashAccount.id,
+                debitAmount: principalAmount,
+                creditAmount: 0,
+                description: `Proceeds — ${body.name}`,
+              },
+              {
+                accountId: body.glAccountId,
+                debitAmount: 0,
+                creditAmount: principalAmount,
+                description: `Liability — ${body.name}`,
+              },
+            ],
+          });
+        }
+      } catch (glErr) {
+        console.error('Liability GL posting failed (register saved):', glErr?.message || glErr);
+      }
+    }
+
     // Create audit log entry
     await prisma.auditLog.create({
       data: {

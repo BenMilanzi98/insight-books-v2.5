@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateBalanceSheetFromAccounts } from '@/lib/balanceSheetService';
+import { getBalanceSheetReport } from '@/lib/accountingReportService';
+import { getBalanceSheetReport } from '@/lib/accountingReportService';
 import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
 import { resolveReportTenantScope } from '@/lib/reportTenantScope';
 import { generateScopedBalanceSheet } from '@/lib/reportingEngine/multiTenantReporting';
@@ -91,13 +93,13 @@ export async function GET(request) {
     });
     
     // Generate current balance sheet using Phase 2 enhanced service
-    const currentBalanceSheet = await generateBalanceSheetFromAccounts(
-      primaryTenantId, 
-      asOfDate, 
-      tenant?.name || 'Company', 
-      tenant?.logoUrl || null,
-      reportBranchId
-    );
+    const currentBalanceSheet = await getBalanceSheetReport({
+      tenantId: primaryTenantId,
+      asOfDate,
+      branchId: reportBranchId,
+      companyName: tenant?.name || 'Company',
+      logoUrl: tenant?.logoUrl || null,
+    });
     
     // Generate previous year balance sheet if requested
     let previousYearBalanceSheet = null;
@@ -105,13 +107,13 @@ export async function GET(request) {
       const prevYearDate = new Date(reportDate);
       prevYearDate.setFullYear(prevYearDate.getFullYear() - 1);
       const prevYearAsOfDate = prevYearDate.toISOString().split('T')[0];
-      previousYearBalanceSheet = await generateBalanceSheetFromAccounts(
-        primaryTenantId, 
-        prevYearAsOfDate, 
-        tenant?.name || 'Company', 
-        tenant?.logoUrl || null,
-        reportBranchId
-      );
+      previousYearBalanceSheet = await getBalanceSheetReport({
+        tenantId: primaryTenantId,
+        asOfDate: prevYearAsOfDate,
+        branchId: reportBranchId,
+        companyName: tenant?.name || 'Company',
+        logoUrl: tenant?.logoUrl || null,
+      });
     }
 
     await logReportAccess({

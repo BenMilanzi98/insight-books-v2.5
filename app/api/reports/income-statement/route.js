@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
+import { getProfitAndLossReport } from '@/lib/accountingReportService';
 import { getCOGSSummary } from '@/lib/cogsIntegration';
 import { stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
 import { addMoney, isNonZeroMoneyAmount, parseMoney } from '@/lib/money';
@@ -81,14 +82,13 @@ export async function GET(request) {
     // This pulls data directly from General Ledger (Transaction/TransactionLine records)
     let currentPeriod;
     try {
-      currentPeriod = await generateIncomeStatementFromAccounts(
-        user.tenantId,
+      currentPeriod = await getProfitAndLossReport({
+        tenantId: user.tenantId,
         startDate,
         endDate,
-        tenant?.name || 'Company',
-        tenant?.logoUrl || null,
-        user.currentBranchId || null
-      );
+        branchId: user.currentBranchId || null,
+        companyName: tenant?.name || 'Company',
+      });
       
       // Validate that we have data
       if (!currentPeriod) {
@@ -123,23 +123,21 @@ export async function GET(request) {
     // Generate comparison period if requested
     let previousPeriod = null;
     if (compare && prevStartDate && prevEndDate) {
-      previousPeriod = await generateIncomeStatementFromAccounts(
-        user.tenantId,
-        prevStartDate,
-        prevEndDate,
-        tenant?.name || 'Company',
-        tenant?.logoUrl || null,
-        user.currentBranchId || null
-      );
+      previousPeriod = await getProfitAndLossReport({
+        tenantId: user.tenantId,
+        startDate: prevStartDate,
+        endDate: prevEndDate,
+        branchId: user.currentBranchId || null,
+        companyName: tenant?.name || 'Company',
+      });
     } else if (compareYear && prevStartDate && prevEndDate) {
-      previousPeriod = await generateIncomeStatementFromAccounts(
-        user.tenantId,
-        prevStartDate,
-        prevEndDate,
-        tenant?.name || 'Company',
-        tenant?.logoUrl || null,
-        user.currentBranchId || null
-      );
+      previousPeriod = await getProfitAndLossReport({
+        tenantId: user.tenantId,
+        startDate: prevStartDate,
+        endDate: prevEndDate,
+        branchId: user.currentBranchId || null,
+        companyName: tenant?.name || 'Company',
+      });
     }
     
     currentPeriod = applyIncomeStatementCogsPolicy(currentPeriod, includeCogsInReports);
