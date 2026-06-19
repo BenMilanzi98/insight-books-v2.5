@@ -9,6 +9,10 @@ import { resolveBranchId } from '@/lib/branchHelpers';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { allocateNextInvNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { classifyApiError } from '@/lib/apiErrorUtils';
+import {
+  prismaWhereCoaIncomeAccounts,
+} from '@/lib/coaIncomeAccounts';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
@@ -376,15 +380,9 @@ export async function POST(request) {
     
     const incomeAccountIds = body.items.map(item => item.accountId).filter(Boolean);
     const incomeAccounts = await prisma.account.findMany({
-      where: {
-        tenantId: user.tenantId,
+      where: prismaWhereCoaIncomeAccounts(user.tenantId, {
         id: { in: incomeAccountIds },
-        isActive: true,
-        OR: [
-          { accountType: 'Income' },
-          { accountType: 'Revenue' }
-        ]
-      },
+      }),
       select: {
         id: true,
         accountCode: true,
@@ -460,7 +458,7 @@ export async function POST(request) {
       return false; // Default to false, will check in transaction
     });
     
-    // Create the invoice with items in a transaction
+    // Create the invoice with items in a transaction (extended timeout for COGS + GL posting)
     const result = await prisma.$transaction(async (tx) => {
       const seq = await allocateNextInvNumberReliable(tx, user.tenantId, {
         prefix: invoicePrefix,
@@ -733,7 +731,7 @@ export async function POST(request) {
     });
 
       return newInvoice;
-    });
+    }, { maxWait: 15000, timeout: 120000 });
 
     const newInvoice = result;
     
@@ -811,80 +809,26 @@ export async function POST(request) {
       stack: error.stack,
       name: error.name,
       code: error.code,
-      meta: error.meta
+      meta: error.meta,
     });
 
     if (error.code === 'P2002' && String(error.meta?.target || '').includes('invoiceNumber')) {
       return NextResponse.json(
         { error: 'Invoice number already exists for this business.' },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
-    const postingMsg = String(error.message || '');
-    if (
-      postingMsg.includes('cannot receive direct postings') ||
-      postingMsg.includes('consolidation parent') ||
-      postingMsg.includes('not open for new postings') ||
-      postingMsg.includes('Accounts Receivable account not found') ||
-      postingMsg.includes('Account not found:') ||
-      postingMsg.includes('must reference an income account') ||
-      postingMsg.includes('must include valid account allocations')
-    ) {
-      return NextResponse.json(
-        {
-          error: postingMsg.includes('Use a detail account')
-            ? postingMsg
-            : postingMsg.includes('Accounts Receivable')
-              ? `${postingMsg} Ensure account 1200 Accounts Receivable exists and accepts postings in Chart of Accounts.`
-              : postingMsg,
-        },
-        { status: 400 },
-      );
-    }
+    const mapped = classifyApiError(error, {
+      fallback: 'Failed to create invoice. Please try again.',
+    });
 
-    if (
-      postingMsg.includes('DocumentSequence') ||
-      postingMsg.includes('Could not allocate document number') ||
-      postingMsg.includes('Could not allocate invoice number')
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'Invoice numbering is not configured. Run database migrations (DocumentSequence) or contact support.',
-          details: process.env.NODE_ENV === 'development' ? postingMsg : undefined,
-        },
-        { status: 503 },
-      );
-    }
-
-    // Period lock: return 403 with a clear message so the UI can show it
-    if (error.code === 'PERIOD_LOCKED') {
-      const base = error.message || `Cannot post in closed accounting period: ${error.period?.periodName || 'unknown'}.`;
-      const message = base.includes('Reopen') ? base : `${base} Reopen the period in Accounting Periods to post this invoice.`;
-      return NextResponse.json(
-        {
-          error: message,
-          details: { code: 'PERIOD_LOCKED', periodName: error.period?.periodName }
-        },
-        { status: 403 }
-      );
-    }
-    
-    // Generic server error
-    const errorMessage = process.env.NODE_ENV === 'development' 
-      ? `Failed to create invoice: ${error.message}` 
-      : 'Failed to create invoice. Please try again.';
-    
     return NextResponse.json(
-      { 
-        error: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? {
-          code: error.code,
-          meta: error.meta
-        } : undefined
+      {
+        error: mapped.error,
+        code: error.code || undefined,
       },
-      { status: 500 }
+      { status: mapped.status },
     );
   }
 }

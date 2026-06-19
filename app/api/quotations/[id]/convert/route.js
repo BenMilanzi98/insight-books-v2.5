@@ -10,6 +10,7 @@ import { findDefaultInvoiceRevenueAccount } from '@/lib/coaPostingCodes';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { parseMoney } from '@/lib/money';
+import { classifyApiError } from '@/lib/apiErrorUtils';
 
 // POST - Convert a quotation to an invoice
 export async function POST(request, { params }) {
@@ -87,16 +88,30 @@ export async function POST(request, { params }) {
       });
       const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
 
-      const processedItems = quotation.items.map((item) => ({
-        description: item.description,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
-        taxRate: Number(item.taxRate || 0),
-        discountAmount: Number(item.discountAmount || 0),
-        amount: Number(item.amount),
-        productId: item.productId,
-        accountId: revenueAccount.id,
-      }));
+      const processedItems = quotation.items.map((item) => {
+        const qty = Number(item.quantity);
+        const unitPrice = Number(item.unitPrice);
+        const taxRate = Number(item.taxRate || 0);
+        const discountAmount = Number(item.discountAmount || 0);
+        const lineAmount = Number(item.amount);
+        const netAmount =
+          item.netAmount != null && item.netAmount !== ''
+            ? Number(item.netAmount)
+            : Math.max(0, lineAmount / (1 + taxRate / 100) || lineAmount - discountAmount);
+        const taxAmount = Math.max(0, lineAmount - netAmount);
+        return {
+          description: item.description,
+          quantity: qty,
+          unitPrice,
+          taxRate,
+          discountAmount,
+          amount: lineAmount,
+          netAmount,
+          taxAmount,
+          productId: item.productId,
+          accountId: revenueAccount.id,
+        };
+      });
 
       const inv = await tx.invoice.create({
         data: {
@@ -210,7 +225,7 @@ export async function POST(request, { params }) {
       });
 
       return inv;
-    });
+    }, { maxWait: 15000, timeout: 120000 });
 
     const formattedInvoice = {
       id: newInvoice.id,
@@ -289,40 +304,10 @@ export async function POST(request, { params }) {
       );
     }
 
-    if (error.code === 'PERIOD_LOCKED') {
-      return NextResponse.json(
-        { error: error.message || 'Cannot post in a closed accounting period.' },
-        { status: 403 },
-      );
-    }
+    const mapped = classifyApiError(error, {
+      fallback: 'Failed to convert quotation to invoice. Please try again.',
+    });
 
-    const msg = String(error.message || '');
-    if (
-      msg.includes('cannot receive direct postings') ||
-      msg.includes('consolidation parent') ||
-      msg.includes('Accounts Receivable') ||
-      msg.includes('4100 Product Sales') ||
-      msg.includes('Chart of Accounts')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 });
-    }
-
-    if (msg.includes('DocumentSequence') || msg.includes('Could not allocate invoice number')) {
-      return NextResponse.json(
-        {
-          error:
-            'Invoice numbering is not configured. Run database migrations (DocumentSequence) or contact support.',
-        },
-        { status: 503 },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Failed to convert quotation to invoice. Please try again.',
-        details: process.env.NODE_ENV === 'development' ? msg : undefined,
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: mapped.error, code: error.code || undefined }, { status: mapped.status });
   }
 }
