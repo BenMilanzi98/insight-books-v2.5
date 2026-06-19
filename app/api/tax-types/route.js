@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { ensureMalawiTaxTypesForTenant } from '@/lib/malawiTaxSeed.js';
 import { getMalawiTaxCatalogEntry, isMalawiSystemTaxType } from '@/lib/malawiTaxCatalog.js';
+import { validateTaxRate } from '@/lib/taxRateValidation.js';
 
 /**
  * GET /api/tax-types
@@ -78,6 +79,9 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'tax.update');
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -112,19 +116,12 @@ export async function POST(request) {
       );
     }
 
-    const parsedRate = parseFloat(taxRate);
-    if (Number.isNaN(parsedRate)) {
-      return NextResponse.json(
-        { error: 'taxRate must be a valid number' },
-        { status: 400 }
-      );
+    const calcType = calculationType || 'Percentage';
+    const rateCheck = validateTaxRate(taxRate, calcType);
+    if (!rateCheck.ok) {
+      return NextResponse.json({ error: rateCheck.error }, { status: 400 });
     }
-    if (parsedRate < 0 || parsedRate > 100) {
-      return NextResponse.json(
-        { error: 'taxRate must be between 0 and 100 (e.g. 16.5 or 17.5)' },
-        { status: 400 }
-      );
-    }
+    const parsedRate = rateCheck.value;
 
     // PAYE tax type REQUIRES an account for accurate tracking
     const isPAYE = taxId === 'PAYE' || taxName.toLowerCase().includes('paye');
@@ -193,7 +190,7 @@ export async function POST(request) {
         taxName,
         taxCode: taxCode || null,
         taxRate: parsedRate,
-        calculationType: calculationType || 'Percentage',
+        calculationType: calcType,
         accountId: accountId || null,
         status,
         tenantId: user.tenantId,

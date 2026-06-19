@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { isMalawiStandardVatRate } from '@/lib/malawiTaxCatalog';
 
 const QRCodeSVG = dynamic(
   () => import('qrcode.react').then((mod) => mod.QRCodeSVG),
@@ -245,7 +246,7 @@ const PrintableReceipt = ({ receiptData }) => {
               <div key={idx} className="flex justify-between text-sm">
                 <span className="text-gray-600">
                   <span className="inline-block w-6 text-center font-bold text-xs rounded bg-blue-100 text-blue-700 mr-2">
-                    {tax.taxRateId || (tax.taxRate === 16.5 ? 'A' : tax.taxRate === 0 ? 'B' : 'E')}
+                    {tax.taxRateId || (isMalawiStandardVatRate(tax.taxRate) ? 'A' : tax.taxRate === 0 ? 'B' : 'E')}
                   </span>
                   {tax.taxName || `Tax Group ${tax.taxRateId}`} ({tax.taxRate || 0}%)
                 </span>

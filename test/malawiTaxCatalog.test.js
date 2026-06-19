@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MALAWI_TAX_CATALOG,
+  MALAWI_STANDARD_VAT_RATE,
   getMalawiTaxCatalogEntry,
   isMalawiSystemTaxType,
   isTaxGlChildCode,
@@ -33,6 +34,19 @@ describe('malawiTaxCatalog', () => {
       expect(entry.glCode.startsWith(entry.flow === 'inflow' ? '2041-' : '2045-')).toBe(true);
       expect(isTaxGlChildCode(entry.glCode)).toBe(true);
     }
+  });
+
+  it('uses current MRA standard VAT rate', () => {
+    expect(getMalawiTaxCatalogEntry('MW-VAT')?.taxRate).toBe(MALAWI_STANDARD_VAT_RATE);
+    expect(getMalawiTaxCatalogEntry('MW-VAT-IN')?.taxRate).toBe(MALAWI_STANDARD_VAT_RATE);
+  });
+
+  it('reflects 2025/26 mid-year budget fixed rates', () => {
+    expect(getMalawiTaxCatalogEntry('MW-GAMBLING')?.taxRate).toBe(15);
+    expect(getMalawiTaxCatalogEntry('MW-MTL')?.taxRate).toBe(0.05);
+    expect(getMalawiTaxCatalogEntry('MW-MAT')?.taxRate).toBe(0.5);
+    expect(getMalawiTaxCatalogEntry('MW-CIT')?.taxRate).toBe(30);
+    expect(getMalawiTaxCatalogEntry('MW-WHT')?.taxRate).toBe(0);
   });
 
   it('recognises system tax types', () => {

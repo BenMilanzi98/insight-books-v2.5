@@ -61,6 +61,7 @@ import {
   refundSale
 } from "@/app/services/salesService";
 import { calculateProductTaxes, calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
+import { isMalawiStandardVatRate, MALAWI_STANDARD_VAT_RATE } from "@/lib/malawiTaxCatalog";
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 import ClientModal from "@/components/ClientModal";
 import ClientSearchCombobox from "@/components/ClientSearchCombobox";
@@ -341,6 +342,7 @@ const POSPage = () => {
       return {
         ...product,
         taxes,
+        taxRate: Number(taxType.taxRate) || 0,
         taxAmount: taxCalc.totalTaxAmount,
         taxBreakdown: taxCalc.taxBreakdown,
         taxDescription: taxType.taxName
@@ -357,6 +359,7 @@ const POSPage = () => {
       return {
         ...product,
         taxes: [],
+        taxRate: 0,
         taxAmount: 0,
         taxBreakdown: [],
         taxDescription: ''
@@ -1550,10 +1553,61 @@ const POSPage = () => {
   const calculateSubtotal = () => {
     return selectedProducts.reduce((sum, product) => addMoney(sum, product.subtotal), 0);
   };
+
+  /** Line tax for cart display and API payload — never use a stale taxRate without taxes[]. */
+  const resolveCheckoutLineTax = (product) => {
+    const productTaxes = product.taxes || [];
+    if (productTaxes.length === 0) {
+      return {
+        taxRate: 0,
+        taxAmount: 0,
+        taxBreakdown: [],
+        taxDescription: product.taxDescription || '',
+      };
+    }
+
+    const isUnitManaged = hasUnitManagement(product);
+    let lineTotal;
+    let quantityForTax;
+
+    if (isUnitManaged && product.unitQuantities) {
+      let totalBaseQuantity = 0;
+      if (product.units && product.unitQuantities) {
+        Object.entries(product.unitQuantities).forEach(([unitId, qty]) => {
+          const unit = product.units.find((u) => u.id === unitId);
+          if (unit && qty > 0) {
+            const conversionRate = getUnitConversionRate(unit);
+            const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
+            totalBaseQuantity += convertedToBase;
+          }
+        });
+      }
+      lineTotal = product.subtotal || 0;
+      quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : product.quantity || 1;
+    } else {
+      lineTotal = multiplyMoney(product.quantity || 1, product.price || 0);
+      quantityForTax = product.quantity || 1;
+    }
+
+    const baseAmount = subtractMoney(lineTotal, product.discountAmount || 0);
+    const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
+    const primaryRate = productTaxes[0]?.taxRate ?? product.taxRate ?? 0;
+
+    return {
+      taxRate: Number(primaryRate) || 0,
+      taxAmount: taxCalculation.totalTaxAmount,
+      taxBreakdown: taxCalculation.taxBreakdown,
+      taxDescription:
+        product.taxDescription || productTaxes.map((t) => t.taxName).join(', ') || '',
+    };
+  };
   
   // Calculate tax amount
   const calculateTaxAmount = () => {
-    return selectedProducts.reduce((sum, product) => addMoney(sum, product.taxAmount || 0), 0);
+    return selectedProducts.reduce(
+      (sum, product) => addMoney(sum, resolveCheckoutLineTax(product).taxAmount),
+      0
+    );
   };
   
   // Calculate total discount amount
@@ -1743,15 +1797,17 @@ const POSPage = () => {
       // Prepare sale data
       const saleData = {
         clientId: activeTab === "registered" && selectedCustomer ? selectedCustomer : null,
-        items: selectedProducts.map(product => ({
+        items: selectedProducts.map(product => {
+          const lineTax = resolveCheckoutLineTax(product);
+          return {
           productId: product.isCustom ? null : product.id,
           description: product.name,
           quantity: product.quantity,
           unitPrice: product.price,
-          taxRate: product.taxRate || 0,
-          taxAmount: product.taxAmount || 0,
-          taxDescription: product.taxDescription || "",
-          taxBreakdown: product.taxBreakdown || [], // Include tax breakdown for multiple taxes
+          taxRate: lineTax.taxRate,
+          taxAmount: lineTax.taxAmount,
+          taxDescription: lineTax.taxDescription,
+          taxBreakdown: lineTax.taxBreakdown,
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false,
@@ -1768,7 +1824,8 @@ const POSPage = () => {
                 },
               }
             : {}),
-        })),
+        };
+        }),
         paymentMethod: paymentMethod,
         notes: saleNotes,
         status: 'draft',
@@ -1983,60 +2040,16 @@ const POSPage = () => {
         clientId: (activeTab === "registered" || activeTab === "historical") && selectedCustomer ? selectedCustomer : null,
         branchId: null,
         items: selectedProducts.map(product => {
-          // Recalculate taxes to ensure they're correct for the current quantity
-          // This is important because taxBreakdown might be stale if quantity was changed
-          const productTaxes = product.taxes || [];
-          let taxBreakdown = product.taxBreakdown || [];
-          let taxAmount = product.taxAmount || 0;
-          
-          // Only recalculate if we have taxes and the taxBreakdown might be stale
-          if (productTaxes.length > 0) {
-            // For unit-based products, use subtotal (which is already calculated correctly from unitQuantities)
-            // For regular products, calculate from quantity × unitPrice
-            const isUnitManaged = hasUnitManagement(product);
-            let lineTotal;
-            let quantityForTax;
-            
-            if (isUnitManaged && product.unitQuantities) {
-              // Calculate total base quantity from unitQuantities for Fixed tax calculations
-              let totalBaseQuantity = 0;
-              if (product.units && product.unitQuantities) {
-                Object.entries(product.unitQuantities).forEach(([unitId, qty]) => {
-                  const unit = product.units.find(u => u.id === unitId);
-                  if (unit && qty > 0) {
-                    const conversionRate = getUnitConversionRate(unit);
-                    const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
-                    totalBaseQuantity += convertedToBase;
-                  }
-                });
-              }
-              
-              // Use subtotal (already calculated correctly by UnitBasedQuantityInput from all unit quantities)
-              lineTotal = product.subtotal || 0;
-              quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : (product.quantity || 1);
-              
-            } else {
-              // Regular product: quantity × unitPrice
-              lineTotal = multiplyMoney(product.quantity || 1, product.price || 0);
-              quantityForTax = product.quantity || 1;
-            }
-            
-            const baseAmount = subtractMoney(lineTotal, product.discountAmount || 0);
-            
-            const taxCalculation = calculateProductTaxes(baseAmount, productTaxes, quantityForTax);
-            taxBreakdown = taxCalculation.taxBreakdown;
-            taxAmount = taxCalculation.totalTaxAmount;
-          }
-          
+          const lineTax = resolveCheckoutLineTax(product);
           const itemData = {
           productId: product.isCustom ? null : product.id,
           description: product.name,
           quantity: product.quantity,
           unitPrice: product.price,
-          taxRate: product.taxRate || 0,
-          taxAmount: taxAmount, // Use recalculated tax amount
-          taxDescription: product.taxDescription || "",
-          taxBreakdown: taxBreakdown, // Use recalculated tax breakdown
+          taxRate: lineTax.taxRate,
+          taxAmount: lineTax.taxAmount,
+          taxDescription: lineTax.taxDescription,
+          taxBreakdown: lineTax.taxBreakdown,
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false,
@@ -3121,11 +3134,11 @@ const POSPage = () => {
                                   </span>
                                   {eisEnabled && (
                                     <span className={`ml-1 inline-block px-1 py-0.5 text-[10px] font-bold rounded ${
-                                      tax.taxRate === 16.5 ? 'bg-blue-100 text-blue-700' :
+                                      isMalawiStandardVatRate(tax.taxRate) ? 'bg-blue-100 text-blue-700' :
                                       tax.taxRate === 0 ? 'bg-gray-100 text-gray-600' :
                                       'bg-amber-100 text-amber-700'
                                     }`}>
-                                      {tax.taxRate === 16.5 ? 'A' : tax.taxRate === 0 ? 'B' : 'E'}
+                                      {isMalawiStandardVatRate(tax.taxRate) ? 'A' : tax.taxRate === 0 ? 'B' : 'E'}
                                     </span>
                                   )}
                                   <div className="font-semibold text-gray-900">
@@ -3207,7 +3220,7 @@ const POSPage = () => {
                                       />
                                       <input
                                         type="number"
-                                        placeholder="Rate % (e.g. 16.5)"
+                                        placeholder={`Rate % (e.g. ${MALAWI_STANDARD_VAT_RATE})`}
                                         value={newPosTax.taxRate}
                                         onChange={(e) => setNewPosTax(prev => ({ ...prev, taxRate: e.target.value }))}
                                         className="w-full p-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { isMalawiSystemTaxType, isTaxGlChildCode, isTaxGlParentCode } from '@/lib/malawiTaxCatalog.js';
+import { validateTaxRate } from '@/lib/taxRateValidation.js';
 
 /**
  * GET /api/tax-types/[id]
@@ -59,6 +60,9 @@ export async function GET(request, { params }) {
  */
 export async function PUT(request, { params }) {
   try {
+    const perm = await requirePermission(request, 'tax.update');
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -196,14 +200,13 @@ export async function PUT(request, { params }) {
     if (taxName !== undefined) updateData.taxName = taxName;
     if (taxCode !== undefined) updateData.taxCode = taxCode || null;
     if (taxRate !== undefined) {
-      if (taxRate === '' || taxRate === null) {
-        return NextResponse.json({ error: 'taxRate is required' }, { status: 400 });
+      const calcType =
+        calculationType !== undefined ? calculationType : existingTax.calculationType || 'Percentage';
+      const rateCheck = validateTaxRate(taxRate, calcType);
+      if (!rateCheck.ok) {
+        return NextResponse.json({ error: rateCheck.error }, { status: 400 });
       }
-      const parsedRate = parseFloat(taxRate);
-      if (Number.isNaN(parsedRate)) {
-        return NextResponse.json({ error: 'taxRate must be a valid number' }, { status: 400 });
-      }
-      updateData.taxRate = parsedRate;
+      updateData.taxRate = rateCheck.value;
     }
     if (calculationType !== undefined) updateData.calculationType = calculationType;
     if (accountId !== undefined) updateData.accountId = accountId || null;
@@ -240,6 +243,9 @@ export async function PUT(request, { params }) {
  */
 export async function DELETE(request, { params }) {
   try {
+    const perm = await requirePermission(request, 'tax.update');
+    if (perm) return perm;
+
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(

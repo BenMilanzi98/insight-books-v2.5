@@ -105,13 +105,17 @@ export const createSale = async (saleData) => {
     const payload = {
       clientId: saleData.clientId || null,
       branchId: saleData.branchId || null,
-      items: saleData.items.map(item => ({
+      items: saleData.items.map(item => {
+        const taxBreakdown = item.taxBreakdown || [];
+        const taxAmount = Number(item.taxAmount || 0);
+        const hasLineTax = taxBreakdown.length > 0 || taxAmount > 0;
+        return {
         productId: item.isCustom ? null : (item.productId || null),
         description: String(item.description),
         quantity: Number(item.quantity),
         unitPrice: Number(item.unitPrice),
-        taxRate: Number(item.taxRate || 0),
-        taxAmount: Number(item.taxAmount || 0),
+        taxRate: hasLineTax ? Number(item.taxRate || 0) : 0,
+        taxAmount: hasLineTax ? taxAmount : 0,
         taxDescription: String(item.taxDescription || ''),
         discount: Number(item.discount || 0),
         discountAmount: Number(item.discountAmount || 0),
@@ -146,7 +150,7 @@ export const createSale = async (saleData) => {
             }
           : null,
         // Include tax breakdown for detailed tax tracking per tax type
-        taxBreakdown: item.taxBreakdown || [],
+        taxBreakdown: hasLineTax ? taxBreakdown : [],
         // Include accountId for Chart of Accounts requirement (preserve non-empty strings; '' is treated as missing upstream)
         accountId:
           item.accountId != null && String(item.accountId).trim() !== ''
@@ -154,7 +158,8 @@ export const createSale = async (saleData) => {
             : null,
         // Include unit quantities for unit-managed products
         unitQuantities: item.unitQuantities || null
-      })),
+      };
+      }),
       subtotal: Number(saleData.subtotal || 0),
       totalTaxAmount: Number(saleData.totalTaxAmount || 0),
       totalDiscountAmount: Number(saleData.totalDiscountAmount || 0),

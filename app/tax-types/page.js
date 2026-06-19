@@ -25,6 +25,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
+import { getPermission } from "@/lib/permissions";
 
 export default function TaxTypesPage() {
   const [taxTypes, setTaxTypes] = useState([]);
@@ -63,6 +64,9 @@ export default function TaxTypesPage() {
   const [reversedTaxesStart, setReversedTaxesStart] = useState('');
   const [reversedTaxesEnd, setReversedTaxesEnd] = useState('');
   const [exportingReversedTaxes, setExportingReversedTaxes] = useState(false);
+  const [canUpdateTax, setCanUpdateTax] = useState(false);
+  const [editingIsSystem, setEditingIsSystem] = useState(false);
+  const [catalogDefaultRate, setCatalogDefaultRate] = useState(null);
   // Balance period: same options as /tax-accounts so numbers match when same period is selected
   const [balancePeriod, setBalancePeriod] = useState('thisMonth');
   const toYmdLocal = (value) => {
@@ -117,6 +121,10 @@ export default function TaxTypesPage() {
     setBalanceStartDate(toYmdLocal(start));
     setBalanceEndDate(toYmdLocal(end));
   };
+
+  useEffect(() => {
+    getPermission("tax.update").then(setCanUpdateTax);
+  }, []);
 
   useEffect(() => {
     setBalancePeriodDates();
@@ -264,10 +272,23 @@ export default function TaxTypesPage() {
   };
 
   const syncMalawiCatalog = async () => {
+    if (!canUpdateTax) {
+      setError("You do not have permission to sync the tax catalog.");
+      return;
+    }
+    const applyCatalogRates = window.confirm(
+      "Apply latest MRA catalog rates to all system tax types?\n\n" +
+        "OK = reset rates to MRA defaults\n" +
+        "Cancel = sync missing types only (keep your customized rates)"
+    );
     setSyncingCatalog(true);
     setError(null);
     try {
-      const res = await fetch("/api/tax-types/seed", { method: "POST" });
+      const res = await fetch("/api/tax-types/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ applyCatalogRates }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Sync failed");
       setSuccess(
@@ -283,6 +304,10 @@ export default function TaxTypesPage() {
   };
 
   const handleEdit = (taxType) => {
+    if (!canUpdateTax) {
+      setError("You do not have permission to edit tax types.");
+      return;
+    }
     const rawRate = taxType.taxRate;
     let taxRateStr = "";
     if (rawRate != null && rawRate !== "") {
@@ -303,10 +328,16 @@ export default function TaxTypesPage() {
       status: taxType.status || "Active",
     });
     setEditingId(taxType.id);
+    setEditingIsSystem(Boolean(taxType.isSystem));
+    setCatalogDefaultRate(
+      taxType.catalogEntry?.taxRate != null ? Number(taxType.catalogEntry.taxRate) : null
+    );
     setShowAddModal(true);
   };
 
   const resetForm = () => {
+    setEditingIsSystem(false);
+    setCatalogDefaultRate(null);
     setFormData({
       taxId: "",
       taxName: "",
@@ -516,10 +547,12 @@ export default function TaxTypesPage() {
             <button onClick={() => handleViewReports(tax)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="View Reports">
               <FileText size={18} />
             </button>
-            <button onClick={() => handleEdit(tax)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-              <Edit size={18} />
-            </button>
-            {!tax.isSystem && (
+            {canUpdateTax && (
+              <button onClick={() => handleEdit(tax)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit rate or value">
+                <Edit size={18} />
+              </button>
+            )}
+            {canUpdateTax && !tax.isSystem && (
               <button onClick={() => handleDelete(tax.id, tax)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
                 <Trash2 size={18} />
               </button>
@@ -561,14 +594,16 @@ export default function TaxTypesPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
-              onClick={syncMalawiCatalog}
-              disabled={syncingCatalog}
-              className="flex items-center gap-2 px-4 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
-            >
-              <RefreshCw size={18} className={syncingCatalog ? "animate-spin" : ""} />
-              Sync MRA Catalog
-            </button>
+            {canUpdateTax && (
+              <button
+                onClick={syncMalawiCatalog}
+                disabled={syncingCatalog}
+                className="flex items-center gap-2 px-4 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
+              >
+                <RefreshCw size={18} className={syncingCatalog ? "animate-spin" : ""} />
+                Sync MRA Catalog
+              </button>
+            )}
             <a
               href="/tax-accounts"
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-sm"
@@ -576,17 +611,19 @@ export default function TaxTypesPage() {
               <TrendingUp size={18} />
               Tax Accounts
             </a>
-            <button
-              onClick={() => {
-                resetForm();
-                setEditingId(null);
-                setShowAddModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
-            >
-              <Plus size={18} />
-              Add Tax Type
-            </button>
+            {canUpdateTax && (
+              <button
+                onClick={() => {
+                  resetForm();
+                  setEditingId(null);
+                  setShowAddModal(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
+              >
+                <Plus size={18} />
+                Add Tax Type
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -640,6 +677,7 @@ export default function TaxTypesPage() {
             <p className="text-sm text-blue-800 font-medium">How it works</p>
             <p className="text-sm text-blue-600 mt-1">
               Each tax type posts to a dedicated GL child under <strong>2041</strong> (collected / withheld) or <strong>2045</strong> (paid / input VAT).
+              Users with <strong>Tax → Update</strong> permission can change rates and fixed amounts; MRA system types keep a fixed tax ID and GL link.
               Invoice voids, sale refunds, and expense deletions create matching tax reversals — see <strong>Reversed Taxes</strong> below.
             </p>
           </div>
@@ -982,11 +1020,17 @@ export default function TaxTypesPage() {
                 <input
                   type="text"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  readOnly={editingIsSystem}
+                  className={`w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                    editingIsSystem ? "bg-gray-100 text-gray-600 cursor-not-allowed" : "bg-gray-50"
+                  }`}
                   value={formData.taxId}
                   onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
                   placeholder="e.g., TAX001"
                 />
+                {editingIsSystem && (
+                  <p className="text-xs text-gray-500 mt-1">MRA system tax IDs cannot be changed.</p>
+                )}
               </div>
 
               <div>
@@ -1006,18 +1050,28 @@ export default function TaxTypesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Tax Rate <span className="text-red-500">*</span>
+                    {formData.calculationType === "Fixed" ? "Fixed amount (MWK)" : "Tax rate (%)"}{" "}
+                    <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     required
-                    step="0.01"
+                    step="0.0001"
                     min="0"
+                    max={formData.calculationType === "Percentage" ? "100" : undefined}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={formData.taxRate}
                     onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
-                    placeholder="e.g., 30"
+                    placeholder={formData.calculationType === "Fixed" ? "e.g., 500" : "e.g., 17.5"}
                   />
+                  {editingIsSystem && catalogDefaultRate != null && (
+                    <p className="text-xs text-indigo-600 mt-1">
+                      MRA catalog default:{" "}
+                      {formData.calculationType === "Fixed"
+                        ? formatCurrency(catalogDefaultRate)
+                        : `${catalogDefaultRate}%`}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">

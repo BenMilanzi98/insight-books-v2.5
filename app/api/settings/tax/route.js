@@ -1,8 +1,9 @@
 // app/api/settings/tax/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { ensureDefaultTaxAccountsForTenant } from '@/lib/taxAccountsInitialization';
+import { MALAWI_STANDARD_VAT_RATE } from '@/lib/malawiTaxCatalog';
 
 // GET - Fetch tax settings for the tenant
 export async function GET(request) {
@@ -32,7 +33,7 @@ export async function GET(request) {
       // Return default settings if no settings found
       return NextResponse.json({
         taxEnabled: true,
-        defaultTaxRate: 16.5, // Default VAT rate in Malawi
+        defaultTaxRate: MALAWI_STANDARD_VAT_RATE,
         currencyCode: 'MWK',
         taxInflowAccountId: null,
         taxOutflowAccountId: null,
@@ -90,18 +91,16 @@ export async function PUT(request) {
       );
     }
     
-    // Check if user has permission to update settings
-    if (user.role !== 'ADMIN' && user.role !== 'TENANT_ADMIN') {
-      return NextResponse.json(
-        { error: 'You do not have permission to update tax settings' },
-        { status: 403 }
-      );
-    }
+    const perm = await requirePermission(request, 'tax.update');
+    if (perm) return perm;
     
     const body = await request.json();
     
     // Validate inputs
-    if (body.defaultTaxRate < 0 || body.defaultTaxRate > 100) {
+    if (
+      body.defaultTaxRate !== undefined &&
+      (body.defaultTaxRate < 0 || body.defaultTaxRate > 100)
+    ) {
       return NextResponse.json(
         { error: 'Tax rate must be between 0 and 100' },
         { status: 400 }
@@ -110,7 +109,7 @@ export async function PUT(request) {
     
     const updateData = {
       taxEnabled: body.taxEnabled !== undefined ? body.taxEnabled : true,
-      defaultTaxRate: body.defaultTaxRate !== undefined ? body.defaultTaxRate : 16.5,
+      defaultTaxRate: body.defaultTaxRate !== undefined ? body.defaultTaxRate : MALAWI_STANDARD_VAT_RATE,
       currencyCode: body.currencyCode || 'MWK',
     };
     if (body.taxInflowAccountId !== undefined) {
