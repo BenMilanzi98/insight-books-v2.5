@@ -111,9 +111,6 @@ export async function POST(request) {
         }
       });
 
-      const { initializeNewTenantFinancialDefaults } = await import('@/lib/initializeNewTenantFinancialDefaults');
-      await initializeNewTenantFinancialDefaults(newTenant.id, tx);
-
       // Handle affiliate tracking if referral code is provided
       let affiliateReferral = null;
       if (referralCode) {
@@ -155,6 +152,18 @@ export async function POST(request) {
         affiliateReferral
       };
     });
+
+    try {
+      const { initializeNewTenantFinancialDefaults } = await import(
+        '@/lib/initializeNewTenantFinancialDefaults'
+      );
+      await initializeNewTenantFinancialDefaults(result.tenant.id, prisma);
+    } catch (finErr) {
+      console.warn(
+        'Financial defaults initialization failed after registration (non-fatal):',
+        finErr?.message || finErr
+      );
+    }
 
     let token;
     try {

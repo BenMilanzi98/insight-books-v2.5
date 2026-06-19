@@ -72,6 +72,10 @@ export async function POST(request) {
       // Add a random number to make it unique
       subdomain = `${subdomain}${Math.floor(Math.random() * 1000)}`;
     }
+
+    if (!subdomain) {
+      subdomain = `biz${Date.now().toString(36)}`;
+    }
    
     // Same person may register another business with the same email (per-tenant user rows).
 
@@ -210,9 +214,6 @@ export async function POST(request) {
         });
       }
      
-      const { initializeNewTenantFinancialDefaults } = await import('@/lib/initializeNewTenantFinancialDefaults');
-      await initializeNewTenantFinancialDefaults(tenant.id, tx);
-
       // Log the signup
       await tx.auditLog.create({
         data: {
@@ -232,6 +233,20 @@ export async function POST(request) {
      
       return { tenant, user, otp };
     });
+
+    // Financial defaults run outside the signup transaction so a missing table or
+    // seed failure cannot abort auditLog.create (PostgreSQL 25P02).
+    try {
+      const { initializeNewTenantFinancialDefaults } = await import(
+        '@/lib/initializeNewTenantFinancialDefaults'
+      );
+      await initializeNewTenantFinancialDefaults(result.tenant.id, prisma);
+    } catch (finErr) {
+      console.warn(
+        'Financial defaults initialization failed after signup (non-fatal):',
+        finErr?.message || finErr
+      );
+    }
 
     // Initialize trial subscription for the new tenant
     const trialSubscription = await initializeTenantTrial(result.tenant.id);
