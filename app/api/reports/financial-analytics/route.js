@@ -171,7 +171,7 @@ export async function GET(request) {
     const includeCogsInReports = await tenantIncludesCogsInReports(prisma, user.tenantId);
 
     // Revenue: valid issued invoices + completed POS sales, net of tax and discounts (matches P&L).
-    const [invoices, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
+    const [invoices, sales, expenses, supplierBills] = await Promise.all([
       accessEff === false
         ? Promise.resolve([])
         : prisma.invoice.findMany({
@@ -280,8 +280,12 @@ export async function GET(request) {
             }
           }
         }
-      }),
-      prisma.budget.findMany({
+      })
+    ]);
+
+    let activeBudgets = [];
+    try {
+      activeBudgets = await prisma.budget.findMany({
         where: {
           tenantId: user.tenantId,
           status: { in: ['active', 'draft'] },
@@ -308,8 +312,13 @@ export async function GET(request) {
             }
           }
         }
-      })
-    ]);
+      });
+    } catch (budgetErr) {
+      console.warn(
+        'Financial analytics: budget data skipped (run migrations or sync-deployment-schema-gaps.js):',
+        budgetErr?.message || budgetErr
+      );
+    }
 
     const cogsAccountIds = includeCogsInReports
       ? await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId)

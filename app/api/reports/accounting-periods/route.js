@@ -56,8 +56,6 @@ export async function GET(request) {
 
         status: true,
 
-        isClosed: true,
-
       },
 
     });
@@ -84,7 +82,11 @@ export async function GET(request) {
 
     return NextResponse.json({
 
-      periods: periods.map((p) => ({
+      periods: periods.map((p) => {
+
+        const isClosed = String(p.status || '').toLowerCase() === 'closed';
+
+        return {
 
         id: p.id,
 
@@ -102,11 +104,13 @@ export async function GET(request) {
 
         status: p.status,
 
-        isClosed: Boolean(p.isClosed),
+        isClosed,
 
-        label: `${p.name} (${formatYmdInTimeZone(p.startDate)} – ${formatYmdInTimeZone(p.endDate)})${p.isClosed ? ' · Closed' : ''}`,
+        label: `${p.name} (${formatYmdInTimeZone(p.startDate)} – ${formatYmdInTimeZone(p.endDate)})${isClosed ? ' · Closed' : ''}`,
 
-      })),
+      };
+
+      }),
 
       scope,
 
@@ -118,7 +122,21 @@ export async function GET(request) {
 
     return NextResponse.json(
 
-      { error: 'Failed to load accounting periods' },
+      {
+
+        error: 'Failed to load accounting periods',
+
+        hint:
+
+          String(error?.message || '').includes('does not exist') ||
+
+          String(error?.message || '').includes('AccountingPeriod')
+
+            ? 'Database schema is out of date. Run: npx prisma migrate deploy (or node scripts/sync-deployment-schema-gaps.js).'
+
+            : String(error?.message || '').slice(0, 300) || undefined,
+
+      },
 
       { status: 500 }
 
