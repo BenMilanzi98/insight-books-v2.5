@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   Download,
@@ -19,11 +21,6 @@ import PermissionGuard from "@/components/PermissionGuard";
 import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
 import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
 import { getPermission } from "@/lib/permissions";
-import {
-  filterCoaAccountsForPostingPicker,
-  journalAccountOptionLabel,
-  sortAccountsForJournalSelect,
-} from "@/lib/journalAccountSelect";
 import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
 import { getDefaultCustomRange } from "@/lib/dateUtils";
 
@@ -32,15 +29,14 @@ function formatJournalAmountCell(amount) {
 }
 
 const JournalEntries = () => {
+  const router = useRouter();
   // State variables
   const [entries, setEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [showEntryModal, setShowEntryModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewEntry, setViewEntry] = useState(null);
-  const [editId, setEditId] = useState(null);
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -68,26 +64,6 @@ const JournalEntries = () => {
     hydrated: businessScopeHydrated,
   } = useBusinessScope();
   const businessScope = { mode: businessScopeMode, tenantIds: businessScopeTenantIds };
-  
-  // Form data
-  const [entryFormData, setEntryFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    entryType: "Correction",
-    description: "",
-    internalReference: "",
-    lines: [
-      { accountId: "", description: "", debit: "", credit: "" },
-      { accountId: "", description: "", debit: "", credit: "" }
-    ]
-  });
-  
-  // Accounts state
-  const [accounts, setAccounts] = useState([]);
-  
-  // Fetch accounts when component mounts
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -171,35 +147,6 @@ const JournalEntries = () => {
     }
     
     return { startDate, endDate };
-  };
-  
-  // Fetch all active accounts (full chart of accounts) for modal dropdown
-  const fetchAccounts = async () => {
-    try {
-      const response = await fetch('/api/chart-of-accounts/picker');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch accounts: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const list = filterCoaAccountsForPostingPicker(data.accounts || []);
-      setAccounts(sortAccountsForJournalSelect(list));
-    } catch (error) {
-      console.error("Error fetching accounts:", error);
-      setError("Failed to load accounts. Please try again later.");
-      
-      // Use mock accounts for demo purposes if API fails
-      setAccounts([
-        { id: "acc1", code: "1000", name: "Cash", type: "ASSET" },
-        { id: "acc2", code: "1100", name: "Accounts Receivable", type: "ASSET" },
-        { id: "acc3", code: "2000", name: "Accounts Payable", type: "LIABILITY" },
-        { id: "acc4", code: "4000", name: "Revenue", type: "REVENUE" },
-        { id: "acc5", code: "5000", name: "Office Expenses", type: "EXPENSE" },
-        { id: "acc6", code: "5100", name: "Rent Expense", type: "EXPENSE" },
-        { id: "acc7", code: "5200", name: "Utilities Expense", type: "EXPENSE" },
-        { id: "acc8", code: "5200", name: "Salaries & Wages", type: "EXPENSE" }
-      ]);
-    }
   };
   
   // Fetch journal entries from API
@@ -286,145 +233,13 @@ const JournalEntries = () => {
     }
   };
   
-  // Add line to journal entry form
-  const handleAddLine = () => {
-    setEntryFormData({
-      ...entryFormData,
-      lines: [
-        ...entryFormData.lines,
-        { accountId: "", description: "", debit: "", credit: "" }
-      ]
-    });
-  };
-  
-  // Remove line from journal entry form
-  const handleRemoveLine = (index) => {
-    const newLines = [...entryFormData.lines];
-    newLines.splice(index, 1);
-    setEntryFormData({
-      ...entryFormData,
-      lines: newLines
-    });
-  };
-  
-  // Handle change in form line inputs
-  const handleLineChange = (index, field, value) => {
-    const newLines = [...entryFormData.lines];
-    newLines[index][field] = value;
-    
-    // If debit is entered, clear credit and vice versa
-    if (field === 'debit' && value) {
-      newLines[index]['credit'] = '';
-    } else if (field === 'credit' && value) {
-      newLines[index]['debit'] = '';
-    }
-    
-    setEntryFormData({
-      ...entryFormData,
-      lines: newLines
-    });
-  };
-  
-  // Submit journal entry form
-  const handleSubmit = async (e, postStatus = "draft") => {
-    e.preventDefault();
-    if (isSubmitting) return;
-    
-    try {
-      // Validate that the entry is balanced
-      if (!isBalanced) {
-        setAlertMessage("Journal entry must be balanced (debits must equal credits)");
-        setAlertType("error");
-        setShowAlert(true);
-        return;
-      }
-
-      if (postStatus === "posted") {
-        const confirmed = window.confirm(
-          "Posting will permanently lock this entry and update ledger balances. Continue?"
-        );
-        if (!confirmed) {
-          return;
-        }
-      }
-
-      setIsSubmitting(true);
-      
-      // Prepare journal entry data
-      const entryData = {
-        date: entryFormData.date,
-        description: entryFormData.description,
-        entryType: entryFormData.entryType,
-        internalReference: entryFormData.internalReference,
-        status: postStatus,
-        lines: entryFormData.lines.map(line => ({
-          accountId: line.accountId,
-          description: line.description || entryFormData.description,
-          debit: parseFloat(line.debit) || 0,
-          credit: parseFloat(line.credit) || 0
-        }))
-      };
-      
-      // Make API call to create journal entry
-      const response = await fetch('/api/journal-entries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(entryData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        const errorMessage = errorData.details && Array.isArray(errorData.details)
-          ? `${errorData.error}: ${errorData.details.join(', ')}`
-          : errorData.error || "Failed to create journal entry";
-        throw new Error(errorMessage);
-      }
-      
-      // Show success message
-      setAlertMessage(`Journal entry successfully ${postStatus === 'posted' ? 'posted' : 'saved as draft'}`);
-      setAlertType("success");
-      setShowAlert(true);
-      
-      // Close modal and refresh entries
-      setShowEntryModal(false);
-      fetchJournalEntries();
-      
-      // Reset form
-      resetForm();
-    } catch (error) {
-      console.error("Error creating journal entry:", error);
-      setAlertMessage(error.message || "Failed to create journal entry");
-      setAlertType("error");
-      setShowAlert(true);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  // Reset form to initial state
-  const resetForm = () => {
-    setEntryFormData({
-      date: new Date().toISOString().split('T')[0],
-      entryType: "Correction",
-      description: "",
-      internalReference: "",
-      lines: [
-        { accountId: "", description: "", debit: "", credit: "" },
-        { accountId: "", description: "", debit: "", credit: "" }
-      ]
-    });
-    setEditId(null);
-  };
-  
   // View journal entry details
   const handleViewEntry = (entry) => {
     setViewEntry(entry);
     setShowViewModal(true);
   };
   
-  // Edit journal entry
+  // Edit journal entry — draft entries open the dedicated form page
   const handleEditEntry = (entry) => {
     if (entry.status === "Posted" || entry.status === "posted") {
       setAlertMessage("Posted journal entries are read-only. Use a reversal instead.");
@@ -432,29 +247,7 @@ const JournalEntries = () => {
       setShowAlert(true);
       return;
     }
-    // Transform entry data to form data format
-    const formData = {
-      date: new Date(entry.date).toISOString().split('T')[0],
-      entryType: entry.entryType || "Correction",
-      description: entry.description || "",
-      internalReference: entry.notes || "",
-      lines: entry.lines.map(line => ({
-        accountId: line.accountId,
-        description: line.description || "",
-        debit: (() => {
-          const v = coerceJournalAmount(line.debit ?? line.debitAmount);
-          return Math.abs(v) > 1e-9 ? String(v) : "";
-        })(),
-        credit: (() => {
-          const v = coerceJournalAmount(line.credit ?? line.creditAmount);
-          return Math.abs(v) > 1e-9 ? String(v) : "";
-        })()
-      }))
-    };
-    
-    setEntryFormData(formData);
-    setEditId(entry.id);
-    setShowEntryModal(true);
+    router.push(`/journal-entries/edit/${entry.id}`);
   };
 
   const handlePostEntry = async (entry) => {
@@ -595,21 +388,6 @@ const handleDeleteEntry = async (entryId) => {
     }
   };
   
-  // Calculate totals for journal entry form
-  const calculateTotals = () => {
-    let totalDebit = 0;
-    let totalCredit = 0;
-    
-    entryFormData.lines.forEach(line => {
-      totalDebit += coerceJournalAmount(line.debit ?? line.debitAmount);
-      totalCredit += coerceJournalAmount(line.credit ?? line.creditAmount);
-    });
-    
-    return { totalDebit, totalCredit };
-  };
-  
-  const { totalDebit, totalCredit } = calculateTotals();
-  const isBalanced = totalDebit.toFixed(2) === totalCredit.toFixed(2);
   const [pagePermissions, setPagePermissions] = useState({
     canExportJournal:false,
     canCreateJournal:false,
@@ -641,8 +419,6 @@ const handleDeleteEntry = async (entryId) => {
   
   // Source type options for the filter dropdown
   const sourceTypeOptions = ["Manual"];
-
-  const entryTypeOptions = ["Correction", "Accrual", "Opening Balance"];
   
   // Date range options for the filter dropdown
   const dateRangeOptions = [
@@ -704,14 +480,13 @@ const handleDeleteEntry = async (entryId) => {
                       className="[&_button]:bg-white/95 [&_button]:border-white/30"
                     />
                     {pagePermissions.canCreateJournal && (
-                      <button
-                        type="button"
+                      <Link
+                        href="/journal-entries/new"
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold transition-all shadow-lg"
-                        onClick={() => { resetForm(); setShowEntryModal(true); }}
                       >
                         <Plus size={18} />
                         New Entry
-                      </button>
+                      </Link>
                     )}
                     {pagePermissions.canExportJournal && (
                       <button
@@ -996,210 +771,6 @@ const handleDeleteEntry = async (entryId) => {
           </div>
         )}
       </div>
-
-      {/* New Journal Entry Modal */}
-      {showEntryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-              <h2 className="text-xl font-semibold text-slate-800">{editId ? 'Edit Journal Entry' : 'New Journal Entry'}</h2>
-              <button
-                type="button"
-                onClick={() => { setShowEntryModal(false); resetForm(); }}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={(e) => handleSubmit(e, 'draft')}>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Date</label>
-                    <input
-                      type="date"
-                      className="w-full p-2 border border-gray-200 rounded"
-                      value={entryFormData.date}
-                      onChange={(e) => setEntryFormData({...entryFormData, date: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Entry Type</label>
-                    <select
-                      className="w-full p-2 border border-gray-200 rounded"
-                      value={entryFormData.entryType}
-                      onChange={(e) => setEntryFormData({...entryFormData, entryType: e.target.value})}
-                      required
-                    >
-                      {entryTypeOptions.map(option => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <input
-                    type="text"
-                    className="w-full p-2 border border-gray-200 rounded"
-                    placeholder="Purpose of this journal entry"
-                    value={entryFormData.description}
-                    onChange={(e) => setEntryFormData({...entryFormData, description: e.target.value})}
-                    required
-                  />
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-1">Internal Reference / Tag (optional)</label>
-                  <input
-                    type="text"
-                    className="w-full p-2 border border-gray-200 rounded"
-                    placeholder="Internal reference or tag"
-                    value={entryFormData.internalReference}
-                    onChange={(e) => setEntryFormData({...entryFormData, internalReference: e.target.value})}
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-semibold">Entry Lines</h3>
-                    <button
-                      type="button"
-                      className="text-blue-600 text-sm"
-                      onClick={handleAddLine}
-                    >
-                      + Add Line
-                    </button>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 text-left">
-                          <th className="p-2 font-medium">Account</th>
-                          <th className="p-2 font-medium">Description</th>
-                          <th className="p-2 font-medium text-right">Debit</th>
-                          <th className="p-2 font-medium text-right">Credit</th>
-                          <th className="p-2 font-medium w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {entryFormData.lines.map((line, index) => (
-                          <tr key={index} className="border-t border-gray-200">
-                            <td className="p-2">
-                              <select
-                                className="w-full p-2 border border-gray-200 rounded"
-                                value={line.accountId}
-                                onChange={(e) => handleLineChange(index, 'accountId', e.target.value)}
-                                required
-                              >
-                                <option value="">Select Account</option>
-                                {accounts.map((account) => (
-                                  <option key={account.id} value={account.id}>
-                                    {journalAccountOptionLabel(account)}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                className="w-full p-2 border border-gray-200 rounded"
-                                placeholder="Line description"
-                                value={line.description}
-                                onChange={(e) => handleLineChange(index, 'description', e.target.value)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                className="w-full p-2 border border-gray-200 rounded text-right"
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                value={line.debit}
-                                onChange={(e) => handleLineChange(index, 'debit', e.target.value)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                className="w-full p-2 border border-gray-200 rounded text-right"
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                value={line.credit}
-                                onChange={(e) => handleLineChange(index, 'credit', e.target.value)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              {entryFormData.lines.length > 2 && (
-                                <button
-                                  type="button"
-                                  className="text-red-600 hover:text-red-800"
-                                  onClick={() => handleRemoveLine(index)}
-                                >
-                                  <Trash size={16} />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="border-t border-gray-200 bg-gray-50 font-medium">
-                          <td colSpan="2" className="p-2 text-right">Totals</td>
-                          <td className="p-2 text-right">{formatCurrency(totalDebit)}</td>
-                          <td className="p-2 text-right">{formatCurrency(totalCredit)}</td>
-                          <td className="p-2"></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  <div className={`mt-4 p-3 rounded text-sm ${
-                    isBalanced 
-                      ? "bg-green-100 text-green-800" 
-                      : "bg-red-100 text-red-800"
-                  }`}>
-                    {isBalanced 
-                      ? "✅ Journal entry is balanced (debits equals credits)"
-                      : "❌ Journal entry is not balanced (debits must equal credits)"}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-gray-200 rounded"
-                  onClick={() => {
-                    setShowEntryModal(false);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded"
-                  disabled={!isBalanced || isSubmitting}
-                >
-                  Save as Draft
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleSubmit(e, 'posted')}
-                  className="px-4 py-2 bg-green-600 text-white rounded"
-                  disabled={!isBalanced || isSubmitting}
-                >
-                  Post Entry
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* View Journal Entry Modal */}
       {showViewModal && viewEntry && (
