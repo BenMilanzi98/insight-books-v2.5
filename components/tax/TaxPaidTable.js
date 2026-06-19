@@ -3,6 +3,7 @@
 import React,{ useState } from "react";
 import { ArrowUpDown, FileText } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
+import { displayTaxPaidAmount } from "@/lib/coaMoney";
 
 export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
   const [sortField, setSortField] = useState("date");
@@ -148,7 +149,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
                   {expense.description}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                  {formatCurrency(expense.amount)}
+                  {formatCurrency(displayTaxPaidAmount(expense.amount))}
                 </td>
               </tr>
             ))}

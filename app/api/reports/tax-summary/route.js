@@ -14,6 +14,7 @@ import {
   saleItemNetRevenueExTax,
 } from '@/lib/reportLineNetRevenue';
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
+import { displayTaxPaidAmount } from '@/lib/coaMoney';
 import {
   buildTaxSummaryFromGl,
   buildReconciliationItem,
@@ -385,12 +386,13 @@ export async function GET(request) {
       0
     ));
     
-    const totalTaxPaid = roundReportAmount(taxExpenses.reduce(
-      (sum, expense) => addMoney(sum, expense.amount),
-      0
-    ));
+    const totalTaxPaid = roundReportAmount(
+      taxExpenses.reduce((sum, expense) => addMoney(sum, displayTaxPaidAmount(expense.amount)), 0)
+    );
     
-    const netTaxLiability = roundReportAmount(subtractMoney(totalCollectedTax, totalTaxPaid));
+    const netTaxLiability = roundReportAmount(
+      subtractMoney(totalCollectedTax, totalTaxPaid)
+    );
 
     // Input VAT: tax on purchases (Supplier Bills + Purchase Order line tax in period)
     const supplierBillsInPeriod = await prisma.supplierBill.findMany({
@@ -490,9 +492,12 @@ export async function GET(request) {
         fromGeneralLedger: useGlTax,
       },
       paidTaxes: {
-        expenses: taxExpenses,
-        totalTaxPaid: primaryInputTax,
-        operationalTotal: totalTaxPaid,
+        expenses: taxExpenses.map((e) => ({
+          ...e,
+          amount: displayTaxPaidAmount(e.amount),
+        })),
+        totalTaxPaid: displayTaxPaidAmount(primaryInputTax),
+        operationalTotal: displayTaxPaidAmount(totalTaxPaid),
         fromGeneralLedger: useGlTax,
       },
       netTaxLiability: primaryNetTaxLiability,

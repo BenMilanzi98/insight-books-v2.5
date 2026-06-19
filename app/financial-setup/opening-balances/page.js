@@ -71,10 +71,50 @@ export default function OpeningBalancesPage() {
   const [success, setSuccess] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [openingDate, setOpeningDate] = useState(new Date().toISOString().split('T')[0]);
+  const [statusReport, setStatusReport] = useState(null);
+  const [exporting, setExporting] = useState(null);
 
   useEffect(() => {
     fetchAccounts();
+    fetchStatusReport();
   }, []);
+
+  const fetchStatusReport = async () => {
+    try {
+      const res = await fetch("/api/opening-balances");
+      if (res.ok) {
+        const data = await res.json();
+        setStatusReport(data);
+        if (data.startingDate) {
+          setOpeningDate(new Date(data.startingDate).toISOString().split('T')[0]);
+        }
+      }
+    } catch {
+      /* non-fatal */
+    }
+  };
+
+  const handleExport = async (format) => {
+    try {
+      setExporting(format);
+      const res = await fetch(`/api/opening-balances/export?format=${format}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `opening-balances.${format === "pdf" ? "pdf" : "xlsx"}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const fetchAccounts = async () => {
     try {
@@ -150,6 +190,7 @@ export default function OpeningBalancesPage() {
       }
 
       setSuccess("Opening balances set successfully!");
+      await fetchStatusReport();
       setTimeout(() => {
         router.push("/chart-of-accounts");
       }, 2000);
@@ -248,6 +289,12 @@ export default function OpeningBalancesPage() {
     getTotalAssets() - (getTotalLiabilities() + getTotalEquity())
   ) < 0.01;
 
+  const fmt = (n) =>
+    Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const summary = statusReport?.summary;
+  const isLocked = summary?.locked === true;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -257,24 +304,76 @@ export default function OpeningBalancesPage() {
   }
 
   return (
-    <PermissionGuard permission="accounting.manage">
+    <PermissionGuard permissions={["openingBalances.manage", "openingBalances.view", "accounts.update"]}>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Opening Balances Setup</h1>
               <p className="text-gray-600 mt-1">
-                Set opening balances for your accounts to begin accounting
+                Enter bulk COA opening balances — imbalances post to Opening Balance Equity (3190)
               </p>
             </div>
-            <button
-              onClick={() => setShowHelp(!showHelp)}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              <HelpCircle className="h-5 w-5" />
-              Help
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleExport("xlsx")}
+                disabled={!!exporting}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                {exporting === "xlsx" ? "Exporting…" : "Export Excel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExport("pdf")}
+                disabled={!!exporting}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+              </button>
+              <button
+                onClick={() => setShowHelp(!showHelp)}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <HelpCircle className="h-5 w-5" />
+                Help
+              </button>
+            </div>
           </div>
+
+          {isLocked && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="font-semibold text-amber-900">Opening balances locked</h3>
+                <p className="text-sm text-amber-800">
+                  At least one accounting period has been closed. Use a manual journal entry or controlled period reopening to make corrections.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              {[
+                { label: "Opening stock", value: summary.stockTotal },
+                { label: "Payment accounts", value: summary.paymentAccountsTotal },
+                { label: "Receivables", value: summary.receivablesTotal },
+                { label: "Payables", value: summary.payablesTotal },
+              ].map((card) => (
+                <div key={card.label} className="bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{card.label}</p>
+                  <p className="text-lg font-semibold text-gray-900">MWK {fmt(card.value)}</p>
+                </div>
+              ))}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 col-span-2 md:col-span-4">
+                <p className="text-xs text-indigo-700">Opening Balance Equity (3190)</p>
+                <p className="text-lg font-semibold text-indigo-900">
+                  MWK {fmt(summary.equityAccount?.balance)} · {summary.journalCount} journal(s)
+                </p>
+              </div>
+            </div>
+          )}
 
           {showHelp && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -283,7 +382,7 @@ export default function OpeningBalancesPage() {
                 <li>Enter the starting balance for each account as of your opening date</li>
                 <li>For Asset and Expense accounts: Enter positive amounts for debit balances</li>
                 <li>For Liability, Equity, and Revenue accounts: Enter positive amounts for credit balances</li>
-                <li>The system will balance any difference to owner capital (capital contribution)</li>
+                <li>The system balances any difference to Opening Balance Equity (3190)</li>
                 <li>You can filter accounts by type or search by code/name</li>
                 <li>Only accounts with non-zero balances will be saved</li>
               </ul>
@@ -401,7 +500,7 @@ export default function OpeningBalancesPage() {
             ) : (
               <span>
                 Difference: MWK {Math.abs(getTotalAssets() - (getTotalLiabilities() + getTotalEquity())).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                {" "}(On save, the system posts the difference to owner capital as a capital contribution)
+                {" "}(On save, the system posts the difference to Opening Balance Equity 3190)
               </span>
             )}
           </div>
@@ -524,7 +623,7 @@ export default function OpeningBalancesPage() {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || isLocked}
             className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {saving ? (

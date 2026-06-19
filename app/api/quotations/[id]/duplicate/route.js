@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { allocateNextQuoNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 
 // POST - Duplicate a quotation
 export async function POST(request, { params }) {
@@ -41,7 +41,10 @@ export async function POST(request, { params }) {
     const issueDate = new Date();
 
     const newQuotation = await prisma.$transaction(async (tx) => {
-      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'QUO');
+      const seq = await allocateNextQuoNumberReliable(tx, user.tenantId, {
+        prefix: quotationPrefix,
+        issueDate,
+      });
       const quotationNumber = formatDatedDocumentNumber(quotationPrefix, issueDate, seq);
 
       return tx.quotation.create({

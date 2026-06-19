@@ -11,9 +11,9 @@ import {
   ChevronRight,
   Circle,
   CreditCard,
-  ExternalLink,
   Loader2,
   PartyPopper,
+  Package,
   Receipt,
   Scale,
   SkipForward,
@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { SETUP_WIZARD_STEP_DEFS, getSetupStepDef } from "@/lib/setupWizardStepsMeta";
+import SetupWizardStepContent from "@/components/setup/SetupWizardStepContent";
 
 const STEP_ICONS = {
   capital: Wallet,
@@ -33,6 +34,7 @@ const STEP_ICONS = {
   taxes: Receipt,
   clients: Users,
   suppliers: Truck,
+  openingStock: Package,
 };
 
 function factLabel(stepId, facts) {
@@ -64,6 +66,10 @@ function factLabel(stepId, facts) {
       return facts.supplierCount > 0
         ? `${facts.supplierCount} supplier${facts.supplierCount === 1 ? "" : "s"}`
         : "No suppliers yet";
+    case "openingStock":
+      return facts.hasOpeningStock
+        ? `${facts.stockedProductCount} product${facts.stockedProductCount === 1 ? "" : "s"} with stock`
+        : "No opening stock recorded";
     default:
       return null;
   }
@@ -120,6 +126,15 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
       setLoading(false);
     }
   }, []);
+
+  const handleStepSaved = useCallback(async () => {
+    await load();
+    try {
+      window.dispatchEvent(new CustomEvent("setup-wizard-updated"));
+    } catch {
+      /* ignore */
+    }
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -339,8 +354,8 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
             Build your financial foundation
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
-            Seven quick areas — capital, balance sheet, payments, taxes, and key contacts. Skip
-            anything you&apos;ll configure later.
+            Eight quick areas — configure everything here without leaving this wizard. Skip anything
+            you&apos;ll set up later.
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
@@ -439,21 +454,27 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
 
         {/* Active step panel */}
         <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-300/30">
-          <div className={`relative bg-gradient-to-br ${meta.gradient} px-6 py-10 sm:px-10 sm:py-12`}>
+          <div
+            className={`relative bg-gradient-to-br ${meta.gradient} ${embedded ? "px-5 py-6 sm:px-8" : "px-6 py-10 sm:px-10 sm:py-12"}`}
+          >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_50%)]" />
             <div className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="max-w-xl">
-                <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-white shadow-lg backdrop-blur-sm">
-                  <StepIcon className="h-7 w-7" />
+                <div
+                  className={`mb-3 inline-flex items-center justify-center rounded-2xl bg-white/20 text-white shadow-lg backdrop-blur-sm ${embedded ? "h-11 w-11" : "mb-4 h-14 w-14"}`}
+                >
+                  <StepIcon className={embedded ? "h-5 w-5" : "h-7 w-7"} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-bold text-white sm:text-3xl">{meta.label}</h2>
+                  <h2 className={`font-bold text-white ${embedded ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"}`}>
+                    {meta.label}
+                  </h2>
                   {activeStep && <StatusPill status={activeStep.status} />}
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-white/90">{meta.description}</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/90">{meta.description}</p>
                 {factLabel(activeStep?.id, facts) && (
-                  <p className="mt-4 inline-flex rounded-lg bg-black/20 px-3 py-1.5 text-xs font-medium text-white/95 backdrop-blur-sm">
+                  <p className="mt-3 inline-flex rounded-lg bg-black/20 px-3 py-1.5 text-xs font-medium text-white/95 backdrop-blur-sm">
                     {factLabel(activeStep?.id, facts)}
                   </p>
                 )}
@@ -461,10 +482,19 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
             </div>
           </div>
 
-          <div className="space-y-6 p-6 sm:p-8">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Quick tips</h3>
-              <ul className="mt-3 space-y-2">
+          <div className="space-y-5 p-5 sm:p-7">
+            <SetupWizardStepContent
+              stepId={activeStep?.id}
+              facts={facts}
+              onSaved={handleStepSaved}
+              onError={setError}
+            />
+
+            <details className="rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Tips for this step
+              </summary>
+              <ul className="mt-2 space-y-1.5">
                 {meta.tips.map((tip) => (
                   <li key={tip} className="flex gap-2 text-sm text-slate-600">
                     <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
@@ -472,43 +502,32 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link
-                href={meta.href}
-                target={embedded ? "_blank" : undefined}
-                rel={embedded ? "noopener noreferrer" : undefined}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 sm:flex-none sm:min-w-[200px]"
-              >
-                Open & configure
-                <ExternalLink className="h-4 w-4 opacity-80" />
-              </Link>
-              {activeStep?.status === "pending" && (
-                <>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={handleComplete}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 px-5 py-3.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50 sm:flex-none"
-                  >
-                    {busy === "complete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    Mark as done
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={handleSkip}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:flex-none"
-                  >
-                    {busy === "skip" ? <Loader2 className="h-4 w-4 animate-spin" /> : <SkipForward className="h-4 w-4" />}
-                    Skip for now
-                  </button>
-                </>
-              )}
-            </div>
+            {activeStep?.status === "pending" && (
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  disabled={!!busy}
+                  onClick={handleComplete}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50 sm:flex-none"
+                >
+                  {busy === "complete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Mark step as done
+                </button>
+                <button
+                  type="button"
+                  disabled={!!busy}
+                  onClick={handleSkip}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:flex-none"
+                >
+                  {busy === "skip" ? <Loader2 className="h-4 w-4 animate-spin" /> : <SkipForward className="h-4 w-4" />}
+                  Skip for now
+                </button>
+              </div>
+            )}
 
-            <div className="flex items-center justify-between border-t border-slate-100 pt-6">
+            <div className="flex items-center justify-between border-t border-slate-100 pt-5">
               <button
                 type="button"
                 onClick={goPrev}

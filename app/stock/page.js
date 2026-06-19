@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { 
   Search, 
@@ -72,6 +73,9 @@ function stockLineValue(quantity, unitCost) {
 
 // Main Stock Management Component
 const StockManagement = () => {
+  const searchParams = useSearchParams();
+  const setupOpeningStock = searchParams.get("setup") === "openingStock";
+
   // State management
   const [inventory, setInventory] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -2416,6 +2420,26 @@ const StockManagement = () => {
           </button>
         </div>
       )}
+
+      {setupOpeningStock && stockCatalog === "products" ? (
+        <div className="mb-6 rounded-xl border border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-teal-950">Setup wizard — opening stock</p>
+              <p className="mt-1 text-sm text-teal-900/80">
+                Add products with opening quantity and unit cost, or use <strong>Stock In</strong> on
+                existing items. This updates inventory valuation and Stock on Hand (1310).
+              </p>
+            </div>
+            <Link
+              href="/setup?step=openingStock"
+              className="shrink-0 text-sm font-medium text-teal-800 underline decoration-teal-300 underline-offset-2 hover:text-teal-950"
+            >
+              Back to setup wizard
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 lg:mb-8">
         <div className="w-full lg:w-auto min-w-0">
@@ -6773,4 +6797,18 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
   );
 };
 
-export default StockManagement;
+function StockManagementPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">
+          Loading stock…
+        </div>
+      }
+    >
+      <StockManagement />
+    </Suspense>
+  );
+}
+
+export default StockManagementPage;

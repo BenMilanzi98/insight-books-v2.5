@@ -295,6 +295,7 @@ const navigationByPermission = {
             { href: "/hr/attendance", text: "Attendance Tracking" },
             { href: "/hr/performance", text: "Performance Management" },
             { href: "/hr/payroll", text: "Payroll Processing" },
+            { href: "/hr/payroll/paye-summary", text: "PAYE Summary" },
             { href: "/hr/benefits", text: "Benefits & Allowances" },
             { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
             { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },

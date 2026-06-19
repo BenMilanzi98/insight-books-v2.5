@@ -73,6 +73,7 @@ model Tenant {
   paymentGateways              PaymentGateway[]
   paymentAccounts              PaymentAccount[]
   payrolls                     Payroll[]
+  payrollTaxConfigurations     PayrollTaxConfiguration[]
   performanceFeedback          PerformanceFeedback[]
   performanceGoals             PerformanceGoal[]
   performanceReviews           PerformanceReview[]
@@ -225,6 +226,8 @@ model TenantSettings {
   setupReminderSnoozedUntil        DateTime?
   /// { completed: Record<stepId, iso>, skipped: Record<stepId, iso> } — see lib/setupWizardService.js
   setupWizardState                 Json?
+  /// Payroll GL account mapping — see lib/payrollEngine/accountMappings.js
+  payrollAccountMappings           Json?
   /// Days before expiry for "early" alerts; null = use default 30.
   expiryWarnDaysEarly              Int?
   /// Days before expiry for "urgent" alerts; null = use default 7.
@@ -1810,6 +1813,27 @@ model Payroll {
   @@index([periodStart])
   @@index([periodEnd])
   @@index([status])
+}
+
+/// Configurable PAYE/tax bands per tenant (Malawi default seeded when missing).
+model PayrollTaxConfiguration {
+  id                    String    @id @default(cuid())
+  tenantId              String
+  country               String    @default("MW")
+  taxYear               Int
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  /// [{ ceiling: number|null, rate: number, label?: string }] — marginal monthly bands
+  bands                 Json
+  monthlyTaxFreeAllowance Float   @default(0)
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+  @@index([effectiveFrom])
 }
 
 model Benefit {

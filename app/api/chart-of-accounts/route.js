@@ -25,7 +25,7 @@ import {
 } from '@/lib/coaChartRollup.js';
 import { loadCoaBulkGlAggregates } from '@/lib/coaBulkGlAggregation.js';
 import { getTenantFiscalYearStartMonth } from '@/lib/accountingPeriodService';
-import { roundCents, inferCoaNormalBalance } from '@/lib/coaMoney.js';
+import { roundCents, inferCoaNormalBalance, normalizeCoaDisplayBalances } from '@/lib/coaMoney.js';
 import {
   alignInventorySearchParamsWithGlBranch,
   computePhysicalInventoryValuationTotal,
@@ -630,6 +630,7 @@ export async function GET(request) {
     const foldedPosted = foldCatchAllBucketTotalsIntoPostedDirect(accountsAfterFirstRollup);
     const afterCatchAllRollup = applyCoaParentRollup(foldedPosted);
     const accountsWithCatchAllDisplay = apply3100CapitalBucketAncestorPropagation(afterCatchAllRollup);
+    normalizeCoaDisplayBalances(accountsWithCatchAllDisplay);
 
     const codeOf = (a) => String(a.accountCode || a.code || '');
     const parentCap = accountsWithCatchAllDisplay.find((a) => codeOf(a) === '3100');

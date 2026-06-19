@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { allocateNextInvNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { createInvoiceJournalEntry } from '@/lib/transactionJournalHelpers';
 import { calculateRentalInvoiceTotals } from '@/lib/rentalInvoiceCalc';
 import { computeBillableUnits } from '@/lib/rentalBilling';
@@ -210,7 +210,10 @@ export async function POST(request) {
         await assertCanBook(tx, asset, start, end, qty, {});
       }
 
-      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'INV');
+      const seq = await allocateNextInvNumberReliable(tx, user.tenantId, {
+        prefix: invoicePrefix,
+        issueDate,
+      });
       const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
 
       const itemsWithTitles = calculations.processedItems.map((item) => ({

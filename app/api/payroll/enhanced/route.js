@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateMalawiPayroll } from '@/lib/malawiTaxUtils';
+import { calculatePayeForTenant, assertPayrollTaxConfigurationReady } from '@/lib/payrollEngine';
 import { deductionMatchesNps, deductionMatchesPaye } from '@/lib/payrollDeductionMatching';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
@@ -454,6 +455,15 @@ export async function POST(request) {
 
     const payrollEntries = [];
 
+    try {
+      await assertPayrollTaxConfigurationReady(user.tenantId, periodEnd);
+    } catch (taxConfigError) {
+      return NextResponse.json(
+        { error: taxConfigError.message || 'Payroll tax configuration is not ready.' },
+        { status: 400 },
+      );
+    }
+
     for (const employee of employees) {
       const baseSalary = Number(employee.grossSalary || employee.salary || 0);
       if (!baseSalary || Number.isNaN(baseSalary)) {
@@ -685,6 +695,23 @@ export async function POST(request) {
 
       // Calculate payroll with optional PAYE and NPS (NPS rates are configurable)
       const payrollCalculation = calculateMalawiPayroll(payrollData, applyPAYE, applyNPS, npsRates);
+
+      if (applyPAYE) {
+        const payeResult = await calculatePayeForTenant(
+          user.tenantId,
+          payrollCalculation.payeTaxableIncome ?? payrollCalculation.taxableGrossPay ?? 0,
+          periodEnd,
+        );
+        payrollCalculation.payeAmount = Number(payeResult?.payeAmount ?? payeResult) || 0;
+        payrollCalculation.netPay =
+          (Number(payrollCalculation.totalGrossPay) || 0) -
+          (Number(payrollCalculation.payeAmount) || 0) -
+          (Number(payrollCalculation.npsEmployeeAmount) || 0) -
+          Object.values(payrollCalculation.otherDeductions || {}).reduce(
+            (sum, value) => sum + (Number(value) || 0),
+            0,
+          );
+      }
 
       // Ensure all values are properly calculated
       const payeAmount = Number(payrollCalculation.payeAmount) || 0;

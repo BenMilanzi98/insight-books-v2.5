@@ -14,6 +14,8 @@ import {
 import { productLineValue } from '@/lib/stockValuationAggregate';
 import { roundMoney } from '@/lib/money';
 import { enrichProductForPosCatalog } from '@/lib/posCatalogProduct';
+import { completeOpeningStockWizardStep } from '@/lib/setupWizardService';
+import { postOpeningBalance } from '@/lib/openingBalanceService';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -865,6 +867,26 @@ export async function POST(request) {
           product.stockLevel = updatedProduct.stockLevel;
           console.log(`[Product Creation] Product ${product.id} stockLevel after FIFO batch: ${updatedProduct.stockLevel}`);
         }
+
+        const openingStockValue = roundMoney(
+          allocationRows.reduce((sum, row) => sum + row.qty * row.unitCost, 0),
+        );
+        if (openingStockValue > 0) {
+          try {
+            await postOpeningBalance({
+              tenantId: user.tenantId,
+              type: 'opening_stock',
+              amount: openingStockValue,
+              asOfDate: new Date(),
+              entityId: product.id,
+              description: `Opening stock — ${product.name}`,
+              metadata: { productId: product.id, quantity: initialStock },
+              createdBy: user.id,
+            });
+          } catch (obErr) {
+            console.warn('[Product Creation] Opening stock GL posting skipped or existing:', obErr.message);
+          }
+        }
       } catch (fifoError) {
         console.error('[Product Creation] Error creating FIFO batch for new product:', fifoError);
         // If FIFO fails, manually set stockLevel as fallback
@@ -910,6 +932,10 @@ export async function POST(request) {
     }
     
     // Return the created product with some additional fields
+    if (!body.isService && (Number(product.stockLevel) || 0) > 0) {
+      await completeOpeningStockWizardStep(user.tenantId, prisma);
+    }
+
     return NextResponse.json(
       { 
         message: 'Product created successfully',

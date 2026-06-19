@@ -8,7 +8,7 @@ import { calculateCOGS } from '@/lib/inventoryCosting';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
-import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { allocateNextInvNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
@@ -462,7 +462,10 @@ export async function POST(request) {
     
     // Create the invoice with items in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'INV');
+      const seq = await allocateNextInvNumberReliable(tx, user.tenantId, {
+        prefix: invoicePrefix,
+        issueDate,
+      });
       const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
 
       // Check products to determine if invoice has services
@@ -822,15 +825,36 @@ export async function POST(request) {
     if (
       postingMsg.includes('cannot receive direct postings') ||
       postingMsg.includes('consolidation parent') ||
-      postingMsg.includes('not open for new postings')
+      postingMsg.includes('not open for new postings') ||
+      postingMsg.includes('Accounts Receivable account not found') ||
+      postingMsg.includes('Account not found:') ||
+      postingMsg.includes('must reference an income account') ||
+      postingMsg.includes('must include valid account allocations')
     ) {
       return NextResponse.json(
         {
           error: postingMsg.includes('Use a detail account')
             ? postingMsg
-            : `${postingMsg} Use a detail income account (e.g. 4100 Product Sales), not the 4000 Revenue section header.`,
+            : postingMsg.includes('Accounts Receivable')
+              ? `${postingMsg} Ensure account 1200 Accounts Receivable exists and accepts postings in Chart of Accounts.`
+              : postingMsg,
         },
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+
+    if (
+      postingMsg.includes('DocumentSequence') ||
+      postingMsg.includes('Could not allocate document number') ||
+      postingMsg.includes('Could not allocate invoice number')
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Invoice numbering is not configured. Run database migrations (DocumentSequence) or contact support.',
+          details: process.env.NODE_ENV === 'development' ? postingMsg : undefined,
+        },
+        { status: 503 },
       );
     }
 

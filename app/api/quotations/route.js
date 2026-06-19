@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
-import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { allocateNextQuoNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 
 // Enhanced helper function to calculate quotation totals with discounts
@@ -274,7 +274,10 @@ export async function POST(request) {
     const issueDate = body.issueDate ? new Date(body.issueDate) : new Date();
 
     const newQuotation = await prisma.$transaction(async (tx) => {
-      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'QUO');
+      const seq = await allocateNextQuoNumberReliable(tx, user.tenantId, {
+        prefix: quotationPrefix,
+        issueDate,
+      });
       const quotationNumber = formatDatedDocumentNumber(quotationPrefix, issueDate, seq);
 
       return tx.quotation.create({

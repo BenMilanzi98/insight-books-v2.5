@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createInventoryWriteOffJournalEntry } from '@/lib/inventoryWriteOffJournal';
+import { completeOpeningStockWizardStep } from '@/lib/setupWizardService';
+import { postOpeningBalance } from '@/lib/openingBalanceService';
+import { roundMoney } from '@/lib/money';
 
 // In-memory request deduplication cache (prevents double processing)
 // Key: `${userId}-${productId}-${type}-${quantity}-${unitCost}`
@@ -608,6 +611,28 @@ export async function POST(request) {
       });
     } catch (invErr) {
       console.warn('InventoryTransaction create (non-fatal):', invErr?.message || invErr);
+    }
+
+    if (body.type === 'Stock In' && quantity > 0) {
+      const unitCost = body.unitCost ? Number(body.unitCost) : (Number(product.cost) || 0);
+      const openingStockValue = roundMoney(quantity * unitCost);
+      if (openingStockValue > 0) {
+        try {
+          await postOpeningBalance({
+            tenantId: user.tenantId,
+            type: 'opening_stock',
+            amount: openingStockValue,
+            asOfDate: new Date(),
+            entityId: body.productId,
+            description: `Opening stock — Stock In (${productWithName?.name || product.id})`,
+            metadata: { productId: body.productId, quantity, unitCost, source: 'stock_in' },
+            createdBy: user.id,
+          });
+        } catch (obErr) {
+          console.warn('[Stock Transaction] Opening stock GL posting skipped or existing:', obErr.message);
+        }
+      }
+      await completeOpeningStockWizardStep(user.tenantId, prisma);
     }
     
     // Determine product status
