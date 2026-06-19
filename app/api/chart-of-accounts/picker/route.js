@@ -6,6 +6,7 @@ import { canUseCoaAccountPicker } from '@/lib/chartOfAccountsAccess';
 import { buildCoaAccountListWhere } from '@/lib/coaAccountListWhere.js';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility.js';
 import { enrichChartAccountsWithPaymentAccounts } from '@/lib/paymentAccountCoaLink.js';
+import { enrichChartAccountsWithTaxTypes } from '@/lib/taxTypeCoaLink.js';
 
 /**
  * GET /api/chart-of-accounts/picker
@@ -92,7 +93,11 @@ export async function GET(request) {
 
     const accounts = mapped;
 
-    const enriched = await enrichChartAccountsWithPaymentAccounts(user.tenantId, accounts, prisma);
+    const enriched = await enrichChartAccountsWithTaxTypes(
+      user.tenantId,
+      await enrichChartAccountsWithPaymentAccounts(user.tenantId, accounts, prisma),
+      prisma
+    );
 
     return NextResponse.json(
       { accounts: enriched, total: enriched.length },

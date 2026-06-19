@@ -15,6 +15,7 @@ import {
   accountsForCatchAllDropdown,
   accountsFor1130ExtraDropdown,
   accountsForPaymentChannelDropdown,
+  accountsForTaxParentDropdown,
 } from '../lib/coaSystemStructureTree.js';
 
 describe('accountsForCatchAllDropdown (1999)', () => {
@@ -63,6 +64,32 @@ describe('accountsForPaymentChannelDropdown', () => {
     ];
     const subs = accountsForPaymentChannelDropdown(accounts, '1131');
     expect(subs.map((a) => a.accountCode)).toEqual(['1131-01']);
+  });
+});
+
+describe('accountsForTaxParentDropdown', () => {
+  it('lists tax child GL accounts under 2041 and 2045', () => {
+    const accounts = [
+      { id: 'in', accountCode: '2041', accountType: 'Liability' },
+      { id: 'vat', accountCode: '2041-01', accountName: 'VAT Output', parentAccountId: 'in', currentBalance: 50000 },
+      { id: 'out', accountCode: '2045', accountType: 'Liability' },
+      { id: 'input', accountCode: '2045-01', accountName: 'Input VAT', parentAccountId: 'out', currentBalance: 12000 },
+      { id: 'ap', accountCode: '2110', accountType: 'Liability' },
+    ];
+    expect(accountsForTaxParentDropdown(accounts, '2041').map((a) => a.accountCode)).toEqual(['2041-01']);
+    expect(accountsForTaxParentDropdown(accounts, '2045').map((a) => a.accountCode)).toEqual(['2045-01']);
+  });
+});
+
+describe('accountsForCatchAllDropdown (2999)', () => {
+  it('excludes 2041-xx and 2045-xx tax child accounts from liability catch-all', () => {
+    const accounts = [
+      { id: 'vat', accountCode: '2041-01', accountType: 'Liability', currentBalance: 1000 },
+      { id: 'input', accountCode: '2045-02', accountType: 'Liability', currentBalance: 200 },
+      { id: 'misc', accountCode: '2180', accountType: 'Liability', currentBalance: 50 },
+    ];
+    const c2999 = accountsForCatchAllDropdown(accounts, '2999');
+    expect(c2999.map((a) => a.accountCode)).toEqual(['2180']);
   });
 });
 

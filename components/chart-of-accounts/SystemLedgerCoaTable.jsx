@@ -24,12 +24,14 @@ import {
   pickPrimaryAccountForStructure,
   accountsFor1130ExtraDropdown,
   accountsForPaymentChannelDropdown,
+  accountsForTaxParentDropdown,
   accountsForCatchAllDropdown,
   accountsFor3100CapitalDropdown,
   accountTypeForStructureCode,
 } from '@/lib/coaSystemStructureTree.js';
 import { structureNodeBalanceBreakdown } from '@/lib/coaStructureDisplayBalance.js';
 import { PAYMENT_GL_PARENT_CODES } from '@/lib/paymentGlChannels.js';
+import { TAX_GL_PARENT_CODES } from '@/lib/malawiTaxCatalog.js';
 import { isCoaSyntheticDirectRow } from '@/lib/coaChartRollup.js';
 import { COA_RECONCILE_TOLERANCE } from '@/lib/coaMoney.js';
 
@@ -205,11 +207,16 @@ export default function SystemLedgerCoaTable({
                 <span className="font-mono font-semibold">{a.accountCode || a.code}</span>
                 <span className="font-sans text-slate-700">
                   {' '}
-                  — {a.paymentAccountName || a.accountName || a.name || '—'}
+                  — {a.paymentAccountName || a.taxTypeName || a.accountName || a.name || '—'}
                 </span>
                 {a.paymentAccountReference ? (
                   <span className="block font-sans text-[10px] text-slate-500 mt-0.5">
                     Account no. {a.paymentAccountReference}
+                  </span>
+                ) : a.taxTypeName ? (
+                  <span className="block font-sans text-[10px] text-slate-500 mt-0.5">
+                    {a.taxTypeCode ? `${a.taxTypeCode}` : 'Tax type'}
+                    {a.taxTypeRate ? ` · ${a.taxTypeRate}` : ''}
                   </span>
                 ) : null}
               </button>
@@ -270,6 +277,9 @@ export default function SystemLedgerCoaTable({
     const capExtra = node.code === '3100' ? dropdownBuckets.cap3100 : [];
     const paymentChannelExtra = PAYMENT_GL_PARENT_CODES.has(node.code)
       ? accountsForPaymentChannelDropdown(accounts, node.code)
+      : [];
+    const taxParentExtra = TAX_GL_PARENT_CODES.has(node.code)
+      ? accountsForTaxParentDropdown(accounts, node.code)
       : [];
 
     const rootTheme = isRoot ? ROOT_THEME[node.code] : null;
@@ -478,6 +488,9 @@ export default function SystemLedgerCoaTable({
             {node.code === '1130' ? renderLedgerExtrasDropdown('Other bank & mobile GL accounts (e.g. 1130-03, 113001)', hExtra) : null}
             {paymentChannelExtra.length
               ? renderLedgerExtrasDropdown(`Payment accounts under ${node.code} (${node.name})`, paymentChannelExtra)
+              : null}
+            {taxParentExtra.length
+              ? renderLedgerExtrasDropdown(`Tax accounts under ${node.code} (${node.name})`, taxParentExtra)
               : null}
             {node.code === '3100'
               ? renderLedgerExtrasDropdown("Owner's capital sub-accounts (3101–3199)", capExtra)

@@ -46,6 +46,7 @@ import {
   ensureCustomExpenses5700ForTenant,
 } from '@/lib/customExpenseRange.server.js';
 import { enrichChartAccountsWithPaymentAccounts } from '@/lib/paymentAccountCoaLink.js';
+import { enrichChartAccountsWithTaxTypes } from '@/lib/taxTypeCoaLink.js';
 import {
   buildCoaAccountListWhere,
   COA_ACCOUNT_TYPES,
@@ -648,7 +649,11 @@ export async function GET(request) {
     })();
 
     const accountsForResponse = alignChartAccountsListToBlueprint(
-      await enrichChartAccountsWithPaymentAccounts(user.tenantId, sortedAccounts, prisma)
+      await enrichChartAccountsWithTaxTypes(
+        user.tenantId,
+        await enrichChartAccountsWithPaymentAccounts(user.tenantId, sortedAccounts, prisma),
+        prisma
+      )
     );
 
     return NextResponse.json(
