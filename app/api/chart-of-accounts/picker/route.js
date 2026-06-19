@@ -5,6 +5,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { canUseCoaAccountPicker } from '@/lib/chartOfAccountsAccess';
 import { buildCoaAccountListWhere } from '@/lib/coaAccountListWhere.js';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility.js';
+import { enrichChartAccountsWithPaymentAccounts } from '@/lib/paymentAccountCoaLink.js';
 
 /**
  * GET /api/chart-of-accounts/picker
@@ -91,8 +92,10 @@ export async function GET(request) {
 
     const accounts = mapped;
 
+    const enriched = await enrichChartAccountsWithPaymentAccounts(user.tenantId, accounts, prisma);
+
     return NextResponse.json(
-      { accounts, total: accounts.length },
+      { accounts: enriched, total: enriched.length },
       {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',

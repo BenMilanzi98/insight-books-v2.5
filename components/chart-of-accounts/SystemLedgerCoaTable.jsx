@@ -23,11 +23,13 @@ import {
   sumLedgerBalances,
   pickPrimaryAccountForStructure,
   accountsFor1130ExtraDropdown,
+  accountsForPaymentChannelDropdown,
   accountsForCatchAllDropdown,
   accountsFor3100CapitalDropdown,
   accountTypeForStructureCode,
 } from '@/lib/coaSystemStructureTree.js';
 import { structureNodeBalanceBreakdown } from '@/lib/coaStructureDisplayBalance.js';
+import { PAYMENT_GL_PARENT_CODES } from '@/lib/paymentGlChannels.js';
 import { isCoaSyntheticDirectRow } from '@/lib/coaChartRollup.js';
 import { COA_RECONCILE_TOLERANCE } from '@/lib/coaMoney.js';
 
@@ -198,10 +200,18 @@ export default function SystemLedgerCoaTable({
               <button
                 type="button"
                 onClick={() => onViewAccount?.(a)}
-                className="min-w-0 flex-1 text-left font-mono text-[11px] leading-snug text-slate-900 hover:underline"
+                className="min-w-0 flex-1 text-left text-[11px] leading-snug text-slate-900 hover:underline"
               >
-                <span className="font-semibold">{a.accountCode || a.code}</span>
-                <span className="font-sans text-slate-600"> — {a.accountName || a.name || '—'}</span>
+                <span className="font-mono font-semibold">{a.accountCode || a.code}</span>
+                <span className="font-sans text-slate-700">
+                  {' '}
+                  — {a.paymentAccountName || a.accountName || a.name || '—'}
+                </span>
+                {a.paymentAccountReference ? (
+                  <span className="block font-sans text-[10px] text-slate-500 mt-0.5">
+                    Account no. {a.paymentAccountReference}
+                  </span>
+                ) : null}
               </button>
               <span className="shrink-0 font-mono text-[11px] font-medium text-slate-700">
                 {formatCurrency(Number(a.currentBalance) || 0)}
@@ -258,6 +268,9 @@ export default function SystemLedgerCoaTable({
                 ? dropdownBuckets.c5900
                 : [];
     const capExtra = node.code === '3100' ? dropdownBuckets.cap3100 : [];
+    const paymentChannelExtra = PAYMENT_GL_PARENT_CODES.has(node.code)
+      ? accountsForPaymentChannelDropdown(accounts, node.code)
+      : [];
 
     const rootTheme = isRoot ? ROOT_THEME[node.code] : null;
     const showRollupHint =
@@ -463,6 +476,9 @@ export default function SystemLedgerCoaTable({
             </div>
             {renderLedgerExtrasDropdown('Multiple database rows for this GL code', dupes)}
             {node.code === '1130' ? renderLedgerExtrasDropdown('Other bank & mobile GL accounts (e.g. 1130-03, 113001)', hExtra) : null}
+            {paymentChannelExtra.length
+              ? renderLedgerExtrasDropdown(`Payment accounts under ${node.code} (${node.name})`, paymentChannelExtra)
+              : null}
             {node.code === '3100'
               ? renderLedgerExtrasDropdown("Owner's capital sub-accounts (3101–3199)", capExtra)
               : null}

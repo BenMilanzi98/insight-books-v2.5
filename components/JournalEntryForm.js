@@ -46,6 +46,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
   const [accounts, setAccounts] = useState([]);
   const [accountsByType, setAccountsByType] = useState({});
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+  const [lineAccountMeta, setLineAccountMeta] = useState({});
   
   // Totals
   const [totals, setTotals] = useState({
@@ -104,6 +105,59 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     
     fetchAccounts();
   }, []);
+
+  const applyAccountBalanceToLists = (accountId, currentBalance) => {
+    if (accountId == null || currentBalance == null) return;
+    setAccounts((prev) => {
+      const next = prev.map((a) =>
+        a.id === accountId ? { ...a, currentBalance } : a
+      );
+      setAccountsByType(groupAccountsForJournalSelect(next));
+      return next;
+    });
+  };
+
+  const fetchLineAccountBalance = async (index, accountId) => {
+    if (!accountId) {
+      setLineAccountMeta((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+      return;
+    }
+    setLineAccountMeta((prev) => ({ ...prev, [index]: { loading: true } }));
+    try {
+      const res = await fetch(
+        `/api/chart-of-accounts/picker/balance?accountId=${encodeURIComponent(accountId)}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to load balance');
+      }
+      setLineAccountMeta((prev) => ({
+        ...prev,
+        [index]: { ...data, loading: false },
+      }));
+      applyAccountBalanceToLists(accountId, data.currentBalance);
+    } catch (err) {
+      console.warn('Account balance lookup failed:', err?.message || err);
+      setLineAccountMeta((prev) => ({
+        ...prev,
+        [index]: { loading: false, error: true },
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (isLoadingAccounts) return;
+    formData.lines.forEach((line, index) => {
+      if (line.accountId && !lineAccountMeta[index]) {
+        fetchLineAccountBalance(index, line.accountId);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingAccounts, existingEntry?.id]);
   
   // Calculate totals whenever entries change
   useEffect(() => {
@@ -150,6 +204,10 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     
     // Update the field
     newEntries[index][field] = value;
+
+    if (field === 'accountId') {
+      fetchLineAccountBalance(index, value);
+    }
     
     setFormData(prev => ({
       ...prev,
@@ -302,7 +360,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
-      <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-5xl">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 pb-12">
         {/* Header */}
         <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
           <div className="flex items-center gap-4">
@@ -455,6 +513,21 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                             ))}
                           </select>
                         )}
+                        {entry.accountId && lineAccountMeta[index]?.loading ? (
+                          <p className="mt-1 text-[11px] text-slate-400">Loading balance…</p>
+                        ) : null}
+                        {entry.accountId && lineAccountMeta[index] && !lineAccountMeta[index].loading ? (
+                          <p className="mt-1 text-[11px] text-slate-600">
+                            <span className="font-medium">GL balance:</span>{' '}
+                            {formatCurrency(lineAccountMeta[index].currentBalance || 0)}
+                            {lineAccountMeta[index].accountCode ? (
+                              <span className="text-slate-400">
+                                {' '}
+                                · {lineAccountMeta[index].accountCode}
+                              </span>
+                            ) : null}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <input

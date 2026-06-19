@@ -14,6 +14,7 @@ import { sumPhysicalInventoryProductLines, productLineValue } from '../lib/stock
 import {
   accountsForCatchAllDropdown,
   accountsFor1130ExtraDropdown,
+  accountsForPaymentChannelDropdown,
 } from '../lib/coaSystemStructureTree.js';
 
 describe('accountsForCatchAllDropdown (1999)', () => {
@@ -41,6 +42,27 @@ describe('accountsFor1130ExtraDropdown', () => {
     ];
     const extra = accountsFor1130ExtraDropdown(accounts);
     expect(extra.map((a) => a.accountCode)).toEqual(['1130-99']);
+  });
+
+  it('excludes Malawi channel child codes (1131-01) from 1130 extras bucket', () => {
+    const accounts = [
+      { id: 'nbm', accountCode: '1131', accountType: 'Asset' },
+      { id: 'sub', accountCode: '1131-01', accountType: 'Asset', parentAccountId: 'nbm' },
+      { id: 'legacy', accountCode: '1130-99', accountType: 'Asset' },
+    ];
+    expect(accountsFor1130ExtraDropdown(accounts).map((a) => a.accountCode)).toEqual(['1130-99']);
+  });
+});
+
+describe('accountsForPaymentChannelDropdown', () => {
+  it('lists sub-accounts under a bank channel by code or parent link', () => {
+    const accounts = [
+      { id: 'nbm', accountCode: '1131', accountType: 'Asset' },
+      { id: 'ops', accountCode: '1131-01', accountName: 'Operations', parentAccountId: 'nbm', currentBalance: 250000 },
+      { id: 'other', accountCode: '1132-01', accountType: 'Asset', parentAccountId: 'std' },
+    ];
+    const subs = accountsForPaymentChannelDropdown(accounts, '1131');
+    expect(subs.map((a) => a.accountCode)).toEqual(['1131-01']);
   });
 });
 
