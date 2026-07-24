@@ -170,6 +170,17 @@ export async function POST(request) {
       );
     }
 
+    // Hard-stop: prior implementation deleted posted Opening journals without reversing
+    // Account.balance updates from postGlEntry, corrupting COA balances on re-post.
+    return NextResponse.json(
+      {
+        error:
+          'Legacy opening-balance posting is disabled to prevent balance corruption. Use /api/accounting-v2/opening-balances.',
+        code: 'LEGACY_OPENING_BALANCE_DISABLED',
+      },
+      { status: 410 }
+    );
+
     const body = await request.json();
     const { balances, date } = body;
 

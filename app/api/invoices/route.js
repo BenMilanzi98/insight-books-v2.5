@@ -652,7 +652,7 @@ export async function POST(request) {
 
             const perTypeTaxTotal = Object.values(taxByType).reduce((s, t) => addMoney(s, t.totalTax), 0);
 
-            // Post tax for each identified tax type
+            // Post tax for each identified tax type (offset AR, not revenue)
             for (const { taxTypeId, totalTax } of Object.values(taxByType)) {
               try {
                 await autoPostTaxEntry({

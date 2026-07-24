@@ -1423,29 +1423,11 @@ export async function POST(request) {
                   // Continue with other items
                 }
               } else if (dataItem.isCustom) {
-                const unitCost = resolveCustomItemOrderPrice(
-                  dataItem.customProductData || saleItem.customProductData
+                // Do not trust client-supplied cost/orderPrice for COGS — that lets a POS
+                // client inflate inventory credits. Custom/service lines have no stock cost.
+                console.log(
+                  `[Custom Sale] Skipping COGS for custom line ${saleItem.id} (no inventory cost source)`
                 );
-                if (unitCost > 0) {
-                  const qty = Number(dataItem.quantity) || 1;
-                  const itemCOGS = multiplyMoney(unitCost, qty);
-                  await tx.saleItem.update({
-                    where: { id: saleItem.id },
-                    data: {
-                      customProductData: {
-                        ...(saleItem.customProductData || {}),
-                        ...(dataItem.customProductData || {}),
-                        productCostAtSale: unitCost,
-                        orderPrice: unitCost,
-                        cost: unitCost,
-                      },
-                    },
-                  });
-                  totalCOGS = addMoney(totalCOGS, itemCOGS);
-                  console.log(
-                    `[Custom Sale] COGS from order price: ${unitCost} × ${qty} = ${itemCOGS}`
-                  );
-                }
               }
             }
 
