@@ -77,14 +77,18 @@ export async function GET(request) {
           ],
         },
       }),
-      prisma.platformCredit.count({ where: { status: 'OPEN', remaining: { gt: 0 } } }),
-      prisma.platformRefund.aggregate({
-        where: {
-          status: { in: ['COMPLETED', 'SUCCESSFUL'] },
-          createdAt: { gte: periodStart },
-        },
-        _sum: { amount: true },
-      }),
+      prisma.platformCredit
+        ? prisma.platformCredit.count({ where: { status: 'OPEN', remaining: { gt: 0 } } })
+        : Promise.resolve(0),
+      prisma.platformRefund
+        ? prisma.platformRefund.aggregate({
+            where: {
+              status: { in: ['COMPLETED', 'SUCCESSFUL'] },
+              createdAt: { gte: periodStart },
+            },
+            _sum: { amount: true },
+          })
+        : Promise.resolve({ _sum: { amount: 0 } }),
     ]);
 
     const currency = 'MWK';

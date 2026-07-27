@@ -93,8 +93,13 @@ export default function AdminDashboard() {
   }, [load]);
 
   const healthStatus = health?.status || (error ? null : 'unknown');
-  const openInvoices = billing?.summary?.openInvoices ?? billing?.openInvoices ?? null;
-  const mrr = billing?.summary?.mrr ?? billing?.mrr ?? null;
+  const openInvoices =
+    billing?.stats?.outstandingInvoiceCount ??
+    billing?.summary?.openInvoices ??
+    billing?.openInvoices ??
+    null;
+  const collectedPeriod =
+    billing?.stats?.paymentsThisPeriod ?? billing?.summary?.mrr ?? billing?.mrr ?? null;
 
   const shortcuts = [
     { href: '/insightbooks/tenant-management', label: 'Tenants', icon: Building2 },
@@ -171,8 +176,8 @@ export default function AdminDashboard() {
               tone="info"
             />
             <AdminSummaryCard
-              label="MRR / recurring"
-              value={mrr == null ? '—' : `MWK ${fmt(mrr)}`}
+              label="Payments this period"
+              value={collectedPeriod == null ? '—' : `MWK ${fmt(collectedPeriod)}`}
               icon={CreditCard}
             />
             <AdminSummaryCard
