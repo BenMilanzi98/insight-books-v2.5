@@ -8,7 +8,6 @@ import {
   MoreVertical,
   Plus,
   RefreshCw,
-  Search,
 } from 'lucide-react';
 import {
   AdminPageContainer,
@@ -19,6 +18,10 @@ import {
   AdminEmptyState,
   AdminStatusBadge,
   AdminConfirmationDialog,
+  AdminFilterBar,
+  AdminDataTable,
+  AdminModal,
+  AdminField,
 } from '@/components/admin';
 
 function statusTone(status) {
@@ -213,30 +216,26 @@ export default function TenantManagementPage() {
         <AdminSummaryCard label="Archived" value={error ? '—' : counts.archived} tone="neutral" />
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or subdomain…"
-            className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] py-2 pl-9 pr-3 text-sm"
-          />
-        </div>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm"
-          aria-label="Filter by status"
-        >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="trial">Trial</option>
-          <option value="suspended">Suspended</option>
-          <option value="archived">Archived</option>
-        </select>
-      </div>
+      <AdminFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search name or subdomain…"
+      >
+        <AdminField label="Status" htmlFor="tenant-status-filter">
+          <AdminField.Select
+            id="tenant-status-filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter by status"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="trial">Trial</option>
+            <option value="suspended">Suspended</option>
+            <option value="archived">Archived</option>
+          </AdminField.Select>
+        </AdminField>
+      </AdminFilterBar>
 
       {loading ? <AdminLoadingState label="Loading tenants" /> : null}
       {!loading && error ? (
@@ -250,7 +249,7 @@ export default function TenantManagementPage() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white"
+              className="rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white"
             >
               Create tenant
             </button>
@@ -259,225 +258,182 @@ export default function TenantManagementPage() {
       ) : null}
 
       {!loading && !error && filtered.length > 0 ? (
-        <>
-          <div className="hidden overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] md:block">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
-                <tr>
-                  <th className="px-4 py-3">Tenant</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Subscription</th>
-                  <th className="px-4 py-3">Plan</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((tenant) => (
-                  <tr key={tenant.id} className="border-t border-[var(--border-default)]">
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        className="text-left font-medium text-[var(--action-primary)] hover:underline"
-                        onClick={() =>
-                          router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
-                        }
-                      >
-                        <span className="break-words">{tenant.name}</span>
-                      </button>
-                      <div className="break-all text-xs text-[var(--text-muted)]">
-                        {tenant.subdomain || tenant.id}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <AdminStatusBadge tone={statusTone(tenant.status)}>
-                        {tenant.status || '—'}
-                      </AdminStatusBadge>
-                    </td>
-                    <td className="px-4 py-3">{tenant.subscriptionStatus || '—'}</td>
-                    <td className="px-4 py-3">{tenant.plan || tenant.subscriptionPlan || '—'}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {tenant.createdAt
-                        ? new Date(tenant.createdAt).toLocaleDateString()
-                        : '—'}
-                    </td>
-                    <td className="relative px-4 py-3 text-right" data-tenant-menu>
-                      <button
-                        type="button"
-                        aria-label="Actions"
-                        className="rounded p-1 hover:bg-[var(--surface-muted)]"
-                        onClick={() =>
-                          setMenuId((id) => (id === tenant.id ? null : tenant.id))
-                        }
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      {menuId === tenant.id ? (
-                        <div className="absolute right-4 z-20 mt-1 w-52 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-white py-1 shadow-[var(--shadow-modal)]">
-                          <MenuBtn
-                            onClick={() =>
-                              router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
-                            }
-                          >
-                            Open dashboard
-                          </MenuBtn>
-                          <MenuBtn
-                            onClick={() =>
-                              setConfirm({
-                                tenant,
-                                command: 'ACTIVATE',
-                                title: 'Activate tenant',
-                                description: `Activate ${tenant.name}?`,
-                              })
-                            }
-                          >
-                            Activate
-                          </MenuBtn>
-                          <MenuBtn
-                            onClick={() =>
-                              setConfirm({
-                                tenant,
-                                command: 'SUSPEND',
-                                title: 'Suspend tenant',
-                                description: `Suspend ${tenant.name}? A reason is required.`,
-                                needReason: true,
-                              })
-                            }
-                          >
-                            Suspend
-                          </MenuBtn>
-                          <MenuBtn
-                            onClick={() =>
-                              setConfirm({
-                                tenant,
-                                command: 'REACTIVATE',
-                                title: 'Reactivate tenant',
-                                description: `Reactivate ${tenant.name}?`,
-                              })
-                            }
-                          >
-                            Reactivate
-                          </MenuBtn>
-                          <MenuBtn
-                            onClick={() =>
-                              setConfirm({
-                                tenant,
-                                command: 'ARCHIVE',
-                                title: 'Archive tenant',
-                                description: `Archive ${tenant.name}? Data is preserved; hard delete is not allowed.`,
-                                needReason: true,
-                              })
-                            }
-                          >
-                            Archive
-                          </MenuBtn>
-                          <MenuBtn onClick={() => startSupportAccess(tenant)}>
-                            <Headphones className="mr-2 inline h-3.5 w-3.5" />
-                            Support access
-                          </MenuBtn>
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <ul className="space-y-3 md:hidden">
-            {filtered.map((tenant) => (
-              <li
-                key={tenant.id}
-                className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="break-words font-semibold">{tenant.name}</p>
-                    <p className="break-all text-xs text-[var(--text-muted)]">
-                      {tenant.subdomain}
-                    </p>
-                  </div>
-                  <AdminStatusBadge tone={statusTone(tenant.status)}>
-                    {tenant.status}
-                  </AdminStatusBadge>
-                </div>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  {tenant.subscriptionStatus || '—'} · {tenant.plan || '—'}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+        <AdminDataTable
+          rows={filtered}
+          columns={[
+            {
+              key: 'name',
+              header: 'Tenant',
+              render: (tenant) => (
+                <div>
                   <button
                     type="button"
-                    className="rounded border px-2 py-1 text-xs"
+                    className="text-left font-medium text-[var(--admin-text)] underline-offset-2 hover:underline"
                     onClick={() =>
                       router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
                     }
                   >
-                    Open
+                    {tenant.name}
                   </button>
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-1 text-xs"
-                    onClick={() =>
-                      setConfirm({
-                        tenant,
-                        command: 'SUSPEND',
-                        title: 'Suspend tenant',
-                        needReason: true,
-                      })
-                    }
-                  >
-                    Suspend
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-1 text-xs"
-                    onClick={() => startSupportAccess(tenant)}
-                  >
-                    Support
-                  </button>
+                  <div className="break-all text-xs text-[var(--admin-text-muted)]">
+                    {tenant.subdomain || tenant.id}
+                  </div>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              render: (tenant) => (
+                <AdminStatusBadge tone={statusTone(tenant.status)}>
+                  {tenant.status || '—'}
+                </AdminStatusBadge>
+              ),
+            },
+            {
+              key: 'subscriptionStatus',
+              header: 'Subscription',
+              render: (t) => t.subscriptionStatus || '—',
+            },
+            {
+              key: 'plan',
+              header: 'Plan',
+              hideOnMobile: true,
+              render: (t) => t.plan || t.subscriptionPlan || '—',
+            },
+            {
+              key: 'createdAt',
+              header: 'Created',
+              hideOnMobile: true,
+              render: (t) =>
+                t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—',
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              mobileLabel: 'Actions',
+              cellClassName: 'text-right',
+              render: (tenant) => (
+                <div className="relative text-right" data-tenant-menu>
+                  <button
+                    type="button"
+                    aria-label="Actions"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--admin-radius)] hover:bg-[var(--admin-surface-muted)]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuId((id) => (id === tenant.id ? null : tenant.id));
+                    }}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                  {menuId === tenant.id ? (
+                    <div className="absolute right-0 z-20 mt-1 w-52 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-white py-1 shadow-lg">
+                      <MenuBtn
+                        onClick={() =>
+                          router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
+                        }
+                      >
+                        Open dashboard
+                      </MenuBtn>
+                      <MenuBtn
+                        onClick={() =>
+                          setConfirm({
+                            tenant,
+                            command: 'ACTIVATE',
+                            title: 'Activate tenant',
+                            description: `Activate ${tenant.name}?`,
+                          })
+                        }
+                      >
+                        Activate
+                      </MenuBtn>
+                      <MenuBtn
+                        onClick={() =>
+                          setConfirm({
+                            tenant,
+                            command: 'SUSPEND',
+                            title: 'Suspend tenant',
+                            description: `Suspend ${tenant.name}? A reason is required.`,
+                            needReason: true,
+                          })
+                        }
+                      >
+                        Suspend
+                      </MenuBtn>
+                      <MenuBtn
+                        onClick={() =>
+                          setConfirm({
+                            tenant,
+                            command: 'REACTIVATE',
+                            title: 'Reactivate tenant',
+                            description: `Reactivate ${tenant.name}?`,
+                          })
+                        }
+                      >
+                        Reactivate
+                      </MenuBtn>
+                      <MenuBtn
+                        onClick={() =>
+                          setConfirm({
+                            tenant,
+                            command: 'ARCHIVE',
+                            title: 'Archive tenant',
+                            description: `Archive ${tenant.name}? Data is preserved; hard delete is not allowed.`,
+                            needReason: true,
+                          })
+                        }
+                      >
+                        Archive
+                      </MenuBtn>
+                      <MenuBtn onClick={() => startSupportAccess(tenant)}>
+                        <Headphones className="mr-2 inline h-3.5 w-3.5" />
+                        Support access
+                      </MenuBtn>
+                    </div>
+                  ) : null}
+                </div>
+              ),
+            },
+          ]}
+        />
       ) : null}
 
-      {showCreate ? (
-        <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <form
-            onSubmit={createTenant}
-            className="w-full max-w-md rounded-[var(--radius-lg)] bg-white p-5 shadow-[var(--shadow-modal)]"
-          >
-            <h2 className="text-lg font-semibold">Create tenant</h2>
-            <label className="mt-4 block text-sm">
-              <span className="mb-1 block font-medium">Tenant name</span>
-              <input
-                required
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="w-full rounded-[var(--radius-md)] border px-3 py-2"
-                autoFocus
-              />
-            </label>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="rounded-[var(--radius-md)] border px-3 py-2 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={creating}
-                className="rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white disabled:opacity-60"
-              >
-                {creating ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <AdminModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Create tenant"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setShowCreate(false)}
+              className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 py-2 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="create-tenant-form"
+              disabled={creating}
+              className="rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white disabled:opacity-60"
+            >
+              {creating ? 'Creating…' : 'Create'}
+            </button>
+          </>
+        }
+      >
+        <form id="create-tenant-form" onSubmit={createTenant}>
+          <AdminField label="Tenant name" htmlFor="new-tenant-name" required>
+            <AdminField.Input
+              id="new-tenant-name"
+              required
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              autoFocus
+            />
+          </AdminField>
+        </form>
+      </AdminModal>
 
       <LifecycleConfirm
         confirm={confirm}

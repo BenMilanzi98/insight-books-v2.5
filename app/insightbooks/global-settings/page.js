@@ -8,6 +8,7 @@ import {
   AdminLoadingState,
   AdminErrorState,
   AdminStatusBadge,
+  AdminField,
 } from '@/components/admin';
 import { SECRET_MASK } from '@/lib/admin/platformSettings';
 
@@ -136,167 +137,133 @@ export default function AdminGlobalSettingsPage() {
       ) : null}
 
       {!loading && !error ? (
-        <div className="space-y-8">
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Platform</h2>
+        <div className="space-y-6">
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">Platform</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Application name" required>
-                <input
-                  className="input"
+              <AdminField label="Application name" required>
+                <AdminField.Input
                   value={settings.appName || ''}
                   onChange={(e) => setField('appName', e.target.value)}
                 />
-              </Field>
-              <Field label="Support email" required>
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="Support email" required>
+                <AdminField.Input
                   type="email"
                   value={settings.supportEmail || ''}
                   onChange={(e) => setField('supportEmail', e.target.value)}
                 />
-              </Field>
-              <Field label="Default currency">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="Default currency">
+                <AdminField.Input
                   value={settings.defaultCurrency || ''}
                   onChange={(e) => setField('defaultCurrency', e.target.value)}
                 />
-              </Field>
-              <Field label="Timezone">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="Timezone">
+                <AdminField.Input
                   value={settings.timezone || ''}
                   onChange={(e) => setField('timezone', e.target.value)}
                 />
-              </Field>
+              </AdminField>
             </div>
           </section>
 
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Security</h2>
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">Security</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Session timeout (minutes)">
-                <input
-                  className="input"
+              <AdminField label="Session timeout (minutes)">
+                <AdminField.Input
                   type="number"
                   min={1}
                   max={1440}
                   value={settings.sessionTimeout ?? ''}
                   onChange={(e) => setField('sessionTimeout', Number(e.target.value))}
                 />
-              </Field>
-              <Field label="Max login attempts">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="Max login attempts">
+                <AdminField.Input
                   type="number"
                   min={1}
                   max={20}
                   value={settings.maxLoginAttempts ?? ''}
                   onChange={(e) => setField('maxLoginAttempts', Number(e.target.value))}
                 />
-              </Field>
-              <Field label="Allowed IPs (comma-separated)" className="sm:col-span-2">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="Allowed IPs (comma-separated)" className="sm:col-span-2">
+                <AdminField.Input
                   value={settings.allowedIPs || ''}
                   onChange={(e) => setField('allowedIPs', e.target.value)}
                 />
-              </Field>
+              </AdminField>
             </div>
           </section>
 
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Email</h2>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">Email</h2>
+            <p className="mt-1 text-xs text-[var(--admin-text-muted)]">
               SMTP password shows as {SECRET_MASK} when set. Leave unchanged to keep the stored secret.
             </p>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="SMTP host">
-                <input
-                  className="input"
+              <AdminField label="SMTP host">
+                <AdminField.Input
                   value={settings.smtpHost || ''}
                   onChange={(e) => setField('smtpHost', e.target.value)}
                   autoComplete="off"
                 />
-              </Field>
-              <Field label="SMTP port">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="SMTP port">
+                <AdminField.Input
                   type="number"
                   value={settings.smtpPort ?? ''}
                   onChange={(e) => setField('smtpPort', Number(e.target.value))}
                 />
-              </Field>
-              <Field label="SMTP username">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="SMTP username">
+                <AdminField.Input
                   value={settings.smtpUsername || ''}
                   onChange={(e) => setField('smtpUsername', e.target.value)}
                   autoComplete="off"
                 />
-              </Field>
-              <Field label="SMTP password">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="SMTP password">
+                <AdminField.Input
                   type="password"
                   value={settings.smtpPassword || ''}
                   onChange={(e) => setField('smtpPassword', e.target.value)}
                   autoComplete="new-password"
                   placeholder={SECRET_MASK}
                 />
-              </Field>
-              <Field label="From email" className="sm:col-span-2">
-                <input
-                  className="input"
+              </AdminField>
+              <AdminField label="From email" className="sm:col-span-2">
+                <AdminField.Input
                   value={settings.fromEmail || ''}
                   onChange={(e) => setField('fromEmail', e.target.value)}
                 />
-              </Field>
+              </AdminField>
             </div>
           </section>
 
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Feature flags</h2>
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">Feature flags</h2>
             <ul className="mt-4 space-y-3">
               {Object.keys(featureFlags).map((key) => (
-                <li key={key} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-[var(--text-secondary)]">{key}</span>
-                  <input
-                    type="checkbox"
+                <li key={key}>
+                  <AdminField.Checkbox
+                    id={`flag-${key}`}
+                    label={key}
                     checked={Boolean(featureFlags[key])}
                     onChange={(e) => setFlag(key, e.target.checked)}
-                    aria-label={key}
                   />
                 </li>
               ))}
+              {Object.keys(featureFlags).length === 0 ? (
+                <li className="text-sm text-[var(--admin-text-muted)]">No feature flags configured.</li>
+              ) : null}
             </ul>
           </section>
         </div>
       ) : null}
-
-      <style jsx>{`
-        :global(.input) {
-          width: 100%;
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-md);
-          padding: 0.5rem 0.75rem;
-          font-size: 0.875rem;
-          background: var(--surface-primary);
-          color: var(--text-primary);
-        }
-      `}</style>
     </AdminPageContainer>
-  );
-}
-
-function Field({ label, required, children, className = '' }) {
-  return (
-    <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block font-medium text-[var(--text-secondary)]">
-        {label}
-        {required ? <span className="text-[var(--status-danger)]"> *</span> : null}
-      </span>
-      {children}
-    </label>
   );
 }

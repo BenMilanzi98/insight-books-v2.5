@@ -1,1637 +1,742 @@
-"use client";
-import { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  UserPlus,
-  Shield,
-  Mail,
-  Phone,
-  Calendar,
-  Building,
-  Users,
-  Download,
-  Upload,
-  Copy,
-  KeyRound,
-  AlertCircle,
-  CheckCircle,
-  XCircle
-} from 'lucide-react';
+'use client';
 
-async function fetchRolesForTenantApi(tenantId) {
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Building2, Calendar, CheckCircle, Copy, KeyRound, Lock, Pencil, Plus,
+  RefreshCw, Trash2, Unlock, UserPlus, Users, X,
+} from 'lucide-react';
+import {
+  AdminPageContainer, AdminPageHeader, AdminSummaryCard, AdminFilterBar,
+  AdminDataTable, AdminStatusBadge, AdminLoadingState, AdminErrorState,
+  AdminEmptyState, AdminModal, AdminField, AdminConfirmationDialog,
+} from '@/components/admin';
+
+const PAGE_SIZE = 10;
+
+async function fetchRolesForTenant(tenantId) {
   if (!tenantId) return [];
-  const res = await fetch(
-    `/api/admin/roles?tenantId=${encodeURIComponent(tenantId)}`,
-    { cache: 'no-store' }
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data.roles) ? data.roles : [];
+  try {
+    const res = await fetch(`/api/admin/roles?tenantId=${encodeURIComponent(tenantId)}`, {
+      cache: 'no-store', credentials: 'include',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.roles) ? data.roles : [];
+  } catch {
+    return [];
+  }
 }
+
+function statusTone(s) {
+  const v = String(s || '').toLowerCase();
+  if (v === 'active') return 'success';
+  if (v === 'pending') return 'warning';
+  if (v === 'inactive' || v === 'locked' || v === 'suspended') return 'danger';
+  return 'neutral';
+}
+
+function roleTone(r) {
+  const v = String(r || '').toLowerCase();
+  if (v === 'admin') return 'danger';
+  if (v === 'manager') return 'info';
+  if (v === 'user') return 'success';
+  return 'neutral';
+}
+
+function fmtDate(v) {
+  if (!v) return '—';
+  return new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function fmtDateTime(v) {
+  if (!v) return '—';
+  return new Date(v).toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function Flash({ tone = 'danger', children, onDismiss }) {
+  const cls = tone === 'success'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+    : 'border-red-200 bg-red-50 text-red-800';
+  return (
+    <div className={`mb-4 flex items-start gap-3 rounded-[var(--admin-radius)] border px-4 py-3 text-sm ${cls}`} role="status">
+      <p className="min-w-0 flex-1 break-words">{children}</p>
+      {onDismiss ? (
+        <button type="button" onClick={onDismiss} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss">
+          <X className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function IconBtn({ title, children, onClick, disabled }) {
+  return (
+    <button
+      type="button" title={title} aria-label={title} disabled={disabled} onClick={onClick}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)] hover:text-[var(--admin-text)] disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
-  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [usersPerPage] = useState(10);
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [stats, setStats] = useState({});
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [tenants, setTenants] = useState([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [confirm, setConfirm] = useState(null);
 
-  // Fetch users from API
-  const fetchUsers = async (page = 1, search = '', role = '', status = '') => {
+  const fetchUsers = useCallback(async (page = 1, search = '', role = 'all', status = 'all') => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError('');
-      
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: usersPerPage.toString()
-      });
-      
-      if (search) params.append('search', search);
-      if (role && role !== 'all') params.append('role', role);
-      if (status && status !== 'all') params.append('status', status);
-
-      const response = await fetch(`/api/admin/users?${params}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      setUsers(data.users);
-      setFilteredUsers(data.users);
-      setTotalUsers(data.pagination.totalUsers);
-      setTotalPages(data.pagination.totalPages);
+      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      if (search) params.set('search', search);
+      if (role !== 'all') params.set('role', role);
+      if (status !== 'all') params.set('status', status);
+      const res = await fetch(`/api/admin/users?${params}`, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Failed to load users (${res.status})`);
+      setUsers(Array.isArray(data.users) ? data.users : []);
+      setTotalUsers(data.pagination?.totalUsers ?? 0);
+      setTotalPages(data.pagination?.totalPages ?? 1);
       setCurrentPage(page);
-      
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setError('Failed to fetch users. Please try again.');
+    } catch (err) {
+      setUsers([]);
+      setError(err.message || 'Failed to fetch users');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Fetch user statistics
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError(false);
     try {
-      setStatsLoading(true);
-      const response = await fetch('/api/admin/users/stats');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setStats(data);
-      
-    } catch (error) {
-      console.error('Error fetching stats:', error);
+      const res = await fetch('/api/admin/users/stats', { credentials: 'include' });
+      if (!res.ok) throw new Error('stats unavailable');
+      setStats(await res.json());
+    } catch {
+      setStats(null);
+      setStatsError(true);
     } finally {
       setStatsLoading(false);
     }
-  };
-
-  // Fetch tenants for dropdown
-  const fetchTenants = async () => {
-    try {
-      const response = await fetch('/api/admin/tenants');
-      if (response.ok) {
-        const data = await response.json();
-        setTenants(data.tenants || []);
-      }
-    } catch (error) {
-      console.error('Error fetching tenants:', error);
-    }
-  };
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchUsers();
-    fetchStats();
-    fetchTenants();
   }, []);
 
-  // Filter users when search/filters change
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchUsers(1, searchTerm, selectedRole, selectedStatus);
-    }, 300);
+    fetchUsers(1, '', 'all', 'all');
+    fetchStats();
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/tenants', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        setTenants(Array.isArray(data.tenants) ? data.tenants : []);
+      } catch {
+        setTenants([]);
+      }
+    })();
+  }, [fetchUsers, fetchStats]);
 
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, selectedRole, selectedStatus]);
+  useEffect(() => {
+    const t = setTimeout(() => fetchUsers(1, searchTerm, selectedRole, selectedStatus), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm, selectedRole, selectedStatus, fetchUsers]);
 
-  // Handle pagination
-  const handlePageChange = (page) => {
-    fetchUsers(page, searchTerm, selectedRole, selectedStatus);
+  const refresh = () => {
+    fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
+    fetchStats();
   };
 
-  // Create new user
+  const showSuccess = (msg, ms = 4000) => {
+    setNotice(msg);
+    setTimeout(() => setNotice(''), ms);
+  };
+
   const handleCreateUser = async (userData) => {
+    setActionLoading(true);
+    setError('');
     try {
-      setActionLoading(true);
-      setError('');
-      
-      const response = await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...userData,
           tenantId: userData.primaryTenantId || userData.tenantId,
           password: userData.password || undefined,
         }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create user');
-      }
-
-      const data = await response.json();
-      if (data.temporaryPassword) {
-        setSuccess(
-          `User created successfully. Temporary password (6 characters): ${data.temporaryPassword} — copy and share securely with the user.`
-        );
-      } else {
-        setSuccess('User created successfully!');
-      }
-      setShowCreateModal(false);
-      
-      // Refresh data
-      fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
-      fetchStats();
-      
-      // Clear success message (longer when showing a one-time temp password)
-      setTimeout(() => setSuccess(''), data.temporaryPassword ? 15000 : 3000);
-      
-    } catch (error) {
-      console.error('Error creating user:', error);
-      setError(error.message || 'Failed to create user. Please try again.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to create user');
+      setShowCreate(false);
+      showSuccess(
+        data.temporaryPassword
+          ? `User created. Temporary password: ${data.temporaryPassword} — share securely.`
+          : 'User created successfully',
+        data.temporaryPassword ? 15000 : 4000
+      );
+      refresh();
+    } catch (err) {
+      setError(err.message || 'Failed to create user');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Edit user
   const handleEditUser = async (userData) => {
+    if (!editUser) return;
+    setActionLoading(true);
+    setError('');
     try {
-      setActionLoading(true);
-      setError('');
-      
-      console.log('Attempting to update user:', selectedUser.id);
-      console.log('Update data:', userData);
-      
-      const response = await fetch(`/api/admin/users/update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          ...userData,
-          tenantId: userData.tenantId || userData.tenant
-        }),
-      });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response not ok. Status:', response.status, 'Body:', errorText);
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
-      }
-
-      const responseText = await response.text();
-      console.log('Raw response text:', responseText);
-      
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Response that failed to parse:', responseText);
-        throw new Error('Invalid response from server. Check console for details.');
-      }
-
-      console.log('Parsed result:', result);
-      
-      if (result.success) {
-        setSuccess('User updated successfully!');
-        setShowEditModal(false);
-        setSelectedUser(null);
-        
-        // Refresh data
-        fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
-        fetchStats();
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        throw new Error(result.error || 'Failed to update user');
-      }
-      
-    } catch (error) {
-      console.error('Error updating user:', error);
-      setError(error.message || 'Failed to update user. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Delete user
-  const handleDeleteUser = async () => {
-    try {
-      setActionLoading(true);
-      setError('');
-      
-      console.log('Attempting to delete user:', selectedUser.id);
-      const response = await fetch(`/api/admin/users/delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId: selectedUser.id }),
-      });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response not ok. Status:', response.status, 'Body:', errorText);
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
-      }
-
-      const responseText = await response.text();
-      console.log('Raw response text:', responseText);
-      
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Response that failed to parse:', responseText);
-        throw new Error('Invalid response from server. Check console for details.');
-      }
-
-      console.log('Parsed result:', result);
-      
-      if (result.success) {
-        setSuccess('User deleted successfully!');
-        setShowDeleteModal(false);
-        setSelectedUser(null);
-        
-        // Refresh data
-        fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
-        fetchStats();
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        throw new Error(result.error || 'Failed to delete user');
-      }
-      
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      setError(error.message || 'Failed to delete user. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSecurityAction = async (user, action) => {
-    const labels = {
-      lock: 'lock',
-      unlock: 'unlock',
-      suspend: 'suspend',
-      resetPassword: 'require a password reset for',
-      revokeSessions: 'revoke sessions for',
-    };
-    if (!window.confirm(`Are you sure you want to ${labels[action] || action} ${user.email}?`)) {
-      return;
-    }
-    try {
-      setActionLoading(true);
-      setError('');
-      const response = await fetch('/api/admin/users/actions', {
+      const res = await fetch('/api/admin/users/update', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, userId: user.id }),
+        body: JSON.stringify({
+          userId: editUser.id,
+          ...userData,
+          tenantId: userData.tenantId || userData.tenant,
+        }),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to ${action} user`);
-      }
-      if (data.newPassword || data.temporaryPassword) {
-        throw new Error('Security violation: password must not be returned to the browser');
-      }
-      setSuccess(data.message || `User ${action} completed`);
-      setTimeout(() => setSuccess(''), 4000);
-      fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
-      fetchStats();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.error || `Update failed (${res.status})`);
+      setEditUser(null);
+      showSuccess('User updated successfully');
+      refresh();
     } catch (err) {
-      setError(err.message || `Failed to ${action} user`);
+      setError(err.message || 'Failed to update user');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'admin': return 'bg-red-100 text-red-800';
-      case 'manager': return 'bg-blue-100 text-blue-800';
-      case 'user': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const runConfirm = async () => {
+    if (!confirm) return;
+    setActionLoading(true);
+    setError('');
+    try {
+      if (confirm.type === 'delete') {
+        const res = await fetch('/api/admin/users/delete', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: confirm.user.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || `Delete failed (${res.status})`);
+        showSuccess('User deleted successfully');
+      } else {
+        const { user, action } = confirm;
+        const res = await fetch('/api/admin/users/actions', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, userId: user.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Failed to ${action} user`);
+        if (data.newPassword || data.temporaryPassword) {
+          throw new Error('Security violation: password must not be returned to the browser');
+        }
+        showSuccess(data.message || `User ${action} completed`);
+      }
+      setConfirm(null);
+      refresh();
+    } catch (err) {
+      setError(err.message || 'Action failed');
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-red-100 text-red-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const summaryValue = (path) => {
+    if (statsLoading) return '…';
+    if (statsError || !stats) return '—';
+    return path.split('.').reduce((cur, p) => cur?.[p], stats) ?? '—';
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  const ask = (user, action, title, description) =>
+    setConfirm({ type: 'security', action, user, title, description });
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const columns = useMemo(() => [
+    {
+      key: 'user', header: 'User',
+      render: (u) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium text-[var(--admin-text)]">{u.name}</div>
+          <div className="truncate text-xs text-[var(--admin-text-muted)]">{u.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'role', header: 'Role',
+      render: (u) => (
+        <AdminStatusBadge tone={roleTone(u.role)}>
+          {u.role ? String(u.role).charAt(0).toUpperCase() + String(u.role).slice(1) : '—'}
+        </AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'status', header: 'Status',
+      render: (u) => (
+        <AdminStatusBadge tone={statusTone(u.status)}>
+          {u.status ? String(u.status).charAt(0).toUpperCase() + String(u.status).slice(1) : '—'}
+        </AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'tenant', header: 'Tenant', hideOnMobile: true,
+      render: (u) => <span className="text-[var(--admin-text)]">{u.tenant || '—'}</span>,
+    },
+    {
+      key: 'activity', header: 'Activity', hideOnMobile: true,
+      render: (u) => (
+        <div className="text-xs text-[var(--admin-text-muted)]">
+          <div>Last: {fmtDateTime(u.lastLogin)}</div>
+          <div>Joined {fmtDate(u.createdAt)}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'actions', header: 'Actions',
+      render: (u) => (
+        <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <IconBtn title="Edit" onClick={() => setEditUser(u)}><Pencil className="h-4 w-4" /></IconBtn>
+          <IconBtn title="Lock" disabled={actionLoading} onClick={() => ask(u, 'lock', 'Lock user', `Lock ${u.email}?`)}>
+            <Lock className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn title="Unlock" disabled={actionLoading} onClick={() => ask(u, 'unlock', 'Unlock user', `Unlock ${u.email}?`)}>
+            <Unlock className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn title="Require password reset" disabled={actionLoading} onClick={() => ask(u, 'resetPassword', 'Require password reset', `Require a password reset for ${u.email}?`)}>
+            <KeyRound className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn title="Delete" onClick={() => setConfirm({ type: 'delete', user: u, title: 'Delete user', description: `Delete ${u.name}? This cannot be undone.` })}>
+            <Trash2 className="h-4 w-4 text-[var(--admin-danger)]" />
+          </IconBtn>
+        </div>
+      ),
+    },
+  ], [actionLoading]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Error/Success Messages */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3">
-            <XCircle className="h-5 w-5 text-red-500" />
-            <span className="text-red-700">{error}</span>
-            <button
-              onClick={() => setError('')}
-              className="ml-auto text-red-400 hover:text-red-600"
-            >
-              <XCircle className="h-4 w-4" />
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="User Management"
+        description="Create, update, and secure users across tenants."
+        actions={
+          <>
+            <button type="button" onClick={refresh} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
             </button>
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center space-x-3">
-            <CheckCircle className="h-5 w-5 text-green-500" />
-            <span className="text-green-700">{success}</span>
-            <button
-              onClick={() => setSuccess('')}
-              className="ml-auto text-green-400 hover:text-green-600"
-            >
-              <XCircle className="h-4 w-4" />
+            <button type="button" onClick={() => setShowCreate(true)} className={btnPrimary}>
+              <UserPlus className="h-4 w-4" aria-hidden /> Add user
             </button>
-          </div>
-        )}
+          </>
+        }
+      />
 
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-              <p className="text-gray-600 mt-2">Manage all users across your system</p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-              >
-                <UserPlus size={20} />
-                <span>Add User</span>
-              </button>
-              <button className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
-                <Download size={20} />
-                <span>Export</span>
-              </button>
-              <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
-                <Upload size={20} />
-                <span>Import</span>
-              </button>
-            </div>
-          </div>
-        </div>
+      {notice ? <Flash tone="success" onDismiss={() => setNotice('')}>{notice}</Flash> : null}
+      {error ? <Flash onDismiss={() => setError('')}>{error}</Flash> : null}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {statsLoading ? '...' : stats.overview?.totalUsers || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Shield className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Users</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {statsLoading ? '...' : stats.overview?.activeUsers || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Building className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Tenants</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {statsLoading ? '...' : stats.overview?.uniqueTenants || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Calendar className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">New This Month</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {statsLoading ? '...' : stats.growth?.usersThisMonth || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters and Search */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
-                <option value="user">User</option>
-              </select>
-              
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="pending">Pending</option>
-              </select>
-              
-              <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center space-x-2 transition-colors">
-                <Filter size={16} />
-                <span>More Filters</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Users Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role & Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenant
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Activity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                      <div className="flex flex-col items-center space-y-2">
-                        <Users className="h-12 w-12 text-gray-300" />
-                        <p className="text-lg font-medium">No users found</p>
-                        <p className="text-sm">Try adjusting your search or filters</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                              {user.avatar}
-                            </div>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                            <div className="text-sm text-gray-500">ID: {user.id}</div>
-                          </div>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{user.email}</div>
-                        <div className="text-sm text-gray-500">{user.phone || 'No phone'}</div>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col space-y-2">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}>
-                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                          </span>
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(user.status)}`}>
-                            {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                          </span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{user.tenant}</div>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {formatDateTime(user.lastLogin)}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Joined {formatDate(user.createdAt)}
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowEditModal(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                            title="Edit User"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleSecurityAction(user, 'lock')}
-                            className="text-amber-600 hover:text-amber-900 p-1 rounded hover:bg-amber-50"
-                            title="Lock user"
-                            disabled={actionLoading}
-                          >
-                            <Shield size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleSecurityAction(user, 'unlock')}
-                            className="text-emerald-600 hover:text-emerald-900 p-1 rounded hover:bg-emerald-50"
-                            title="Unlock user"
-                            disabled={actionLoading}
-                          >
-                            <CheckCircle size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleSecurityAction(user, 'resetPassword')}
-                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50"
-                            title="Require password reset"
-                            disabled={actionLoading}
-                          >
-                            <KeyRound size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleSecurityAction(user, 'revokeSessions')}
-                            className="text-slate-600 hover:text-slate-900 p-1 rounded hover:bg-slate-50"
-                            title="Revoke sessions"
-                            disabled={actionLoading}
-                          >
-                            <AlertCircle size={16} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowDeleteModal(true);
-                            }}
-                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                            title="Delete User"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Showing <span className="font-medium">{((currentPage - 1) * usersPerPage) + 1}</span> to{' '}
-                    <span className="font-medium">
-                      {Math.min(currentPage * usersPerPage, totalUsers)}
-                    </span>{' '}
-                    of <span className="font-medium">{totalUsers}</span> results
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    <button
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === page
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </nav>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminSummaryCard label="Total users" value={summaryValue('overview.totalUsers')} icon={Users} error={statsError} />
+        <AdminSummaryCard label="Active" value={summaryValue('overview.activeUsers')} tone="success" icon={CheckCircle} error={statsError} />
+        <AdminSummaryCard label="Tenants" value={summaryValue('overview.uniqueTenants')} icon={Building2} error={statsError} />
+        <AdminSummaryCard label="New this month" value={summaryValue('growth.usersThisMonth')} icon={Calendar} error={statsError} />
       </div>
 
-      {/* Create User Modal */}
-      {showCreateModal && (
-        <CreateUserModal
-          onClose={() => {
-            setShowCreateModal(false);
-          }}
-          onSubmit={handleCreateUser}
-          loading={actionLoading}
-          tenants={tenants}
-        />
-      )}
+      <AdminFilterBar search={searchTerm} onSearchChange={setSearchTerm} searchPlaceholder="Search name or email…">
+        <AdminField label="Role" htmlFor="filter-role">
+          <AdminField.Select id="filter-role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
+            <option value="all">All roles</option>
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+            <option value="user">User</option>
+          </AdminField.Select>
+        </AdminField>
+        <AdminField label="Status" htmlFor="filter-status">
+          <AdminField.Select id="filter-status" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="pending">Pending</option>
+          </AdminField.Select>
+        </AdminField>
+      </AdminFilterBar>
 
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <EditUserModal
-          user={selectedUser}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedUser(null);
-          }}
-          onSubmit={handleEditUser}
-          loading={actionLoading}
-          tenants={tenants}
-          onActivated={() => {
-            fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
-            fetchStats();
-          }}
+      {loading ? <AdminLoadingState label="Loading users" /> : null}
+      {!loading && error && users.length === 0 ? (
+        <AdminErrorState title="User list unavailable" message={error} onRetry={() => fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus)} />
+      ) : null}
+      {!loading && !error && users.length === 0 ? (
+        <AdminEmptyState
+          title="No users found"
+          description="Adjust filters or create a new user."
+          icon={Users}
+          action={
+            <button type="button" onClick={() => setShowCreate(true)} className={btnPrimary}>
+              <Plus className="h-4 w-4" aria-hidden /> Add user
+            </button>
+          }
         />
-      )}
+      ) : null}
+      {!loading && users.length > 0 ? (
+        <>
+          <AdminDataTable columns={columns} rows={users} rowKey="id" />
+          <div className="mt-4 flex flex-col gap-3 border-t border-[var(--admin-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[var(--admin-text-muted)]">
+              Showing{' '}
+              <span className="font-medium text-[var(--admin-text)]">
+                {totalUsers === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}
+              </span>
+              {' '}to{' '}
+              <span className="font-medium text-[var(--admin-text)]">{Math.min(currentPage * PAGE_SIZE, totalUsers)}</span>
+              {' '}of <span className="font-medium text-[var(--admin-text)]">{totalUsers}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={currentPage <= 1} onClick={() => fetchUsers(currentPage - 1, searchTerm, selectedRole, selectedStatus)} className={btnGhost}>Previous</button>
+              <span className="text-sm text-[var(--admin-text-muted)]">Page {currentPage} / {totalPages}</span>
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => fetchUsers(currentPage + 1, searchTerm, selectedRole, selectedStatus)} className={btnGhost}>Next</button>
+            </div>
+          </div>
+        </>
+      ) : null}
 
-      {/* Delete User Modal */}
-      {showDeleteModal && selectedUser && (
-        <DeleteUserModal
-          user={selectedUser}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedUser(null);
-          }}
-          onConfirm={handleDeleteUser}
-          loading={actionLoading}
-        />
-      )}
+      <UserFormModal mode="create" open={showCreate} tenants={tenants} loading={actionLoading} onClose={() => setShowCreate(false)} onSubmit={handleCreateUser} />
+      <UserFormModal mode="edit" open={Boolean(editUser)} user={editUser} tenants={tenants} loading={actionLoading} onClose={() => setEditUser(null)} onSubmit={handleEditUser} onActivated={refresh} />
+
+      <AdminConfirmationDialog
+        open={Boolean(confirm)}
+        title={confirm?.title || 'Confirm'}
+        description={confirm?.description}
+        confirmLabel={confirm?.type === 'delete' ? 'Delete' : 'Confirm'}
+        tone={confirm?.type === 'delete' || confirm?.action === 'lock' ? 'danger' : 'primary'}
+        loading={actionLoading}
+        onCancel={() => setConfirm(null)}
+        onConfirm={runConfirm}
+      />
+    </AdminPageContainer>
+  );
+}
+
+function MembershipEditor({ rows, setRows, primaryIndex, setPrimaryIndex, tenants, rolesCache, ensureRolesLoaded }) {
+  return (
+    <div className="space-y-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-[var(--admin-text)]">Business access</p>
+        <button type="button" className="text-sm font-medium text-[var(--action-primary)]" onClick={() => setRows((p) => [...p, { tenantId: '', roleId: '' }])}>
+          + Add business
+        </button>
+      </div>
+      <p className="text-xs text-[var(--admin-text-muted)]">Roles load per business. Mark one primary login business.</p>
+      {rows.map((row, idx) => (
+        <div key={idx} className="space-y-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-3">
+          <label className="inline-flex items-center gap-2 text-xs text-[var(--admin-text)]">
+            <input type="radio" name="primaryBiz" checked={primaryIndex === idx} onChange={() => setPrimaryIndex(idx)} />
+            Primary login business
+          </label>
+          <AdminField.Select
+            value={row.tenantId} required={idx === 0}
+            onChange={(e) => {
+              const tid = e.target.value;
+              setRows((p) => p.map((r, i) => (i === idx ? { tenantId: tid, roleId: '' } : r)));
+              if (tid) ensureRolesLoaded(tid);
+            }}
+          >
+            <option value="">Select business</option>
+            {tenants.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.subdomain})</option>)}
+          </AdminField.Select>
+          <AdminField.Select
+            value={row.roleId} required={idx === 0} disabled={!row.tenantId}
+            onChange={(e) => setRows((p) => p.map((r, i) => (i === idx ? { ...r, roleId: e.target.value } : r)))}
+          >
+            <option value="">{!row.tenantId ? 'Select business first' : 'Select role'}</option>
+            {(rolesCache[row.tenantId] || []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </AdminField.Select>
+          {rows.length > 1 ? (
+            <button
+              type="button" className="text-xs text-[var(--admin-danger)]"
+              onClick={() => {
+                setRows((p) => p.filter((_, i) => i !== idx));
+                setPrimaryIndex((p) => (p === idx ? Math.max(0, idx - 1) : p > idx ? p - 1 : p));
+              }}
+            >
+              Remove row
+            </button>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 }
 
-// Create User Modal Component
-function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
-  const [membershipRows, setMembershipRows] = useState([{ tenantId: '', roleId: '' }]);
+function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, onActivated }) {
+  const isEdit = mode === 'edit';
+  const [rows, setRows] = useState([{ tenantId: '', roleId: '' }]);
   const [primaryIndex, setPrimaryIndex] = useState(0);
   const [rolesCache, setRolesCache] = useState({});
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    status: 'active',
-    password: '',
-    department: '',
-  });
-  const [modalDepartments, setModalDepartments] = useState([]);
-  const [departmentsLoading, setDepartmentsLoading] = useState(false);
-  const [showNewDepartment, setShowNewDepartment] = useState(false);
-  const [newDepartmentName, setNewDepartmentName] = useState('');
-  const [addingDepartment, setAddingDepartment] = useState(false);
-
-  const primaryTenantId = membershipRows[primaryIndex]?.tenantId || '';
-
-  const ensureRolesLoaded = async (tenantId) => {
-    if (!tenantId || rolesCache[tenantId]) return;
-    const list = await fetchRolesForTenantApi(tenantId);
-    setRolesCache((prev) => ({ ...prev, [tenantId]: list }));
-  };
-
-  useEffect(() => {
-    membershipRows.forEach((row) => {
-      if (row.tenantId) ensureRolesLoaded(row.tenantId);
-    });
-  }, [membershipRows]);
-
-  useEffect(() => {
-    if (!primaryTenantId) {
-      setModalDepartments([]);
-      setFormData((prev) => ({ ...prev, department: '' }));
-      return;
-    }
-    const loadDepartments = async () => {
-      setDepartmentsLoading(true);
-      try {
-        const res = await fetch(`/api/admin/departments?tenantId=${primaryTenantId}`, { cache: 'no-store' });
-        const data = await res.json();
-        setModalDepartments(Array.isArray(data) ? data : []);
-      } catch (e) {
-        setModalDepartments([]);
-      } finally {
-        setDepartmentsLoading(false);
-      }
-    };
-    loadDepartments();
-  }, [primaryTenantId]);
-
-  const resetForm = () => {
-    setMembershipRows([{ tenantId: '', roleId: '' }]);
-    setPrimaryIndex(0);
-    setRolesCache({});
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      status: 'active',
-      password: '',
-      department: '',
-    });
-    setShowNewDepartment(false);
-    setNewDepartmentName('');
-  };
-
-  const handleAddDepartment = async () => {
-    const name = newDepartmentName.trim();
-    if (!name || !primaryTenantId) return;
-    setAddingDepartment(true);
-    try {
-      const res = await fetch('/api/admin/departments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId: primaryTenantId, name })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create department');
-      setModalDepartments((prev) => [...prev, data]);
-      setFormData((prev) => ({ ...prev, department: data.name }));
-      setNewDepartmentName('');
-      setShowNewDepartment(false);
-    } catch (e) {
-      alert(e.message || 'Could not create department');
-    } finally {
-      setAddingDepartment(false);
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const filled = membershipRows.filter((r) => r.tenantId && r.roleId);
-    if (!formData.name || !formData.email || filled.length === 0) {
-      alert('Please fill name, email, and at least one business with a role');
-      return;
-    }
-    const primaryRow = membershipRows[primaryIndex];
-    if (!primaryRow?.tenantId || !primaryRow?.roleId) {
-      alert('The primary business row must have both business and role selected');
-      return;
-    }
-    const payload = {
-      ...formData,
-      memberships: filled.map((r) => ({ tenantId: r.tenantId, roleId: r.roleId })),
-      primaryTenantId: primaryRow.tenantId,
-      department: formData.department || undefined,
-    };
-    onSubmit(payload);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-10 mx-auto p-5 border max-w-xl w-full shadow-lg rounded-md bg-white mb-10">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email</label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Phone</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Password (optional)</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Leave blank for auto-generated password"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Leave blank to auto-generate a random 6-character password (letters and numbers). It is shown once after create if email is not used.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="pending">Pending</option>
-              </select>
-            </div>
-
-            <div className="border border-gray-200 rounded-md p-3 space-y-3 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-900">Business access</label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMembershipRows((prev) => [...prev, { tenantId: '', roleId: '' }])
-                  }
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  + Add business
-                </button>
-              </div>
-              <p className="text-xs text-gray-600">
-                Roles load per business. Choose which row is the user&apos;s primary login business (email uniqueness applies there).
-              </p>
-              {membershipRows.map((row, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-md p-2 bg-white space-y-2">
-                  <label className="flex items-center gap-2 text-xs text-gray-700">
-                    <input
-                      type="radio"
-                      name="primaryBizCreate"
-                      checked={primaryIndex === idx}
-                      onChange={() => setPrimaryIndex(idx)}
-                    />
-                    Primary login business
-                  </label>
-                  <select
-                    value={row.tenantId}
-                    onChange={(e) => {
-                      const tid = e.target.value;
-                      setMembershipRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { tenantId: tid, roleId: '' } : r))
-                      );
-                      if (tid) ensureRolesLoaded(tid);
-                    }}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    required={idx === 0}
-                  >
-                    <option value="">Select business</option>
-                    {tenants.map((tenant) => (
-                      <option key={tenant.id} value={tenant.id}>
-                        {tenant.name} ({tenant.subdomain})
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={row.roleId}
-                    onChange={(e) =>
-                      setMembershipRows((prev) =>
-                        prev.map((r, i) => (i === idx ? { ...r, roleId: e.target.value } : r))
-                      )
-                    }
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    required={idx === 0}
-                    disabled={!row.tenantId}
-                  >
-                    <option value="">
-                      {!row.tenantId ? 'Select business first' : 'Select role for this business'}
-                    </option>
-                    {(rolesCache[row.tenantId] || []).map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                  {membershipRows.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMembershipRows((prev) => prev.filter((_, i) => i !== idx));
-                        setPrimaryIndex((p) => {
-                          if (p === idx) return Math.max(0, idx - 1);
-                          if (p > idx) return p - 1;
-                          return p;
-                        });
-                      }}
-                      className="text-xs text-red-600 hover:text-red-800"
-                    >
-                      Remove row
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Department */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
-              {primaryTenantId && (
-                <>
-                  <select
-                    value={showNewDepartment ? '__new__' : (formData.department || '')}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === '__new__') {
-                        setShowNewDepartment(true);
-                        setFormData((prev) => ({ ...prev, department: '' }));
-                      } else {
-                        setShowNewDepartment(false);
-                        setFormData((prev) => ({ ...prev, department: v }));
-                      }
-                    }}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    disabled={departmentsLoading}
-                  >
-                    <option value="">No department</option>
-                    {modalDepartments.map((d) => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                    <option value="__new__">+ Create new department</option>
-                  </select>
-                  {showNewDepartment && (
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        type="text"
-                        value={newDepartmentName}
-                        onChange={(e) => setNewDepartmentName(e.target.value)}
-                        placeholder="New department name"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddDepartment}
-                        disabled={addingDepartment || !newDepartmentName.trim()}
-                        className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-                      >
-                        {addingDepartment ? 'Adding...' : 'Add'}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-              {!primaryTenantId && (
-                <p className="mt-1 text-xs text-gray-500">Mark a primary business above first</p>
-              )}
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={() => { resetForm(); onClose(); }}
-                disabled={loading}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Creating...</span>
-                  </>
-                ) : (
-                  <span>Create User</span>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Edit User Modal Component
-function EditUserModal({ user, onClose, onSubmit, loading, tenants, onActivated }) {
-  const [detailLoading, setDetailLoading] = useState(true);
-  const [detailError, setDetailError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
   const [activationLoading, setActivationLoading] = useState(false);
   const [activationMessage, setActivationMessage] = useState('');
-  const [membershipRows, setMembershipRows] = useState([{ tenantId: '', roleId: '' }]);
-  const [primaryIndex, setPrimaryIndex] = useState(0);
-  const [rolesCache, setRolesCache] = useState({});
-  const [verificationData, setVerificationData] = useState({
-    isEmailVerified: false,
-    otpCode: null,
-    otpExpiry: null,
-  });
-  const [formData, setFormData] = useState({
-    name: user.name,
-    email: user.email,
-    phone: user.phone || '',
-    status: user.status,
-  });
+  const [departments, setDepartments] = useState([]);
+  const [verification, setVerification] = useState({ isEmailVerified: false, otpCode: null, otpExpiry: null });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', status: 'active', password: '', department: '' });
+  const primaryTenantId = rows[primaryIndex]?.tenantId || '';
 
-  const primaryTenantId = membershipRows[primaryIndex]?.tenantId || '';
-
-  const ensureRolesLoaded = async (tenantId) => {
-    if (!tenantId || rolesCache[tenantId]) return;
-    const list = await fetchRolesForTenantApi(tenantId);
-    setRolesCache((prev) => ({ ...prev, [tenantId]: list }));
-  };
+  const ensureRolesLoaded = useCallback(async (tenantId) => {
+    if (!tenantId) return;
+    const list = await fetchRolesForTenant(tenantId);
+    setRolesCache((prev) => (prev[tenantId] ? prev : { ...prev, [tenantId]: list }));
+  }, []);
 
   useEffect(() => {
-    membershipRows.forEach((row) => {
-      if (row.tenantId) ensureRolesLoaded(row.tenantId);
-    });
-  }, [membershipRows]);
-
-  useEffect(() => {
+    if (!open) return;
+    setFormError('');
+    setActivationMessage('');
+    if (!isEdit) {
+      setRows([{ tenantId: '', roleId: '' }]);
+      setPrimaryIndex(0);
+      setRolesCache({});
+      setFormData({ name: '', email: '', phone: '', status: 'active', password: '', department: '' });
+      setVerification({ isEmailVerified: false, otpCode: null, otpExpiry: null });
+      return;
+    }
+    if (!user?.id) return;
     let cancelled = false;
     (async () => {
       setDetailLoading(true);
-      setDetailError('');
       try {
-        const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}`, {
-          cache: 'no-store',
-        });
-        const data = await res.json();
+        const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}`, { cache: 'no-store', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Failed to load user');
         if (cancelled) return;
         const d = data.user;
-        setFormData({
-          name: d.name,
-          email: d.email,
-          phone: d.phone || '',
-          status: d.status,
-        });
-        setVerificationData({
-          isEmailVerified: Boolean(d.isEmailVerified),
-          otpCode: d.otpCode || null,
-          otpExpiry: d.otpExpiry || null,
-        });
-        const mems =
-          d.memberships && d.memberships.length > 0
-            ? d.memberships.map((m) => ({ tenantId: m.tenantId, roleId: m.roleId }))
-            : [{ tenantId: d.tenantId || '', roleId: d.roleId || '' }];
-        setMembershipRows(mems.length ? mems : [{ tenantId: '', roleId: '' }]);
+        setFormData({ name: d.name || '', email: d.email || '', phone: d.phone || '', status: d.status || 'active', password: '', department: d.department || '' });
+        setVerification({ isEmailVerified: Boolean(d.isEmailVerified), otpCode: d.otpCode || null, otpExpiry: d.otpExpiry || null });
+        const mems = d.memberships?.length
+          ? d.memberships.map((m) => ({ tenantId: m.tenantId, roleId: m.roleId }))
+          : [{ tenantId: d.tenantId || '', roleId: d.roleId || '' }];
+        setRows(mems.length ? mems : [{ tenantId: '', roleId: '' }]);
         const pIdx = mems.findIndex((m) => m.tenantId === d.primaryTenantId);
-        const nextPrimary = pIdx >= 0 ? pIdx : 0;
-        setPrimaryIndex(nextPrimary);
+        setPrimaryIndex(pIdx >= 0 ? pIdx : 0);
+        mems.forEach((m) => m.tenantId && ensureRolesLoaded(m.tenantId));
       } catch (e) {
-        if (!cancelled) setDetailError(e.message || 'Load failed');
+        if (!cancelled) setFormError(e.message || 'Load failed');
       } finally {
         if (!cancelled) setDetailLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user.id]);
+    return () => { cancelled = true; };
+  }, [open, isEdit, user?.id, ensureRolesLoaded]);
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    rows.forEach((row) => { if (row.tenantId) ensureRolesLoaded(row.tenantId); });
+  }, [rows, ensureRolesLoaded]);
+
+  useEffect(() => {
+    if (!open || isEdit || !primaryTenantId) {
+      if (!primaryTenantId) setDepartments([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/departments?tenantId=${encodeURIComponent(primaryTenantId)}`, { cache: 'no-store', credentials: 'include' });
+        const data = await res.json().catch(() => []);
+        if (!cancelled) setDepartments(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setDepartments([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, isEdit, primaryTenantId]);
+
+  const submit = (e) => {
     e.preventDefault();
-    const filled = membershipRows.filter((r) => r.tenantId && r.roleId);
+    setFormError('');
+    const filled = rows.filter((r) => r.tenantId && r.roleId);
     if (!formData.name || !formData.email || filled.length === 0) {
-      alert('Please fill name, email, and at least one business with a role');
+      setFormError('Name, email, and at least one business with a role are required');
       return;
     }
-    const primaryRow = membershipRows[primaryIndex];
+    const primaryRow = rows[primaryIndex];
     if (!primaryRow?.tenantId || !primaryRow?.roleId) {
-      alert('The primary business row must have both business and role selected');
+      setFormError('Primary business row must have both business and role');
       return;
     }
-    onSubmit({
-      ...formData,
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      status: formData.status,
       memberships: filled.map((r) => ({ tenantId: r.tenantId, roleId: r.roleId })),
       primaryTenantId: primaryRow.tenantId,
       tenantId: primaryRow.tenantId,
       role: primaryRow.roleId,
-    });
+    };
+    if (!isEdit) {
+      payload.password = formData.password || undefined;
+      payload.department = formData.department || undefined;
+    }
+    onSubmit(payload);
   };
 
   const handleManualActivation = async () => {
-    const confirmed = window.confirm(
-      `Manually activate ${formData.email}? This will mark the email as verified and clear any outstanding OTP.`
-    );
-    if (!confirmed) return;
-
+    if (!user?.id) return;
     setActivationLoading(true);
     setActivationMessage('');
-    setDetailError('');
+    setFormError('');
     try {
-      const res = await fetch(
-        `/api/admin/users/${encodeURIComponent(user.id)}/manual-activation`,
-        { method: 'POST' }
-      );
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to manually activate user');
-      }
-      setVerificationData({
-        isEmailVerified: true,
-        otpCode: null,
-        otpExpiry: null,
-      });
-      setFormData((prev) => ({ ...prev, status: data.user?.status || 'active' }));
-      setActivationMessage('User account manually activated. They can now log in without email OTP verification.');
-      if (onActivated) onActivated();
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/manual-activation`, { method: 'POST', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to manually activate user');
+      setVerification({ isEmailVerified: true, otpCode: null, otpExpiry: null });
+      setFormData((p) => ({ ...p, status: data.user?.status || 'active' }));
+      setActivationMessage('Account manually activated.');
+      onActivated?.();
     } catch (e) {
-      setDetailError(e.message || 'Manual activation failed');
+      setFormError(e.message || 'Manual activation failed');
     } finally {
       setActivationLoading(false);
     }
   };
 
-  const handleCopyOtp = async () => {
-    if (!verificationData.otpCode) return;
-    try {
-      await navigator.clipboard.writeText(String(verificationData.otpCode));
-      setActivationMessage('OTP copied to clipboard.');
-    } catch {
-      setActivationMessage('Could not copy automatically. Select and copy the OTP manually.');
-    }
-  };
-
-  const otpExpiryText = verificationData.otpExpiry
-    ? new Date(verificationData.otpExpiry).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : null;
-  const otpExpired =
-    verificationData.otpExpiry && new Date(verificationData.otpExpiry).getTime() < Date.now();
+  const otpExpired = verification.otpExpiry && new Date(verification.otpExpiry).getTime() < Date.now();
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-12 mx-auto p-5 border max-w-xl w-full shadow-lg rounded-md bg-white mb-10">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Edit User</h3>
-          {detailLoading && (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-            </div>
-          )}
-          {detailError && (
-            <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
-              {detailError}
-            </div>
-          )}
-          {!detailLoading && !detailError && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+    <AdminModal
+      open={open}
+      onClose={onClose}
+      title={isEdit ? 'Edit user' : 'Create user'}
+      size="lg"
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={loading} className={btnGhost}>Cancel</button>
+          <button type="submit" form="user-form" disabled={loading || detailLoading} className={btnPrimary}>
+            {loading ? (isEdit ? 'Updating…' : 'Creating…') : isEdit ? 'Update user' : 'Create user'}
+          </button>
+        </>
+      }
+    >
+      {detailLoading ? <AdminLoadingState label="Loading user" rows={4} /> : null}
+      {formError ? <p className="mb-3 text-sm text-[var(--admin-danger)]" role="alert">{formError}</p> : null}
+      {!detailLoading ? (
+        <form id="user-form" onSubmit={submit} className="space-y-4">
+          <AdminField label="Name" htmlFor="user-name" required>
+            <AdminField.Input id="user-name" required value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} />
+          </AdminField>
+          <AdminField label="Email" htmlFor="user-email" required>
+            <AdminField.Input id="user-email" type="email" required value={formData.email} onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))} />
+          </AdminField>
+          <AdminField label="Phone" htmlFor="user-phone">
+            <AdminField.Input id="user-phone" type="tel" value={formData.phone} onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))} />
+          </AdminField>
+          {!isEdit ? (
+            <AdminField label="Password" htmlFor="user-password" hint="Leave blank to auto-generate a 6-character temporary password.">
+              <AdminField.Input id="user-password" type="password" value={formData.password} onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))} placeholder="Optional" />
+            </AdminField>
+          ) : null}
+          <AdminField label="Status" htmlFor="user-status">
+            <AdminField.Select id="user-status" value={formData.status} onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value }))}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="pending">Pending</option>
+            </AdminField.Select>
+          </AdminField>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
-
-              <div className="border border-blue-100 rounded-md p-3 bg-blue-50">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="h-4 w-4 text-blue-700" />
-                      <h4 className="text-sm font-medium text-gray-900">Email verification</h4>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-600">
-                      Use this when the tenant did not receive the verification email.
-                    </p>
-                  </div>
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      verificationData.isEmailVerified
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {verificationData.isEmailVerified ? 'Verified' : 'Not verified'}
-                  </span>
+          {isEdit ? (
+            <div className="space-y-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--admin-text)]">Email verification</p>
+                  <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">For when verification email was not received.</p>
                 </div>
-
-                <div className="mt-3 rounded-md border border-blue-200 bg-white p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase">Current OTP</p>
-                      <p className="mt-1 font-mono text-lg font-semibold tracking-widest text-gray-900">
-                        {verificationData.otpCode || 'No active OTP'}
-                      </p>
-                    </div>
-                    {verificationData.otpCode && (
-                      <button
-                        type="button"
-                        onClick={handleCopyOtp}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </button>
-                    )}
-                  </div>
-                  <p className={`mt-2 text-xs ${otpExpired ? 'text-red-600' : 'text-gray-500'}`}>
-                    {otpExpiryText
-                      ? `${otpExpired ? 'Expired' : 'Expires'}: ${otpExpiryText}`
-                      : 'No OTP expiry is recorded.'}
+                <AdminStatusBadge tone={verification.isEmailVerified ? 'success' : 'warning'}>
+                  {verification.isEmailVerified ? 'Verified' : 'Not verified'}
+                </AdminStatusBadge>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3">
+                <div>
+                  <p className="text-xs font-medium uppercase text-[var(--admin-text-muted)]">Current OTP</p>
+                  <p className="mt-1 font-mono text-lg tracking-widest text-[var(--admin-text)]">{verification.otpCode || 'No active OTP'}</p>
+                  <p className={`mt-1 text-xs ${otpExpired ? 'text-[var(--admin-danger)]' : 'text-[var(--admin-text-muted)]'}`}>
+                    {verification.otpExpiry ? `${otpExpired ? 'Expired' : 'Expires'}: ${fmtDateTime(verification.otpExpiry)}` : 'No OTP expiry recorded.'}
                   </p>
                 </div>
-
-                {activationMessage && (
-                  <p className="mt-2 text-sm text-green-700">{activationMessage}</p>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleManualActivation}
-                  disabled={activationLoading || verificationData.isEmailVerified}
-                  className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                >
-                  {activationLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Activating...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4" />
-                      Manually activate account
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="border border-gray-200 rounded-md p-3 space-y-3 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-900">Business access</label>
+                {verification.otpCode ? (
                   <button
                     type="button"
-                    onClick={() =>
-                      setMembershipRows((prev) => [...prev, { tenantId: '', roleId: '' }])
-                    }
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    + Add business
-                  </button>
-                </div>
-                <p className="text-xs text-gray-600">
-                  Role lists are loaded per business (roles from other tenants are not shown).
-                </p>
-                {membershipRows.map((row, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-md p-2 bg-white space-y-2">
-                    <label className="flex items-center gap-2 text-xs text-gray-700">
-                      <input
-                        type="radio"
-                        name="primaryBizEdit"
-                        checked={primaryIndex === idx}
-                        onChange={() => setPrimaryIndex(idx)}
-                      />
-                      Primary login business
-                    </label>
-                    <select
-                      value={row.tenantId}
-                      onChange={(e) => {
-                        const tid = e.target.value;
-                        setMembershipRows((prev) =>
-                          prev.map((r, i) => (i === idx ? { tenantId: tid, roleId: '' } : r))
-                        );
-                        if (tid) ensureRolesLoaded(tid);
-                      }}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      required={idx === 0}
-                    >
-                      <option value="">Select business</option>
-                      {tenants.map((tenant) => (
-                        <option key={tenant.id} value={tenant.id}>
-                          {tenant.name} ({tenant.subdomain})
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={row.roleId}
-                      onChange={(e) =>
-                        setMembershipRows((prev) =>
-                          prev.map((r, i) => (i === idx ? { ...r, roleId: e.target.value } : r))
-                        )
+                    className={btnGhost}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(String(verification.otpCode));
+                        setActivationMessage('OTP copied.');
+                      } catch {
+                        setActivationMessage('Could not copy automatically.');
                       }
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      required={idx === 0}
-                      disabled={!row.tenantId}
-                    >
-                      <option value="">
-                        {!row.tenantId ? 'Select business first' : 'Select role for this business'}
-                      </option>
-                      {(rolesCache[row.tenantId] || []).map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                    {membershipRows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMembershipRows((prev) => prev.filter((_, i) => i !== idx));
-                          setPrimaryIndex((p) => {
-                            if (p === idx) return Math.max(0, idx - 1);
-                            if (p > idx) return p - 1;
-                            return p;
-                          });
-                        }}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Remove row
-                      </button>
-                    )}
-                  </div>
-                ))}
+                    }}
+                  >
+                    <Copy className="h-4 w-4" /> Copy
+                  </button>
+                ) : null}
               </div>
+              {activationMessage ? <p className="text-sm text-[var(--status-success)]">{activationMessage}</p> : null}
+              <button
+                type="button"
+                disabled={activationLoading || verification.isEmailVerified}
+                onClick={handleManualActivation}
+                className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--status-success)] px-3 text-sm font-medium text-white disabled:opacity-50"
+              >
+                <CheckCircle className="h-4 w-4" />
+                {activationLoading ? 'Activating…' : 'Manually activate account'}
+              </button>
+            </div>
+          ) : null}
 
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={loading}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Updating...</span>
-                    </>
-                  ) : (
-                    <span>Update User</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
+          <MembershipEditor
+            rows={rows} setRows={setRows}
+            primaryIndex={primaryIndex} setPrimaryIndex={setPrimaryIndex}
+            tenants={tenants} rolesCache={rolesCache} ensureRolesLoaded={ensureRolesLoaded}
+          />
+
+          {!isEdit ? (
+            <AdminField label="Department" htmlFor="user-dept" hint={!primaryTenantId ? 'Select a primary business first' : undefined}>
+              <AdminField.Select
+                id="user-dept"
+                disabled={!primaryTenantId}
+                value={formData.department || ''}
+                onChange={(e) => setFormData((p) => ({ ...p, department: e.target.value }))}
+              >
+                <option value="">No department</option>
+                {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </AdminField.Select>
+            </AdminField>
+          ) : null}
+        </form>
+      ) : null}
+    </AdminModal>
   );
 }
-
-// Delete User Modal Component
-function DeleteUserModal({ user, onClose, onConfirm, loading }) {
-  return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3 text-center">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-            <Trash2 className="h-6 w-6 text-red-600" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mt-4">Delete User</h3>
-          <p className="text-sm text-gray-500 mt-2">
-            Are you sure you want to delete <strong>{user.name}</strong>? This action cannot be undone.
-          </p>
-          <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-xs text-yellow-800">
-              <strong>⚠️ Warning:</strong> This will also delete all associated data including:
-            </p>
-            <ul className="text-xs text-yellow-700 mt-1 ml-4 list-disc">
-              <li>User audit logs</li>
-              <li>Expenses and attachments</li>
-              <li>Invoices and quotations</li>
-              <li>Sales records</li>
-              <li>Inventory transactions</li>
-              <li>All other user-related data</li>
-            </ul>
-          </div>
-          <div className="flex justify-center space-x-3 mt-6">
-            <button
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 flex items-center space-x-2"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Deleting...</span>
-                </>
-              ) : (
-                <span>Delete User</span>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-} 
