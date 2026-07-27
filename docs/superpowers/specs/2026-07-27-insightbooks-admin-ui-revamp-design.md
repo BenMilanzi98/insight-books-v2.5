@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-27  
 **Surface:** `/insightbooks` System Administration control plane  
-**Status:** Approved for planning (awaiting user review of this file)
+**Status:** Approved and implemented (Waves 1–4 shipped on branch `v2`)
 
 ## Decisions (locked)
 
