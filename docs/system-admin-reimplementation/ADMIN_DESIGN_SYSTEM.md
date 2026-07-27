@@ -6,6 +6,8 @@ Give System Admin a coherent visual language that **reuses** existing CSS variab
 
 Admin is an **internal ops** product: dense, calm, high-signal — not a marketing landing page. Prefer clarity over decoration.
 
+**Wave 1 shipped (2026-07-27):** calm-ops `--admin-*` tokens; dedicated `AdminHeader` (no AppBar/Footer); primitives `AdminDataTable`, `AdminFilterBar`, `AdminField`, `AdminModal`, `AdminDrawer`. Spec: `docs/superpowers/specs/2026-07-27-insightbooks-admin-ui-revamp-design.md`.
+
 ## Token sources (REUSE)
 
 Prefer variables already used by `AdminShell`:

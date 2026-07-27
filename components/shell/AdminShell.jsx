@@ -3,16 +3,14 @@
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar/AdminSidebar';
-import AppBar from '@/components/AppBar';
-import Footer from '@/components/Footer';
+import AdminHeader from '@/components/admin/AdminHeader';
 import AdminNoticeBanner from '@/components/admin/AdminNoticeBanner';
 import AdminSupportAccessBanner from '@/components/admin/AdminSupportAccessBanner';
 import AdminGlobalSearch from '@/components/admin/AdminGlobalSearch';
 import { cn } from '@/lib/utils';
 
 /**
- * Platform admin shell — independent sidebar/content scroll, mobile drawer a11y.
- * Auth gating remains in the layout caller.
+ * Platform admin shell — dedicated chrome, independent scroll, mobile drawer a11y.
  */
 export default function AdminShell({ children, admin }) {
   const pathname = usePathname();
@@ -76,12 +74,12 @@ export default function AdminShell({ children, admin }) {
       : '';
 
   return (
-    <div className="relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--admin-bg)]">
+    <div className="relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--admin-bg)] text-[var(--admin-text)]">
       <aside
         id={drawerId}
         aria-label="Admin navigation"
         className={cn(
-          'fixed left-0 top-0 z-[var(--z-drawer)] h-[100dvh] overflow-hidden bg-[var(--admin-sidebar-bg)] shadow-sm transition-[transform,width] duration-200 ease-[var(--motion-ease)]',
+          'fixed left-0 top-0 z-[var(--z-drawer)] h-[100dvh] overflow-hidden bg-[var(--admin-sidebar-bg)] transition-[transform,width] duration-200 ease-[var(--motion-ease)]',
           isMobile
             ? sidebarOpen
               ? 'w-[var(--sidebar-width)] translate-x-0'
@@ -106,7 +104,7 @@ export default function AdminShell({ children, admin }) {
         <button
           type="button"
           aria-label="Close navigation menu"
-          className="fixed inset-0 z-[var(--z-backdrop)] cursor-pointer bg-black/50"
+          className="fixed inset-0 z-[var(--z-backdrop)] cursor-pointer bg-slate-900/40"
           onClick={closeMobile}
         />
       ) : null}
@@ -117,26 +115,30 @@ export default function AdminShell({ children, admin }) {
           contentMargin
         )}
       >
-        <AppBar
-          toggleSidebar={toggleSidebar}
+        <AdminHeader
+          admin={admin}
           isMobile={isMobile}
           sidebarOpen={isMobile ? sidebarOpen : !desktopCollapsed}
-          skipUserFetch
-          adminUser={admin}
+          onMenuClick={toggleSidebar}
           menuButtonRef={menuButtonRef}
           navId={drawerId}
         />
-        <div className="border-b border-[var(--border-default)] bg-[var(--admin-header-bg)] px-4 py-2 sm:px-6 lg:px-8">
-          <AdminGlobalSearch />
-        </div>
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-          <Suspense fallback={null}>
-            <AdminNoticeBanner />
-          </Suspense>
-          <AdminSupportAccessBanner />
-          {children}
+
+        {isMobile ? (
+          <div className="border-b border-[var(--admin-border)] bg-[var(--admin-header-bg)] px-3 py-2 md:hidden">
+            <AdminGlobalSearch variant="header" />
+          </div>
+        ) : null}
+
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="mx-auto w-full max-w-[var(--admin-content-max)] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+            <Suspense fallback={null}>
+              <AdminNoticeBanner />
+            </Suspense>
+            <AdminSupportAccessBanner />
+            {children}
+          </div>
         </main>
-        <Footer skipPermissions />
       </div>
     </div>
   );

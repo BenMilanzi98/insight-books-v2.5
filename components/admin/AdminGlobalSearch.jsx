@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export default function AdminGlobalSearch({ className }) {
+export default function AdminGlobalSearch({ className, variant = 'default' }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -94,14 +94,23 @@ export default function AdminGlobalSearch({ className }) {
     };
   }, [q]);
 
+  const headerish = variant === 'header';
+
   return (
-    <div ref={rootRef} className={cn('relative min-w-0 flex-1 max-w-md', className)}>
+    <div
+      ref={rootRef}
+      className={cn(
+        'relative min-w-0 flex-1',
+        headerish ? 'max-w-none' : 'max-w-md',
+        className
+      )}
+    >
       <label htmlFor={inputId} className="sr-only">
         Search administration
       </label>
       <div className="relative">
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--admin-text-muted)]"
           aria-hidden
         />
         <input
@@ -113,7 +122,10 @@ export default function AdminGlobalSearch({ className }) {
             if (groups.length || error) setOpen(true);
           }}
           placeholder="Search tenants, users, affiliates…"
-          className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] py-2 pl-9 pr-9 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+          className={cn(
+            'w-full rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] py-2 pl-9 pr-9 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring)]',
+            headerish ? 'h-10 bg-[var(--admin-surface-muted)]' : 'bg-[var(--admin-surface)]'
+          )}
           autoComplete="off"
         />
         {q ? (

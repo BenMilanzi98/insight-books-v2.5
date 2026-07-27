@@ -128,33 +128,31 @@ export default function AdminSidebar({
         widthClass
       )}
     >
-      <div className="flex shrink-0 items-center justify-center border-b border-white/10 px-3 py-4">
+      <div
+        className={cn(
+          'flex shrink-0 items-center gap-3 border-b border-white/10 px-3 py-4',
+          collapsed && !isMobile ? 'justify-center' : 'px-4'
+        )}
+      >
         <img
           src="/logo.png"
-          alt="InsightBooks"
+          alt=""
           className={cn(
-            'object-contain rounded-md',
-            collapsed && !isMobile ? 'h-8' : 'h-11'
+            'rounded-md object-contain',
+            collapsed && !isMobile ? 'h-8 w-8' : 'h-9 w-9'
           )}
         />
-      </div>
-
-      {!(collapsed && !isMobile) ? (
-        <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--action-primary)] text-sm font-semibold text-white"
-            aria-hidden
-          >
-            {(admin?.name || 'A').slice(0, 1).toUpperCase()}
-          </div>
+        {!(collapsed && !isMobile) ? (
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{admin?.name || 'Admin'}</div>
-            <div className="truncate text-xs text-[var(--admin-sidebar-muted)]">
-              {admin?.role || 'Administrator'}
+            <div className="truncate text-sm font-semibold tracking-tight text-white">
+              InsightBooks
+            </div>
+            <div className="truncate text-[11px] uppercase tracking-wide text-[var(--admin-sidebar-muted)]">
+              Admin
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <nav
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-3"
@@ -184,9 +182,9 @@ export default function AdminSidebar({
                         title={collapsed && !isMobile ? item.text : undefined}
                         aria-expanded={expanded}
                         className={cn(
-                          'flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-sm transition-colors',
+                          'flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-left text-sm transition-colors',
                           active
-                            ? 'bg-[var(--admin-sidebar-active)] text-white'
+                            ? 'bg-[var(--admin-sidebar-active)] font-medium text-white'
                             : 'text-white/80 hover:bg-white/5 hover:text-white'
                         )}
                       >
@@ -236,9 +234,9 @@ export default function AdminSidebar({
                       onClick={linkClick}
                       title={collapsed && !isMobile ? item.text : undefined}
                       className={cn(
-                        'flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors',
+                        'flex min-h-11 items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-sm transition-colors',
                         active
-                          ? 'bg-[var(--admin-sidebar-active)] text-white'
+                          ? 'bg-[var(--admin-sidebar-active)] font-medium text-white'
                           : 'text-white/80 hover:bg-white/5 hover:text-white'
                       )}
                     >

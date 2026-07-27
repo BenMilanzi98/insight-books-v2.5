@@ -8,7 +8,7 @@ export default function AdminPageContainer({ children, className, maxWidth = 'de
       ? 'max-w-none'
       : maxWidth === 'narrow'
         ? 'max-w-3xl'
-        : 'max-w-[1600px]';
+        : 'max-w-[var(--admin-content-max)]';
 
   return (
     <div className={cn('mx-auto w-full min-w-0', max, className)}>{children}</div>
