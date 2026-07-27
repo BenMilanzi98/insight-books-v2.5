@@ -1,40 +1,32 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
+import prisma from '@/lib/prisma';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import { validateLifecycleCommand } from '@/lib/admin/tenantLifecycle';
 
-const prisma = new PrismaClient();
-
+/**
+ * POST /api/admin/tenants/delete
+ * Soft-archives the tenant. Hard-delete of billed/historical tenants is prohibited.
+ */
 export async function POST(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.tenants.archive)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Insufficient admin privileges' },
         { status: 403 }
       );
     }
 
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const { tenantId } = body;
+    const body = await request.json().catch(() => ({}));
+    const tenantId = body.tenantId;
+    const reason =
+      String(body.reason || '').trim() ||
+      'Archived via delete endpoint (soft-archive; data preserved)';
 
     if (!tenantId) {
       return NextResponse.json(
@@ -43,67 +35,78 @@ export async function POST(request) {
       );
     }
 
-    // Get tenant details before deletion for audit log
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true, name: true, status: true },
     });
 
     if (!tenant) {
-      return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: 'Tenant not found' }, { status: 404 });
     }
 
-    // Create admin audit log before deletion
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId: decoded.adminId || decoded.id || 1,
-        action: 'TENANT_DELETE',
-        entityType: 'TENANT',
-        entityId: tenantId,
-        details: `Deleted tenant: ${tenant.name}`,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      }
+    if (String(tenant.status).toUpperCase() === 'ARCHIVED') {
+      return NextResponse.json({
+        success: true,
+        message: 'Tenant is already archived',
+        tenant,
+        archived: true,
+      });
+    }
+
+    const validation = validateLifecycleCommand({
+      command: 'ARCHIVE',
+      reason,
+      currentStatus: tenant.status,
     });
 
-    // Delete related records first to avoid foreign key constraint issues
-    try {
-      // Delete account subscriptions
-      await prisma.accountSubscription.deleteMany({
-        where: { tenantId: tenantId }
-      });
-
-      // Delete tenant settings
-      await prisma.tenantSettings.deleteMany({
-        where: { tenantId: tenantId }
-      });
-
-      // Delete the tenant
-      await prisma.tenant.delete({
-        where: { id: tenantId }
-      });
-    } catch (deleteError) {
-      console.error('Error during deletion:', deleteError);
+    if (!validation.ok) {
       return NextResponse.json(
-        { success: false, error: 'Failed to delete tenant due to database constraints. Please ensure all related data is removed first.' },
+        {
+          success: false,
+          error: validation.error,
+          hint: 'Hard delete is prohibited. Suspend then archive, or use the lifecycle ARCHIVE command.',
+        },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Tenant deleted successfully'
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: validation.nextStatus },
+      select: { id: true, name: true, status: true },
     });
 
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: admin.id,
+        action: 'TENANT_ARCHIVE',
+        entityType: 'TENANT',
+        entityId: tenantId,
+        details: JSON.stringify({
+          previousStatus: tenant.status,
+          nextStatus: validation.nextStatus,
+          reason,
+          hardDelete: false,
+        }),
+        ipAddress:
+          request.headers.get('x-forwarded-for') ||
+          request.headers.get('x-real-ip') ||
+          'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Tenant archived successfully. Historical data was preserved.',
+      tenant: updated,
+      archived: true,
+    });
   } catch (error) {
-    console.error('Error deleting tenant:', error);
+    console.error('Error archiving tenant:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete tenant' },
+      { success: false, error: 'Failed to archive tenant' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}

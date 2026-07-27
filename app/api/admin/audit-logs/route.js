@@ -1,101 +1,73 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
-
+/**
+ * Tenant AuditLog list for admins.
+ * Note: AuditLog uses `timestamp` (not createdAt).
+ */
 export async function GET(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.audit.view)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid token' },
-        { status: 401 }
-      );
-    }
-
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
-    }
-
-    // Get query parameters
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 50;
+    const page = Math.max(parseInt(searchParams.get('page') || '1', 10) || 1, 1);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10) || 50, 200);
     const action = searchParams.get('action') || '';
 
     const skip = (page - 1) * limit;
-
-    // Build where clause
     const where = {};
     if (action) {
       where.action = action;
     }
 
-    // Fetch audit logs
     const [auditLogs, totalLogs] = await Promise.all([
       prisma.auditLog.findMany({
         where,
         include: {
           user: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          }
+            select: { id: true, name: true, email: true },
+          },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         skip,
-        take: limit
+        take: limit,
       }),
-      prisma.auditLog.count({ where })
+      prisma.auditLog.count({ where }),
     ]);
 
     return NextResponse.json({
       success: true,
-      auditLogs: auditLogs.map(log => ({
+      auditLogs: auditLogs.map((log) => ({
         id: log.id,
         action: log.action,
         details: log.details,
         ipAddress: log.ipAddress,
-        user: log.user ? {
-          id: log.user.id,
-          name: log.user.name,
-          email: log.user.email
-        } : null,
-        createdAt: log.createdAt
+        user: log.user
+          ? { id: log.user.id, name: log.user.name, email: log.user.email }
+          : null,
+        timestamp: log.timestamp,
+        createdAt: log.timestamp,
       })),
       pagination: {
         page,
         limit,
         total: totalLogs,
-        pages: Math.ceil(totalLogs / limit)
-      }
+        pages: Math.ceil(totalLogs / limit) || 0,
+      },
     });
-
   } catch (error) {
     console.error('Admin audit logs fetch error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch audit logs' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}

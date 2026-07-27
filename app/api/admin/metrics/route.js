@@ -1,149 +1,75 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
-import os from 'os';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
-
+/**
+ * Real prisma counts + process uptime. No Math.random throughput.
+ */
 export async function GET(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.health.view) &&
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.dashboard.view)
+    ) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    let decoded;
+    const dbStart = Date.now();
+    let dbQueryTime = null;
+    let databaseStatus = 'disconnected';
     try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid token' },
-        { status: 403 }
-      );
+      await prisma.$queryRaw`SELECT 1`;
+      dbQueryTime = Date.now() - dbStart;
+      databaseStatus = dbQueryTime > 1000 ? 'slow' : 'connected';
+    } catch {
+      dbQueryTime = Date.now() - dbStart;
+      databaseStatus = 'disconnected';
     }
 
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
-    }
+    const [totalUsers, totalTenants, activeUsers, activeAdmins] = await Promise.all([
+      prisma.user.count(),
+      prisma.tenant.count(),
+      prisma.user.count({
+        where: { lastLogin: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      }),
+      prisma.admin.count({ where: { isActive: true } }),
+    ]);
 
-    // Get system metrics
-    const metrics = await getSystemMetrics();
+    const mem = process.memoryUsage();
+    const uptimeSeconds = Math.floor(process.uptime());
 
     return NextResponse.json({
       success: true,
-      metrics
+      source: 'prisma_and_process',
+      metrics: {
+        systemStatus: databaseStatus === 'disconnected' ? 'error' : 'healthy',
+        databaseStatus,
+        dbQueryTime,
+        totalUsers,
+        totalTenants,
+        activeUsers,
+        activeAdmins,
+        uptimeSeconds,
+        processMemory: {
+          rss: mem.rss,
+          heapUsed: mem.heapUsed,
+          heapTotal: mem.heapTotal,
+        },
+        lastUpdated: new Date().toISOString(),
+      },
+      message:
+        'Request-rate and concurrent-session metrics are not instrumented in-app; omitted rather than faked.',
     });
-
   } catch (error) {
     console.error('Admin metrics error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch system metrics' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
-
-async function getSystemMetrics() {
-  try {
-    // Database health check
-    const dbStart = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
-    const dbQueryTime = Date.now() - dbStart;
-
-    // Get database statistics
-    const [totalUsers, totalTenants, activeUsers] = await Promise.all([
-      prisma.user.count(),
-      prisma.tenant.count(),
-      prisma.user.count({
-        where: { lastLogin: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }
-      })
-    ]);
-
-    // System information
-    const totalMemory = os.totalmem();
-    const freeMemory = os.freemem();
-    const memoryUsage = ((totalMemory - freeMemory) / totalMemory * 100).toFixed(1);
-    const memoryAvailable = (freeMemory / (1024 * 1024 * 1024)).toFixed(1);
-
-    // CPU information
-    const cpuUsage = os.loadavg()[0] * 100; // 1 minute average
-    const cpuCores = os.cpus().length;
-
-    // Calculate system status based on metrics
-    let systemStatus = 'healthy';
-    if (memoryUsage > 90 || cpuUsage > 80) {
-      systemStatus = 'warning';
-    }
-    if (memoryUsage > 95 || cpuUsage > 95) {
-      systemStatus = 'critical';
-    }
-
-    // Database status
-    let databaseStatus = 'connected';
-    if (dbQueryTime > 1000) {
-      databaseStatus = 'slow';
-    }
-    if (dbQueryTime > 5000) {
-      databaseStatus = 'critical';
-    }
-
-    return {
-      // System Health
-      systemStatus,
-      databaseStatus,
-      
-      // Performance Metrics
-      cpuUsage: cpuUsage.toFixed(1),
-      cpuCores,
-      memoryUsage,
-      memoryAvailable,
-      
-      // Database Metrics
-      databaseConnections: 1, // Simplified for now
-      dbQueryTime,
-      
-      // Response Times (simplified)
-      apiResponseTime: Math.floor(Math.random() * 50) + 10, // Mock data
-      pageLoadTime: Math.floor(Math.random() * 200) + 50, // Mock data
-      
-      // Throughput
-      requestsPerSecond: Math.floor(Math.random() * 10) + 5, // Mock data
-      activeUsers,
-      concurrentSessions: Math.floor(Math.random() * 20) + 5, // Mock data
-      
-      // System Information
-      serverInfo: {
-        platform: os.platform(),
-        version: os.release(),
-        uptime: Math.floor(os.uptime() / 3600) + ' hours'
-      },
-      databaseInfo: {
-        type: 'PostgreSQL',
-        version: '14+',
-        size: 'Calculating...'
-      },
-      
-      // Last Updated
-      lastUpdated: new Date().toISOString()
-    };
-
-  } catch (error) {
-    console.error('Error getting system metrics:', error);
-    return {
-      systemStatus: 'error',
-      databaseStatus: 'disconnected',
-      error: error.message,
-      lastUpdated: new Date().toISOString()
-    };
-  }
-} 

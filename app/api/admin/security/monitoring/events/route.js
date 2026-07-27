@@ -1,107 +1,85 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+function startDateForTimeframe(timeframe) {
+  const now = Date.now();
+  switch (timeframe) {
+    case '1h':
+      return new Date(now - 60 * 60 * 1000);
+    case '7d':
+      return new Date(now - 7 * 24 * 60 * 60 * 1000);
+    case '30d':
+      return new Date(now - 30 * 24 * 60 * 60 * 1000);
+    case '24h':
+    default:
+      return new Date(now - 24 * 60 * 60 * 1000);
+  }
+}
 
+/**
+ * Recent security-related AdminAuditLog rows — never mock events.
+ */
 export async function GET(request) {
   try {
-    // Verify admin authentication
     const admin = await getAdminFromRequest(request);
     if (!admin) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.security.view)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     const timeframe = searchParams.get('timeframe') || '24h';
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10) || 100, 500);
+    const startDate = startDateForTimeframe(timeframe);
 
-    // Calculate date range
-    const now = new Date();
-    let startDate;
-    switch (timeframe) {
-      case '1h':
-        startDate = new Date(now.getTime() - 60 * 60 * 1000);
-        break;
-      case '24h':
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
-      case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    }
+    const logs = await prisma.adminAuditLog.findMany({
+      where: {
+        timestamp: { gte: startDate },
+        OR: [
+          { action: { contains: 'SECURITY', mode: 'insensitive' } },
+          { action: { contains: 'LOCK', mode: 'insensitive' } },
+          { action: { contains: 'LOGIN_FAIL', mode: 'insensitive' } },
+          { action: { contains: 'IMPERSONATION', mode: 'insensitive' } },
+          { action: { contains: 'SUPPORT', mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        admin: {
+          select: { name: true, email: true },
+        },
+      },
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+    });
 
-    // For now, return mock security events
-    // You can extend this to fetch from a SecurityEvents table
-    const mockEvents = [
-      {
-        id: '1',
-        eventType: 'LOGIN_ATTEMPT',
-        description: 'Multiple failed login attempts from suspicious IP',
-        user: 'admin@example.com',
-        ipAddress: '192.168.1.100',
-        timestamp: new Date(Date.now() - 5 * 60 * 1000),
-        threatLevel: 'medium',
-        blocked: false
-      },
-      {
-        id: '2',
-        eventType: 'UNAUTHORIZED_ACCESS',
-        description: 'Access attempt to restricted admin endpoint',
-        user: 'unknown',
-        ipAddress: '203.0.113.45',
-        timestamp: new Date(Date.now() - 15 * 60 * 1000),
-        threatLevel: 'high',
-        blocked: true
-      },
-      {
-        id: '3',
-        eventType: 'SUSPICIOUS_ACTIVITY',
-        description: 'Unusual data access pattern detected',
-        user: 'user@tenant.com',
-        ipAddress: '10.0.0.50',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000),
-        threatLevel: 'low',
-        blocked: false
-      },
-      {
-        id: '4',
-        eventType: 'RATE_LIMIT_EXCEEDED',
-        description: 'API rate limit exceeded for IP address',
-        user: 'api_user',
-        ipAddress: '198.51.100.123',
-        timestamp: new Date(Date.now() - 45 * 60 * 1000),
-        threatLevel: 'medium',
-        blocked: true
-      }
-    ];
-
-    // Filter events by timeframe
-    const filteredEvents = mockEvents.filter(event => 
-      new Date(event.timestamp) >= startDate
-    );
+    const events = logs.map((log) => ({
+      id: log.id,
+      eventType: log.action,
+      description: log.details || log.action,
+      user: log.admin?.email || log.admin?.name || log.adminId,
+      ipAddress: log.ipAddress || null,
+      timestamp: log.timestamp,
+      entityType: log.entityType,
+      entityId: log.entityId,
+      source: 'admin_audit_log',
+    }));
 
     return NextResponse.json({
       success: true,
-      events: filteredEvents,
-      total: filteredEvents.length
+      events,
+      total: events.length,
+      source: 'admin_audit_log',
+      timeframe,
     });
-
   } catch (error) {
     console.error('Error fetching security events:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch security events' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}

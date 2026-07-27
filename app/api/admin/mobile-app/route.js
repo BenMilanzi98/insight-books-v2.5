@@ -1,7 +1,47 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAdminFromRequest } from '@/lib/adminAuth';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 import { getReleaseApkStats } from '@/lib/mobileAppRelease';
+import {
+  ANDROID_SECRET_DENYLIST,
+  assertNoSigningSecrets,
+  assertReleaseChannel,
+  assertValidChecksum,
+} from '@/lib/admin/androidRelease';
+
+/**
+ * Public-safe mobile app config for admin UI.
+ * Signing credentials (keystore, passwords, Play signing keys) are NEVER stored
+ * or returned by this API — only release metadata, checksum, and lock flags.
+ */
+
+function toPublicMobileConfig(row) {
+  if (!row) return null;
+  const config = {
+    latestVersionCode: row.latestVersionCode,
+    latestVersionName: row.latestVersionName,
+    apkDownloadUrl: row.apkDownloadUrl,
+    apkChecksum: row.apkChecksum || null,
+    apkFileSize: row.apkFileSize ?? null,
+    releaseChannel: row.releaseChannel || 'STABLE',
+    releaseNotes: row.releaseNotes,
+    publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    gracePeriodHours: row.gracePeriodHours,
+    gracePeriodMinutes: row.gracePeriodMinutes,
+    graceEndsAt: row.graceEndsAt ? row.graceEndsAt.toISOString() : null,
+    forceLock: row.forceLock,
+    websiteDownloadLocked: row.websiteDownloadLocked,
+    broadcastMessage: row.broadcastMessage,
+    maintenanceLock: row.maintenanceLock,
+    maintenanceMessage: row.maintenanceMessage,
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+  };
+  for (const key of ANDROID_SECRET_DENYLIST) {
+    if (key in config) delete config[key];
+  }
+  return config;
+}
 
 async function ensureRow() {
   return prisma.mobileAppConfig.upsert({
@@ -26,27 +66,16 @@ export async function GET(request) {
     if (!admin) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.android.view)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
 
     const row = await ensureRow();
     const st = getReleaseApkStats();
     return NextResponse.json({
       success: true,
-      config: {
-        latestVersionCode: row.latestVersionCode,
-        latestVersionName: row.latestVersionName,
-        apkDownloadUrl: row.apkDownloadUrl,
-        releaseNotes: row.releaseNotes,
-        publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
-        gracePeriodHours: row.gracePeriodHours,
-        gracePeriodMinutes: row.gracePeriodMinutes,
-        graceEndsAt: row.graceEndsAt ? row.graceEndsAt.toISOString() : null,
-        forceLock: row.forceLock,
-        websiteDownloadLocked: row.websiteDownloadLocked,
-        broadcastMessage: row.broadcastMessage,
-        maintenanceLock: row.maintenanceLock,
-        maintenanceMessage: row.maintenanceMessage,
-        updatedAt: row.updatedAt.toISOString(),
-      },
+      config: toPublicMobileConfig(row),
+      // Signing credentials are never returned by this endpoint.
       releaseFile: st
         ? { exists: true, size: st.size, mtime: st.mtime.toISOString() }
         : { exists: false },
@@ -92,11 +121,44 @@ export async function POST(request) {
     if (!admin) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
+    if (
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.android.createRelease) &&
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.android.publishRelease) &&
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.android.revokeRelease)
+    ) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
 
     const body = await request.json().catch(() => ({}));
+    const secretCheck = assertNoSigningSecrets(body);
+    if (!secretCheck.ok) {
+      return NextResponse.json({ success: false, error: secretCheck.error }, { status: 400 });
+    }
     await ensureRow();
 
     const data = {};
+
+    if (body.apkChecksum !== undefined) {
+      const c = assertValidChecksum(body.apkChecksum);
+      if (!c.ok) {
+        return NextResponse.json({ success: false, error: c.error }, { status: 400 });
+      }
+      data.apkChecksum = c.checksum;
+    }
+    if (body.apkFileSize !== undefined) {
+      const size = parseInt(String(body.apkFileSize), 10);
+      if (!Number.isFinite(size) || size < 0) {
+        return NextResponse.json({ success: false, error: 'Invalid apkFileSize' }, { status: 400 });
+      }
+      data.apkFileSize = size;
+    }
+    if (body.releaseChannel !== undefined) {
+      const ch = assertReleaseChannel(body.releaseChannel);
+      if (!ch.ok) {
+        return NextResponse.json({ success: false, error: ch.error }, { status: 400 });
+      }
+      data.releaseChannel = ch.channel;
+    }
 
     if (body.latestVersionCode !== undefined) {
       const n = parseInt(String(body.latestVersionCode), 10);
@@ -181,22 +243,8 @@ export async function POST(request) {
     const st = getReleaseApkStats();
     return NextResponse.json({
       success: true,
-      config: {
-        latestVersionCode: row.latestVersionCode,
-        latestVersionName: row.latestVersionName,
-        apkDownloadUrl: row.apkDownloadUrl,
-        releaseNotes: row.releaseNotes,
-        publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
-        gracePeriodHours: row.gracePeriodHours,
-        gracePeriodMinutes: row.gracePeriodMinutes,
-        graceEndsAt: row.graceEndsAt ? row.graceEndsAt.toISOString() : null,
-        forceLock: row.forceLock,
-        websiteDownloadLocked: row.websiteDownloadLocked,
-        broadcastMessage: row.broadcastMessage,
-        maintenanceLock: row.maintenanceLock,
-        maintenanceMessage: row.maintenanceMessage,
-        updatedAt: row.updatedAt.toISOString(),
-      },
+      config: toPublicMobileConfig(row),
+      // Signing credentials are never returned by this endpoint.
       releaseFile: st
         ? { exists: true, size: st.size, mtime: st.mtime.toISOString() }
         : { exists: false },

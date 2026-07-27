@@ -1,1135 +1,571 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  Search, 
-  Plus, 
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Building2,
+  Headphones,
   MoreVertical,
-  Edit,
-  Trash2,
-  CheckCircle,
-  AlertCircle,
-  Download,
+  Plus,
   RefreshCw,
-  ArrowUpDown,
-  Eye,
-  X,
-  ChevronDown,
-  ChevronRight
-} from "lucide-react";
+  Search,
+} from 'lucide-react';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminSummaryCard,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminEmptyState,
+  AdminStatusBadge,
+  AdminConfirmationDialog,
+} from '@/components/admin';
 
-const TenantManagementPage = () => {
+function statusTone(status) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'ACTIVE') return 'success';
+  if (s === 'TRIAL' || s === 'PENDING' || s === 'PENDING_VERIFICATION') return 'warning';
+  if (s === 'SUSPENDED' || s === 'SUSPENSION_PENDING') return 'danger';
+  return 'neutral';
+}
+
+export default function TenantManagementPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortConfig, setSortConfig] = useState({
-    key: "name",
-    direction: "ascending"
-  });
-  const [selectedTenant, setSelectedTenant] = useState(null);
-  const [isActionMenuOpen, setIsActionMenuOpen] = useState(null);
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [isAddingTenant, setIsAddingTenant] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [selectedTenantForView, setSelectedTenantForView] = useState(null);
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const [newTenant, setNewTenant] = useState({
-    name: '',
-    subdomain: '',
-    businessEmail: '',
-    plan: 'pro'
-  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [menuId, setMenuId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [confirm, setConfirm] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    fetchTenants();
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/tenants', { credentials: 'include' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Failed to load (${res.status})`);
+      setTenants(Array.isArray(body.tenants) ? body.tenants : []);
+    } catch (e) {
+      setTenants([]);
+      setError(e.message || 'Failed to load tenants');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Add click outside to close actions modal
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isActionMenuOpen) {
-        const actionsButton = event.target.closest('button[aria-label="Actions"]');
-        const actionsDropdown = event.target.closest('.absolute.right-0.mt-2');
-        
-        if (!actionsButton && !actionsDropdown) {
-          setIsActionMenuOpen(null);
-        }
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (!e.target.closest?.('[data-tenant-menu]')) setMenuId(null);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tenants.filter((t) => {
+      const status = String(t.status || '').toLowerCase();
+      if (filter !== 'all' && status !== filter && String(t.status) !== filter) {
+        const up = String(t.status || '').toUpperCase();
+        if (filter === 'active' && up !== 'ACTIVE') return false;
+        if (filter === 'suspended' && !up.includes('SUSPEND')) return false;
+        if (filter === 'archived' && up !== 'ARCHIVED') return false;
+        if (filter === 'trial' && up !== 'TRIAL' && t.subscriptionStatus !== 'trial') return false;
       }
-    };
+      if (!q) return true;
+      return (
+        String(t.name || '').toLowerCase().includes(q) ||
+        String(t.subdomain || '').toLowerCase().includes(q)
+      );
+    });
+  }, [tenants, search, filter]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isActionMenuOpen]);
+  const counts = useMemo(() => {
+    const c = { total: tenants.length, active: 0, suspended: 0, archived: 0 };
+    tenants.forEach((t) => {
+      const s = String(t.status || '').toUpperCase();
+      if (s === 'ACTIVE') c.active += 1;
+      else if (s.includes('SUSPEND')) c.suspended += 1;
+      else if (s === 'ARCHIVED') c.archived += 1;
+    });
+    return c;
+  }, [tenants]);
 
-  const fetchTenants = async () => {
+  const runLifecycle = async (tenantId, command, reason) => {
+    setActionLoading(true);
+    setError('');
     try {
-      setIsLoading(true);
-      const response = await fetch('/api/admin/tenants');
-      const data = await response.json();
-      
-      if (data.success) {
-        setTenants(data.tenants);
-      } else {
-        setError(data.error || 'Failed to fetch tenants');
-      }
-    } catch (error) {
-      setError('Failed to fetch tenant data');
+      const res = await fetch(`/api/admin/tenants/${tenantId}/lifecycle`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, reason }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${command} failed`);
+      setConfirm(null);
+      setMenuId(null);
+      await load();
+    } catch (e) {
+      setError(e.message || 'Lifecycle action failed');
     } finally {
-      setIsLoading(false);
+      setActionLoading(false);
     }
   };
 
-  const handleAddTenant = async () => {
-    if (!newTenant.name.trim()) {
-      setError('Please enter a tenant name');
+  const startSupportAccess = async (tenant) => {
+    const reason = window.prompt(
+      `Support access reason for ${tenant.name} (min 8 characters):`
+    );
+    if (!reason || reason.trim().length < 8) {
+      setError('Support access requires a reason of at least 8 characters');
       return;
     }
-
+    setActionLoading(true);
+    setError('');
     try {
-      setIsAddingTenant(true);
-      setError('');
-      
-      const url = selectedTenant 
-        ? `/api/admin/tenants/${selectedTenant.id}` 
-        : '/api/admin/tenants';
-      
-      const method = selectedTenant ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const res = await fetch('/api/admin/support-access', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newTenant.name
+          tenantId: tenant.id,
+          reason: reason.trim(),
+          durationMinutes: 60,
         }),
       });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setShowAddModal(false);
-        setSelectedTenant(null);
-        setNewTenant({ name: '', subdomain: '', businessEmail: '', plan: 'pro' });
-        fetchTenants();
-      } else {
-        setError(data.error || `Failed to ${selectedTenant ? 'update' : 'create'} tenant`);
-      }
-    } catch (error) {
-      setError(`Failed to ${selectedTenant ? 'update' : 'create'} tenant`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Failed to start support access');
+      setMenuId(null);
+      alert('Support access started. A banner will show while the session is active.');
+    } catch (e) {
+      setError(e.message || 'Support access failed');
     } finally {
-      setIsAddingTenant(false);
+      setActionLoading(false);
     }
   };
 
-  const handleDeleteTenant = async (tenantId) => {
-    if (window.confirm('Are you sure you want to delete this tenant? This action cannot be undone.')) {
-      try {
-        const response = await fetch(`/api/admin/tenants/delete`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ tenantId }),
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-          fetchTenants();
-          setIsActionMenuOpen(null);
-        } else {
-          setError(data.error || 'Failed to delete tenant');
-        }
-      } catch (error) {
-        setError('Failed to delete tenant');
-      }
+  const createTenant = async (e) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setCreating(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/tenants', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Create failed');
+      setShowCreate(false);
+      setNewName('');
+      await load();
+    } catch (err) {
+      setError(err.message || 'Create failed');
+    } finally {
+      setCreating(false);
     }
   };
 
-  const handleMore = (tenantId) => {
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(tenantId)) {
-        newSet.delete(tenantId);
-      } else {
-        newSet.add(tenantId);
-      }
-      return newSet;
-    });
-    setIsActionMenuOpen(null);
-  };
-
-  const handleTenantRowClick = (tenant) => {
-    router.push(`/insightbooks/tenants/${tenant.id}/dashboard`);
-  };
-
-  const handleViewTenant = (tenant) => {
-    setSelectedTenantForView(tenant);
-    setShowViewModal(true);
-    setIsActionMenuOpen(null);
-  };
-
-  const handleEditTenant = (tenant) => {
-    setSelectedTenant(tenant);
-    setNewTenant({
-      name: tenant.name,
-      subdomain: '',
-      businessEmail: '',
-      plan: 'pro'
-    });
-    setShowAddModal(true);
-    setIsActionMenuOpen(null);
-  }; 
-
-  const handleExportTenants = () => {
-    const csvContent = [
-      ['Tenant Name', 'Subdomain', 'Plan', 'Status', 'Users', 'Date Created', 'Last Updated'],
-      ...tenants.map(tenant => [
-        tenant.name,
-        tenant.subdomain,
-        tenant.plan || 'No Plan',
-        tenant.subscriptionStatus,
-        tenant.userCount,
-        new Date(tenant.createdAt).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        }),
-        tenant.updatedAt ? new Date(tenant.updatedAt).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        }) : 'Never'
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tenants-export-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  // Handle search
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-  };
-
-  // Handle sorting
-  const handleSort = (key) => {
-    setSortConfig(prevConfig => ({
-      key,
-      direction: prevConfig.key === key && prevConfig.direction === 'ascending' ? 'descending' : 'ascending'
-    }));
-  };
-
-  // Filter and sort tenants
-  const filteredAndSortedTenants = tenants
-    .filter(tenant => {
-      if (activeFilter === "all") return true;
-      if (activeFilter === "subscription_active") return tenant.subscriptionStatus === "active";
-      if (activeFilter === "subscription_trial") return tenant.subscriptionStatus === "trial";
-      if (activeFilter === "subscription_inactive") return tenant.subscriptionStatus === "inactive";
-      if (activeFilter === "subscription_expired") return tenant.subscriptionStatus === "expired";
-      return true;
-    })
-    .filter(tenant => 
-      tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.subdomain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tenant.plan && tenant.plan.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-    .sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
-      
-      if (sortConfig.direction === 'ascending') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
-
-  // Get status badge
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'active':
-        return <span className="status-badge active">Active</span>;
-      case 'pending':
-        return <span className="status-badge pending">Pending</span>;
-      case 'suspended':
-        return <span className="status-badge suspended">Suspended</span>;
-      default:
-        return <span className="status-badge inactive">Inactive</span>;
-    }
-  };
-
-  // Get subscription status badge
-  const getSubscriptionStatusBadge = (status) => {
-    switch (status) {
-      case 'active':
-        return <span className="subscription-badge active">Active</span>;
-      case 'trial':
-        return <span className="subscription-badge trial">Trial</span>;
-      case 'pending':
-        return <span className="subscription-badge pending">Pending</span>;
-      case 'expired':
-        return <span className="subscription-badge expired">Expired</span>;
-      case 'inactive':
-        return <span className="subscription-badge inactive">Inactive</span>;
-      default:
-        return <span className="subscription-badge inactive">Inactive</span>;
-    }
-  };
-
-  // Get plan badge
-  const getPlanBadge = (plan) => {
-    if (!plan) {
-      return <span className="plan-badge basic">No Plan</span>;
-    }
-    
-    switch (plan.toLowerCase()) {
-      case 'pro':
-      case '1year':
-        return <span className="plan-badge professional">1 Year Plan</span>;
-      case '3months':
-        return <span className="plan-badge professional">3 Months Plan</span>;
-      case '1month':
-        return <span className="plan-badge professional">1 Month Plan</span>;
-      case 'trial':
-        return <span className="plan-badge trial">Trial</span>;
-      default:
-        return <span className="plan-badge basic">Pro Plan</span>;
-    }
-  }; 
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-md p-4">
-        <div className="flex">
-          <div className="text-red-400">
-            <AlertCircle className="h-5 w-5" />
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-red-800">Error loading tenants</h3>
-            <div className="mt-2 text-sm text-red-700">{error}</div>
-            <button 
-              onClick={fetchTenants}
-              className="mt-2 text-sm text-red-600 hover:text-red-500 underline"
+  return (
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="Tenant Management"
+        description="Create, activate, suspend, reactivate, and archive tenants. Hard delete is prohibited — archive preserves history."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={load}
+              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm"
             >
-              Try again
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              Refresh
             </button>
-          </div>
-        </div>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Create tenant
+            </button>
+          </>
+        }
+      />
+
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminSummaryCard label="Total tenants" value={error ? '—' : counts.total} icon={Building2} error={Boolean(error && !tenants.length)} />
+        <AdminSummaryCard label="Active" value={error ? '—' : counts.active} tone="success" />
+        <AdminSummaryCard label="Suspended" value={error ? '—' : counts.suspended} tone="warning" />
+        <AdminSummaryCard label="Archived" value={error ? '—' : counts.archived} tone="neutral" />
       </div>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or subdomain…"
+            className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] py-2 pl-9 pr-3 text-sm"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm"
+          aria-label="Filter by status"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="trial">Trial</option>
+          <option value="suspended">Suspended</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+
+      {loading ? <AdminLoadingState label="Loading tenants" /> : null}
+      {!loading && error ? (
+        <AdminErrorState title="Tenant list unavailable" message={error} onRetry={load} />
+      ) : null}
+      {!loading && !error && filtered.length === 0 ? (
+        <AdminEmptyState
+          title="No tenants match"
+          description="Adjust filters or create a new tenant."
+          action={
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white"
+            >
+              Create tenant
+            </button>
+          }
+        />
+      ) : null}
+
+      {!loading && !error && filtered.length > 0 ? (
+        <>
+          <div className="hidden overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] md:block">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
+                <tr>
+                  <th className="px-4 py-3">Tenant</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Subscription</th>
+                  <th className="px-4 py-3">Plan</th>
+                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((tenant) => (
+                  <tr key={tenant.id} className="border-t border-[var(--border-default)]">
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        className="text-left font-medium text-[var(--action-primary)] hover:underline"
+                        onClick={() =>
+                          router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
+                        }
+                      >
+                        <span className="break-words">{tenant.name}</span>
+                      </button>
+                      <div className="break-all text-xs text-[var(--text-muted)]">
+                        {tenant.subdomain || tenant.id}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <AdminStatusBadge tone={statusTone(tenant.status)}>
+                        {tenant.status || '—'}
+                      </AdminStatusBadge>
+                    </td>
+                    <td className="px-4 py-3">{tenant.subscriptionStatus || '—'}</td>
+                    <td className="px-4 py-3">{tenant.plan || tenant.subscriptionPlan || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {tenant.createdAt
+                        ? new Date(tenant.createdAt).toLocaleDateString()
+                        : '—'}
+                    </td>
+                    <td className="relative px-4 py-3 text-right" data-tenant-menu>
+                      <button
+                        type="button"
+                        aria-label="Actions"
+                        className="rounded p-1 hover:bg-[var(--surface-muted)]"
+                        onClick={() =>
+                          setMenuId((id) => (id === tenant.id ? null : tenant.id))
+                        }
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                      {menuId === tenant.id ? (
+                        <div className="absolute right-4 z-20 mt-1 w-52 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-white py-1 shadow-[var(--shadow-modal)]">
+                          <MenuBtn
+                            onClick={() =>
+                              router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
+                            }
+                          >
+                            Open dashboard
+                          </MenuBtn>
+                          <MenuBtn
+                            onClick={() =>
+                              setConfirm({
+                                tenant,
+                                command: 'ACTIVATE',
+                                title: 'Activate tenant',
+                                description: `Activate ${tenant.name}?`,
+                              })
+                            }
+                          >
+                            Activate
+                          </MenuBtn>
+                          <MenuBtn
+                            onClick={() =>
+                              setConfirm({
+                                tenant,
+                                command: 'SUSPEND',
+                                title: 'Suspend tenant',
+                                description: `Suspend ${tenant.name}? A reason is required.`,
+                                needReason: true,
+                              })
+                            }
+                          >
+                            Suspend
+                          </MenuBtn>
+                          <MenuBtn
+                            onClick={() =>
+                              setConfirm({
+                                tenant,
+                                command: 'REACTIVATE',
+                                title: 'Reactivate tenant',
+                                description: `Reactivate ${tenant.name}?`,
+                              })
+                            }
+                          >
+                            Reactivate
+                          </MenuBtn>
+                          <MenuBtn
+                            onClick={() =>
+                              setConfirm({
+                                tenant,
+                                command: 'ARCHIVE',
+                                title: 'Archive tenant',
+                                description: `Archive ${tenant.name}? Data is preserved; hard delete is not allowed.`,
+                                needReason: true,
+                              })
+                            }
+                          >
+                            Archive
+                          </MenuBtn>
+                          <MenuBtn onClick={() => startSupportAccess(tenant)}>
+                            <Headphones className="mr-2 inline h-3.5 w-3.5" />
+                            Support access
+                          </MenuBtn>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <ul className="space-y-3 md:hidden">
+            {filtered.map((tenant) => (
+              <li
+                key={tenant.id}
+                className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words font-semibold">{tenant.name}</p>
+                    <p className="break-all text-xs text-[var(--text-muted)]">
+                      {tenant.subdomain}
+                    </p>
+                  </div>
+                  <AdminStatusBadge tone={statusTone(tenant.status)}>
+                    {tenant.status}
+                  </AdminStatusBadge>
+                </div>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  {tenant.subscriptionStatus || '—'} · {tenant.plan || '—'}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-xs"
+                    onClick={() =>
+                      router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
+                    }
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-xs"
+                    onClick={() =>
+                      setConfirm({
+                        tenant,
+                        command: 'SUSPEND',
+                        title: 'Suspend tenant',
+                        needReason: true,
+                      })
+                    }
+                  >
+                    Suspend
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-xs"
+                    onClick={() => startSupportAccess(tenant)}
+                  >
+                    Support
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      {showCreate ? (
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-black/50 p-4 sm:items-center">
+          <form
+            onSubmit={createTenant}
+            className="w-full max-w-md rounded-[var(--radius-lg)] bg-white p-5 shadow-[var(--shadow-modal)]"
+          >
+            <h2 className="text-lg font-semibold">Create tenant</h2>
+            <label className="mt-4 block text-sm">
+              <span className="mb-1 block font-medium">Tenant name</span>
+              <input
+                required
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="w-full rounded-[var(--radius-md)] border px-3 py-2"
+                autoFocus
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="rounded-[var(--radius-md)] border px-3 py-2 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={creating}
+                className="rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white disabled:opacity-60"
+              >
+                {creating ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      <LifecycleConfirm
+        confirm={confirm}
+        loading={actionLoading}
+        onCancel={() => setConfirm(null)}
+        onConfirm={(reason) =>
+          runLifecycle(confirm.tenant.id, confirm.command, reason)
+        }
+      />
+    </AdminPageContainer>
+  );
+}
+
+function MenuBtn({ children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--surface-muted)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function LifecycleConfirm({ confirm, loading, onCancel, onConfirm }) {
+  const [reason, setReason] = useState('');
+  useEffect(() => {
+    setReason('');
+  }, [confirm?.tenant?.id, confirm?.command]);
+
+  if (!confirm) return null;
+
+  if (!confirm.needReason) {
+    return (
+      <AdminConfirmationDialog
+        open
+        title={confirm.title}
+        description={confirm.description}
+        confirmLabel={confirm.command}
+        loading={loading}
+        onCancel={onCancel}
+        onConfirm={() => onConfirm('')}
+      />
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tenant Management</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage all tenants and their subscriptions
-          </p>
-        </div>
-        <div className="mt-4 sm:mt-0">
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="btn-primary"
+    <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-black/50 p-4 sm:items-center">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="lifecycle-title"
+        className="w-full max-w-md rounded-[var(--radius-lg)] bg-white p-5 shadow-[var(--shadow-modal)]"
+      >
+        <h2 id="lifecycle-title" className="text-lg font-semibold">
+          {confirm.title}
+        </h2>
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">{confirm.description}</p>
+        <label className="mt-3 block text-sm">
+          <span className="mb-1 block font-medium">Reason (required)</span>
+          <textarea
+            className="w-full rounded border px-2 py-1 text-sm"
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            required
+          />
+        </label>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded border px-3 py-2 text-sm"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Tenant
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={loading || !reason.trim()}
+            onClick={() => onConfirm(reason.trim())}
+            className="rounded bg-[var(--status-danger)] px-3 py-2 text-sm text-white disabled:opacity-60"
+          >
+            {loading ? 'Working…' : confirm.command}
           </button>
         </div>
       </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Subscriptions</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {tenants.filter(t => t.subscriptionStatus === 'active').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-orange-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Trial Users</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {tenants.filter(t => t.subscriptionStatus === 'trial').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-gray-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-gray-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Inactive</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {tenants.filter(t => t.subscriptionStatus === 'inactive').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Paid Plans</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {tenants.filter(t => t.plan !== 'trial' && t.plan !== 'Trial').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Expired</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {tenants.filter(t => t.subscriptionStatus === 'expired').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{tenants.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search tenants..."
-                value={searchTerm}
-                onChange={handleSearch}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => setActiveFilter("all")}
-                className={`px-3 py-2 text-sm font-medium rounded-md ${
-                  activeFilter === "all"
-                    ? "bg-indigo-100 text-indigo-700"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActiveFilter("subscription_active")}
-                className={`px-3 py-2 text-sm font-medium rounded-md ${
-                  activeFilter === "subscription_active"
-                    ? "bg-green-100 text-green-700"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => setActiveFilter("subscription_trial")}
-                className={`px-3 py-2 text-sm font-medium rounded-md ${
-                  activeFilter === "subscription_trial"
-                    ? "bg-orange-100 text-orange-700"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Trial
-              </button>
-              <button
-                onClick={() => setActiveFilter("subscription_inactive")}
-                className={`px-3 py-2 text-sm font-medium rounded-md ${
-                  activeFilter === "subscription_inactive"
-                    ? "bg-gray-100 text-gray-700"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Inactive
-              </button>
-              <button
-                onClick={() => setActiveFilter("subscription_expired")}
-                className={`px-3 py-2 text-sm font-medium rounded-md ${
-                  activeFilter === "subscription_expired"
-                    ? "bg-red-100 text-red-700"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Expired
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex gap-2">
-            <button
-              onClick={fetchTenants}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
-              title="Refresh"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-            <button 
-              onClick={handleExportTenants}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md" 
-              title="Export"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-        
-        {/* Results Summary */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <div>
-              Showing <span className="font-medium">{filteredAndSortedTenants.length}</span> of <span className="font-medium">{tenants.length}</span> tenants
-              {searchTerm && (
-                <span> matching "<span className="font-medium">{searchTerm}</span>"</span>
-              )}
-              {activeFilter !== 'all' && (
-                <span> with status "<span className="font-medium">{activeFilter}</span>"</span>
-              )}
-            </div>
-            <div className="text-xs text-gray-500">
-              Last updated: {new Date().toLocaleTimeString()}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tenants Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort("name")}>
-                  <div className="flex items-center">
-                    Tenant
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort("plan")}>
-                  <div className="flex items-center">
-                    Plan
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort("subscriptionStatus")}>
-                  <div className="flex items-center">
-                    Status
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort("userCount")}>
-                  <div className="flex items-center">
-                    Users
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort("createdAt")}>
-                  <div className="flex items-center">
-                    Date Created
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort("updatedAt")}>
-                  <div className="flex items-center">
-                    Last Updated
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAndSortedTenants.length > 0 ? (
-                filteredAndSortedTenants.map((tenant) => (
-                  <React.Fragment key={tenant.id}>
-                    <tr 
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => handleTenantRowClick(tenant)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                            <span className="text-indigo-600 font-semibold text-sm">
-                              {tenant.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{tenant.name}</div>
-                            <div className="text-sm text-gray-500">{tenant.subdomain}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getPlanBadge(tenant.plan)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getSubscriptionStatusBadge(tenant.subscriptionStatus)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tenant.userCount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(tenant.createdAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tenant.updatedAt ? new Date(tenant.updatedAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        }) : 'Never'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="relative" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => setIsActionMenuOpen(tenant.id)}
-                            className="text-gray-400 hover:text-gray-600"
-                            aria-label="Actions"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                          
-                          {isActionMenuOpen === tenant.id && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200">
-                              <button
-                                onClick={() => handleViewTenant(tenant)}
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </button>
-                              <button
-                                onClick={() => {
-                                  handleEditTenant(tenant);
-                                  setIsActionMenuOpen(null);
-                                }}
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                              >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleMore(tenant.id)}
-                                className="flex items-center px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 w-full text-left"
-                              >
-                                {expandedRows.has(tenant.id) ? (
-                                  <>
-                                    <ChevronDown className="h-4 w-4 mr-2" />
-                                    Less
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronRight className="h-4 w-4 mr-2" />
-                                    More
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  handleDeleteTenant(tenant.id);
-                                  setIsActionMenuOpen(null);
-                                }}
-                                className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                    
-                    {/* Expanded Row Content */}
-                    {expandedRows.has(tenant.id) && (
-                      <tr className="bg-gray-50">
-                        <td colSpan="7" className="px-6 py-4">
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {/* Basic Information */}
-                              <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 text-sm">Basic Information</h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Subdomain:</span>
-                                    <span className="font-medium">{tenant.subdomain}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Business Email:</span>
-                                    <span className="font-medium">{tenant.email || 'Not set'}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Subscription Details */}
-                              <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 text-sm">Subscription Details</h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Plan:</span>
-                                    <span>{getPlanBadge(tenant.plan)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Subscription Status:</span>
-                                    <span>{getSubscriptionStatusBadge(tenant.subscriptionStatus)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Users:</span>
-                                    <span className="font-medium">{tenant.userCount}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Timestamps */}
-                              <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 text-sm">Timestamps</h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Created:</span>
-                                    <span className="font-medium">
-                                      {new Date(tenant.createdAt).toLocaleDateString('en-US', {
-                                        year: 'numeric',
-                                        month: 'short',
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Last Updated:</span>
-                                    <span className="font-medium">
-                                      {tenant.updatedAt ? 
-                                        new Date(tenant.updatedAt).toLocaleDateString('en-US', {
-                                          year: 'numeric',
-                                          month: 'short',
-                                          day: 'numeric',
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        }) : 
-                                        'Never'
-                                      }
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* Additional Details */}
-                            <div className="border-t pt-4">
-                              <h4 className="font-medium text-gray-900 text-sm mb-3">Additional Details</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Logo URL:</span>
-                                  <span className="font-medium">{tenant.logoUrl || 'Not set'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Primary Color:</span>
-                                  <span className="font-medium">{tenant.primaryColor || 'Default'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Secondary Color:</span>
-                                  <span className="font-medium">{tenant.secondaryColor || 'Default'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Subscription Ends:</span>
-                                  <span className="font-medium">
-                                    {tenant.subscriptionEndsAt ? 
-                                      new Date(tenant.subscriptionEndsAt).toLocaleDateString() : 
-                                      'N/A'
-                                    }
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                    {searchTerm || activeFilter !== 'all' ? 'No tenants match your filters' : 'No tenants found'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination */}
-      {filteredAndSortedTenants.length > 0 && (
-        <div className="bg-white px-4 py-3 flex items-center justify-between border border-gray-200 rounded-lg">
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              Previous
-            </button>
-            <button className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredAndSortedTenants.length}</span> of{' '}
-                <span className="font-medium">{tenants.length}</span> results
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Tenant Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {selectedTenant ? 'Edit Tenant Name' : 'Add New Tenant'}
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tenant Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newTenant.name}
-                    onChange={(e) => setNewTenant({...newTenant, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Enter tenant name"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setSelectedTenant(null);
-                    setNewTenant({ name: '', subdomain: '', businessEmail: '', plan: 'pro' });
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddTenant}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
-                  disabled={isAddingTenant}
-                >
-                  {isAddingTenant ? (selectedTenant ? 'Updating...' : 'Adding...') : (selectedTenant ? 'Update Tenant' : 'Add Tenant')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Tenant Modal */}
-      {showViewModal && selectedTenantForView && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-6 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gray-900">Tenant Details</h3>
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Basic Information */}
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">Basic Information</h4>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tenant Name</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.name}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subdomain</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.subdomain}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Business Email</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.email}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                      {getStatusBadge(selectedTenantForView.status)}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Subscription & Plan Information */}
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">Subscription & Plan</h4>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Plan</label>
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                      {getPlanBadge(selectedTenantForView.plan)}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subscription Status</label>
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                      {getSubscriptionStatusBadge(selectedTenantForView.subscriptionStatus)}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">User Count</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.userCount} users
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date Created</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {new Date(selectedTenantForView.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                  
-                  {selectedTenantForView.subscriptionEndsAt && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Subscription Ends</label>
-                      <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                        {new Date(selectedTenantForView.subscriptionEndsAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {selectedTenantForView.trialEndsAt && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Trial Ends</label>
-                      <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                        {new Date(selectedTenantForView.trialEndsAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Additional Details */}
-              <div className="mt-6 space-y-4">
-                <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">Additional Details</h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.logoUrl || 'No logo set'}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Primary Color</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.primaryColor || 'Default'}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Color</label>
-                    <p className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-900 text-sm">
-                      {selectedTenantForView.secondaryColor || 'Default'}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Subscription Status Explanation */}
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <h5 className="text-sm font-medium text-blue-800 mb-2">Subscription Status Explanation:</h5>
-                  <ul className="text-xs text-blue-700 space-y-1">
-                    <li>• <strong>Active:</strong> Tenant has an active, paid subscription</li>
-                    <li>• <strong>Trial:</strong> Tenant is on a trial period</li>
-                    <li>• <strong>Pending:</strong> Payment is pending or being processed</li>
-                    <li>• <strong>Expired:</strong> Subscription has expired</li>
-                    <li>• <strong>Inactive:</strong> No active subscription found</li>
-                  </ul>
-                  <p className="text-xs text-blue-600 mt-2">
-                    Note: A tenant can be "Active" (status) but have an "Inactive" subscription if they haven't completed payment setup yet.
-                  </p>
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-3 mt-8 pt-6 border-t">
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style jsx>{`
-        .btn-primary {
-          @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500;
-        }
-        
-        .status-badge {
-          @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
-        }
-        
-        .status-badge.active {
-          @apply bg-green-100 text-green-800;
-        }
-        
-        .status-badge.pending {
-          @apply bg-yellow-100 text-yellow-800;
-        }
-        
-        .status-badge.suspended {
-          @apply bg-red-100 text-red-800;
-        }
-        
-        .status-badge.inactive {
-          @apply bg-gray-100 text-gray-800;
-        }
-        
-        .plan-badge {
-          @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
-        }
-        
-        .plan-badge.professional {
-          @apply bg-indigo-100 text-indigo-800;
-        }
-        
-        .plan-badge.basic {
-          @apply bg-indigo-100 text-indigo-800;
-        }
-        
-        .plan-badge.trial {
-          @apply bg-orange-100 text-orange-800;
-        }
-
-        .subscription-badge {
-          @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
-        }
-
-        .subscription-badge.active {
-          @apply bg-green-100 text-green-800;
-        }
-
-        .subscription-badge.trial {
-          @apply bg-orange-100 text-orange-800;
-        }
-
-        .subscription-badge.pending {
-          @apply bg-yellow-100 text-yellow-800;
-        }
-
-        .subscription-badge.expired {
-          @apply bg-red-100 text-red-800;
-        }
-
-        .subscription-badge.inactive {
-          @apply bg-gray-100 text-gray-800;
-        }
-      `}</style>
     </div>
   );
-};
-
-export default TenantManagementPage; 
+}

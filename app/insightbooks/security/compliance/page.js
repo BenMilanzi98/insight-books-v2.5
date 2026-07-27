@@ -20,12 +20,14 @@ import {
 
 const SecurityCompliancePage = () => {
   const [complianceData, setComplianceData] = useState({
-    overallScore: 85,
+    overallScore: null,
     policies: [],
     auditRequirements: [],
     lastAssessment: null,
-    nextAssessment: null
+    nextAssessment: null,
+    scoreNote: null,
   });
+  const [loadError, setLoadError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFramework, setSelectedFramework] = useState('general');
 
@@ -36,14 +38,33 @@ const SecurityCompliancePage = () => {
   const fetchComplianceData = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/admin/security/compliance?framework=${selectedFramework}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setComplianceData(data.compliance || complianceData);
+      setLoadError('');
+      const response = await fetch(`/api/admin/security/compliance?framework=${selectedFramework}`, {
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to load (${response.status})`);
       }
+      setComplianceData(
+        data.compliance || {
+          overallScore: null,
+          policies: [],
+          auditRequirements: [],
+          lastAssessment: null,
+          nextAssessment: null,
+        }
+      );
     } catch (error) {
       console.error('Failed to fetch compliance data:', error);
+      setLoadError(error.message || 'Failed to load compliance signals');
+      setComplianceData({
+        overallScore: null,
+        policies: [],
+        auditRequirements: [],
+        lastAssessment: null,
+        nextAssessment: null,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -157,14 +178,18 @@ const SecurityCompliancePage = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center">
-            <div className={`p-2 rounded-lg ${getComplianceScoreBg(complianceData.overallScore)}`}>
-              <Shield className={`h-6 w-6 ${getComplianceScoreColor(complianceData.overallScore)}`} />
+            <div className={`p-2 rounded-lg ${getComplianceScoreBg(complianceData.overallScore ?? 0)}`}>
+              <Shield className={`h-6 w-6 ${getComplianceScoreColor(complianceData.overallScore ?? 0)}`} />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Overall Score</p>
-              <p className={`text-2xl font-bold ${getComplianceScoreColor(complianceData.overallScore)}`}>
-                {complianceData.overallScore}%
+              <p className={`text-2xl font-bold ${getComplianceScoreColor(complianceData.overallScore ?? 0)}`}>
+                {complianceData.overallScore == null ? '—' : `${complianceData.overallScore}%`}
               </p>
+              {loadError ? <p className="text-xs text-red-600">{loadError}</p> : null}
+              {complianceData.scoreNote ? (
+                <p className="text-xs text-gray-500 max-w-xs">{complianceData.scoreNote}</p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -231,7 +256,8 @@ const SecurityCompliancePage = () => {
                 }
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Score: {complianceData.overallScore}%
+                Score:{' '}
+                {complianceData.overallScore == null ? 'n/a' : `${complianceData.overallScore}%`}
               </p>
             </div>
             <div>
@@ -378,20 +404,20 @@ const SecurityCompliancePage = () => {
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {complianceData.overallScore < 90 && (
+            {complianceData.overallScore != null && complianceData.overallScore < 90 ? (
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
                 <div className="flex items-center">
                   <AlertTriangle className="h-5 w-5 text-yellow-400 mr-3" />
                   <div>
                     <h4 className="text-sm font-medium text-yellow-800">Improve Compliance Score</h4>
                     <p className="text-sm text-yellow-700 mt-1">
-                      Your current compliance score is {complianceData.overallScore}%. 
+                      Your current compliance score is {complianceData.overallScore}%.
                       Focus on addressing non-compliant policies to reach 90%+ compliance.
                     </p>
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
             
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
               <div className="flex items-center">

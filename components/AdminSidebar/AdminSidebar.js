@@ -1,378 +1,288 @@
-"use client";
-import { useState, useEffect } from 'react';
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LogOut, 
-  ChevronRight, 
-  ChevronDown,
+import {
+  Activity,
   BarChart3,
   Building2,
+  ChevronDown,
+  ChevronRight,
+  CreditCard,
+  FileCheck,
+  Handshake,
+  LayoutDashboard,
+  LogOut,
+  Mail,
   Settings,
-  Users,
-  FileText,
   Shield,
-  TrendingUp,
-  DollarSign,
-  Activity,
-  Database,
-  Bell,
-  User
+  Smartphone,
+  ToggleLeft,
+  Upload,
+  Users,
 } from 'lucide-react';
+import { ADMIN_NAV_SECTIONS } from '@/lib/admin/adminNav';
+import { NAV_PERMISSION_MAP, adminHasPermission } from '@/lib/admin/permissions';
+import { cn } from '@/lib/utils';
 
-const AdminSidebar = ({ collapsed, setCollapsed, admin }) => {
+const ICONS = {
+  LayoutDashboard,
+  BarChart3,
+  Building2,
+  Users,
+  Settings,
+  Smartphone,
+  Handshake,
+  CreditCard,
+  Mail,
+  FileCheck,
+  Shield,
+  Activity,
+  ToggleLeft,
+  Upload,
+};
+
+function pathMatches(pathname, href) {
+  if (!pathname || !href) return false;
+  if (pathname === href) return true;
+  if (href !== '/insightbooks/dashboard' && pathname.startsWith(`${href}/`)) return true;
+  return false;
+}
+
+function itemVisible(admin, href) {
+  const required = NAV_PERMISSION_MAP[href];
+  if (!required) return true;
+  if (!admin) return true;
+  if (admin.role === 'Super Admin') return true;
+  return adminHasPermission(admin, required);
+}
+
+export default function AdminSidebar({
+  collapsed,
+  setCollapsed,
+  admin,
+  isMobile = false,
+  onNavigate,
+}) {
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState([]);
 
+  useEffect(() => {
+    ADMIN_NAV_SECTIONS.forEach((section) => {
+      section.items.forEach((item) => {
+        if (
+          item.expandable &&
+          item.subItems?.some((sub) => pathMatches(pathname, sub.href))
+        ) {
+          setExpandedItems((prev) =>
+            prev.includes(item.href) ? prev : [...prev, item.href]
+          );
+        }
+      });
+    });
+  }, [pathname]);
+
+  const sections = useMemo(() => {
+    return ADMIN_NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.expandable) {
+          const subs = (item.subItems || []).filter((sub) =>
+            itemVisible(admin, item.href) || itemVisible(admin, sub.href)
+          );
+          return itemVisible(admin, item.href) || subs.length > 0;
+        }
+        return itemVisible(admin, item.href);
+      }),
+    })).filter((section) => section.items.length > 0);
+  }, [admin]);
+
   const toggleExpand = (href) => {
-    setExpandedItems(prev => 
-      prev.includes(href) 
-        ? prev.filter(item => item !== href)
-        : [...prev, href]
+    setExpandedItems((prev) =>
+      prev.includes(href) ? prev.filter((h) => h !== href) : [...prev, href]
     );
   };
-
-  const isExpanded = (href) => expandedItems.includes(href);
-  const isActive = (href) => pathname === href;
-
-  const navigation = [
-    {
-      label: "Administration",
-      items: [
-        { href: '/insightbooks/dashboard', icon: '📊', text: 'Dashboard' },
-        { href: '/insightbooks/tenant-management', icon: '🏢', text: 'Tenant Management' },
-        { 
-          href: '/insightbooks/user-management', 
-          icon: '👥', 
-          text: 'User Management',
-        },
-        { href: '/insightbooks/global-settings', icon: '⚙️', text: 'Global Settings' },
-        { href: '/insightbooks/chart-of-accounts', icon: '📒', text: 'System chart of accounts' },
-        { href: '/insightbooks/mobile-app', icon: '📱', text: 'Android app' },
-        { href: '/insightbooks/affiliate', icon: '🤝', text: 'Affiliate Management' },
-        { 
-          href: '/insightbooks/billing', 
-          icon: '💰', 
-          text: 'Billing & Subscriptions',
-          expandable: true,
-          subItems: [
-            { href: '/insightbooks/billing/overview', text: 'Billing Overview' },
-            { href: '/insightbooks/billing/subscriptions', text: 'Subscription Management' },
-            { href: '/insightbooks/billing/invoices', text: 'Invoices' },
-            { href: '/insightbooks/billing/payments', text: 'Payments' },
-          ]
-        },
-        { 
-          href: '/insightbooks/email-management', 
-          icon: '📧', 
-          text: 'Email Management',
-          description: 'Send bulk emails to users'
-        },
-        { 
-          href: '/insightbooks/audit', 
-          icon: '📜', 
-          text: 'Audit & Security',
-        }
-      ]
-    }
-  ];
 
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/auth/logout', { method: 'POST' });
-      window.location.href = '/insightbooks/login';
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch {
+      /* still redirect */
     }
+    window.location.href = '/insightbooks/login';
   };
 
-  if (collapsed) {
-    return (
-      <div 
-        className="sidebar collapsed"
-        style={{
-          width: "80px",
-          height: "100vh",
-          backgroundColor: "#1a202c",
-          color: "white",
-          display: "flex",
-          flexDirection: "column",
-          transition: "width 0.3s ease-in-out",
-          position: "fixed",
-          top: 0,
-          left: 0,
-          zIndex: 100,
-          overflow: "hidden"
-        }}
-      >
-        {/* Collapsed Header */}
-        <div className="sidebar-header" style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "16px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)"
-        }}>
-          <div className="flex items-center">
-            <img src="/logo.png" alt="InsightBooks Logo" className="h-8 w-auto object-contain rounded-md"/>
-          </div>
-        </div>
+  const linkClick = () => {
+    onNavigate?.();
+  };
 
-        {/* Collapsed Footer with logout only */}
-        <div className="sidebar-footer-collapsed" style={{
-          padding: "16px 8px",
-          borderTop: "1px solid rgba(255,255,255,0.1)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
-          alignItems: "center",
-          marginTop: "auto"
-        }}>
-          <button 
-            onClick={handleLogout}
-            className="footer-link" 
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "40px",
-              height: "40px",
-              color: "rgba(255,255,255,0.7)",
-              textDecoration: "none",
-              borderRadius: "8px",
-              fontSize: "16px",
-              background: "none",
-              border: "none",
-              cursor: "pointer"
-            }}
-            title="Logout"
-          >
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const widthClass = collapsed && !isMobile
+    ? 'w-[var(--sidebar-collapsed-width)]'
+    : 'w-[var(--sidebar-width)]';
 
   return (
-    <div 
-      className="sidebar"
-      style={{
-        width: "280px",
-        height: "100vh",
-        backgroundColor: "#1a202c",
-        color: "white",
-        display: "flex",
-        flexDirection: "column",
-        transition: "width 0.3s ease-in-out",
-        position: "fixed",
-        top: 0,
-        left: 0,
-        zIndex: 100,
-        overflow: "hidden"
-      }}
+    <div
+      className={cn(
+        'flex h-full max-h-screen flex-col bg-[var(--admin-sidebar-bg)] text-[var(--admin-sidebar-text)]',
+        widthClass
+      )}
     >
-      {/* Sidebar Header */}
-      <div className="sidebar-header" style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)"
-      }}>
-        <div className="flex items-center">
-          <img src="/logo.png" alt="InsightBooks Logo" className="h-11 w-auto object-contain rounded-md"/>
-        </div>
+      <div className="flex shrink-0 items-center justify-center border-b border-white/10 px-3 py-4">
+        <img
+          src="/logo.png"
+          alt="InsightBooks"
+          className={cn(
+            'object-contain rounded-md',
+            collapsed && !isMobile ? 'h-8' : 'h-11'
+          )}
+        />
       </div>
 
-      {/* Admin User Section */}
-      <div className="user-section" style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "16px",
-        gap: "12px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)"
-      }}>
-        <div className="user-avatar" style={{
-          backgroundColor: "#3182ce",
-          color: "white",
-          width: "40px",
-          height: "40px",
-          borderRadius: "50%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: "bold",
-          fontSize: "14px"
-        }}>
-          <User className="h-5 w-5" />
-        </div>
-        
-        <div className="user-info" style={{
-          flex: 1
-        }}>
-          <div className="user-name" style={{
-            fontWeight: "600",
-            fontSize: "14px"
-          }}>{admin?.name || 'Admin'}</div>
-          <div className="user-role" style={{
-            fontSize: "12px",
-            color: "rgba(255,255,255,0.7)"
-          }}>{admin?.role || 'Administrator'}</div>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="nav-content" style={{
-        flex: 1,
-        overflowY: "auto",
-        overflowX: "hidden",
-        padding: "16px 0"
-      }}>
-        {navigation.map((section, sIndex) => (
-          <div className="nav-section" key={`section-${sIndex}`} style={{
-            marginBottom: "16px"
-          }}>
-            <div className="nav-label" style={{
-              fontSize: "12px",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.5)",
-              padding: "0 16px 8px",
-              fontWeight: "600"
-            }}>{section.label}</div>
-            <div className="nav-group">
-              {section.items.map((item, iIndex) => (
-                <div key={`item-${sIndex}-${iIndex}`}>
-                  {item.expandable ? (
-                    <div>
-                      <div 
-                        className={`nav-item ${isActive(item.href) ? "active" : ""}`}
-                        onClick={() => toggleExpand(item.href)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          padding: "10px 16px",
-                          color: isActive(item.href) ? "white" : "rgba(255,255,255,0.7)",
-                          backgroundColor: isActive(item.href) ? "rgba(49, 130, 206, 0.2)" : "transparent",
-                          borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
-                          borderRight: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
-                          borderTop: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
-                          borderBottom: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
-                          gap: "12px",
-                          position: "relative",
-                          transition: "all 0.2s ease",
-                          cursor: "pointer"
-                        }}
-                      >
-                        <span className="nav-icon" style={{
-                          fontSize: "16px"
-                        }}>{item.icon}</span>
-                        <span className="nav-text" style={{
-                          fontSize: "14px",
-                          flex: 1
-                        }}>{item.text}</span>
-                        <ChevronRight 
-                          size={16} 
-                          style={{
-                            transform: isExpanded(item.href) ? 'rotate(90deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.2s'
-                          }}
-                        />
-                      </div>
-                      {isExpanded(item.href) && (
-                        <div className="sub-menu">
-                          {item.subItems.map((subItem, subIndex) => (
-                            <Link 
-                              href={subItem.href}
-                              key={`subitem-${sIndex}-${iIndex}-${subIndex}`}
-                              className={`sub-menu-item ${isActive(subItem.href) ? "active" : ""}`}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                padding: "8px 16px 8px 44px",
-                                textDecoration: "none",
-                                color: isActive(subItem.href) ? "white" : "rgba(255,255,255,0.6)",
-                                backgroundColor: isActive(subItem.href) ? "rgba(49, 130, 206, 0.1)" : "transparent",
-                                fontSize: "13px",
-                              }}
-                            >
-                              {subItem.text}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <Link 
-                      href={item.href} 
-                      className={`nav-item ${isActive(item.href) ? "active" : ""}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        padding: "10px 16px",
-                        textDecoration: "none",
-                        color: isActive(item.href) ? "white" : "rgba(255,255,255,0.7)",
-                        backgroundColor: isActive(item.href) ? "rgba(49, 130, 206, 0.2)" : "transparent",
-                        borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
-                        borderRight: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
-                        borderTop: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
-                        borderBottom: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
-                        gap: "12px",
-                        position: "relative",
-                        transition: "all 0.2s ease"
-                      }}
-                    >
-                      <span className="nav-icon" style={{
-                        fontSize: "16px"
-                      }}>{item.icon}</span>
-                      <span className="nav-text" style={{
-                        fontSize: "14px"
-                      }}>{item.text}</span>
-                    </Link>
-                  )}
-                </div>
-              ))}
+      {!(collapsed && !isMobile) ? (
+        <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--action-primary)] text-sm font-semibold text-white"
+            aria-hidden
+          >
+            {(admin?.name || 'A').slice(0, 1).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold">{admin?.name || 'Admin'}</div>
+            <div className="truncate text-xs text-[var(--admin-sidebar-muted)]">
+              {admin?.role || 'Administrator'}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Sidebar Footer */}
-      <div className="sidebar-footer" style={{
-        padding: "16px",
-        borderTop: "1px solid rgba(255,255,255,0.1)",
-        fontSize: "12px"
-      }}>
-        <div className="app-version" style={{
-          color: "rgba(255,255,255,0.5)",
-          marginBottom: "8px"
-        }}>InsightBooks v1.0.2</div>
-        <div className="footer-links" style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px"
-        }}>
-          <button 
-            onClick={handleLogout}
-            className="footer-link" 
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              color: "rgba(255,255,255,0.7)",
-              textDecoration: "none",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "12px"
-            }}
-          >
-            <LogOut size={14} className="footer-icon" /> Logout
-          </button>
         </div>
+      ) : null}
+
+      <nav
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-3"
+        aria-label="System administration"
+      >
+        {sections.map((section) => (
+          <div key={section.id} className="mb-4">
+            {!(collapsed && !isMobile) ? (
+              <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--admin-sidebar-muted)]">
+                {section.label}
+              </div>
+            ) : null}
+            <ul className="space-y-0.5">
+              {section.items.map((item) => {
+                const Icon = ICONS[item.icon] || LayoutDashboard;
+                const active =
+                  pathMatches(pathname, item.href) ||
+                  item.subItems?.some((sub) => pathMatches(pathname, sub.href));
+                const expanded = expandedItems.includes(item.href);
+
+                if (item.expandable) {
+                  return (
+                    <li key={item.href}>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(item.href)}
+                        title={collapsed && !isMobile ? item.text : undefined}
+                        aria-expanded={expanded}
+                        className={cn(
+                          'flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-sm transition-colors',
+                          active
+                            ? 'bg-[var(--admin-sidebar-active)] text-white'
+                            : 'text-white/80 hover:bg-white/5 hover:text-white'
+                        )}
+                      >
+                        <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                        {!(collapsed && !isMobile) ? (
+                          <>
+                            <span className="min-w-0 flex-1 truncate">{item.text}</span>
+                            {expanded ? (
+                              <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                            )}
+                          </>
+                        ) : null}
+                      </button>
+                      {expanded && !(collapsed && !isMobile) ? (
+                        <ul className="mt-0.5 space-y-0.5 border-l border-white/10 ml-5 pl-2">
+                          {(item.subItems || []).map((sub) => {
+                            const subActive = pathMatches(pathname, sub.href);
+                            return (
+                              <li key={sub.href}>
+                                <Link
+                                  href={sub.href}
+                                  onClick={linkClick}
+                                  className={cn(
+                                    'block rounded-[var(--radius-md)] px-3 py-2 text-sm',
+                                    subActive
+                                      ? 'bg-white/10 text-white'
+                                      : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                  )}
+                                >
+                                  {sub.text}
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                    </li>
+                  );
+                }
+
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={linkClick}
+                      title={collapsed && !isMobile ? item.text : undefined}
+                      className={cn(
+                        'flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors',
+                        active
+                          ? 'bg-[var(--admin-sidebar-active)] text-white'
+                          : 'text-white/80 hover:bg-white/5 hover:text-white'
+                      )}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                      {!(collapsed && !isMobile) ? (
+                        <span className="min-w-0 truncate">{item.text}</span>
+                      ) : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div className="shrink-0 border-t border-white/10 p-3">
+        {!(collapsed && !isMobile) ? (
+          <div className="mb-2 px-1 text-[11px] text-[var(--admin-sidebar-muted)]">
+            InsightBooks Admin
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleLogout}
+          title="Logout"
+          className={cn(
+            'flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-white/80 hover:bg-white/5 hover:text-white',
+            collapsed && !isMobile && 'justify-center'
+          )}
+        >
+          <LogOut className="h-5 w-5 shrink-0" aria-hidden />
+          {!(collapsed && !isMobile) ? <span>Logout</span> : null}
+        </button>
+        {typeof setCollapsed === 'function' && !isMobile ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className="mt-1 hidden w-full rounded-[var(--radius-md)] px-3 py-2 text-xs text-white/50 hover:bg-white/5 hover:text-white/80 md:block"
+          >
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        ) : null}
       </div>
     </div>
   );
-};
-
-export default AdminSidebar; 
+}

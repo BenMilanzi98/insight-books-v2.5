@@ -1,265 +1,202 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
+import { preventFormulaInjection } from '@/lib/admin/exportSafety';
+import { appendAdminAuditLog } from '@/lib/admin/appendOnlyAudit';
 
-const prisma = new PrismaClient();
+const EXPORT_CAP = 5000;
+
+const USERS_EXPORT_PERMISSION = SYSTEM_ADMIN_PERMISSIONS.users.export;
+
+function escapeCsvCell(value) {
+  const safe = preventFormulaInjection(value);
+  return `"${String(safe).replace(/"/g, '""')}"`;
+}
+
+function generateCSV(users) {
+  const headers = [
+    'ID',
+    'Name',
+    'Email',
+    'Role',
+    'Tenant',
+    'Status',
+    'Active',
+    'Last Login',
+    'Created At',
+    'Phone',
+    'Department',
+  ];
+  const rows = users.map((user) => [
+    user.id,
+    user.name ?? '',
+    user.email ?? '',
+    user.roleName ?? '',
+    user.tenantName ?? '',
+    user.status ?? '',
+    user.isActive ? 'true' : 'false',
+    user.lastLogin ? user.lastLogin.toISOString() : '',
+    user.createdAt ? user.createdAt.toISOString() : '',
+    user.phone ?? '',
+    user.department ?? '',
+  ]);
+
+  return [headers, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+}
 
 export async function POST(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!adminHasPermission(admin, USERS_EXPORT_PERMISSION)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid token' },
-        { status: 403 }
-      );
-    }
+    const body = await request.json().catch(() => ({}));
+    const { format = 'csv', filters = {}, selectedUsers } = body;
 
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const { format, filters, selectedUsers } = body;
-
-    // Validate required fields
-    if (!format) {
-      return NextResponse.json(
-        { success: false, error: 'Export format is required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate format
-    const validFormats = ['csv', 'excel', 'json', 'pdf'];
+    const validFormats = ['csv', 'json'];
     if (!validFormats.includes(format)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid export format' },
+        { success: false, error: 'Only csv and json export formats are supported' },
         { status: 400 }
       );
     }
 
-    // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || 'all';
-    const role = searchParams.get('role') || 'all';
-    const tenant = searchParams.get('tenant') || 'all';
-    const dateRange = searchParams.get('dateRange') || 'all';
+    const status =
+      filters.status || searchParams.get('status') || 'all';
+    const role = filters.role || searchParams.get('role') || 'all';
+    const tenant = filters.tenant || searchParams.get('tenant') || 'all';
+    const dateRange =
+      filters.dateRange || searchParams.get('dateRange') || 'all';
 
-    // Fetch users based on filters (mock data for now)
-    const users = [
-      {
-        id: '1',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        role: 'Admin',
-        tenant: 'Company A',
-        status: 'active',
-        lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        createdAt: new Date('2024-01-15'),
-        phone: '+1234567890',
-        department: 'IT'
-      },
-      {
-        id: '2',
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com',
-        role: 'Manager',
-        tenant: 'Company B',
-        status: 'active',
-        lastLogin: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-        createdAt: new Date('2024-02-01'),
-        phone: '+1234567891',
-        department: 'Sales'
-      },
-      {
-        id: '3',
-        name: 'Bob Johnson',
-        email: 'bob.johnson@example.com',
-        role: 'User',
-        tenant: 'Company A',
-        status: 'inactive',
-        lastLogin: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
-        createdAt: new Date('2024-03-10'),
-        phone: '+1234567892',
-        department: 'Marketing'
-      }
-    ];
+    const where = {};
 
-    // Apply filters
-    let filteredUsers = users;
-    
     if (status !== 'all') {
-      filteredUsers = filteredUsers.filter(user => user.status === status);
+      where.status = status;
     }
-    
-    if (role !== 'all') {
-      filteredUsers = filteredUsers.filter(user => user.role === role);
-    }
-    
     if (tenant !== 'all') {
-      filteredUsers = filteredUsers.filter(user => user.tenant === tenant);
+      where.tenantId = tenant;
     }
-
-    // Filter by date range
+    if (role !== 'all') {
+      where.role = { name: role };
+    }
     if (dateRange !== 'all') {
-      const now = new Date();
+      const now = Date.now();
       let startDate;
-      
       switch (dateRange) {
         case '7d':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          startDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
           break;
         case '30d':
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          startDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
           break;
         case '90d':
-          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          startDate = new Date(now - 90 * 24 * 60 * 60 * 1000);
           break;
         case '1y':
-          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          startDate = new Date(now - 365 * 24 * 60 * 60 * 1000);
           break;
         default:
-          startDate = new Date(0);
+          startDate = null;
       }
-      
-      filteredUsers = filteredUsers.filter(user => user.createdAt >= startDate);
+      if (startDate) {
+        where.createdAt = { gte: startDate };
+      }
     }
-
-    // If specific users are selected, filter to only those
     if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
-      filteredUsers = filteredUsers.filter(user => selectedUsers.includes(user.id));
+      where.id = { in: selectedUsers.slice(0, EXPORT_CAP) };
     }
 
-    // Prepare export data based on format
-    let exportData;
-    let contentType;
-    let filename;
-
-    switch (format) {
-      case 'csv':
-        exportData = generateCSV(filteredUsers);
-        contentType = 'text/csv';
-        filename = `users-export-${new Date().toISOString().split('T')[0]}.csv`;
-        break;
-
-      case 'excel':
-        exportData = generateExcel(filteredUsers);
-        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        filename = `users-export-${new Date().toISOString().split('T')[0]}.xlsx`;
-        break;
-
-      case 'json':
-        exportData = JSON.stringify(filteredUsers, null, 2);
-        contentType = 'application/json';
-        filename = `users-export-${new Date().toISOString().split('T')[0]}.json`;
-        break;
-
-      case 'pdf':
-        exportData = generatePDF(filteredUsers);
-        contentType = 'application/pdf';
-        filename = `users-export-${new Date().toISOString().split('T')[0]}.pdf`;
-        break;
-
-      default:
-        return NextResponse.json(
-          { success: false, error: 'Unsupported export format' },
-          { status: 400 }
-        );
-    }
-
-    // Create admin audit log for export
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId: decoded.adminId,
-        action: 'USER_EXPORT',
-        entityType: 'USER',
-        entityId: 'BULK_EXPORT',
-        details: `Exported ${filteredUsers.length} users in ${format.toUpperCase()} format`,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      }
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        status: true,
+        isActive: true,
+        lastLogin: true,
+        createdAt: true,
+        phone: true,
+        department: true,
+        role: { select: { name: true } },
+        tenant: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: EXPORT_CAP,
     });
 
-    // Return the export data
-    return new NextResponse(exportData, {
+    const mapped = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      roleName: u.role?.name || '',
+      tenantName: u.tenant?.name || '',
+      status: u.status,
+      isActive: u.isActive,
+      lastLogin: u.lastLogin,
+      createdAt: u.createdAt,
+      phone: u.phone,
+      department: u.department,
+    }));
+
+    await appendAdminAuditLog({
+      adminId: admin.id,
+      action: 'USER_EXPORT',
+      entityType: 'USER',
+      entityId: 'BULK_EXPORT',
+      details: `Exported ${mapped.length} users in ${format.toUpperCase()} format (cap ${EXPORT_CAP})`,
+      ipAddress:
+        request.headers.get('x-forwarded-for') ||
+        request.headers.get('x-real-ip') ||
+        'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown',
+    });
+
+    const dateStamp = new Date().toISOString().split('T')[0];
+
+    if (format === 'json') {
+      const safeJson = mapped.map((u) => ({
+        id: preventFormulaInjection(u.id),
+        name: preventFormulaInjection(u.name),
+        email: preventFormulaInjection(u.email),
+        role: preventFormulaInjection(u.roleName),
+        tenant: preventFormulaInjection(u.tenantName),
+        status: preventFormulaInjection(u.status),
+        isActive: u.isActive,
+        lastLogin: u.lastLogin ? u.lastLogin.toISOString() : null,
+        createdAt: u.createdAt ? u.createdAt.toISOString() : null,
+        phone: preventFormulaInjection(u.phone),
+        department: preventFormulaInjection(u.department),
+      }));
+      const bodyJson = JSON.stringify(safeJson, null, 2);
+      return new NextResponse(bodyJson, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="users-export-${dateStamp}.json"`,
+        },
+      });
+    }
+
+    const csv = generateCSV(mapped);
+    return new NextResponse(csv, {
       status: 200,
       headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': Buffer.byteLength(exportData, 'utf8').toString()
-      }
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="users-export-${dateStamp}.csv"`,
+      },
     });
-
   } catch (error) {
     console.error('Admin user export error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to export users' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
-
-// Helper function to generate CSV
-function generateCSV(users) {
-  const headers = ['ID', 'Name', 'Email', 'Role', 'Tenant', 'Status', 'Last Login', 'Created At', 'Phone', 'Department'];
-  const rows = users.map(user => [
-    user.id,
-    user.name,
-    user.email,
-    user.role,
-    user.tenant,
-    user.status,
-    user.lastLogin.toISOString(),
-    user.createdAt.toISOString(),
-    user.phone || '',
-    user.department || ''
-  ]);
-
-  return [headers, ...rows]
-    .map(row => row.map(field => `"${field}"`).join(','))
-    .join('\n');
-}
-
-// Helper function to generate Excel (simplified - returns CSV for now)
-function generateExcel(users) {
-  // In a real implementation, you would use a library like 'xlsx' to generate actual Excel files
-  // For now, we'll return CSV format
-  return generateCSV(users);
-}
-
-// Helper function to generate PDF (simplified - returns text for now)
-function generatePDF(users) {
-  // In a real implementation, you would use a library like 'puppeteer' or 'jsPDF' to generate actual PDFs
-  // For now, we'll return a formatted text representation
-  let pdfContent = 'USER EXPORT REPORT\n';
-  pdfContent += `Generated: ${new Date().toISOString()}\n`;
-  pdfContent += `Total Users: ${users.length}\n\n`;
-
-  users.forEach((user, index) => {
-    pdfContent += `${index + 1}. ${user.name} (${user.email})\n`;
-    pdfContent += `   Role: ${user.role}\n`;
-    pdfContent += `   Tenant: ${user.tenant}\n`;
-    pdfContent += `   Status: ${user.status}\n`;
-    pdfContent += `   Last Login: ${user.lastLogin.toISOString()}\n`;
-    pdfContent += `   Created: ${user.createdAt.toISOString()}\n\n`;
-  });
-
-  return pdfContent;
-} 

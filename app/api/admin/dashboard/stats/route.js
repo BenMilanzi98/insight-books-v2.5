@@ -380,27 +380,18 @@ export async function GET(request) {
       })
     ]);
 
-    // Calculate real performance metrics
+    // Process-level metrics only — do not invent API latency / uptime %
     const performanceMetrics = {
-      // API response time - based on actual system load
-      apiResponseTime: Math.max(10, Math.floor((totalAuditLogs || 0) / 100)),
-      
-      // Database queries - based on actual operations
-      databaseQueries: Math.max(10, Math.floor((totalAuditLogs || 0) / 50)),
-      
-      // Active sessions - based on actual user activity
+      apiResponseTime: null,
+      databaseQueries: null,
       activeSessions: dailyActiveUsers || 0,
-      
-      // Uptime - calculated based on system availability
-      uptime: totalAuditLogs > 0 ? '99.9%' : '100%',
-      
-      // Platform distribution - based on actual user data
-      webUsers: totalUsers || 0, // All users are web users
-      mobileUsers: 0, // No mobile app
-      desktopUsers: 0, // No desktop app
-      
-      // API calls - based on actual audit logs
-      apiCalls: Math.max(1, Math.floor((totalAuditLogs || 0) / 20))
+      processUptimeSeconds: Math.floor(process.uptime()),
+      memoryRssMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
+      webUsers: totalUsers || 0,
+      mobileUsers: null,
+      desktopUsers: null,
+      apiCalls: totalAuditLogs || 0,
+      source: 'process_and_counts',
     };
 
     // Calculate real user engagement metrics
@@ -655,16 +646,18 @@ export async function GET(request) {
         lastSecurityScan: new Date()
       },
       
-      // Performance metrics
+      // Performance metrics — process-level only; no invented CPU/response theatre
       performanceMetrics: {
-        apiResponseTime: Math.floor(Math.random() * 50) + 10,
-        databaseQueries: Math.floor((totalAuditLogs || 0) / 100) + 50,
-        uptime: '99.9%',
+        apiResponseTime: null,
+        databaseQueries: null,
+        processUptimeSeconds: Math.floor(process.uptime()),
+        memoryRssMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
         activeSessions: dailyActiveUsers || 0,
-        webUsers: Math.floor((totalUsers || 0) * 0.7),
-        mobileUsers: Math.floor((totalUsers || 0) * 0.2),
-        desktopUsers: Math.floor((totalUsers || 0) * 0.1),
-        apiCalls: Math.floor((totalAuditLogs || 0) / 10)
+        webUsers: null,
+        mobileUsers: null,
+        desktopUsers: null,
+        apiCalls: totalAuditLogs || 0,
+        source: 'process_and_counts',
       },
       
       // Financial metrics
@@ -750,14 +743,16 @@ export async function GET(request) {
         lastSecurityScan: new Date()
       },
       performanceMetrics: {
-        apiResponseTime: Math.floor(Math.random() * 50) + 10,
-        databaseQueries: Math.floor((totalAuditLogs || 0) / 100) + 50,
-        uptime: '99.9%',
+        apiResponseTime: null,
+        databaseQueries: null,
+        processUptimeSeconds: Math.floor(process.uptime()),
+        memoryRssMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
         activeSessions: dailyActiveUsers || 0,
         webUsers: totalUsers || 0,
-        mobileUsers: 0,
-        desktopUsers: 0,
-        apiCalls: Math.floor((totalAuditLogs || 0) / 10)
+        mobileUsers: null,
+        desktopUsers: null,
+        apiCalls: totalAuditLogs || 0,
+        source: 'process_and_counts',
       },
       financialMetrics: {
         outstandingInvoices: totalOutstandingInvoices._sum.total || 0,

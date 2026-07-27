@@ -182,12 +182,8 @@ async function getAnalyticsData(range) {
       ? (totalPaid / (totalTrials + totalPaid)) * 100 
       : 0;
 
-    // Mock geographic data (in a real app, this would come from user location data)
-    const geographicData = [
-      { name: 'North America', users: Math.floor(Math.random() * 1000) + 500, percentage: 45 },
-      { name: 'Europe', users: Math.floor(Math.random() * 800) + 300, percentage: 35 },
-      { name: 'Asia Pacific', users: Math.floor(Math.random() * 600) + 200, percentage: 20 }
-    ];
+    // No geo telemetry stored — never invent regional user counts
+    const geographicData = [];
 
     // Revenue breakdown
     const subscriptionRevenue = (currentRevenue._sum.total || 0) * 0.7; // 70% from subscriptions
@@ -209,7 +205,7 @@ async function getAnalyticsData(range) {
       dailyActiveUsers,
       weeklyActiveUsers,
       monthlyActiveUsers,
-      avgSessionDuration: Math.floor(Math.random() * 30) + 15, // Mock data
+      avgSessionDuration: null, // no session-duration telemetry store
       
       // Revenue breakdown
       subscriptionRevenue,

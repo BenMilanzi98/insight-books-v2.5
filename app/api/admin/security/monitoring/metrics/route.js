@@ -1,67 +1,105 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+function startDateForTimeframe(timeframe) {
+  const now = Date.now();
+  switch (timeframe) {
+    case '1h':
+      return new Date(now - 60 * 60 * 1000);
+    case '7d':
+      return new Date(now - 7 * 24 * 60 * 60 * 1000);
+    case '30d':
+      return new Date(now - 30 * 24 * 60 * 60 * 1000);
+    case '24h':
+    default:
+      return new Date(now - 24 * 60 * 60 * 1000);
+  }
+}
 
+/**
+ * Audit-derived counts only — no hardcoded threat theatre.
+ */
 export async function GET(request) {
   try {
-    // Verify admin authentication
     const admin = await getAdminFromRequest(request);
     if (!admin) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.security.view)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     const timeframe = searchParams.get('timeframe') || '24h';
+    const startDate = startDateForTimeframe(timeframe);
 
-    // Calculate date range
-    const now = new Date();
-    let startDate;
-    switch (timeframe) {
-      case '1h':
-        startDate = new Date(now.getTime() - 60 * 60 * 1000);
-        break;
-      case '24h':
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
-      case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    }
-
-    // For now, return mock threat metrics
-    // You can extend this to calculate real metrics from security events
-    const mockMetrics = {
-      totalThreats: 4,
-      highRisk: 1,
-      mediumRisk: 2,
-      lowRisk: 1,
-      blockedAttempts: 2,
-      suspiciousActivities: 1
+    const securityActionFilter = {
+      OR: [
+        { action: { contains: 'SECURITY', mode: 'insensitive' } },
+        { action: { contains: 'LOCK', mode: 'insensitive' } },
+        { action: { contains: 'LOGIN_FAIL', mode: 'insensitive' } },
+        { action: { contains: 'IMPERSONATION', mode: 'insensitive' } },
+        { action: { contains: 'SUPPORT', mode: 'insensitive' } },
+      ],
     };
+
+    const where = {
+      timestamp: { gte: startDate },
+      ...securityActionFilter,
+    };
+
+    let securityEventCount = 0;
+    let lockCount = 0;
+    let loginFailCount = 0;
+    try {
+      const [total, locks, loginFails] = await Promise.all([
+        prisma.adminAuditLog.count({ where }),
+        prisma.adminAuditLog.count({
+          where: {
+            timestamp: { gte: startDate },
+            action: { contains: 'LOCK', mode: 'insensitive' },
+          },
+        }),
+        prisma.adminAuditLog.count({
+          where: {
+            timestamp: { gte: startDate },
+            action: { contains: 'LOGIN_FAIL', mode: 'insensitive' },
+          },
+        }),
+      ]);
+      securityEventCount = total;
+      lockCount = locks;
+      loginFailCount = loginFails;
+    } catch (e) {
+      console.error('Security metrics audit query failed:', e);
+    }
 
     return NextResponse.json({
       success: true,
-      metrics: mockMetrics
+      source: 'audit_derived',
+      timeframe,
+      metrics: {
+        securityEventCount,
+        lockRelatedCount: lockCount,
+        loginFailCount,
+        // Explicit zeros — no invented threat levels
+        totalThreats: 0,
+        highRisk: 0,
+        mediumRisk: 0,
+        lowRisk: 0,
+        blockedAttempts: 0,
+        suspiciousActivities: 0,
+      },
+      message:
+        'Threat severity fields are zero: no dedicated threat engine. Counts above are from AdminAuditLog only.',
     });
-
   } catch (error) {
     console.error('Error fetching security metrics:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch security metrics' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}

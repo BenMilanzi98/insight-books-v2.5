@@ -1,282 +1,216 @@
-"use client";
-import { useState, useEffect } from 'react';
-import { 
-  CreditCard, 
-  DollarSign, 
-  CheckCircle, 
-  AlertCircle,
-  Search,
-  Filter,
-  RefreshCw,
-  TrendingUp
-} from 'lucide-react';
+'use client';
 
-export default function AdminPayments() {
-  const [isLoading, setIsLoading] = useState(true);
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CreditCard, RefreshCw } from 'lucide-react';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminSummaryCard,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminEmptyState,
+  AdminStatusBadge,
+} from '@/components/admin';
+
+function statusTone(status) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'COMPLETED' || s === 'SUCCESS' || s === 'PAID') return 'success';
+  if (s === 'PENDING' || s === 'PROCESSING') return 'warning';
+  if (s === 'FAILED' || s === 'CANCELLED') return 'danger';
+  return 'neutral';
+}
+
+function formatMoney(amount, currency = 'MWK') {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return `${currency} —`;
+  return `${currency} ${n.toLocaleString()}`;
+}
+
+export default function AdminPlatformPaymentsPage() {
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const qs = statusFilter !== 'all' ? `?status=${encodeURIComponent(statusFilter)}` : '';
+      const res = await fetch(`/api/admin/platform-billing/payments${qs}`, {
+        credentials: 'include',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error || `Failed to load payments (${res.status})`);
+      }
+      setPayments(Array.isArray(body.payments) ? body.payments : []);
+    } catch (e) {
+      setPayments([]);
+      setError(e.message || 'Failed to load platform payments');
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    load();
+  }, [load]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return payments;
+    return payments.filter((p) => {
+      return (
+        String(p.paymentNumber || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(p.tenantId || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(p.gatewayReference || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(p.method || '')
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }, [payments, search]);
+
+  const stats = useMemo(() => {
+    const completed = payments.filter((p) =>
+      ['COMPLETED', 'SUCCESS', 'PAID'].includes(String(p.status).toUpperCase())
+    ).length;
+    const pending = payments.filter((p) =>
+      ['PENDING', 'PROCESSING'].includes(String(p.status).toUpperCase())
+    ).length;
+    const failed = payments.filter((p) =>
+      ['FAILED', 'CANCELLED'].includes(String(p.status).toUpperCase())
+    ).length;
+    const totalAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return { total: payments.length, completed, pending, failed, totalAmount };
+  }, [payments]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payment Management</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Monitor payment processing, track transaction status, and manage payment methods
-          </p>
-        </div>
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="Platform payments"
+        description="SaaS platform payment records with gateway idempotency. Separate from tenant AR payments."
+        actions={
+          <button
+            type="button"
+            onClick={load}
+            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)]"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            Refresh
+          </button>
+        }
+      />
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AdminSummaryCard label="Total payments" value={stats.total} icon={CreditCard} />
+        <AdminSummaryCard label="Completed" value={stats.completed} tone="success" />
+        <AdminSummaryCard label="Pending" value={stats.pending} tone="warning" />
+        <AdminSummaryCard
+          label="Volume"
+          value={formatMoney(stats.totalAmount)}
+          hint={`${stats.failed} failed`}
+          tone={stats.failed ? 'danger' : 'neutral'}
+        />
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Total Payments</p>
-            <p className="text-2xl font-bold text-gray-900">89</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Successful</p>
-            <p className="text-2xl font-bold text-green-600">82</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Pending</p>
-            <p className="text-2xl font-bold text-yellow-600">5</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Failed</p>
-            <p className="text-2xl font-bold text-red-600">2</p>
-          </div>
-        </div>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by payment #, tenant, reference, or method"
+          className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+        </select>
       </div>
 
-      {/* Payment Methods Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <CreditCard className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Bank Transfer</p>
-              <p className="text-2xl font-bold text-gray-900">45</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CreditCard className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Mobile Money</p>
-              <p className="text-2xl font-bold text-gray-900">28</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <CreditCard className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Card Payments</p>
-              <p className="text-2xl font-bold text-gray-900">16</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      {loading ? <AdminLoadingState label="Loading platform payments" /> : null}
+      {!loading && error ? (
+        <AdminErrorState title="Unable to load payments" message={error} onRetry={load} />
+      ) : null}
+      {!loading && !error && filtered.length === 0 ? (
+        <AdminEmptyState
+          icon={CreditCard}
+          title="No platform payments"
+          description="Record platform payments via the billing API. Tenant AR payments are not shown here."
+        />
+      ) : null}
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search payments by tenant, transaction reference, or amount..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <select className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-              <option value="all">All Statuses</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-            </select>
-            <select className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-              <option value="all">All Methods</option>
-              <option value="bank">Bank Transfer</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="card">Card</option>
-            </select>
-            <button className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50" title="Refresh">
-              <RefreshCw className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Payments Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Recent Payments</h3>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+      {!loading && !error && filtered.length > 0 ? (
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)]">
+          <table className="min-w-full divide-y divide-[var(--border-default)] text-sm">
+            <thead className="bg-[var(--surface-muted)]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Transaction
+                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
+                  Payment
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
                   Tenant
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
                   Amount
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Method
+                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
+                  Method / Gateway
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
                   Date
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              <tr className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  PAY_123456789
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">Acme Corp</div>
-                  <div className="text-sm text-gray-500">acme.insightbooks.com</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  MWK 30,000
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  Bank Transfer
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Completed
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  2024-01-15
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  PAY_987654321
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">Global Innovations</div>
-                  <div className="text-sm text-gray-500">global.insightbooks.com</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  MWK 80,000
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  Mobile Money
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    Pending
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  2024-01-16
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  PAY_456789123
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">Tech Solutions</div>
-                  <div className="text-sm text-gray-500">tech.insightbooks.com</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  MWK 300,000
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  Card Payment
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Completed
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  2024-01-14
-                </td>
-              </tr>
+            <tbody className="divide-y divide-[var(--border-default)]">
+              {filtered.map((p) => (
+                <tr key={p.id}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-[var(--text-primary)]">
+                      {p.paymentNumber}
+                    </div>
+                    {p.gatewayReference ? (
+                      <div className="text-xs text-[var(--text-muted)]">
+                        Ref: {p.gatewayReference}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">{p.tenantId}</td>
+                  <td className="px-4 py-3 tabular-nums">
+                    {formatMoney(p.amount, p.currency)}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">
+                    {[p.method, p.gateway].filter(Boolean).join(' / ') || '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <AdminStatusBadge tone={statusTone(p.status)}>{p.status}</AdminStatusBadge>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">
+                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Subscription payments CTA (InsightBooks billing) */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-md p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium text-indigo-800 mb-2">Subscription payments</h3>
-            <p className="text-indigo-700">
-              Process a tenant subscription payment or manually record billing activity using the subscription payments
-              workspace.
-            </p>
-          </div>
-          <a
-            href="/insightbooks/subscription-payment"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            Process Payments
-          </a>
-        </div>
-      </div>
-
-      {/* Coming Soon Message */}
-      <div className="bg-blue-50 border border-blue-200 rounded-md p-6 text-center">
-        <CreditCard className="mx-auto h-12 w-12 text-blue-400 mb-4" />
-        <h3 className="text-lg font-medium text-blue-800 mb-2">Enhanced Payment Management Coming Soon</h3>
-        <p className="text-blue-700">
-          Advanced payment management features are being developed. This will include payment gateway integration, 
-          automated reconciliation, and comprehensive payment analytics.
-        </p>
-      </div>
-    </div>
+      ) : null}
+    </AdminPageContainer>
   );
 }

@@ -1,35 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
 
 export async function GET(request) {
   try {
-    // Verify admin authentication
     const admin = await getAdminFromRequest(request);
     if (!admin) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.audit.view)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || '7d';
     const action = searchParams.get('action') || 'all';
-    const limit = parseInt(searchParams.get('limit')) || 100;
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10) || 100, 500);
 
-    // Calculate date range
     const now = new Date();
     let startDate;
     switch (dateRange) {
       case '1d':
         startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
-      case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -37,40 +30,30 @@ export async function GET(request) {
       case '90d':
         startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         break;
+      case '7d':
       default:
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // Build where clause
-    let whereClause = {
-      timestamp: {
-        gte: startDate
-      }
+    const whereClause = {
+      timestamp: { gte: startDate },
     };
-
     if (action !== 'all') {
       whereClause.action = action;
     }
 
-    // Fetch admin audit logs
     const logs = await prisma.adminAuditLog.findMany({
       where: whereClause,
       include: {
         admin: {
-          select: {
-            name: true,
-            email: true
-          }
-        }
+          select: { name: true, email: true },
+        },
       },
-      orderBy: {
-        timestamp: 'desc'
-      },
-      take: limit
+      orderBy: { timestamp: 'desc' },
+      take: limit,
     });
 
-    // Transform logs for frontend
-    const transformedLogs = logs.map(log => ({
+    const transformedLogs = logs.map((log) => ({
       id: log.id,
       action: log.action,
       adminId: log.admin?.name || log.admin?.email || 'Unknown Admin',
@@ -79,24 +62,21 @@ export async function GET(request) {
       ipAddress: log.ipAddress,
       userAgent: log.userAgent,
       timestamp: log.timestamp,
-      createdAt: log.timestamp, // For compatibility with frontend
+      createdAt: log.timestamp,
       entityType: log.entityType,
-      entityId: log.entityId
+      entityId: log.entityId,
     }));
 
     return NextResponse.json({
       success: true,
       logs: transformedLogs,
-      total: transformedLogs.length
+      total: transformedLogs.length,
     });
-
   } catch (error) {
     console.error('Error fetching admin audit logs:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch admin audit logs' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}

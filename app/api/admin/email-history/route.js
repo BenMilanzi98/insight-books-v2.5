@@ -1,14 +1,24 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAdminFromRequest } from '@/lib/adminAuth';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 
-// GET /api/admin/email-history - Get email sending history
+/**
+ * GET /api/admin/email-history — email send history only.
+ * Never returns SMTP passwords, API keys, or other transport secrets.
+ */
 export async function GET(request) {
   try {
     // Verify admin authentication
     const admin = await getAdminFromRequest(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.email.logsView) &&
+      !adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.email.view)
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

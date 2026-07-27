@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAdminFromRequest } from '@/lib/adminAuth';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 import bcrypt from 'bcryptjs';
 import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 import { resolveHiddenPrimaryBranchId } from '@/lib/hiddenPrimaryBranch';
@@ -12,6 +13,10 @@ export async function GET(request) {
     const admin = await getAdminFromRequest(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.users.view)) {
+      return NextResponse.json({ error: 'Insufficient admin privileges' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -124,6 +129,10 @@ export async function POST(request) {
     const admin = await getAdminFromRequest(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.users.create)) {
+      return NextResponse.json({ error: 'Insufficient admin privileges' }, { status: 403 });
     }
 
     const body = await request.json();

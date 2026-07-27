@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 import prisma from '@/lib/prisma';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
 import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
 
 export async function GET(request) {
@@ -14,6 +13,13 @@ export async function GET(request) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.tenants.view)) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient admin privileges' },
+        { status: 403 }
       );
     }
 
@@ -73,28 +79,17 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.tenants.create)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
-        { status: 403 }
-      );
-    }
-
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
+        { success: false, error: 'Insufficient admin privileges' },
         { status: 403 }
       );
     }
@@ -109,19 +104,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
-    // Create admin audit log for tenant creation
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId: decoded.adminId,
-        action: 'TENANT_CREATE',
-        entityType: 'TENANT',
-        entityId: Date.now().toString(),
-        details: `Created new tenant: ${name}`,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      }
-    });
 
     // Create the actual tenant in the database
     const baseSubdomain = name.toLowerCase().replace(/\s+/g, '');
@@ -162,6 +144,19 @@ export async function POST(request) {
       }
       throw error;
     }
+
+    // Create admin audit log for tenant creation (after real id exists)
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: admin.id,
+        action: 'TENANT_CREATE',
+        entityType: 'TENANT',
+        entityId: newTenant.id,
+        details: `Created new tenant: ${name}`,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown'
+      }
+    });
 
     // Create default tenant settings
     await prisma.tenantSettings.create({
@@ -210,11 +205,6 @@ export async function POST(request) {
     } catch (e) {
       console.error('Default role seeding failed for admin-created tenant:', e?.message || e);
     }
-
-    // Get tenant settings for business email
-    const tenantSettings = await prisma.tenantSettings.findUnique({
-      where: { tenantId: newTenant.id }
-    });
 
     return NextResponse.json({
       success: true,

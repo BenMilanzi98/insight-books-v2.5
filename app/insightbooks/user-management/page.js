@@ -324,6 +324,44 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleSecurityAction = async (user, action) => {
+    const labels = {
+      lock: 'lock',
+      unlock: 'unlock',
+      suspend: 'suspend',
+      resetPassword: 'require a password reset for',
+      revokeSessions: 'revoke sessions for',
+    };
+    if (!window.confirm(`Are you sure you want to ${labels[action] || action} ${user.email}?`)) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError('');
+      const response = await fetch('/api/admin/users/actions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, userId: user.id }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to ${action} user`);
+      }
+      if (data.newPassword || data.temporaryPassword) {
+        throw new Error('Security violation: password must not be returned to the browser');
+      }
+      setSuccess(data.message || `User ${action} completed`);
+      setTimeout(() => setSuccess(''), 4000);
+      fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
+      fetchStats();
+    } catch (err) {
+      setError(err.message || `Failed to ${action} user`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800';
@@ -627,6 +665,38 @@ export default function UserManagementPage() {
                             <Edit size={16} />
                           </button>
                           <button
+                            onClick={() => handleSecurityAction(user, 'lock')}
+                            className="text-amber-600 hover:text-amber-900 p-1 rounded hover:bg-amber-50"
+                            title="Lock user"
+                            disabled={actionLoading}
+                          >
+                            <Shield size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleSecurityAction(user, 'unlock')}
+                            className="text-emerald-600 hover:text-emerald-900 p-1 rounded hover:bg-emerald-50"
+                            title="Unlock user"
+                            disabled={actionLoading}
+                          >
+                            <CheckCircle size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleSecurityAction(user, 'resetPassword')}
+                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50"
+                            title="Require password reset"
+                            disabled={actionLoading}
+                          >
+                            <KeyRound size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleSecurityAction(user, 'revokeSessions')}
+                            className="text-slate-600 hover:text-slate-900 p-1 rounded hover:bg-slate-50"
+                            title="Revoke sessions"
+                            disabled={actionLoading}
+                          >
+                            <AlertCircle size={16} />
+                          </button>
+                          <button
                             onClick={() => {
                               setSelectedUser(user);
                               setShowDeleteModal(true);
@@ -635,12 +705,6 @@ export default function UserManagementPage() {
                             title="Delete User"
                           >
                             <Trash2 size={16} />
-                          </button>
-                          <button className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50" title="View Details">
-                            <Eye size={16} />
-                          </button>
-                          <button className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50" title="More Options">
-                            <MoreVertical size={16} />
                           </button>
                         </div>
                       </td>

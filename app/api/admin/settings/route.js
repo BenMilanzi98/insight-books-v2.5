@@ -1,235 +1,247 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
+import prisma from '@/lib/prisma';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import {
+  DEFAULT_FEATURE_FLAGS,
+  DEFAULT_PLATFORM_SETTINGS,
+  maskSettingsForClient,
+  mergeSettings,
+} from '@/lib/admin/platformSettings';
 
-const prisma = new PrismaClient();
+const GLOBAL_ID = 'global';
 
+function clientMeta(request) {
+  return {
+    ipAddress:
+      request.headers.get('x-forwarded-for') ||
+      request.headers.get('x-real-ip') ||
+      'unknown',
+    userAgent: request.headers.get('user-agent') || 'unknown',
+  };
+}
+
+function normalizeStored(row) {
+  const data = row?.data && typeof row.data === 'object' ? row.data : {};
+  const settings = {
+    ...DEFAULT_PLATFORM_SETTINGS,
+    ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+  };
+  const featureFlags = {
+    ...DEFAULT_FEATURE_FLAGS,
+    ...(data.featureFlags && typeof data.featureFlags === 'object' ? data.featureFlags : {}),
+  };
+  return { settings, featureFlags, version: row?.version ?? 1, updatedAt: row?.updatedAt ?? null };
+}
+
+/**
+ * GET /api/admin/settings — persisted PlatformGlobalSettings without secrets.
+ */
 export async function GET(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.settings.view)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Insufficient admin privileges' },
         { status: 403 }
       );
     }
 
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
+    let row = await prisma.platformGlobalSettings.findUnique({
+      where: { id: GLOBAL_ID },
+    });
+
+    if (!row) {
+      row = await prisma.platformGlobalSettings.create({
+        data: {
+          id: GLOBAL_ID,
+          data: {
+            settings: DEFAULT_PLATFORM_SETTINGS,
+            featureFlags: DEFAULT_FEATURE_FLAGS,
+          },
+          version: 1,
+          updatedBy: admin.id,
+        },
+      });
     }
 
-    // Get comprehensive system settings
-    const settings = {
-      // General Settings
-      appName: 'InsightBooks',
-      supportEmail: 'support@insightbooksafrica.com',
-      defaultCurrency: 'MWK',
-      timezone: 'Africa/Blantyre',
-      
-      // Security Settings
-      sessionTimeout: 480, // 8 hours
-      maxLoginAttempts: 5,
-      allowedIPs: '',
-      
-      // Email Settings
-      smtpHost: 'smtp.hostinger.com',
-      smtpPort: 465,
-      smtpUsername: 'noreply@insightbooksafrica.com',
-      fromEmail: 'InsightBooks <noreply@insightbooksafrica.com>',
-      welcomeEmailTemplate: '',
-      passwordResetTemplate: '',
-      
-      // Notification Settings
-      adminNotificationEmail: 'admin@insightbooksafrica.com',
-      slackWebhookUrl: '',
-      
-      // System Settings
-      dbPoolSize: 10,
-      queryTimeout: 30,
-      cacheTTL: 15,
-      rateLimit: 100
-    };
-
-    // Get system information
-    const systemInfo = {
-      version: '1.2.1',
-      environment: 'production',
-      database: 'PostgreSQL 15',
-      uptime: '99.9%',
-      lastUpdated: new Date().toISOString()
-    };
-
-    // Get feature flags
-    const featureFlags = {
-      // Security Features
-      twoFactorAuth: false,
-      passwordComplexity: true,
-      ipWhitelist: false,
-      
-      // System Features
-      systemAlerts: true,
-      securityNotifications: true,
-      dailyReports: false,
-      dbLogging: false,
-      apiCaching: true,
-      
-      // Business Features
-      userRegistration: true,
-      advancedAnalytics: false,
-      multiTenancy: true,
-      apiAccess: false,
-      auditLogging: true,
-      maintenanceMode: false
-    };
+    const normalized = normalizeStored(row);
 
     return NextResponse.json({
       success: true,
-      settings,
-      systemInfo,
-      featureFlags
+      settings: maskSettingsForClient(normalized.settings),
+      featureFlags: normalized.featureFlags,
+      version: normalized.version,
+      systemInfo: {
+        version: process.env.npm_package_version || '2.5',
+        environment: process.env.NODE_ENV || 'development',
+        lastUpdated: normalized.updatedAt?.toISOString?.() || null,
+      },
     });
-
   } catch (error) {
     console.error('Admin settings fetch error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch settings' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
+/**
+ * PUT /api/admin/settings — merge settings, increment version, never echo secrets.
+ * Empty secret fields mean "keep existing".
+ */
 export async function PUT(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const admin = await getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.settings.manage)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Insufficient admin privileges' },
         { status: 403 }
       );
     }
 
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
-    }
+    const body = await request.json().catch(() => ({}));
+    const { settings: incomingSettings, featureFlags: incomingFlags } = body;
 
-    const body = await request.json();
-    const { settings, featureFlags } = body;
-
-    // Validate required settings
-    if (!settings) {
+    if (!incomingSettings || typeof incomingSettings !== 'object') {
       return NextResponse.json(
         { success: false, error: 'Settings data is required' },
         { status: 400 }
       );
     }
 
-    // Validate critical settings
-    if (!settings.appName || !settings.supportEmail) {
+    if (!incomingSettings.appName || !incomingSettings.supportEmail) {
       return NextResponse.json(
         { success: false, error: 'Application name and support email are required' },
         { status: 400 }
       );
     }
 
-    // Validate email settings
-    if (settings.smtpHost && !settings.smtpPort) {
+    if (incomingSettings.smtpHost && !incomingSettings.smtpPort) {
       return NextResponse.json(
         { success: false, error: 'SMTP port is required when SMTP host is specified' },
         { status: 400 }
       );
     }
 
-    // Validate security settings
-    if (settings.sessionTimeout && (settings.sessionTimeout < 1 || settings.sessionTimeout > 1440)) {
+    if (
+      incomingSettings.sessionTimeout &&
+      (incomingSettings.sessionTimeout < 1 || incomingSettings.sessionTimeout > 1440)
+    ) {
       return NextResponse.json(
         { success: false, error: 'Session timeout must be between 1 and 1440 minutes' },
         { status: 400 }
       );
     }
 
-    if (settings.maxLoginAttempts && (settings.maxLoginAttempts < 1 || settings.maxLoginAttempts > 20)) {
+    if (
+      incomingSettings.maxLoginAttempts &&
+      (incomingSettings.maxLoginAttempts < 1 || incomingSettings.maxLoginAttempts > 20)
+    ) {
       return NextResponse.json(
         { success: false, error: 'Maximum login attempts must be between 1 and 20' },
         { status: 400 }
       );
     }
 
-    // Validate system settings
-    if (settings.dbPoolSize && (settings.dbPoolSize < 1 || settings.dbPoolSize > 100)) {
+    if (
+      incomingSettings.dbPoolSize &&
+      (incomingSettings.dbPoolSize < 1 || incomingSettings.dbPoolSize > 100)
+    ) {
       return NextResponse.json(
         { success: false, error: 'Database pool size must be between 1 and 100' },
         { status: 400 }
       );
     }
 
-    if (settings.rateLimit && (settings.rateLimit < 1 || settings.rateLimit > 10000)) {
+    if (
+      incomingSettings.rateLimit &&
+      (incomingSettings.rateLimit < 1 || incomingSettings.rateLimit > 10000)
+    ) {
       return NextResponse.json(
         { success: false, error: 'Rate limit must be between 1 and 10000 requests per minute' },
         { status: 400 }
       );
     }
 
-    // Create admin audit log for settings update
+    let row = await prisma.platformGlobalSettings.findUnique({
+      where: { id: GLOBAL_ID },
+    });
+
+    if (!row) {
+      row = await prisma.platformGlobalSettings.create({
+        data: {
+          id: GLOBAL_ID,
+          data: {
+            settings: DEFAULT_PLATFORM_SETTINGS,
+            featureFlags: DEFAULT_FEATURE_FLAGS,
+          },
+          version: 1,
+          updatedBy: admin.id,
+        },
+      });
+    }
+
+    const current = normalizeStored(row);
+    const mergedSettings = mergeSettings(current.settings, incomingSettings);
+    const mergedFlags = {
+      ...current.featureFlags,
+      ...(incomingFlags && typeof incomingFlags === 'object' ? incomingFlags : {}),
+    };
+
+    const updated = await prisma.platformGlobalSettings.update({
+      where: { id: GLOBAL_ID },
+      data: {
+        data: {
+          settings: mergedSettings,
+          featureFlags: mergedFlags,
+        },
+        version: { increment: 1 },
+        updatedBy: admin.id,
+      },
+    });
+
+    const meta = clientMeta(request);
     await prisma.adminAuditLog.create({
       data: {
-        adminId: decoded.adminId,
+        adminId: admin.id,
         action: 'SETTINGS_UPDATE',
         entityType: 'SYSTEM',
         entityId: 'GLOBAL_SETTINGS',
-        details: `Updated system settings and feature flags`,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      }
+        details: JSON.stringify({
+          version: updated.version,
+          keysUpdated: Object.keys(incomingSettings || {}),
+          featureFlagsUpdated: Object.keys(incomingFlags || {}),
+        }),
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      },
     });
 
-    // In a real implementation, you would save these settings to the database
-    // For now, we'll just return success
-    console.log('Settings updated:', { settings, featureFlags });
+    const normalized = normalizeStored(updated);
 
     return NextResponse.json({
       success: true,
       message: 'Settings updated successfully',
-      updatedAt: new Date().toISOString()
+      settings: maskSettingsForClient(normalized.settings),
+      featureFlags: normalized.featureFlags,
+      version: normalized.version,
+      updatedAt: updated.updatedAt.toISOString(),
     });
-
   } catch (error) {
     console.error('Admin settings update error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to update settings' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}

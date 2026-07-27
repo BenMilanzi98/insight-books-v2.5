@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import {
+  assertUniqueReferralCode,
+  maskPaymentDetails,
+} from '@/lib/admin/affiliateIntegrity';
+import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { sendEmail } from '@/lib/emailService';
 import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
-
-const prisma = new PrismaClient();
 
 export async function GET(request) {
   try {
@@ -15,6 +18,12 @@ export async function GET(request) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.affiliates.view)) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       );
     }
 
@@ -62,19 +71,20 @@ export async function GET(request) {
       }
     });
 
-    // Transform data for frontend
+    // Transform data for frontend — never return password hashes or full bank details
     const transformedAffiliates = affiliates.map(affiliate => {
-      const totalSales = affiliate.referrals
-        .filter(ref => ref.status === 'completed')
-        .reduce((sum, ref) => sum + (ref.commissionAmount || 0), 0);
-      
-      // Use commission rate from schema or default
-      const commissionRate = affiliate.commissionRate || 30; // Default 30% commission
-      const totalCommissions = totalSales * (commissionRate / 100);
-      
+      const completedReferrals = affiliate.referrals.filter(
+        (ref) => ref.status === 'completed' || ref.status === 'COMPLETED'
+      );
+      // commissionAmount on referral is already the commission (do not re-apply rate)
+      const totalCommissions = completedReferrals.reduce(
+        (sum, ref) => sum + (Number(ref.commissionAmount) || 0),
+        0
+      );
+      const commissionRate = affiliate.commissionRate || 20;
       const pendingPayouts = affiliate.payouts
-        .filter(payout => payout.status === 'pending')
-        .reduce((sum, payout) => sum + (payout.amount || 0), 0);
+        .filter((payout) => payout.status === 'pending' || payout.status === 'PENDING')
+        .reduce((sum, payout) => sum + (Number(payout.amount) || 0), 0);
 
       return {
         id: affiliate.id,
@@ -83,16 +93,17 @@ export async function GET(request) {
         businessName: affiliate.businessName || '',
         affiliateCode: affiliate.referralCode,
         status: affiliate.status,
-        commissionRate: commissionRate,
+        commissionRate,
         paymentMethod: affiliate.paymentMethod,
-        bankDetails: affiliate.paymentDetails, // Using paymentDetails from schema
-        totalSales: totalSales,
-        totalCommissions: totalCommissions,
-        pendingPayouts: pendingPayouts,
+        bankDetailsMasked: maskPaymentDetails(affiliate.paymentDetails),
+        hasPaymentDetails: Boolean(affiliate.paymentDetails),
+        totalCommissions,
+        pendingPayouts,
         referralCount: affiliate.referrals.length,
-        hasPassword: !!affiliate.password, // Check if affiliate has a password set
+        completedReferralCount: completedReferrals.length,
+        hasPassword: !!affiliate.password,
         createdAt: affiliate.createdAt,
-        updatedAt: affiliate.updatedAt
+        updatedAt: affiliate.updatedAt,
       };
     });
 
@@ -107,8 +118,6 @@ export async function GET(request) {
       { success: false, error: 'Failed to fetch affiliates' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -120,6 +129,12 @@ export async function POST(request) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.affiliates.create)) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       );
     }
 
@@ -146,22 +161,26 @@ export async function POST(request) {
       );
     }
 
-    // Generate unique referral code
+    // Generate unique referral code (assertUniqueReferralCode for integrity)
     let referralCode;
     let isUnique = false;
     let attempts = 0;
-    
+
     while (!isUnique && attempts < 10) {
-      referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
-      const existingCode = await prisma.affiliate.findUnique({
-        where: { referralCode }
+      const candidate = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const existing = await prisma.affiliate.findUnique({
+        where: { referralCode: candidate },
+        select: { referralCode: true },
       });
-      
-      if (!existingCode) {
+      try {
+        referralCode = assertUniqueReferralCode(
+          candidate,
+          existing ? [existing.referralCode] : []
+        );
         isUnique = true;
+      } catch {
+        attempts++;
       }
-      attempts++;
     }
 
     if (!isUnique) {
@@ -289,7 +308,5 @@ export async function POST(request) {
       { success: false, error: 'Failed to create affiliate' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 } 

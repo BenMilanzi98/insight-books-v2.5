@@ -1,120 +1,189 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
-
+/**
+ * Real platform health — no random/mock CPU metrics, no secret exposure.
+ */
 export async function GET(request) {
   try {
-    // Verify admin authentication
     const admin = await getAdminFromRequest(request);
     if (!admin) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.health.view)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get system statistics
-    const [
-      totalTenants,
-      totalUsers,
-      totalInvoices,
-      totalExpenses,
-      totalSales,
-      activeTenants,
-      trialTenants,
-      overdueInvoices,
-      pendingInvoices,
-      recentAuditLogs,
-      recentAdminLogs
-    ] = await Promise.all([
-      prisma.tenant.count(),
-      prisma.user.count(),
-      prisma.invoice.count(),
-      prisma.expense.count(),
-      prisma.sale.count(),
-      prisma.tenant.count({ where: { status: 'active' } }),
-      prisma.tenant.count({ 
-        where: { 
-          accountSubscriptions: { 
-            some: { isTrial: true } 
-          } 
-        } 
-      }),
-      prisma.invoice.count({ 
-        where: { 
-          dueDate: { lt: new Date() },
-          status: 'PENDING'
-        } 
-      }),
-      prisma.invoice.count({ where: { status: 'PENDING' } }),
-      prisma.auditLog.count({ 
-        where: { 
-          timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
-        } 
-      }),
-      prisma.adminAuditLog.count({ 
-        where: { 
-          timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
-        } 
-      })
-    ]);
+    const checkedAt = new Date().toISOString();
+    const services = [];
 
-    // Calculate system health metrics
-    const systemHealth = {
-      status: 'Good',
-      uptime: 99.8, // This would be real uptime in production
-      lastUpdated: new Date().toISOString(),
-      
-      // Database metrics
-      database: {
-        status: 'Healthy',
-        totalRecords: totalTenants + totalUsers + totalInvoices + totalExpenses + totalSales,
-        recentActivity: recentAuditLogs + recentAdminLogs
-      },
-      
-      // Performance metrics (mock for now, would be real in production)
-      performance: {
-        cpuUsage: Math.floor(Math.random() * 30) + 20, // 20-50%
-        memoryUsage: Math.floor(Math.random() * 40) + 30, // 30-70%
-        storageUsage: Math.floor(Math.random() * 30) + 50, // 50-80%
-        responseTime: Math.floor(Math.random() * 100) + 50 // 50-150ms
-      },
-      
-      // Business metrics
-      business: {
-        totalTenants,
-        activeTenants,
-        trialTenants,
-        totalUsers,
-        totalInvoices,
-        overdueInvoices,
-        pendingInvoices,
-        totalExpenses,
-        totalSales
-      },
-      
-      // Security metrics
-      security: {
-        recentLogins: recentAdminLogs,
-        failedAttempts: Math.floor(Math.random() * 5), // Mock data
-        lastSecurityScan: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString()
-      }
-    };
-
-    return NextResponse.json({
-      success: true,
-      health: systemHealth
+    let dbStatus = 'failed';
+    let dbLatency = null;
+    let dbError = null;
+    const dbStart = Date.now();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbLatency = Date.now() - dbStart;
+      dbStatus = 'healthy';
+    } catch (e) {
+      dbLatency = Date.now() - dbStart;
+      dbError = 'Database connectivity check failed';
+    }
+    services.push({
+      name: 'database',
+      status: dbStatus,
+      latencyMs: dbLatency,
+      message: dbError || undefined,
     });
 
+    services.push({
+      name: 'application',
+      status: 'healthy',
+      latencyMs: 0,
+      message: 'Admin API process responding',
+    });
+
+    let tenantCount = null;
+    let adminCount = null;
+    let countsError = null;
+    try {
+      const [tenants, admins] = await Promise.all([
+        prisma.tenant.count(),
+        prisma.admin.count({ where: { isActive: true } }),
+      ]);
+      tenantCount = tenants;
+      adminCount = admins;
+      services.push({
+        name: 'platform_counts',
+        status: 'healthy',
+        message: `${tenants} tenants, ${admins} active admins`,
+      });
+    } catch (e) {
+      countsError = 'Platform count query failed';
+      services.push({
+        name: 'platform_counts',
+        status: 'failed',
+        message: countsError,
+      });
+    }
+
+    let emailPending = null;
+    let emailFailed = null;
+    let emailSent24h = null;
+    let emailQueueError = null;
+    try {
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const [pending, failed, sent24h] = await Promise.all([
+        prisma.emailLog.count({ where: { status: 'pending' } }),
+        prisma.emailLog.count({ where: { status: 'failed' } }),
+        prisma.emailLog.count({
+          where: {
+            status: 'sent',
+            OR: [
+              { sentAt: { gte: since24h } },
+              { AND: [{ sentAt: null }, { updatedAt: { gte: since24h } }] },
+            ],
+          },
+        }),
+      ]);
+      emailPending = pending;
+      emailFailed = failed;
+      emailSent24h = sent24h;
+
+      let emailServiceStatus = 'healthy';
+      let emailMessage = `${pending} pending, ${failed} failed, ${sent24h} sent (24h)`;
+      if (failed > 0 || pending > 100) {
+        emailServiceStatus = 'degraded';
+        emailMessage =
+          failed > 0 && pending > 100
+            ? `${failed} failed emails; backlog ${pending} pending`
+            : failed > 0
+              ? `${failed} failed emails in queue`
+              : `Email backlog high (${pending} pending)`;
+      }
+      services.push({
+        name: 'email',
+        status: emailServiceStatus,
+        message: emailMessage,
+      });
+    } catch (e) {
+      emailQueueError = 'Email queue stats query failed';
+      services.push({
+        name: 'email',
+        status: 'failed',
+        message: emailQueueError,
+      });
+    }
+
+    const failed = services.filter((s) => s.status === 'failed').length;
+    const degraded = services.filter((s) => s.status === 'degraded').length;
+    const overall =
+      failed > 0 ? 'failed' : degraded > 0 ? 'degraded' : 'healthy';
+
+    const queues =
+      emailQueueError != null
+        ? { email: { error: emailQueueError } }
+        : {
+            email: {
+              pending: emailPending,
+              failed: emailFailed,
+              sent24h: emailSent24h,
+            },
+          };
+
+    const jobs =
+      emailQueueError != null
+        ? { retryableFailedEmails: null, error: emailQueueError }
+        : { retryableFailedEmails: emailFailed };
+
+    const body = {
+      success: overall === 'healthy',
+      status: overall,
+      checkedAt,
+      app: { status: 'healthy', latencyMs: 0 },
+      database: {
+        status: dbStatus,
+        latencyMs: dbLatency,
+        ...(dbError ? { error: dbError } : {}),
+      },
+      email:
+        emailQueueError != null
+          ? { status: 'failed', error: emailQueueError }
+          : {
+              status:
+                emailFailed > 0 || emailPending > 100 ? 'degraded' : 'healthy',
+              pending: emailPending,
+              failed: emailFailed,
+              sent24h: emailSent24h,
+            },
+      // Omit invented zero metrics for failed subsystems — expose error instead
+      counts:
+        countsError != null
+          ? { error: countsError }
+          : { tenants: tenantCount, activeAdmins: adminCount },
+      queues,
+      jobs,
+      services,
+    };
+
+    // Do not report HTTP 200 success when core DB check failed
+    const httpStatus = overall === 'failed' ? 503 : 200;
+    return NextResponse.json(body, { status: httpStatus });
   } catch (error) {
-    console.error('Error fetching system health:', error);
+    console.error('system-health error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch system health' },
+      {
+        success: false,
+        error: 'System health check failed',
+        status: 'failed',
+        checkedAt: new Date().toISOString(),
+        services: [],
+        database: { status: 'failed', error: 'Health check aborted' },
+        app: { status: 'unknown' },
+      },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
-} 
+}
