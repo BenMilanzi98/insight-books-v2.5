@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
   AdminPageContainer,
@@ -9,11 +9,14 @@ import {
   AdminErrorState,
   AdminEmptyState,
   AdminStatusBadge,
+  AdminDataTable,
 } from '@/components/admin';
 
 function money(n) {
   return `MWK ${Number(n || 0).toLocaleString()}`;
 }
+
+const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
 
 export default function AffiliateCommissionsPage() {
   const [rows, setRows] = useState([]);
@@ -39,23 +42,75 @@ export default function AffiliateCommissionsPage() {
     load();
   }, [load]);
 
+  const columns = useMemo(() => [
+    {
+      key: 'affiliate',
+      header: 'Affiliate',
+      render: (r) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium text-[var(--admin-text)]">{r.affiliate?.name || '—'}</div>
+          <div className="truncate text-xs text-[var(--admin-text-muted)]">{r.affiliate?.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'tenant',
+      header: 'Tenant',
+      render: (r) => (
+        <span className="text-[var(--admin-text)]">{r.tenant?.name || r.tenantId || '—'}</span>
+      ),
+    },
+    {
+      key: 'payment',
+      header: 'Payment',
+      hideOnMobile: true,
+      render: (r) => (
+        <span className="font-mono text-xs text-[var(--admin-text-muted)]">{r.paymentId || '—'}</span>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      render: (r) => (
+        <span className="whitespace-nowrap tabular-nums">{money(r.commissionAmount)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r) => (
+        <AdminStatusBadge
+          tone={r.status === 'completed' ? 'success' : r.status === 'reversed' ? 'danger' : 'neutral'}
+        >
+          {r.status}
+        </AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      hideOnMobile: true,
+      render: (r) => (
+        <span className="whitespace-nowrap text-sm text-[var(--admin-text-muted)]">
+          {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
+        </span>
+      ),
+    },
+  ], []);
+
   return (
     <AdminPageContainer>
       <AdminPageHeader
         title="Affiliate commissions"
         description="One eligible conversion → one commission. Replays use idempotency keys — no double-pay."
         actions={
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm"
-          >
-            <RefreshCw className="h-4 w-4" /> Refresh
+          <button type="button" onClick={load} className={btnGhost}>
+            <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
           </button>
         }
       />
 
-      {loading ? <AdminLoadingState /> : null}
+      {loading ? <AdminLoadingState label="Loading commissions" /> : null}
       {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
       {!loading && !error && rows.length === 0 ? (
         <AdminEmptyState
@@ -65,43 +120,7 @@ export default function AffiliateCommissionsPage() {
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
-              <tr>
-                <th className="px-4 py-3">Affiliate</th>
-                <th className="px-4 py-3">Tenant</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{r.affiliate?.name || '—'}</div>
-                    <div className="text-xs text-[var(--text-muted)]">{r.affiliate?.email}</div>
-                  </td>
-                  <td className="px-4 py-3">{r.tenant?.name || r.tenantId}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{r.paymentId || '—'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{money(r.commissionAmount)}</td>
-                  <td className="px-4 py-3">
-                    <AdminStatusBadge
-                      tone={r.status === 'completed' ? 'success' : r.status === 'reversed' ? 'danger' : 'neutral'}
-                    >
-                      {r.status}
-                    </AdminStatusBadge>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminDataTable columns={columns} rows={rows} rowKey="id" />
       ) : null}
     </AdminPageContainer>
   );

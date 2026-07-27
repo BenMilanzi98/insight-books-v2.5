@@ -6,7 +6,10 @@ import {
   AdminPageHeader,
   AdminErrorState,
   AdminEmptyState,
+  AdminField,
 } from '@/components/admin';
+
+const btnPrimary = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50';
 
 export default function AdminImportsPage() {
   const [type, setType] = useState('tenants');
@@ -48,39 +51,46 @@ export default function AdminImportsPage() {
         description="Validate tenant or user CSV rows without writing to the database (max 1000 rows)."
       />
 
-      <div className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-[var(--text-primary)]">Import type</span>
-          <select
+      <div className="space-y-4 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
+        <AdminField label="Import type" htmlFor="import-type">
+          <AdminField.Select
+            id="import-type"
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
           >
             <option value="tenants">Tenants</option>
             <option value="users">Users</option>
-          </select>
-        </label>
+          </AdminField.Select>
+        </AdminField>
 
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-[var(--text-primary)]">CSV</span>
-          <textarea
+        <AdminField
+          label="CSV"
+          htmlFor="import-csv"
+          hint={
+            type === 'tenants'
+              ? 'Example: name,subdomain,status,subscriptionPlan'
+              : 'Example: email,name,tenantId,role'
+          }
+        >
+          <AdminField.Textarea
+            id="import-csv"
             value={csvText}
             onChange={(e) => setCsvText(e.target.value)}
             rows={10}
+            className="font-mono text-xs"
             placeholder={
               type === 'tenants'
                 ? 'name,subdomain,status,subscriptionPlan\nAcme Ltd,acme,active,pro'
                 : 'email,name,tenantId,role\nuser@example.com,Ada Lovelace,,User'
             }
-            className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 font-mono text-xs"
           />
-        </label>
+        </AdminField>
 
         <button
           type="button"
           onClick={runDryRun}
           disabled={loading || !csvText.trim()}
-          className="rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] disabled:opacity-50"
+          className={btnPrimary}
         >
           {loading ? 'Validating…' : 'Run dry-run'}
         </button>
@@ -93,13 +103,13 @@ export default function AdminImportsPage() {
       ) : null}
 
       {result ? (
-        <div className="mt-4 space-y-3 rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
-          <p className="text-sm text-[var(--text-secondary)]">
+        <div className="mt-4 space-y-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
+          <p className="text-sm text-[var(--admin-text-muted)]">
             {result.message || (result.ok ? 'Dry-run OK' : 'Dry-run has errors')} · persisted:{' '}
             {String(result.persisted === true)}
           </p>
           {Array.isArray(result.errors) && result.errors.length > 0 ? (
-            <ul className="max-h-48 space-y-1 overflow-auto text-sm text-[var(--status-danger)]">
+            <ul className="max-h-48 space-y-1 overflow-auto text-sm text-[var(--admin-danger)]">
               {result.errors.slice(0, 50).map((err, i) => (
                 <li key={`${err.row}-${err.field}-${i}`}>
                   Row {err.row}
@@ -114,7 +124,7 @@ export default function AdminImportsPage() {
             />
           )}
           {Array.isArray(result.preview) && result.preview.length > 0 ? (
-            <pre className="max-h-64 overflow-auto rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-3 text-xs">
+            <pre className="max-h-64 overflow-auto rounded-[var(--admin-radius)] bg-[var(--admin-surface-muted)] p-3 text-xs text-[var(--admin-text)]">
               {JSON.stringify(result.preview, null, 2)}
             </pre>
           ) : null}

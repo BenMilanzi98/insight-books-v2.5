@@ -1,691 +1,511 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { 
-  Shield,
-  Lock,
-  Eye,
-  EyeOff,
-  Save,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  User,
-  Key,
-  Smartphone,
-  Globe,
-  Database,
-  RefreshCw,
-  Trash2,
-  Plus
-} from "lucide-react";
+import { useCallback, useEffect, useState } from 'react';
+import {
+  AlertTriangle, CheckCircle, Clock, Lock, Plus, RefreshCw, Save,
+  Shield, Smartphone, Trash2, User,
+} from 'lucide-react';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminEmptyState,
+  AdminStatusBadge,
+  AdminField,
+} from '@/components/admin';
 
-const SecurityPage = () => {
-  const [securitySettings, setSecuritySettings] = useState({
-    passwordPolicy: {
-      minLength: 8,
-      requireUppercase: true,
-      requireLowercase: true,
-      requireNumbers: true,
-      requireSpecialChars: true,
-      maxAge: 90
-    },
-    mfaSettings: {
-      enabled: true,
-      requireForAdmins: true,
-      requireForUsers: false,
-      allowedMethods: ['totp', 'sms', 'email']
-    },
-    sessionSettings: {
-      maxSessionDuration: 24,
-      idleTimeout: 30,
-      maxConcurrentSessions: 3,
-      requireReauthForSensitive: true
-    },
-    securityFeatures: {
-      rateLimiting: true,
-      ipWhitelist: false,
-      suspiciousActivityDetection: true,
-      auditLogging: true
-    }
-  });
+const DEFAULT_SETTINGS = {
+  passwordPolicy: {
+    minLength: 8,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true,
+    maxAge: 90,
+  },
+  mfaSettings: {
+    enabled: true,
+    requireForAdmins: true,
+    requireForUsers: false,
+    allowedMethods: ['totp', 'sms', 'email'],
+  },
+  sessionSettings: {
+    maxSessionDuration: 24,
+    idleTimeout: 30,
+    maxConcurrentSessions: 3,
+    requireReauthForSensitive: true,
+  },
+  securityFeatures: {
+    rateLimiting: true,
+    ipWhitelist: false,
+    suspiciousActivityDetection: true,
+    auditLogging: true,
+  },
+};
 
+const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+
+function Section({ title, icon: Icon, children }) {
+  return (
+    <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)]">
+      <div className="flex items-center gap-2 border-b border-[var(--admin-border)] px-4 py-3 sm:px-6">
+        {Icon ? <Icon className="h-5 w-5 text-[var(--admin-text-muted)]" aria-hidden /> : null}
+        <h2 className="text-base font-semibold text-[var(--admin-text)]">{title}</h2>
+      </div>
+      <div className="space-y-4 p-4 sm:p-6">{children}</div>
+    </section>
+  );
+}
+
+export default function SecurityPage() {
+  const [securitySettings, setSecuritySettings] = useState(DEFAULT_SETTINGS);
   const [activeSessions, setActiveSessions] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [newIpAddress, setNewIpAddress] = useState("");
-  const [whitelistedIPs, setWhitelistedIPs] = useState([
-    "127.0.0.1",
-    "::1"
-  ]);
+  const [sessionsError, setSessionsError] = useState('');
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [newIpAddress, setNewIpAddress] = useState('');
+  const [whitelistedIPs, setWhitelistedIPs] = useState([]);
 
-  useEffect(() => {
-    fetchSecurityData();
-  }, []);
-
-  const fetchSecurityData = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setSessionsError('');
     try {
-      setIsLoading(true);
-      // Fetch current security settings and active sessions
-      const [settingsResponse, sessionsResponse] = await Promise.all([
-        fetch('/api/admin/security/settings'),
-        fetch('/api/admin/security/sessions')
+      const [settingsRes, sessionsRes] = await Promise.all([
+        fetch('/api/admin/security/settings', { credentials: 'include' }),
+        fetch('/api/admin/security/sessions', { credentials: 'include' }),
       ]);
 
-      if (settingsResponse.ok) {
-        const settings = await settingsResponse.json();
-        setSecuritySettings(settings.settings || securitySettings);
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json().catch(() => ({}));
+        if (settings.settings) {
+          setSecuritySettings((prev) => ({ ...prev, ...settings.settings }));
+          if (Array.isArray(settings.settings.whitelistedIPs)) {
+            setWhitelistedIPs(settings.settings.whitelistedIPs);
+          } else if (Array.isArray(settings.whitelistedIPs)) {
+            setWhitelistedIPs(settings.whitelistedIPs);
+          }
+        }
+        setSettingsLoaded(true);
       }
 
-      if (sessionsResponse.ok) {
-        const sessions = await sessionsResponse.json();
-        setActiveSessions(sessions.sessions || []);
+      if (sessionsRes.ok) {
+        const sessions = await sessionsRes.json().catch(() => ({}));
+        setActiveSessions(Array.isArray(sessions.sessions) ? sessions.sessions : []);
+      } else {
+        setActiveSessions([]);
+        const body = await sessionsRes.json().catch(() => ({}));
+        setSessionsError(body.error || `Sessions unavailable (${sessionsRes.status})`);
       }
-    } catch (error) {
-      console.error('Failed to fetch security data:', error);
+    } catch (err) {
+      setActiveSessions([]);
+      setSessionsError(err.message || 'Failed to load security data');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleSaveSettings = async () => {
+    setSaving(true);
+    setSaveStatus('');
     try {
-      setIsLoading(true);
-      setSaveStatus("");
-
-      const response = await fetch('/api/admin/security/settings', {
+      const res = await fetch('/api/admin/security/settings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ settings: securitySettings }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: {
+            ...securitySettings,
+            whitelistedIPs,
+          },
+        }),
       });
-
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        setSaveStatus("success");
-        setTimeout(() => setSaveStatus(""), 3000);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSaveStatus('success');
+        setTimeout(() => setSaveStatus(''), 3000);
       } else {
-        const message = data?.error
-          || (response.status === 401 ? 'You must be signed in to save security settings.'
-            : response.status === 403 ? 'You do not have permission to change security settings.'
-              : `Settings could not be saved (${response.status}). Please try again.`);
-        setSaveStatus(message);
+        setSaveStatus(
+          data?.error
+          || (res.status === 401
+            ? 'You must be signed in to save security settings.'
+            : res.status === 403
+              ? 'You do not have permission to change security settings.'
+              : `Settings could not be saved (${res.status}).`)
+        );
       }
-    } catch (error) {
-      setSaveStatus(error.message || 'Network or server error. Check your connection and try again.');
-      console.error('Failed to save settings:', error);
+    } catch (err) {
+      setSaveStatus(err.message || 'Network or server error.');
     } finally {
-      setIsLoading(false);
+      setSaving(false);
     }
   };
 
   const handleTerminateSession = async (sessionId) => {
     try {
-      const response = await fetch(`/api/admin/security/sessions/${sessionId}`, {
+      const res = await fetch(`/api/admin/security/sessions/${sessionId}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
-
-      if (response.ok) {
-        setActiveSessions(prev => prev.filter(session => session.id !== sessionId));
+      if (res.ok) {
+        setActiveSessions((prev) => prev.filter((s) => s.id !== sessionId));
       }
-    } catch (error) {
-      console.error('Failed to terminate session:', error);
+    } catch {
+      // keep list; user can refresh
     }
   };
 
   const addWhitelistedIP = () => {
-    if (newIpAddress && !whitelistedIPs.includes(newIpAddress)) {
-      setWhitelistedIPs(prev => [...prev, newIpAddress]);
-      setNewIpAddress("");
+    const ip = newIpAddress.trim();
+    if (ip && !whitelistedIPs.includes(ip)) {
+      setWhitelistedIPs((prev) => [...prev, ip]);
+      setNewIpAddress('');
     }
   };
 
-  const removeWhitelistedIP = (ip) => {
-    setWhitelistedIPs(prev => prev.filter(ipAddr => ipAddr !== ip));
+  const sessionTone = (session) => {
+    if (!session?.lastActivity) return 'neutral';
+    const idleMinutes = Math.floor((Date.now() - new Date(session.lastActivity).getTime()) / 60000);
+    if (idleMinutes > (securitySettings.sessionSettings?.idleTimeout || 30)) return 'warning';
+    return 'success';
   };
 
-  const getSessionStatus = (session) => {
-    const now = new Date();
-    const lastActivity = new Date(session.lastActivity);
-    const idleMinutes = Math.floor((now - lastActivity) / (1000 * 60));
-    
-    if (idleMinutes > securitySettings.sessionSettings.idleTimeout) {
-      return { status: 'idle', color: 'text-yellow-600', bg: 'bg-yellow-100' };
-    }
-    return { status: 'active', color: 'text-green-600', bg: 'bg-green-100' };
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
+      <AdminPageContainer>
+        <AdminPageHeader
+          title="Security settings"
+          description="Configure password policy, MFA, sessions, and platform security features."
+        />
+        <AdminLoadingState label="Loading security settings" />
+      </AdminPageContainer>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Security Settings</h1>
-          <p className="text-sm text-gray-500">Configure system security policies and settings</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={fetchSecurityData}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
-          <button
-            onClick={handleSaveSettings}
-            disabled={isLoading}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Settings
-          </button>
-        </div>
-      </div>
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="Security settings"
+        description="Configure password policy, MFA, sessions, and platform security features."
+        actions={
+          <>
+            <button type="button" onClick={load} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+            </button>
+            <button type="button" onClick={handleSaveSettings} disabled={saving} className={btnPrimary}>
+              <Save className="h-4 w-4" aria-hidden />
+              {saving ? 'Saving…' : 'Save settings'}
+            </button>
+          </>
+        }
+      />
 
-      {/* Save Status */}
-      {saveStatus && (
-        <div className={`p-4 rounded-md ${
-          saveStatus === 'success' 
-            ? 'bg-green-50 border border-green-200' 
-            : 'bg-red-50 border border-red-200'
-        }`}>
-          <div className="flex">
-            {saveStatus === 'success' ? (
-              <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
-            ) : (
-              <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0" />
-            )}
-            <div className="ml-3">
-              <h3 className={`text-sm font-medium ${
-                saveStatus === 'success' ? 'text-green-800' : 'text-red-800'
-              }`}>
-                {saveStatus === 'success' ? 'Settings saved successfully!' : saveStatus}
-              </h3>
-            </div>
-          </div>
+      {saveStatus ? (
+        <div
+          className={`mb-4 flex items-start gap-3 rounded-[var(--admin-radius)] border px-4 py-3 text-sm ${
+            saveStatus === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : 'border-red-200 bg-red-50 text-red-800'
+          }`}
+          role="status"
+        >
+          {saveStatus === 'success' ? (
+            <CheckCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          )}
+          <p>{saveStatus === 'success' ? 'Settings saved successfully.' : saveStatus}</p>
         </div>
-      )}
+      ) : null}
 
-      {/* Password Policy */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <Lock className="h-5 w-5 mr-2 text-gray-600" />
-            Password Policy
-          </h3>
+      {!settingsLoaded ? (
+        <div className="mb-4">
+          <AdminErrorState
+            title="Settings could not be loaded"
+            message="Showing local defaults until the security settings API responds. Save may still fail if the endpoint is unavailable."
+            onRetry={load}
+          />
         </div>
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Minimum Length
-              </label>
-              <input
+      ) : null}
+
+      <div className="space-y-6">
+        <Section title="Password policy" icon={Lock}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <AdminField label="Minimum length" htmlFor="pw-min">
+              <AdminField.Input
+                id="pw-min"
                 type="number"
-                min="6"
-                max="32"
+                min={6}
+                max={32}
                 value={securitySettings.passwordPolicy.minLength}
-                onChange={(e) => setSecuritySettings(prev => ({
+                onChange={(e) => setSecuritySettings((prev) => ({
                   ...prev,
-                  passwordPolicy: {
-                    ...prev.passwordPolicy,
-                    minLength: parseInt(e.target.value)
-                  }
+                  passwordPolicy: { ...prev.passwordPolicy, minLength: parseInt(e.target.value, 10) || 8 },
                 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Maximum Age (days)
-              </label>
-              <input
+            </AdminField>
+            <AdminField label="Maximum age (days)" htmlFor="pw-age">
+              <AdminField.Input
+                id="pw-age"
                 type="number"
-                min="30"
-                max="365"
+                min={30}
+                max={365}
                 value={securitySettings.passwordPolicy.maxAge}
-                onChange={(e) => setSecuritySettings(prev => ({
+                onChange={(e) => setSecuritySettings((prev) => ({
                   ...prev,
-                  passwordPolicy: {
-                    ...prev.passwordPolicy,
-                    maxAge: parseInt(e.target.value)
-                  }
+                  passwordPolicy: { ...prev.passwordPolicy, maxAge: parseInt(e.target.value, 10) || 90 },
                 }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
               />
-            </div>
+            </AdminField>
           </div>
-          
-          <div className="space-y-3">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.passwordPolicy.requireUppercase}
-                onChange={(e) => setSecuritySettings(prev => ({
+          <div className="space-y-2">
+            {[
+              ['requireUppercase', 'Require uppercase letters'],
+              ['requireLowercase', 'Require lowercase letters'],
+              ['requireNumbers', 'Require numbers'],
+              ['requireSpecialChars', 'Require special characters'],
+            ].map(([key, label]) => (
+              <AdminField.Checkbox
+                key={key}
+                id={`pw-${key}`}
+                label={label}
+                checked={Boolean(securitySettings.passwordPolicy[key])}
+                onChange={(e) => setSecuritySettings((prev) => ({
                   ...prev,
-                  passwordPolicy: {
-                    ...prev.passwordPolicy,
-                    requireUppercase: e.target.checked
-                  }
+                  passwordPolicy: { ...prev.passwordPolicy, [key]: e.target.checked },
                 }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
               />
-              <span className="ml-2 text-sm text-gray-700">Require uppercase letters</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.passwordPolicy.requireLowercase}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  passwordPolicy: {
-                    ...prev.passwordPolicy,
-                    requireLowercase: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Require lowercase letters</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.passwordPolicy.requireNumbers}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  passwordPolicy: {
-                    ...prev.passwordPolicy,
-                    requireNumbers: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Require numbers</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.passwordPolicy.requireSpecialChars}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  passwordPolicy: {
-                    ...prev.passwordPolicy,
-                    requireSpecialChars: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Require special characters</span>
-            </label>
+            ))}
           </div>
-        </div>
-      </div>
+        </Section>
 
-      {/* MFA Settings */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <Smartphone className="h-5 w-5 mr-2 text-gray-600" />
-            Multi-Factor Authentication
-          </h3>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="space-y-3">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.mfaSettings.enabled}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  mfaSettings: {
-                    ...prev.mfaSettings,
-                    enabled: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Enable MFA for all users</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.mfaSettings.requireForAdmins}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  mfaSettings: {
-                    ...prev.mfaSettings,
-                    requireForAdmins: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Require MFA for administrators</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.mfaSettings.requireForUsers}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  mfaSettings: {
-                    ...prev.mfaSettings,
-                    requireForUsers: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Require MFA for regular users</span>
-            </label>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Allowed MFA Methods
-            </label>
-            <div className="space-y-2">
-              {['totp', 'sms', 'email'].map((method) => (
-                <label key={method} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={securitySettings.mfaSettings.allowedMethods.includes(method)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSecuritySettings(prev => ({
-                          ...prev,
-                          mfaSettings: {
-                            ...prev.mfaSettings,
-                            allowedMethods: [...prev.mfaSettings.allowedMethods, method]
-                          }
-                        }));
-                      } else {
-                        setSecuritySettings(prev => ({
-                          ...prev,
-                          mfaSettings: {
-                            ...prev.mfaSettings,
-                            allowedMethods: prev.mfaSettings.allowedMethods.filter(m => m !== method)
-                          }
-                        }));
-                      }
-                    }}
-                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                  />
-                  <span className="ml-2 text-sm text-gray-700 capitalize">{method}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Session Management */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <Clock className="h-5 w-5 mr-2 text-gray-600" />
-            Session Management
-          </h3>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Max Session Duration (hours)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="168"
-                value={securitySettings.sessionSettings.maxSessionDuration}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  sessionSettings: {
-                    ...prev.sessionSettings,
-                    maxSessionDuration: parseInt(e.target.value)
-                  }
-                }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Idle Timeout (minutes)
-              </label>
-              <input
-                type="number"
-                min="5"
-                max="120"
-                value={securitySettings.sessionSettings.idleTimeout}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  sessionSettings: {
-                    ...prev.sessionSettings,
-                    idleTimeout: parseInt(e.target.value)
-                  }
-                }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Max Concurrent Sessions
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={securitySettings.sessionSettings.maxConcurrentSessions}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  sessionSettings: {
-                    ...prev.sessionSettings,
-                    maxConcurrentSessions: parseInt(e.target.value)
-                  }
-                }))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-              />
-            </div>
-          </div>
-          
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={securitySettings.sessionSettings.requireReauthForSensitive}
-              onChange={(e) => setSecuritySettings(prev => ({
+        <Section title="Multi-factor authentication" icon={Smartphone}>
+          <div className="space-y-2">
+            <AdminField.Checkbox
+              id="mfa-enabled"
+              label="Enable MFA"
+              checked={Boolean(securitySettings.mfaSettings.enabled)}
+              onChange={(e) => setSecuritySettings((prev) => ({
                 ...prev,
-                sessionSettings: {
-                  ...prev.sessionSettings,
-                  requireReauthForSensitive: e.target.checked
-                }
+                mfaSettings: { ...prev.mfaSettings, enabled: e.target.checked },
               }))}
-              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
             />
-            <span className="ml-2 text-sm text-gray-700">Require re-authentication for sensitive operations</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Security Features */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <Shield className="h-5 w-5 mr-2 text-gray-600" />
-            Security Features
-          </h3>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="space-y-3">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.securityFeatures.rateLimiting}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  securityFeatures: {
-                    ...prev.securityFeatures,
-                    rateLimiting: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Enable rate limiting</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.securityFeatures.ipWhitelist}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  securityFeatures: {
-                    ...prev.securityFeatures,
-                    ipWhitelist: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Enable IP whitelist</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.securityFeatures.suspiciousActivityDetection}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  securityFeatures: {
-                    ...prev.securityFeatures,
-                    suspiciousActivityDetection: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Enable suspicious activity detection</span>
-            </label>
-            
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={securitySettings.securityFeatures.auditLogging}
-                onChange={(e) => setSecuritySettings(prev => ({
-                  ...prev,
-                  securityFeatures: {
-                    ...prev.securityFeatures,
-                    auditLogging: e.target.checked
-                  }
-                }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Enable comprehensive audit logging</span>
-            </label>
+            <AdminField.Checkbox
+              id="mfa-admins"
+              label="Require MFA for admins"
+              checked={Boolean(securitySettings.mfaSettings.requireForAdmins)}
+              onChange={(e) => setSecuritySettings((prev) => ({
+                ...prev,
+                mfaSettings: { ...prev.mfaSettings, requireForAdmins: e.target.checked },
+              }))}
+            />
+            <AdminField.Checkbox
+              id="mfa-users"
+              label="Require MFA for users"
+              checked={Boolean(securitySettings.mfaSettings.requireForUsers)}
+              onChange={(e) => setSecuritySettings((prev) => ({
+                ...prev,
+                mfaSettings: { ...prev.mfaSettings, requireForUsers: e.target.checked },
+              }))}
+            />
           </div>
-          
-          {securitySettings.securityFeatures.ipWhitelist && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                IP Address Whitelist
-              </label>
-              <div className="flex space-x-2 mb-3">
-                <input
-                  type="text"
-                  placeholder="Enter IP address"
-                  value={newIpAddress}
-                  onChange={(e) => setNewIpAddress(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-md px-3 py-2"
+        </Section>
+
+        <Section title="Session settings" icon={Clock}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <AdminField label="Max session duration (hours)" htmlFor="sess-max">
+              <AdminField.Input
+                id="sess-max"
+                type="number"
+                min={1}
+                max={168}
+                value={securitySettings.sessionSettings.maxSessionDuration}
+                onChange={(e) => setSecuritySettings((prev) => ({
+                  ...prev,
+                  sessionSettings: {
+                    ...prev.sessionSettings,
+                    maxSessionDuration: parseInt(e.target.value, 10) || 24,
+                  },
+                }))}
+              />
+            </AdminField>
+            <AdminField label="Idle timeout (minutes)" htmlFor="sess-idle">
+              <AdminField.Input
+                id="sess-idle"
+                type="number"
+                min={5}
+                max={120}
+                value={securitySettings.sessionSettings.idleTimeout}
+                onChange={(e) => setSecuritySettings((prev) => ({
+                  ...prev,
+                  sessionSettings: {
+                    ...prev.sessionSettings,
+                    idleTimeout: parseInt(e.target.value, 10) || 30,
+                  },
+                }))}
+              />
+            </AdminField>
+            <AdminField label="Max concurrent sessions" htmlFor="sess-conc">
+              <AdminField.Input
+                id="sess-conc"
+                type="number"
+                min={1}
+                max={10}
+                value={securitySettings.sessionSettings.maxConcurrentSessions}
+                onChange={(e) => setSecuritySettings((prev) => ({
+                  ...prev,
+                  sessionSettings: {
+                    ...prev.sessionSettings,
+                    maxConcurrentSessions: parseInt(e.target.value, 10) || 3,
+                  },
+                }))}
+              />
+            </AdminField>
+          </div>
+          <AdminField.Checkbox
+            id="sess-reauth"
+            label="Require re-authentication for sensitive operations"
+            checked={Boolean(securitySettings.sessionSettings.requireReauthForSensitive)}
+            onChange={(e) => setSecuritySettings((prev) => ({
+              ...prev,
+              sessionSettings: {
+                ...prev.sessionSettings,
+                requireReauthForSensitive: e.target.checked,
+              },
+            }))}
+          />
+        </Section>
+
+        <Section title="Security features" icon={Shield}>
+          <div className="space-y-2">
+            {[
+              ['rateLimiting', 'Enable rate limiting'],
+              ['ipWhitelist', 'Enable IP whitelist'],
+              ['suspiciousActivityDetection', 'Enable suspicious activity detection'],
+              ['auditLogging', 'Enable comprehensive audit logging'],
+            ].map(([key, label]) => (
+              <AdminField.Checkbox
+                key={key}
+                id={`feat-${key}`}
+                label={label}
+                checked={Boolean(securitySettings.securityFeatures[key])}
+                onChange={(e) => setSecuritySettings((prev) => ({
+                  ...prev,
+                  securityFeatures: {
+                    ...prev.securityFeatures,
+                    [key]: e.target.checked,
+                  },
+                }))}
+              />
+            ))}
+          </div>
+
+          {securitySettings.securityFeatures.ipWhitelist ? (
+            <div className="mt-2 space-y-3">
+              <AdminField label="IP address whitelist" htmlFor="ip-new" hint="Local edits are saved with security settings when you click Save.">
+                <div className="flex gap-2">
+                  <AdminField.Input
+                    id="ip-new"
+                    placeholder="Enter IP address"
+                    value={newIpAddress}
+                    onChange={(e) => setNewIpAddress(e.target.value)}
+                  />
+                  <button type="button" onClick={addWhitelistedIP} className={btnPrimary} aria-label="Add IP">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </AdminField>
+              {whitelistedIPs.length === 0 ? (
+                <AdminEmptyState
+                  title="No whitelisted IPs"
+                  description="Add IP addresses to restrict access when the whitelist is enabled."
                 />
-                <button
-                  onClick={addWhitelistedIP}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              ) : (
+                <ul className="space-y-2">
+                  {whitelistedIPs.map((ip) => (
+                    <li
+                      key={ip}
+                      className="flex items-center justify-between rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] px-3 py-2 text-sm"
+                    >
+                      <span className="font-mono text-[var(--admin-text)]">{ip}</span>
+                      <button
+                        type="button"
+                        onClick={() => setWhitelistedIPs((prev) => prev.filter((x) => x !== ip))}
+                        className="text-[var(--admin-danger)] hover:opacity-80"
+                        aria-label={`Remove ${ip}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </Section>
+
+        <Section title="Active sessions" icon={User}>
+          {sessionsError ? (
+            <AdminErrorState
+              title="Sessions unavailable"
+              message={sessionsError}
+              onRetry={load}
+            />
+          ) : null}
+          {!sessionsError && activeSessions.length === 0 ? (
+            <AdminEmptyState
+              title="No active sessions"
+              description="When the sessions API returns live admin sessions, they will appear here. Nothing is invented when the list is empty."
+            />
+          ) : null}
+          {!sessionsError && activeSessions.length > 0 ? (
+            <ul className="space-y-3">
+              {activeSessions.map((session) => (
+                <li
+                  key={session.id}
+                  className="flex flex-col gap-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="space-y-2">
-                {whitelistedIPs.map((ip, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                    <span className="text-sm text-gray-700">{ip}</span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-[var(--admin-text)]">
+                      {session.userName || session.userId || 'Unknown user'}
+                    </p>
+                    <p className="truncate text-xs text-[var(--admin-text-muted)]">
+                      {[session.ipAddress, session.userAgent].filter(Boolean).join(' · ') || 'No client details'}
+                    </p>
+                    <p className="text-xs text-[var(--admin-text-muted)]">
+                      Last activity:{' '}
+                      {session.lastActivity
+                        ? new Date(session.lastActivity).toLocaleString()
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <AdminStatusBadge tone={sessionTone(session)}>
+                      {sessionTone(session) === 'warning' ? 'Idle' : 'Active'}
+                    </AdminStatusBadge>
                     <button
-                      onClick={() => removeWhitelistedIP(ip)}
-                      className="text-red-600 hover:text-red-800"
+                      type="button"
+                      onClick={() => handleTerminateSession(session.id)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-danger)] hover:bg-[var(--admin-surface-muted)]"
+                      title="Terminate session"
+                      aria-label="Terminate session"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Section>
       </div>
-
-      {/* Active Sessions */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <User className="h-5 w-5 mr-2 text-gray-600" />
-            Active Sessions
-          </h3>
-        </div>
-        <div className="p-6">
-          {activeSessions.length > 0 ? (
-            <div className="space-y-3">
-              {activeSessions.map((session) => {
-                const sessionStatus = getSessionStatus(session);
-                return (
-                  <div key={session.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className={`p-2 rounded-full ${sessionStatus.bg}`}>
-                        <Clock className={`h-4 w-4 ${sessionStatus.color}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {session.userName || session.userId}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {session.ipAddress} • {session.userAgent}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Last activity: {new Date(session.lastActivity).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${sessionStatus.bg} ${sessionStatus.color}`}>
-                        {sessionStatus.status}
-                      </span>
-                      <button
-                        onClick={() => handleTerminateSession(session.id)}
-                        className="text-red-600 hover:text-red-800 p-1"
-                        title="Terminate session"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">No active sessions found</p>
-          )}
-        </div>
-      </div>
-    </div>
+    </AdminPageContainer>
   );
-};
-
-export default SecurityPage; 
+}

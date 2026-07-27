@@ -2,6 +2,18 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { RefreshCw } from 'lucide-react';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminSummaryCard,
+  AdminStatusBadge,
+} from '@/components/admin';
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
 
 /**
  * Phase 18 — System Administrator EIS Administration Centre.
@@ -34,84 +46,85 @@ export default function SystemMraEisAdminCentrePage() {
   const ctx = data?.context;
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 bg-slate-50 p-4 md:p-8">
-      <header className="space-y-2">
-        <p className="text-sm text-slate-600">
-          <Link href="/insightbooks/mra-eis" className="underline">
-            Platform MRA EIS
-          </Link>
-          {' / '}
-          Administration Centre
-        </p>
-        <h1 className="text-2xl font-semibold text-slate-900">Platform EIS Administration</h1>
-        <p className="text-sm text-slate-700" role="status">
-          Cross-tenant aggregation requires platform role. Drill-down into a Tenant never exposes
-          credentials. Sandbox and Production remain visually distinct.
-        </p>
-      </header>
+    <AdminPageContainer>
+      <AdminPageHeader
+        breadcrumb={
+          <>
+            <Link href="/insightbooks/mra-eis" className="underline">
+              Platform MRA EIS
+            </Link>
+            {' / '}
+            Administration Centre
+          </>
+        }
+        title="Platform EIS Administration"
+        description="Cross-tenant aggregation requires platform role. Drill-down into a tenant never exposes credentials. Sandbox and Production remain visually distinct."
+        actions={
+          <button type="button" className={btnGhost} onClick={load} disabled={loading}>
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            Refresh
+          </button>
+        }
+      />
 
       {ctx ? (
         <section
           aria-label="Platform EIS context"
-          className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm"
+          className="mb-6 flex flex-wrap items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-3 text-sm"
         >
-          <span className="rounded border border-red-700 px-2 py-0.5 font-medium text-red-900">
-            {ctx.environmentLabel}
+          <AdminStatusBadge tone="danger">{ctx.environmentLabel}</AdminStatusBadge>
+          <span className="text-[var(--admin-text-muted)]">
+            Freshness <strong className="text-[var(--admin-text)]">{ctx.dataFreshness}</strong>
           </span>
-          <span>
-            Freshness <strong>{ctx.dataFreshness}</strong>
-          </span>
-          <button
-            type="button"
-            className="ml-auto rounded border border-slate-300 px-2 py-1 text-xs"
-            onClick={load}
-            disabled={loading}
-          >
-            Refresh
-          </button>
         </section>
       ) : null}
 
-      {error ? (
-        <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900" role="alert">
-          {error}
-        </div>
+      {loading ? <AdminLoadingState label="Loading platform overview" /> : null}
+      {!loading && error ? (
+        <AdminErrorState title="Overview unavailable" message={error} onRetry={load} />
       ) : null}
 
-      <nav className="flex flex-wrap gap-2" aria-label="Platform EIS sections">
-        {(data?.sections || []).map((s) => (
-          <Link
-            key={s.id}
-            href={s.href}
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
-          >
-            {s.label}
-          </Link>
-        ))}
-      </nav>
-
-      {overview ? (
-        <section aria-labelledby="plat-overview">
-          <h2 id="plat-overview" className="text-lg font-medium">
-            Platform overview
-          </h2>
-          <p className="text-sm text-slate-600">
-            Freshness {overview.freshness}. Cross-tenant drill-down requires permission.
-          </p>
-          <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {overview.cards.map((c) => (
-              <li key={c.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <p className="text-xs uppercase text-slate-500">{c.label}</p>
-                {c.error ? (
-                  <p className="text-sm font-medium text-red-800">Unavailable</p>
-                ) : (
-                  <p className="text-2xl font-semibold">{c.value}</p>
-                )}
-              </li>
+      {!loading && !error ? (
+        <>
+          <nav className="mb-6 flex flex-wrap gap-2" aria-label="Platform EIS sections">
+            {(data?.sections || []).map((s) => (
+              <Link
+                key={s.id}
+                href={s.href}
+                className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-1.5 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]"
+              >
+                {s.label}
+              </Link>
             ))}
-          </ul>
-        </section>
+          </nav>
+
+          {overview ? (
+            <section aria-labelledby="plat-overview">
+              <h2
+                id="plat-overview"
+                className="text-base font-semibold text-[var(--admin-text)]"
+              >
+                Platform overview
+              </h2>
+              <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+                Freshness {overview.freshness}. Cross-tenant drill-down requires permission.
+              </p>
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {(overview.cards || []).map((c) => (
+                  <li key={c.key}>
+                    <AdminSummaryCard
+                      label={c.label}
+                      value={c.value}
+                      error={Boolean(c.error)}
+                      tone={c.error ? 'danger' : 'neutral'}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
       ) : null}
-    </main>
+    </AdminPageContainer>
   );
 }

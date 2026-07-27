@@ -1,6 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminDataTable,
+  AdminStatusBadge,
+} from '@/components/admin';
+
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+const inputCls =
+  'rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
 
 export default function AdminMraEisCataloguePage() {
   const [tenantId, setTenantId] = useState('');
@@ -13,8 +27,6 @@ export default function AdminMraEisCataloguePage() {
     setLoading(true);
     setError('');
     try {
-      // Reuse mapping admin pattern — catalogue items via prisma would need admin API;
-      // for now surface contract + guidance.
       const res = await fetch('/api/admin/mra-eis/mappings?kind=PRODUCT');
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Failed to load');
@@ -30,52 +42,76 @@ export default function AdminMraEisCataloguePage() {
     load();
   }, [load]);
 
+  const filtered = rows.filter((r) => !tenantId || r.tenantId === tenantId);
+
+  const columns = [
+    {
+      key: 'tenantId',
+      header: 'Tenant',
+      render: (r) => <span className="font-mono text-xs">{r.tenantId}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r) => <AdminStatusBadge>{r.status}</AdminStatusBadge>,
+    },
+    { key: 'mappingType', header: 'Type' },
+    {
+      key: 'updatedAt',
+      header: 'Updated',
+      render: (r) => (
+        <span className="text-xs text-[var(--admin-text-muted)]">{r.updatedAt}</span>
+      ),
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <header className="mb-6">
-        <p className="text-sm text-slate-500">System Administration / MRA EIS</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Catalogue & product mapping health</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Diagnostics only. Cannot edit external codes, force ACTIVE, delete history, adjust stock, or view credentials.
-          Product sync production calls remain blocked (Q-003).
-        </p>
-      </header>
+    <AdminPageContainer>
+      <AdminPageHeader
+        breadcrumb={
+          <>
+            <Link href="/insightbooks/mra-eis" className="underline">
+              MRA EIS
+            </Link>
+            {' / '}
+            Catalogue
+          </>
+        }
+        title="Catalogue & product mapping health"
+        description="Diagnostics only. Cannot edit external codes, force ACTIVE, delete history, adjust stock, or view credentials. Product sync production calls remain blocked (Q-003)."
+      />
+
       <div className="mb-4 flex flex-wrap gap-2">
-        <input className="rounded border px-2 py-1 font-mono text-xs" placeholder="tenantId filter (display)" value={tenantId} onChange={(e) => setTenantId(e.target.value)} />
-        <input className="rounded border px-2 py-1" value={environment} onChange={(e) => setEnvironment(e.target.value)} />
-        <button type="button" className="rounded bg-slate-900 px-3 py-1 text-sm text-white" onClick={load}>
+        <input
+          className={`${inputCls} font-mono text-xs`}
+          placeholder="tenantId filter (display)"
+          value={tenantId}
+          onChange={(e) => setTenantId(e.target.value)}
+        />
+        <input
+          className={inputCls}
+          value={environment}
+          onChange={(e) => setEnvironment(e.target.value)}
+          aria-label="Environment display filter"
+        />
+        <button type="button" className={btnPrimary} onClick={load}>
           Refresh product mappings
         </button>
       </div>
-      {error && <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm" role="alert">{error}</div>}
-      {loading ? (
-        <p role="status">Loading…</p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Tenant</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows
-                .filter((r) => !tenantId || r.tenantId === tenantId)
-                .map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100">
-                    <td className="px-3 py-2 font-mono text-xs">{r.tenantId}</td>
-                    <td className="px-3 py-2">{r.status}</td>
-                    <td className="px-3 py-2">{r.mappingType}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{r.updatedAt}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+
+      {loading ? <AdminLoadingState label="Loading catalogue mappings" /> : null}
+      {!loading && error ? (
+        <AdminErrorState title="Catalogue unavailable" message={error} onRetry={load} />
+      ) : null}
+      {!loading && !error ? (
+        <AdminDataTable
+          columns={columns}
+          rows={filtered}
+          rowKey="id"
+          emptyTitle="No product mappings"
+          emptyDescription="No PRODUCT mapping rows returned for this filter."
+        />
+      ) : null}
+    </AdminPageContainer>
   );
 }

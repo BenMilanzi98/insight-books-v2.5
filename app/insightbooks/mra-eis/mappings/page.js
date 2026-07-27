@@ -1,6 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminSummaryCard,
+  AdminDataTable,
+  AdminStatusBadge,
+} from '@/components/admin';
+
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+const inputCls =
+  'rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
 
 export default function AdminMraEisMappingsPage() {
   const [kind, setKind] = useState('SITE');
@@ -32,20 +47,56 @@ export default function AdminMraEisMappingsPage() {
     load();
   }, [load]);
 
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <header className="mb-6">
-        <p className="text-sm text-slate-500">System Administration / MRA EIS</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Mapping health</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Cross-tenant diagnostics. Cannot force ACTIVE, delete history, edit external IDs, or view credentials.
-        </p>
-      </header>
+  const columns = [
+    {
+      key: 'tenantId',
+      header: 'Tenant',
+      render: (r) => <span className="font-mono text-xs">{r.tenantId}</span>,
+    },
+    {
+      key: 'businessId',
+      header: 'Business',
+      render: (r) => <span className="font-mono text-xs">{r.businessId}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r) => <AdminStatusBadge>{r.status}</AdminStatusBadge>,
+    },
+    {
+      key: 'environment',
+      header: 'Environment',
+      render: (r) => r.environment || '—',
+    },
+    {
+      key: 'updatedAt',
+      header: 'Updated',
+      render: (r) => (
+        <span className="text-xs text-[var(--admin-text-muted)]">{r.updatedAt}</span>
+      ),
+    },
+  ];
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <label className="text-sm">
-          Kind
-          <select className="ml-2 rounded border px-2 py-1" value={kind} onChange={(e) => setKind(e.target.value)}>
+  return (
+    <AdminPageContainer>
+      <AdminPageHeader
+        breadcrumb={
+          <>
+            <Link href="/insightbooks/mra-eis" className="underline">
+              MRA EIS
+            </Link>
+            {' / '}
+            Mappings
+          </>
+        }
+        title="Mapping health"
+        description="Cross-tenant diagnostics. Cannot force ACTIVE, delete history, edit external IDs, or view credentials."
+      />
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <label className="text-sm text-[var(--admin-text)]">
+          <span className="mb-1 block font-medium">Kind</span>
+          <select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value)}>
             {['SITE', 'TAX', 'LEVY', 'PAYMENT'].map((k) => (
               <option key={k} value={k}>
                 {k}
@@ -53,73 +104,50 @@ export default function AdminMraEisMappingsPage() {
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          Environment
+        <label className="text-sm text-[var(--admin-text)]">
+          <span className="mb-1 block font-medium">Environment</span>
           <input
-            className="ml-2 rounded border px-2 py-1"
+            className={inputCls}
             value={environment}
             onChange={(e) => setEnvironment(e.target.value)}
             placeholder="SANDBOX / PRODUCTION"
           />
         </label>
-        <label className="text-sm">
-          Tenant
+        <label className="text-sm text-[var(--admin-text)]">
+          <span className="mb-1 block font-medium">Tenant</span>
           <input
-            className="ml-2 rounded border px-2 py-1 font-mono text-xs"
+            className={`${inputCls} font-mono text-xs`}
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
             placeholder="tenantId"
           />
         </label>
-        <button type="button" className="rounded bg-slate-900 px-3 py-1 text-sm text-white" onClick={load}>
+        <button type="button" className={btnPrimary} onClick={load}>
           Refresh
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
-          {error}
-        </div>
-      )}
+      {loading ? <AdminLoadingState label="Loading mapping health" /> : null}
+      {!loading && error ? (
+        <AdminErrorState title="Mapping health unavailable" message={error} onRetry={load} />
+      ) : null}
 
-      {loading ? (
-        <p role="status">Loading…</p>
-      ) : (
+      {!loading && !error ? (
         <>
-          <div className="mb-4 grid gap-3 sm:grid-cols-4">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {Object.entries(data?.health || {}).map(([k, v]) => (
-              <div key={k} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="text-xs uppercase text-slate-500">{k}</div>
-                <div className="text-xl font-semibold">{v}</div>
-              </div>
+              <AdminSummaryCard key={k} label={k} value={v} />
             ))}
           </div>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Tenant</th>
-                  <th className="px-3 py-2">Business</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Environment</th>
-                  <th className="px-3 py-2">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data?.rows || []).map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100">
-                    <td className="px-3 py-2 font-mono text-xs">{r.tenantId}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{r.businessId}</td>
-                    <td className="px-3 py-2">{r.status}</td>
-                    <td className="px-3 py-2">{r.environment || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{r.updatedAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AdminDataTable
+            columns={columns}
+            rows={data?.rows || []}
+            rowKey="id"
+            emptyTitle="No mapping rows"
+            emptyDescription="No mappings match the current filters."
+          />
         </>
-      )}
-    </div>
+      ) : null}
+    </AdminPageContainer>
   );
 }

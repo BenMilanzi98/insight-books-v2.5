@@ -1,1082 +1,818 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { 
-  Users,
-  DollarSign,
-  TrendingUp,
-  BarChart3,
-  Plus,
-  Search,
-  Filter,
-  Download,
-  Eye,
-  Edit,
-  Trash2,
-  CheckCircle,
-  XCircle,
-  Clock,
-  User,
-  RefreshCw,
-  Link,
-  Copy,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  Lock
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle, Clock, Copy, Download, Eye, Lock, Pencil, Plus,
+  RefreshCw, Trash2, Users, X, DollarSign, Percent, Handshake,
+} from 'lucide-react';
+import {
+  AdminPageContainer, AdminPageHeader, AdminSummaryCard, AdminFilterBar,
+  AdminDataTable, AdminStatusBadge, AdminLoadingState, AdminErrorState,
+  AdminEmptyState, AdminModal, AdminField, AdminConfirmationDialog,
+} from '@/components/admin';
 
-const AffiliatePage = () => {
+const PAGE_SIZE_DEFAULT = 10;
+const EMPTY_FORM = {
+  name: '',
+  email: '',
+  commissionRate: 20,
+  status: 'active',
+  paymentMethod: 'bank',
+  bankDetails: {
+    accountName: '',
+    accountNumber: '',
+    bankName: '',
+    swiftCode: '',
+  },
+};
+
+function statusTone(s) {
+  const v = String(s || '').toLowerCase();
+  if (v === 'active') return 'success';
+  if (v === 'pending') return 'warning';
+  if (v === 'suspended' || v === 'inactive') return 'danger';
+  return 'neutral';
+}
+
+function money(n) {
+  return `MWK ${Number(n || 0).toLocaleString()}`;
+}
+
+function fmtDate(v) {
+  if (!v) return '—';
+  return new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function Flash({ tone = 'danger', children, onDismiss }) {
+  const cls = tone === 'success'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+    : 'border-red-200 bg-red-50 text-red-800';
+  return (
+    <div className={`mb-4 flex items-start gap-3 rounded-[var(--admin-radius)] border px-4 py-3 text-sm ${cls}`} role="status">
+      <p className="min-w-0 flex-1 break-words">{children}</p>
+      {onDismiss ? (
+        <button type="button" onClick={onDismiss} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss">
+          <X className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function IconBtn({ title, children, onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)] hover:text-[var(--admin-text)] disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+
+function formatMaskedBank(masked) {
+  if (!masked || typeof masked !== 'object') return null;
+  const parts = [
+    masked.bankName,
+    masked.accountName,
+    masked.accountNumber,
+    masked.swiftCode,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+export default function AffiliatePage() {
   const [affiliates, setAffiliates] = useState([]);
-  const [affiliateStats, setAffiliateStats] = useState({
-    totalAffiliates: 0,
-    activeAffiliates: 0,
-    totalCommissions: 0,
-    pendingPayouts: 0,
-    monthlyRevenue: 0,
-    conversionRate: 0
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-
-  // Utility function to clear messages
-  const clearMessages = () => {
-    setError("");
-    setSuccess("");
-  };
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [selectedAffiliate, setSelectedAffiliate] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [details, setDetails] = useState(null);
+  const [passwordTarget, setPasswordTarget] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [passwordData, setPasswordData] = useState({
     password: '',
     confirmPassword: '',
-    notifyAffiliate: true
-  });
-  
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-
-  // Add/Edit form state
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    commissionRate: 20,
-    status: "active",
-    paymentMethod: "bank",
-    bankDetails: {
-      accountName: "",
-      accountNumber: "",
-      bankName: "",
-      swiftCode: ""
-    }
+    notifyAffiliate: true,
   });
 
-  useEffect(() => {
-    fetchAffiliateData();
-  }, []);
+  const showSuccess = (msg, ms = 4000) => {
+    setNotice(msg);
+    setTimeout(() => setNotice(''), ms);
+  };
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedStatus, searchTerm]);
-
-  const fetchAffiliateData = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    setStatsError(false);
     try {
-      setIsLoading(true);
-      const [affiliatesResponse, statsResponse] = await Promise.all([
-        fetch('/api/admin/affiliate'),
-        fetch('/api/admin/affiliate/stats')
+      const [affRes, statsRes] = await Promise.all([
+        fetch('/api/admin/affiliate', { credentials: 'include' }),
+        fetch('/api/admin/affiliate/stats', { credentials: 'include' }),
       ]);
 
-      if (affiliatesResponse.ok) {
-        const affiliatesData = await affiliatesResponse.json();
-        setAffiliates(affiliatesData.affiliates || []);
-      }
+      const affBody = await affRes.json().catch(() => ({}));
+      if (!affRes.ok) throw new Error(affBody.error || `Failed to load affiliates (${affRes.status})`);
+      setAffiliates(Array.isArray(affBody.affiliates) ? affBody.affiliates : []);
 
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setAffiliateStats(statsData.stats || affiliateStats);
-      }
-    } catch (error) {
-      setError('Failed to fetch affiliate data');
-      console.error('Affiliate fetch error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAddAffiliate = async (e) => {
-    e.preventDefault();
-    try {
-      clearMessages(); // Clear any existing messages
-      setIsLoading(true);
-      const response = await fetch('/api/admin/affiliate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setAffiliates(prev => [result.affiliate, ...prev]);
-        setShowAddModal(false);
-        setFormData({
-          name: "",
-          email: "",
-          commissionRate: 20,
-          status: "active",
-          paymentMethod: "bank",
-          bankDetails: {
-            accountName: "",
-            accountNumber: "",
-            bankName: "",
-            swiftCode: ""
-          }
-        });
-        fetchAffiliateData(); // Refresh data
-        setSuccess('Affiliate added successfully!');
-        setTimeout(() => setSuccess(''), 3000);
+      if (statsRes.ok) {
+        const statsBody = await statsRes.json().catch(() => ({}));
+        setStats(statsBody.stats || null);
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to add affiliate');
+        setStats(null);
+        setStatsError(true);
       }
-    } catch (error) {
-      setError('Failed to add affiliate');
-      console.error('Add affiliate error:', error);
+    } catch (err) {
+      setAffiliates([]);
+      setError(err.message || 'Failed to fetch affiliate data');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const handleUpdateAffiliate = async (affiliateId, updates) => {
-    try {
-      clearMessages(); // Clear any existing messages
-      const response = await fetch(`/api/admin/affiliate/update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          affiliateId,
-          ...updates
-        }),
-      });
+  useEffect(() => {
+    load();
+  }, [load]);
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setAffiliates(prev => prev.map(aff => 
-            aff.id === affiliateId ? { ...aff, ...updates } : aff
-          ));
-          setShowDetailsModal(false);
-          fetchAffiliateData(); // Refresh data
-          setSuccess('Affiliate updated successfully!');
-          setTimeout(() => setSuccess(''), 3000);
-        } else {
-          setError(result.error || 'Failed to update affiliate');
-        }
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to update affiliate');
-      }
-    } catch (error) {
-      setError('Failed to update affiliate');
-      console.error('Update affiliate error:', error);
-    }
-  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, searchTerm, pageSize]);
 
-  const handleDeleteAffiliate = async (affiliateId) => {
-    if (window.confirm('Are you sure you want to delete this affiliate?')) {
-      try {
-        clearMessages(); // Clear any existing messages
-        console.log('Attempting to delete affiliate:', affiliateId);
-        const response = await fetch(`/api/admin/affiliate/delete`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ affiliateId }),
-        });
-
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Response not ok. Status:', response.status, 'Body:', errorText);
-          setError(`Server error: ${response.status} - ${errorText}`);
-          return;
-        }
-
-        const responseText = await response.text();
-        console.log('Raw response text:', responseText);
-        
-        let result;
-        try {
-          result = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error('JSON parse error:', parseError);
-          console.error('Response that failed to parse:', responseText);
-          setError('Invalid response from server. Check console for details.');
-          return;
-        }
-
-        console.log('Parsed result:', result);
-        
-        if (result.success) {
-          fetchAffiliateData();
-          setSuccess('Affiliate deleted successfully!');
-          // Clear success message after 3 seconds
-          setTimeout(() => setSuccess(''), 3000);
-        } else {
-          setError(result.error || 'Failed to delete affiliate');
-        }
-      } catch (error) {
-        console.error('Delete error:', error);
-        setError('Network error. Please try again.');
-      }
-    }
-  };
-
-  const handleSetPassword = (affiliate) => {
-    setSelectedAffiliate(affiliate);
-    setPasswordData({
-      password: '',
-      confirmPassword: '',
-      notifyAffiliate: true
+  const filtered = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return affiliates.filter((a) => {
+      const matchesStatus = selectedStatus === 'all' || a.status === selectedStatus;
+      const matchesSearch = !q
+        || String(a.name || '').toLowerCase().includes(q)
+        || String(a.email || '').toLowerCase().includes(q)
+        || String(a.affiliateCode || '').toLowerCase().includes(q);
+      return matchesStatus && matchesSearch;
     });
-    setShowPasswordModal(true);
+  }, [affiliates, selectedStatus, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize) || 1);
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pageRows = filtered.slice(startIndex, startIndex + pageSize);
+
+  const openCreate = () => {
+    setEditing(null);
+    setFormData(EMPTY_FORM);
+    setFormOpen(true);
+  };
+
+  const openEdit = (affiliate) => {
+    setEditing(affiliate);
+    setFormData({
+      name: affiliate.name || '',
+      email: affiliate.email || '',
+      commissionRate: affiliate.commissionRate ?? 20,
+      status: affiliate.status || 'active',
+      paymentMethod: affiliate.paymentMethod || 'bank',
+      bankDetails: {
+        accountName: '',
+        accountNumber: '',
+        bankName: '',
+        swiftCode: '',
+      },
+    });
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditing(null);
+    setFormData(EMPTY_FORM);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setError('');
+    try {
+      if (editing) {
+        const payload = {
+          affiliateId: editing.id,
+          name: formData.name,
+          email: formData.email,
+          commissionRate: formData.commissionRate,
+          status: formData.status,
+          paymentMethod: formData.paymentMethod,
+        };
+        const hasNewBank = Object.values(formData.bankDetails || {}).some((v) => String(v || '').trim());
+        if (hasNewBank) payload.bankDetails = formData.bankDetails;
+
+        const res = await fetch('/api/admin/affiliate/update', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || 'Failed to update affiliate');
+        closeForm();
+        showSuccess('Affiliate updated successfully');
+      } else {
+        const res = await fetch('/api/admin/affiliate', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to add affiliate');
+        closeForm();
+        showSuccess('Affiliate added successfully');
+      }
+      await load();
+    } catch (err) {
+      setError(err.message || 'Save failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setActionLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/affiliate/delete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId: confirmDelete.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.error || 'Failed to delete affiliate');
+      setConfirmDelete(null);
+      showSuccess('Affiliate deleted successfully');
+      await load();
+    } catch (err) {
+      setError(err.message || 'Delete failed');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    
+    if (!passwordTarget) return;
     if (passwordData.password !== passwordData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-
     if (passwordData.password.length < 8) {
       setError('Password must be at least 8 characters long');
       return;
     }
-
+    setActionLoading(true);
+    setError('');
     try {
-      const response = await fetch('/api/admin/affiliate/set-password', {
+      const res = await fetch('/api/admin/affiliate/set-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          affiliateId: selectedAffiliate.id,
+          affiliateId: passwordTarget.id,
           password: passwordData.password,
-          notifyAffiliate: passwordData.notifyAffiliate
+          notifyAffiliate: passwordData.notifyAffiliate,
         }),
       });
-
-      if (response.ok) {
-        setShowPasswordModal(false);
-        setSelectedAffiliate(null);
-        setPasswordData({ password: '', confirmPassword: '', notifyAffiliate: true });
-        // You could show a success message here
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to set password');
-      }
-    } catch (error) {
-      setError('Failed to set password');
-      console.error('Password set error:', error);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to set password');
+      setPasswordTarget(null);
+      setPasswordData({ password: '', confirmPassword: '', notifyAffiliate: true });
+      showSuccess('Password updated successfully');
+    } catch (err) {
+      setError(err.message || 'Failed to set password');
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const copyAffiliateLink = (affiliateCode) => {
-    const link = `${window.location.origin}/ref/${affiliateCode}`;
-    navigator.clipboard.writeText(link);
-    // You could add a toast notification here
-  };
-
-  const getStatusBadge = (status) => {
-    const statusColors = {
-      'active': 'bg-green-100 text-green-800',
-      'inactive': 'bg-gray-100 text-gray-800',
-      'suspended': 'bg-red-100 text-red-800',
-      'pending': 'bg-yellow-100 text-yellow-800'
-    };
-    return statusColors[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getCommissionBadge = (rate) => {
-    if (rate >= 15) return 'bg-purple-100 text-purple-800';
-    if (rate >= 10) return 'bg-blue-100 text-blue-800';
-    return 'bg-green-100 text-green-800';
-  };
-
-  // Filter and pagination logic
-  const filteredAffiliates = affiliates.filter(affiliate => {
-    const matchesStatus = selectedStatus === "all" || affiliate.status === selectedStatus;
-    const matchesSearch = searchTerm === "" || 
-      affiliate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      affiliate.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      affiliate.affiliateCode.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesStatus && matchesSearch;
-  });
-
-  const totalItems = filteredAffiliates.length;
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const currentPageData = filteredAffiliates.slice(startIndex, endIndex);
-
-  // Update total pages when filtered data changes
-  useEffect(() => {
-    const newTotalPages = Math.ceil(filteredAffiliates.length / pageSize);
-    setTotalPages(newTotalPages);
-    if (currentPage > newTotalPages && newTotalPages > 0) {
-      setCurrentPage(1);
+  const copyAffiliateLink = async (code) => {
+    const link = `${window.location.origin}/ref/${code}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      showSuccess('Affiliate link copied');
+    } catch {
+      setError('Could not copy link');
     }
-  }, [filteredAffiliates.length, pageSize, currentPage]);
-
-  const goToPage = (page) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-    
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) {
-          pages.push(i);
-        }
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) {
-          pages.push(i);
-        }
-      } else {
-        pages.push(1);
-        pages.push('...');
-        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
-          pages.push(i);
-        }
-        pages.push('...');
-        pages.push(totalPages);
-      }
-    }
-    
-    return pages;
-  };
-
-  const exportAffiliateData = () => {
-    const csvContent = "data:text/csv;charset=utf-8," + 
-      "Name,Email,Status,Commission Rate,Total Sales (MWK),Total Commissions (MWK),Pending Payouts (MWK),Join Date\n" +
-      filteredAffiliates.map(aff => 
-        `${aff.name},${aff.email},${aff.status},${aff.commissionRate}%,${aff.totalSales || 0},${aff.totalCommissions || 0},${aff.pendingPayouts || 0},${new Date(aff.createdAt).toLocaleDateString()}`
-      ).join("\n");
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `affiliates_${new Date().toISOString().split('T')[0]}.csv`);
+  const exportCsv = () => {
+    const header = 'Name,Email,Code,Status,Commission Rate,Commissions (MWK),Pending Payouts (MWK),Referrals,Join Date\n';
+    const rows = filtered.map((a) =>
+      [
+        a.name,
+        a.email,
+        a.affiliateCode,
+        a.status,
+        `${a.commissionRate ?? 0}%`,
+        a.totalCommissions || 0,
+        a.pendingPayouts || 0,
+        a.referralCount || 0,
+        a.createdAt ? new Date(a.createdAt).toLocaleDateString() : '',
+      ].join(',')
+    ).join('\n');
+    const link = document.createElement('a');
+    link.href = encodeURI(`data:text/csv;charset=utf-8,${header}${rows}`);
+    link.download = `affiliates_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
+  const summaryValue = (key, format) => {
+    if (loading && !stats) return '…';
+    if (statsError || !stats) return '—';
+    const v = stats[key];
+    if (v == null) return '—';
+    return format ? format(v) : v;
+  };
+
+  const columns = useMemo(() => [
+    {
+      key: 'affiliate',
+      header: 'Affiliate',
+      render: (a) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium text-[var(--admin-text)]">{a.name}</div>
+          <div className="truncate text-xs text-[var(--admin-text-muted)]">{a.email}</div>
+          <div className="truncate font-mono text-xs text-[var(--admin-text-muted)]">
+            {a.affiliateCode || '—'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (a) => (
+        <AdminStatusBadge tone={statusTone(a.status)}>
+          {a.status || '—'}
+        </AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'commission',
+      header: 'Rate',
+      render: (a) => (
+        <span className="tabular-nums text-[var(--admin-text)]">{a.commissionRate ?? 0}%</span>
+      ),
+    },
+    {
+      key: 'performance',
+      header: 'Performance',
+      hideOnMobile: true,
+      render: (a) => (
+        <div className="text-xs text-[var(--admin-text-muted)]">
+          <div>Commissions: {money(a.totalCommissions)}</div>
+          <div>Pending: {money(a.pendingPayouts)}</div>
+          <div>
+            Referrals: {a.referralCount ?? 0}
+            {a.completedReferralCount != null ? ` · ${a.completedReferralCount} completed` : ''}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'joined',
+      header: 'Joined',
+      hideOnMobile: true,
+      render: (a) => (
+        <span className="text-sm text-[var(--admin-text-muted)]">{fmtDate(a.createdAt)}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (a) => (
+        <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <IconBtn title="Copy referral link" onClick={() => copyAffiliateLink(a.affiliateCode)}>
+            <Copy className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn title="View details" onClick={() => setDetails(a)}>
+            <Eye className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn title="Edit" onClick={() => openEdit(a)}>
+            <Pencil className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn
+            title="Set password"
+            onClick={() => {
+              setPasswordTarget(a);
+              setPasswordData({ password: '', confirmPassword: '', notifyAffiliate: true });
+            }}
+          >
+            <Lock className="h-4 w-4" />
+          </IconBtn>
+          <IconBtn
+            title="Delete"
+            onClick={() => setConfirmDelete(a)}
+          >
+            <Trash2 className="h-4 w-4 text-[var(--admin-danger)]" />
+          </IconBtn>
+        </div>
+      ),
+    },
+  ], []);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Affiliate Management</h1>
-          <p className="text-sm text-gray-500">Manage affiliates, track commissions, and monitor performance</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={exportAffiliateData}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Affiliate
-          </button>
-        </div>
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="Affiliate management"
+        description="Manage affiliates, commissions, and referral performance. Bank details are masked."
+        actions={
+          <>
+            <button type="button" onClick={exportCsv} className={btnGhost} disabled={!filtered.length}>
+              <Download className="h-4 w-4" aria-hidden /> Export
+            </button>
+            <button type="button" onClick={load} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+            </button>
+            <button type="button" onClick={openCreate} className={btnPrimary}>
+              <Plus className="h-4 w-4" aria-hidden /> Add affiliate
+            </button>
+          </>
+        }
+      />
+
+      {notice ? <Flash tone="success" onDismiss={() => setNotice('')}>{notice}</Flash> : null}
+      {error ? <Flash onDismiss={() => setError('')}>{error}</Flash> : null}
+
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <AdminSummaryCard label="Total affiliates" value={summaryValue('totalAffiliates')} icon={Users} error={statsError} />
+        <AdminSummaryCard label="Active" value={summaryValue('activeAffiliates')} tone="success" icon={CheckCircle} error={statsError} />
+        <AdminSummaryCard label="Total commissions" value={summaryValue('totalCommissions', money)} icon={DollarSign} error={statsError} />
+        <AdminSummaryCard label="Pending payouts" value={summaryValue('pendingPayouts', money)} tone="warning" icon={Clock} error={statsError} />
+        <AdminSummaryCard label="Monthly commissions" value={summaryValue('monthlyRevenue', money)} icon={Handshake} error={statsError} />
+        <AdminSummaryCard label="Conversion rate" value={summaryValue('conversionRate', (v) => `${v}%`)} icon={Percent} error={statsError} />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Affiliates</p>
-              <p className="text-2xl font-bold text-gray-900">{affiliateStats.totalAffiliates}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active</p>
-              <p className="text-2xl font-bold text-green-600">{affiliateStats.activeAffiliates}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <DollarSign className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Commissions</p>
-              <p className="text-2xl font-bold text-purple-600">MWK {affiliateStats.totalCommissions.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pending Payouts</p>
-              <p className="text-2xl font-bold text-yellow-600">MWK {affiliateStats.pendingPayouts.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-indigo-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
-              <p className="text-2xl font-bold text-indigo-600">MWK {affiliateStats.monthlyRevenue.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <BarChart3 className="h-6 w-6 text-orange-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
-              <p className="text-2xl font-bold text-orange-600">{affiliateStats.conversionRate}%</p>
-            </div>
-          </div>
-        </div>
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminSummaryCard label="Total referrals" value={summaryValue('totalReferrals')} error={statsError} />
+        <AdminSummaryCard label="Completed" value={summaryValue('completedReferrals')} tone="success" error={statsError} />
+        <AdminSummaryCard label="Pending referrals" value={summaryValue('pendingReferrals')} tone="warning" error={statsError} />
+        <AdminSummaryCard label="Avg commission" value={summaryValue('avgCommissionPerReferral', money)} error={statsError} />
       </div>
 
-      {/* Additional Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Total Referrals</p>
-            <p className="text-2xl font-bold text-gray-900">{affiliateStats.totalReferrals || 0}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Completed</p>
-            <p className="text-2xl font-bold text-green-600">{affiliateStats.completedReferrals || 0}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Pending</p>
-            <p className="text-2xl font-bold text-yellow-600">{affiliateStats.pendingReferrals || 0}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Avg Commission</p>
-            <p className="text-2xl font-bold text-blue-600">MWK {(affiliateStats.avgCommissionPerReferral || 0).toLocaleString()}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <Filter className="h-4 w-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filters:</span>
-          </div>
-          
-          <select
+      <AdminFilterBar
+        search={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search name, email, or code…"
+      >
+        <AdminField label="Status" htmlFor="aff-status">
+          <AdminField.Select
+            id="aff-status"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm"
           >
-            <option value="all">All Status</option>
+            <option value="all">All statuses</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="suspended">Suspended</option>
             <option value="pending">Pending</option>
-          </select>
+          </AdminField.Select>
+        </AdminField>
+        <AdminField label="Per page" htmlFor="aff-page-size">
+          <AdminField.Select
+            id="aff-page-size"
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </AdminField.Select>
+        </AdminField>
+      </AdminFilterBar>
 
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search affiliates..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-64"
-            />
-          </div>
-        </div>
-      </div>
+      {loading ? <AdminLoadingState label="Loading affiliates" /> : null}
+      {!loading && error && affiliates.length === 0 ? (
+        <AdminErrorState title="Affiliate list unavailable" message={error} onRetry={load} />
+      ) : null}
+      {!loading && !error && filtered.length === 0 ? (
+        <AdminEmptyState
+          title={searchTerm || selectedStatus !== 'all' ? 'No affiliates match your filters' : 'No affiliates yet'}
+          description="Add an affiliate to start tracking referrals and commissions."
+          icon={Users}
+          action={
+            <button type="button" onClick={openCreate} className={btnPrimary}>
+              <Plus className="h-4 w-4" aria-hidden /> Add affiliate
+            </button>
+          }
+        />
+      ) : null}
 
-      {/* Affiliates Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">Affiliates</h3>
-            <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-500">
-                Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} results
+      {!loading && pageRows.length > 0 ? (
+        <>
+          <AdminDataTable
+            columns={columns}
+            rows={pageRows}
+            rowKey="id"
+            emptyTitle="No affiliates"
+          />
+          <div className="mt-4 flex flex-col gap-3 border-t border-[var(--admin-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[var(--admin-text-muted)]">
+              Showing{' '}
+              <span className="font-medium text-[var(--admin-text)]">
+                {filtered.length === 0 ? 0 : startIndex + 1}
               </span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+              {' '}to{' '}
+              <span className="font-medium text-[var(--admin-text)]">
+                {Math.min(startIndex + pageSize, filtered.length)}
+              </span>
+              {' '}of <span className="font-medium text-[var(--admin-text)]">{filtered.length}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className={btnGhost}
               >
-                <option value={5}>5 per page</option>
-                <option value={10}>10 per page</option>
-                <option value={25}>25 per page</option>
-                <option value={50}>50 per page</option>
-              </select>
+                Previous
+              </button>
+              <span className="text-sm text-[var(--admin-text-muted)]">
+                Page {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className={btnGhost}
+              >
+                Next
+              </button>
             </div>
           </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Affiliate
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Commission
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Performance
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Join Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {currentPageData.length > 0 ? (
-                currentPageData.map((affiliate) => (
-                  <tr key={affiliate.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                            <User className="h-5 w-5 text-indigo-600" />
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{affiliate.name}</div>
-                          <div className="text-sm text-gray-500">{affiliate.email}</div>
-                          <div className="text-xs text-gray-400">Code: {affiliate.affiliateCode}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(affiliate.status)}`}>
-                        {affiliate.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCommissionBadge(affiliate.commissionRate)}`}>
-                        {affiliate.commissionRate}%
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        <div>Sales: MWK {(affiliate.totalSales || 0).toLocaleString()}</div>
-                        <div>Commissions: MWK {(affiliate.totalCommissions || 0).toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">
-                          Pending: MWK {(affiliate.pendingPayouts || 0).toLocaleString()}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(affiliate.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => copyAffiliateLink(affiliate.affiliateCode)}
-                          className="text-indigo-600 hover:text-indigo-900 p-1"
-                          title="Copy affiliate link"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedAffiliate(affiliate);
-                            setShowDetailsModal(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="View details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedAffiliate(affiliate);
-                            setFormData({
-                              name: affiliate.name,
-                              email: affiliate.email,
-                              commissionRate: affiliate.commissionRate || 20,
-                              status: affiliate.status,
-                              paymentMethod: affiliate.paymentMethod || "bank",
-                              bankDetails: affiliate.bankDetails || {
-                                accountName: "",
-                                accountNumber: "",
-                                bankName: "",
-                                swiftCode: ""
-                              }
-                            });
-                            setShowAddModal(true);
-                          }}
-                          className="text-green-600 hover:text-green-900 p-1"
-                          title="Edit affiliate"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleSetPassword(affiliate)}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="Set password"
-                        >
-                          <Lock className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAffiliate(affiliate.id)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Delete affiliate"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    {searchTerm || selectedStatus !== 'all' 
-                      ? 'No affiliates match your filters' 
-                      : 'No affiliates found'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        </>
+      ) : null}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700">
-                Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                <span className="font-medium">{Math.min(endIndex, totalItems)}</span> of{' '}
-                <span className="font-medium">{totalItems}</span> results
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => goToPage(1)}
-                  disabled={currentPage === 1}
-                  className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                
-                {getPageNumbers().map((page, index) => (
-                  <button
-                    key={index}
-                    onClick={() => typeof page === 'number' && goToPage(page)}
-                    disabled={page === '...'}
-                    className={`px-3 py-2 text-sm font-medium rounded-md ${
-                      page === currentPage
-                        ? 'bg-indigo-600 text-white'
-                        : page === '...'
-                        ? 'text-gray-400 cursor-default'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                
-                <button
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+      <AdminModal
+        open={formOpen}
+        onClose={closeForm}
+        title={editing ? 'Edit affiliate' : 'Add affiliate'}
+        footer={
+          <>
+            <button type="button" onClick={closeForm} className={btnGhost} disabled={actionLoading}>
+              Cancel
+            </button>
+            <button type="submit" form="affiliate-form" className={btnPrimary} disabled={actionLoading}>
+              {actionLoading ? 'Saving…' : editing ? 'Update' : 'Add'}
+            </button>
+          </>
+        }
+      >
+        <form id="affiliate-form" onSubmit={handleSave} className="space-y-4">
+          <AdminField label="Name" htmlFor="aff-name" required>
+            <AdminField.Input
+              id="aff-name"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Email" htmlFor="aff-email" required>
+            <AdminField.Input
+              id="aff-email"
+              type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Commission rate (%)" htmlFor="aff-rate" required>
+            <AdminField.Input
+              id="aff-rate"
+              type="number"
+              min={1}
+              max={50}
+              required
+              value={formData.commissionRate}
+              onChange={(e) => setFormData((p) => ({ ...p, commissionRate: Number(e.target.value) }))}
+            />
+          </AdminField>
+          <AdminField label="Status" htmlFor="aff-form-status">
+            <AdminField.Select
+              id="aff-form-status"
+              value={formData.status}
+              onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value }))}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+              <option value="pending">Pending</option>
+            </AdminField.Select>
+          </AdminField>
+          <AdminField label="Payment method" htmlFor="aff-pay">
+            <AdminField.Select
+              id="aff-pay"
+              value={formData.paymentMethod}
+              onChange={(e) => setFormData((p) => ({ ...p, paymentMethod: e.target.value }))}
+            >
+              <option value="bank">Bank</option>
+              <option value="mobile">Mobile money</option>
+              <option value="other">Other</option>
+            </AdminField.Select>
+          </AdminField>
+          {formData.paymentMethod === 'bank' ? (
+            <div className="space-y-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3">
+              <p className="text-sm font-medium text-[var(--admin-text)]">
+                {editing ? 'Update bank details (optional)' : 'Bank details'}
+              </p>
+              {editing?.bankDetailsMasked ? (
+                <p className="text-xs text-[var(--admin-text-muted)]">
+                  Current (masked): {formatMaskedBank(editing.bankDetailsMasked) || 'On file'}
+                </p>
+              ) : null}
+              <AdminField label="Account name" htmlFor="bank-name">
+                <AdminField.Input
+                  id="bank-name"
+                  value={formData.bankDetails.accountName}
+                  onChange={(e) => setFormData((p) => ({
+                    ...p,
+                    bankDetails: { ...p.bankDetails, accountName: e.target.value },
+                  }))}
+                />
+              </AdminField>
+              <AdminField label="Account number" htmlFor="bank-number">
+                <AdminField.Input
+                  id="bank-number"
+                  value={formData.bankDetails.accountNumber}
+                  onChange={(e) => setFormData((p) => ({
+                    ...p,
+                    bankDetails: { ...p.bankDetails, accountNumber: e.target.value },
+                  }))}
+                />
+              </AdminField>
+              <AdminField label="Bank name" htmlFor="bank-bank">
+                <AdminField.Input
+                  id="bank-bank"
+                  value={formData.bankDetails.bankName}
+                  onChange={(e) => setFormData((p) => ({
+                    ...p,
+                    bankDetails: { ...p.bankDetails, bankName: e.target.value },
+                  }))}
+                />
+              </AdminField>
+              <AdminField label="SWIFT / branch" htmlFor="bank-swift">
+                <AdminField.Input
+                  id="bank-swift"
+                  value={formData.bankDetails.swiftCode}
+                  onChange={(e) => setFormData((p) => ({
+                    ...p,
+                    bankDetails: { ...p.bankDetails, swiftCode: e.target.value },
+                  }))}
+                />
+              </AdminField>
             </div>
-          </div>
-        )}
-      </div>
+          ) : null}
+        </form>
+      </AdminModal>
 
-      {/* Add/Edit Affiliate Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  {selectedAffiliate ? 'Edit Affiliate' : 'Add New Affiliate'}
-                </h3>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <XCircle className="h-6 w-6" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleAddAffiliate} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Commission Rate (%) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    required
-                    value={formData.commissionRate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, commissionRate: parseInt(e.target.value) }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="suspended">Suspended</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                </div>
-                
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {isLoading ? 'Saving...' : (selectedAffiliate ? 'Update' : 'Add')}
-                  </button>
-                </div>
-              </form>
+      <AdminModal
+        open={Boolean(details)}
+        onClose={() => setDetails(null)}
+        title="Affiliate details"
+        footer={
+          <button type="button" onClick={() => setDetails(null)} className={btnGhost}>
+            Close
+          </button>
+        }
+      >
+        {details ? (
+          <div className="space-y-4 text-sm">
+            <div>
+              <p className="font-medium text-[var(--admin-text)]">{details.name}</p>
+              <p className="text-[var(--admin-text-muted)]">{details.email}</p>
+              <p className="font-mono text-xs text-[var(--admin-text-muted)]">
+                Code: {details.affiliateCode || '—'}
+              </p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Affiliate Details Modal */}
-      {showDetailsModal && selectedAffiliate && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Affiliate Details</h3>
-                <button
-                  onClick={() => setShowDetailsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <XCircle className="h-6 w-6" />
-                </button>
+            <div className="flex flex-wrap gap-2">
+              <AdminStatusBadge tone={statusTone(details.status)}>{details.status}</AdminStatusBadge>
+              <AdminStatusBadge tone="info">{details.commissionRate ?? 0}%</AdminStatusBadge>
+            </div>
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-[var(--admin-text-muted)]">Commissions</dt>
+                <dd className="font-medium">{money(details.totalCommissions)}</dd>
               </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium text-gray-900">{selectedAffiliate.name}</h4>
-                  <p className="text-sm text-gray-500">{selectedAffiliate.email}</p>
-                  <p className="text-sm text-gray-500">Code: {selectedAffiliate.affiliateCode}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500">Status</label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(selectedAffiliate.status)}`}>
-                      {selectedAffiliate.status}
-                    </span>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500">Commission</label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCommissionBadge(selectedAffiliate.commissionRate)}`}>
-                      {selectedAffiliate.commissionRate}%
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="border-t pt-4">
-                  <h5 className="font-medium text-gray-900 mb-2">Performance</h5>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Total Sales:</span>
-                      <p className="font-medium">MWK {(selectedAffiliate.totalSales || 0).toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Total Commissions:</span>
-                      <p className="font-medium">MWK {(selectedAffiliate.totalCommissions || 0).toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Pending Payouts:</span>
-                      <p className="font-medium">MWK {(selectedAffiliate.pendingPayouts || 0).toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Join Date:</span>
-                      <p className="font-medium">{new Date(selectedAffiliate.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="border-t pt-4">
-                  <h5 className="font-medium text-gray-900 mb-2">Affiliate Link</h5>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${window.location.origin}/ref/${selectedAffiliate.affiliateCode}`}
-                      className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50"
-                    />
-                    <button
-                      onClick={() => copyAffiliateLink(selectedAffiliate.affiliateCode)}
-                      className="p-2 text-indigo-600 hover:text-indigo-900"
-                      title="Copy link"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="flex justify-end pt-4">
-                  <button
-                    onClick={() => setShowDetailsModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    Close
-                  </button>
-                </div>
+              <div>
+                <dt className="text-xs text-[var(--admin-text-muted)]">Pending payouts</dt>
+                <dd className="font-medium">{money(details.pendingPayouts)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--admin-text-muted)]">Referrals</dt>
+                <dd className="font-medium">{details.referralCount ?? 0}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--admin-text-muted)]">Joined</dt>
+                <dd className="font-medium">{fmtDate(details.createdAt)}</dd>
+              </div>
+            </dl>
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
+                Bank details
+              </p>
+              <p className="text-[var(--admin-text)]">
+                {formatMaskedBank(details.bankDetailsMasked)
+                  || (details.hasPaymentDetails ? 'On file (masked)' : 'Not provided')}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
+                Referral link
+              </p>
+              <div className="flex gap-2">
+                <AdminField.Input
+                  readOnly
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/ref/${details.affiliateCode}` : ''}
+                />
+                <IconBtn title="Copy link" onClick={() => copyAffiliateLink(details.affiliateCode)}>
+                  <Copy className="h-4 w-4" />
+                </IconBtn>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </AdminModal>
 
-      {/* Set Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Set Password for {selectedAffiliate?.name}
-                </h3>
-                <button
-                  onClick={() => setShowPasswordModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <XCircle className="h-6 w-6" />
-                </button>
-              </div>
-              
-              <form onSubmit={handlePasswordSubmit}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">New Password</label>
-                    <input
-                      type="password"
-                      value={passwordData.password}
-                      onChange={(e) => setPasswordData(prev => ({ ...prev, password: e.target.value }))}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Enter new password"
-                      required
-                    />
-                    <p className="mt-1 text-xs text-gray-500">Password must be at least 8 characters long</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
-                    <input
-                      type="password"
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Confirm new password"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="flex items-center">
-                    <input
-                      id="notifyAffiliate"
-                      type="checkbox"
-                      checked={passwordData.notifyAffiliate}
-                      onChange={(e) => setPasswordData(prev => ({ ...prev, notifyAffiliate: e.target.checked }))}
-                      className="h-4 w-4 border-gray-300 rounded text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label htmlFor="notifyAffiliate" className="ml-2 text-sm text-gray-700">
-                      Notify affiliate via email
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    Set Password
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminModal
+        open={Boolean(passwordTarget)}
+        onClose={() => setPasswordTarget(null)}
+        title={`Set password — ${passwordTarget?.name || ''}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setPasswordTarget(null)} className={btnGhost} disabled={actionLoading}>
+              Cancel
+            </button>
+            <button type="submit" form="aff-password-form" className={btnPrimary} disabled={actionLoading}>
+              {actionLoading ? 'Saving…' : 'Set password'}
+            </button>
+          </>
+        }
+      >
+        <form id="aff-password-form" onSubmit={handlePasswordSubmit} className="space-y-4">
+          <AdminField label="New password" htmlFor="aff-pw" required hint="At least 8 characters">
+            <AdminField.Input
+              id="aff-pw"
+              type="password"
+              required
+              minLength={8}
+              value={passwordData.password}
+              onChange={(e) => setPasswordData((p) => ({ ...p, password: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Confirm password" htmlFor="aff-pw2" required>
+            <AdminField.Input
+              id="aff-pw2"
+              type="password"
+              required
+              minLength={8}
+              value={passwordData.confirmPassword}
+              onChange={(e) => setPasswordData((p) => ({ ...p, confirmPassword: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField.Checkbox
+            id="notifyAffiliate"
+            label="Notify affiliate via email"
+            checked={passwordData.notifyAffiliate}
+            onChange={(e) => setPasswordData((p) => ({ ...p, notifyAffiliate: e.target.checked }))}
+          />
+        </form>
+      </AdminModal>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex">
-            <XCircle className="h-5 w-5 text-red-400" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error</h3>
-              <div className="mt-2 text-sm text-red-700">{error}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4">
-          <div className="flex">
-            <CheckCircle className="h-5 w-5 text-green-400" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-green-800">Success</h3>
-              <div className="mt-2 text-sm text-green-700">{success}</div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <AdminConfirmationDialog
+        open={Boolean(confirmDelete)}
+        title="Delete affiliate"
+        description={confirmDelete ? `Delete ${confirmDelete.name}? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        tone="danger"
+        loading={actionLoading}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+      />
+    </AdminPageContainer>
   );
-};
-
-export default AffiliatePage; 
+}

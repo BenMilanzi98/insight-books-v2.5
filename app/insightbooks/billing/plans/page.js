@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import {
   AdminPageContainer,
@@ -9,7 +9,15 @@ import {
   AdminErrorState,
   AdminEmptyState,
   AdminStatusBadge,
+  AdminDataTable,
+  AdminModal,
+  AdminField,
 } from '@/components/admin';
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function AdminBillingPlansPage() {
   const [latest, setLatest] = useState([]);
@@ -77,6 +85,46 @@ export default function AdminBillingPlansPage() {
     }
   };
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'planCode',
+        header: 'Code',
+        render: (p) => <span className="font-mono text-xs text-[var(--admin-text)]">{p.planCode}</span>,
+      },
+      {
+        key: 'name',
+        header: 'Name',
+        render: (p) => <span className="font-medium text-[var(--admin-text)]">{p.name}</span>,
+      },
+      {
+        key: 'version',
+        header: 'Version',
+        render: (p) => `v${p.version}`,
+      },
+      {
+        key: 'basePrice',
+        header: 'Price',
+        cellClassName: 'tabular-nums',
+        render: (p) => `${p.currency} ${Number(p.basePrice).toLocaleString()}`,
+      },
+      {
+        key: 'billingFrequency',
+        header: 'Frequency',
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (p) => (
+          <AdminStatusBadge tone={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
+            {p.status}
+          </AdminStatusBadge>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <AdminPageContainer>
       <AdminPageHeader
@@ -84,94 +132,88 @@ export default function AdminBillingPlansPage() {
         description="Versioned platform plans. Price changes create a new version — existing subscriptions keep agreed pricing until changed explicitly."
         actions={
           <>
-            <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm">
-              <RefreshCw className="h-4 w-4" /> Refresh
+            <button type="button" onClick={load} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
             </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-2 rounded bg-[var(--action-primary)] px-3 py-2 text-sm text-white"
-            >
-              <Plus className="h-4 w-4" /> New version
+            <button type="button" onClick={() => setShowForm(true)} className={btnPrimary}>
+              <Plus className="h-4 w-4" aria-hidden /> New version
             </button>
           </>
         }
       />
 
-      {loading ? <AdminLoadingState /> : null}
-      {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
+      {loading ? <AdminLoadingState label="Loading plans" /> : null}
+      {!loading && error && latest.length === 0 ? (
+        <AdminErrorState message={error} onRetry={load} />
+      ) : null}
       {!loading && !error && latest.length === 0 ? (
         <AdminEmptyState title="No plans" description="Plans will seed from the catalog on first load." />
       ) : null}
+      {!loading && latest.length > 0 ? <AdminDataTable columns={columns} rows={latest} rowKey="id" /> : null}
 
-      {!loading && !error && latest.length > 0 ? (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
-              <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Version</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Frequency</th>
-                <th className="px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {latest.map((p) => (
-                <tr key={p.id} className="border-t">
-                  <td className="px-4 py-3 font-mono text-xs">{p.planCode}</td>
-                  <td className="px-4 py-3 font-medium">{p.name}</td>
-                  <td className="px-4 py-3">v{p.version}</td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {p.currency} {Number(p.basePrice).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3">{p.billingFrequency}</td>
-                  <td className="px-4 py-3">
-                    <AdminStatusBadge tone={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
-                      {p.status}
-                    </AdminStatusBadge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {showForm ? (
-        <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <form onSubmit={createVersion} className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
-            <h2 className="text-lg font-semibold">Create plan version</h2>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Creating a new version supersedes the previous ACTIVE version for that plan code.
-            </p>
-            {['planCode', 'name', 'basePrice'].map((key) => (
-              <label key={key} className="mt-3 block text-sm">
-                <span className="mb-1 block font-medium capitalize">{key}</span>
-                <input
-                  required
-                  className="w-full rounded border px-3 py-2"
-                  value={form[key]}
-                  onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
-                />
-              </label>
-            ))}
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="rounded border px-3 py-2 text-sm">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded bg-[var(--action-primary)] px-3 py-2 text-sm text-white disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : 'Create version'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <AdminModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="Create plan version"
+        footer={
+          <>
+            <button type="button" onClick={() => setShowForm(false)} className={btnGhost}>
+              Cancel
+            </button>
+            <button type="submit" form="plan-version-form" disabled={saving} className={btnPrimary}>
+              {saving ? 'Saving…' : 'Create version'}
+            </button>
+          </>
+        }
+      >
+        <p className="mb-4 text-xs text-[var(--admin-text-muted)]">
+          Creating a new version supersedes the previous ACTIVE version for that plan code.
+        </p>
+        <form id="plan-version-form" onSubmit={createVersion} className="space-y-3">
+          <AdminField label="Plan code" htmlFor="planCode" required>
+            <AdminField.Input
+              id="planCode"
+              required
+              value={form.planCode}
+              onChange={(e) => setForm((p) => ({ ...p, planCode: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Name" htmlFor="planName" required>
+            <AdminField.Input
+              id="planName"
+              required
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Base price" htmlFor="basePrice" required>
+            <AdminField.Input
+              id="basePrice"
+              required
+              type="number"
+              value={form.basePrice}
+              onChange={(e) => setForm((p) => ({ ...p, basePrice: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Currency" htmlFor="currency">
+            <AdminField.Input
+              id="currency"
+              value={form.currency}
+              onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Billing frequency" htmlFor="billingFrequency">
+            <AdminField.Select
+              id="billingFrequency"
+              value={form.billingFrequency}
+              onChange={(e) => setForm((p) => ({ ...p, billingFrequency: e.target.value }))}
+            >
+              <option value="month">month</option>
+              <option value="year">year</option>
+            </AdminField.Select>
+          </AdminField>
+        </form>
+      </AdminModal>
     </AdminPageContainer>
   );
 }

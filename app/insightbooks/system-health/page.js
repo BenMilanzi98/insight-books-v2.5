@@ -81,7 +81,7 @@ export default function SystemHealthPage() {
           <button
             type="button"
             onClick={load}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)]"
+            className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-90"
           >
             <RefreshCw className="h-4 w-4" aria-hidden />
             Refresh
@@ -97,7 +97,7 @@ export default function SystemHealthPage() {
       {!loading && !error && data ? (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-[var(--text-secondary)]">Overall status</span>
+            <span className="text-sm text-[var(--admin-text-muted)]">Overall status</span>
             <AdminStatusBadge
               tone={
                 overall === 'healthy' || overall === 'ok'
@@ -110,7 +110,7 @@ export default function SystemHealthPage() {
               {String(overall || 'unknown')}
             </AdminStatusBadge>
             {data.checkedAt || data.timestamp ? (
-              <span className="text-xs text-[var(--text-muted)]">
+              <span className="text-xs text-[var(--admin-text-muted)]">
                 Checked {data.checkedAt || data.timestamp}
               </span>
             ) : null}
@@ -170,11 +170,11 @@ export default function SystemHealthPage() {
             />
           </div>
 
-          <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
+          <div className="mt-6 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">Email queue</h2>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                <h2 className="text-sm font-semibold text-[var(--admin-text)]">Email queue</h2>
+                <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
                   {emailQueue?.error
                     ? emailQueue.error
                     : `Pending ${emailPending ?? '—'} · Failed ${emailFailed ?? '—'} · Sent (24h) ${emailSent24h ?? '—'}`}
@@ -184,28 +184,28 @@ export default function SystemHealthPage() {
                 type="button"
                 onClick={retryFailedEmails}
                 disabled={retrying || !emailFailed || emailFailed < 1}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm font-medium text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} aria-hidden />
                 {retrying ? 'Retrying…' : 'Retry failed emails'}
               </button>
             </div>
             {retryMessage ? (
-              <p className="mt-3 text-sm text-[var(--status-success)]" role="status">
+              <p className="mt-3 text-sm text-[var(--admin-success)]" role="status">
                 {retryMessage}
               </p>
             ) : null}
             {retryError ? (
-              <p className="mt-3 text-sm text-[var(--status-danger)]" role="alert">
+              <p className="mt-3 text-sm text-[var(--admin-danger)]" role="alert">
                 {retryError}
               </p>
             ) : null}
           </div>
 
           {Array.isArray(data.services) && data.services.length > 0 ? (
-            <div className="mt-6 overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)]">
+            <div className="mt-6 overflow-x-auto rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)]">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
+                <thead className="bg-[var(--admin-surface-muted)] text-xs uppercase text-[var(--admin-text-muted)]">
                   <tr>
                     <th className="px-4 py-3">Service</th>
                     <th className="px-4 py-3">Status</th>
@@ -214,8 +214,8 @@ export default function SystemHealthPage() {
                 </thead>
                 <tbody>
                   {data.services.map((svc) => (
-                    <tr key={svc.name || svc.id} className="border-t border-[var(--border-default)]">
-                      <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
+                    <tr key={svc.name || svc.id} className="border-t border-[var(--admin-border)]">
+                      <td className="px-4 py-3 font-medium text-[var(--admin-text)]">
                         {svc.name || svc.id}
                       </td>
                       <td className="px-4 py-3">
@@ -231,7 +231,7 @@ export default function SystemHealthPage() {
                           {svc.status}
                         </AdminStatusBadge>
                       </td>
-                      <td className="px-4 py-3 text-[var(--text-secondary)]">
+                      <td className="px-4 py-3 text-[var(--admin-text-muted)]">
                         {svc.message ||
                           (svc.latencyMs != null ? `${svc.latencyMs}ms` : '—')}
                       </td>

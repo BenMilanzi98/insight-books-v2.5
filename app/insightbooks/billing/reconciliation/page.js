@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
   AdminPageContainer,
@@ -9,7 +9,12 @@ import {
   AdminErrorState,
   AdminEmptyState,
   AdminStatusBadge,
+  AdminDataTable,
+  AdminSummaryCard,
 } from '@/components/admin';
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]';
 
 export default function AdminBillingReconciliationPage() {
   const [checks, setChecks] = useState([]);
@@ -40,23 +45,80 @@ export default function AdminBillingReconciliationPage() {
     load();
   }, [load]);
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'check',
+        header: 'Check',
+        render: (c) => c.checkId || c.name || c.type,
+      },
+      {
+        key: 'entity',
+        header: 'Entity',
+        render: (c) => (
+          <span className="font-mono text-xs text-[var(--admin-text)]">
+            {c.invoiceId || c.paymentId || c.tenantId || '—'}
+          </span>
+        ),
+      },
+      {
+        key: 'expected',
+        header: 'Expected',
+        cellClassName: 'tabular-nums',
+        render: (c) => c.expected ?? '—',
+      },
+      {
+        key: 'actual',
+        header: 'Actual',
+        cellClassName: 'tabular-nums',
+        render: (c) => c.actual ?? '—',
+      },
+      {
+        key: 'variance',
+        header: 'Variance',
+        cellClassName: 'tabular-nums',
+        render: (c) => c.variance ?? '—',
+      },
+      {
+        key: 'severity',
+        header: 'Severity',
+        render: (c) => (
+          <AdminStatusBadge
+            tone={c.severity === 'critical' || c.severity === 'high' ? 'danger' : 'warning'}
+          >
+            {c.severity || 'medium'}
+          </AdminStatusBadge>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <AdminPageContainer>
       <AdminPageHeader
         title="Billing Reconciliation"
         description="Verifies platform invoice line math, payment allocations, and period uniqueness. Failures require remediation — never silent."
         actions={
-          <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm">
-            <RefreshCw className="h-4 w-4" /> Run checks
+          <button type="button" onClick={load} className={btnGhost}>
+            <RefreshCw className="h-4 w-4" aria-hidden /> Run checks
           </button>
         }
       />
 
       {summary ? (
-        <p className="mb-4 text-sm text-[var(--text-secondary)]">
-          Passed {summary.passed ?? '—'} · Failed {summary.failed ?? checks.length} · Checked{' '}
-          {summary.checkedAt ? new Date(summary.checkedAt).toLocaleString() : '—'}
-        </p>
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <AdminSummaryCard label="Passed" value={summary.passed ?? '—'} tone="success" />
+          <AdminSummaryCard
+            label="Failed"
+            value={summary.failed ?? checks.length}
+            tone={(summary.failed ?? checks.length) > 0 ? 'danger' : 'neutral'}
+          />
+          <AdminSummaryCard
+            label="Checked"
+            value={summary.checkedAt ? new Date(summary.checkedAt).toLocaleString() : '—'}
+          />
+        </div>
       ) : null}
 
       {loading ? <AdminLoadingState label="Running reconciliation" /> : null}
@@ -67,46 +129,12 @@ export default function AdminBillingReconciliationPage() {
           description="No platform billing variances detected for the scanned set."
         />
       ) : null}
-
       {!loading && !error && checks.length > 0 ? (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
-              <tr>
-                <th className="px-4 py-3">Check</th>
-                <th className="px-4 py-3">Entity</th>
-                <th className="px-4 py-3">Expected</th>
-                <th className="px-4 py-3">Actual</th>
-                <th className="px-4 py-3">Variance</th>
-                <th className="px-4 py-3">Severity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {checks.map((c, idx) => (
-                <tr key={c.id || idx} className="border-t">
-                  <td className="px-4 py-3">{c.checkId || c.name || c.type}</td>
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {c.invoiceId || c.paymentId || c.tenantId || '—'}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{c.expected ?? '—'}</td>
-                  <td className="px-4 py-3 tabular-nums">{c.actual ?? '—'}</td>
-                  <td className="px-4 py-3 tabular-nums">{c.variance ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <AdminStatusBadge
-                      tone={
-                        c.severity === 'critical' || c.severity === 'high'
-                          ? 'danger'
-                          : 'warning'
-                      }
-                    >
-                      {c.severity || 'medium'}
-                    </AdminStatusBadge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminDataTable
+          columns={columns}
+          rows={checks}
+          rowKey={(c, idx) => c.id || idx}
+        />
       ) : null}
     </AdminPageContainer>
   );

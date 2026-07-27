@@ -1,26 +1,37 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Mail, 
   Send, 
   Users, 
-  Filter, 
-  Search, 
   CheckSquare, 
   Square, 
-  X, 
-  AlertCircle, 
-  CheckCircle, 
-  Clock,
-  Eye,
-  EyeOff,
-  FileText,
-  User,
-  Building,
-  Calendar,
-  Loader2
+  CheckCircle,
 } from 'lucide-react';
 import UltimateEmailComposer from './UltimateEmailComposer';
+import {
+  AdminSummaryCard,
+  AdminFilterBar,
+  AdminField,
+  AdminDataTable,
+  AdminStatusBadge,
+  AdminLoadingState,
+  AdminEmptyState,
+  AdminModal,
+} from '@/components/admin';
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+
+function userStatusTone(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'active') return 'success';
+  if (s === 'pending') return 'warning';
+  if (s === 'inactive') return 'danger';
+  return 'neutral';
+}
 
 const EnhancedEmailManagement = () => {
   const [users, setUsers] = useState([]);
@@ -273,313 +284,193 @@ const EnhancedEmailManagement = () => {
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'active':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'inactive':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <User className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'inactive':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent':
-        return 'bg-red-100 text-red-800';
-      case 'high':
-        return 'bg-orange-100 text-orange-800';
-      case 'normal':
-        return 'bg-blue-100 text-blue-800';
-      case 'low':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const columns = useMemo(
+    () => [
+      {
+        key: 'select',
+        header: 'Select',
+        render: (user) => (
+          <button
+            type="button"
+            onClick={() => handleSelectUser(user.id)}
+            className="text-[var(--action-primary)]"
+            aria-label={selectedUsers.includes(user.id) ? 'Deselect user' : 'Select user'}
+          >
+            {selectedUsers.includes(user.id) ? (
+              <CheckSquare className="h-4 w-4" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+          </button>
+        ),
+      },
+      {
+        key: 'user',
+        header: 'User',
+        render: (user) => (
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--admin-surface-muted)] text-sm font-medium text-[var(--admin-text)]">
+              {user.avatar}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate font-medium text-[var(--admin-text)]">{user.name}</div>
+              <div className="truncate text-xs text-[var(--admin-text-muted)]">{user.email}</div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'role',
+        header: 'Role',
+        render: (user) => user.role || '—',
+      },
+      {
+        key: 'tenant',
+        header: 'Tenant',
+        render: (user) => user.tenant || '—',
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (user) => (
+          <AdminStatusBadge tone={userStatusTone(user.status)}>{user.status}</AdminStatusBadge>
+        ),
+      },
+      {
+        key: 'lastLogin',
+        header: 'Last Login',
+        render: (user) =>
+          user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never',
+      },
+    ],
+    [selectedUsers]
+  );
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Email Management</h1>
-          <p className="text-gray-600 mt-1">Send rich emails with attachments to users</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="text-sm text-gray-500">
-            {stats.totalUsers} total users • {stats.activeUsers} active • {stats.selectedCount} selected
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-[var(--admin-text-muted)]">
+          {stats.totalUsers} total users · {stats.activeUsers} active · {stats.selectedCount} selected
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleSelectAll} className={btnGhost} disabled={filteredUsers.length === 0}>
+            {selectedUsers.length === filteredUsers.length && filteredUsers.length > 0
+              ? 'Deselect all'
+              : 'Select all'}
+          </button>
           <button
+            type="button"
             onClick={() => setShowEmailForm(true)}
             disabled={selectedUsers.length === 0}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            className={btnPrimary}
           >
-            <Mail className="h-4 w-4" />
-            <span>Send Email</span>
+            <Mail className="h-4 w-4" aria-hidden />
+            Send email
           </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <Users className="h-8 w-8 text-blue-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Users</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalUsers}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <CheckCircle className="h-8 w-8 text-green-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Active Users</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.activeUsers}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <Mail className="h-8 w-8 text-purple-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Emails Sent</p>
-              <p className="text-2xl font-semibold text-gray-900">{emailStats.totalEmails || emailHistory.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <Send className="h-8 w-8 text-orange-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Selected</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.selectedCount}</p>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminSummaryCard label="Total Users" value={stats.totalUsers} icon={Users} />
+        <AdminSummaryCard label="Active Users" value={stats.activeUsers} tone="success" icon={CheckCircle} />
+        <AdminSummaryCard
+          label="Emails Sent"
+          value={emailStats.totalEmails || emailHistory.length}
+          icon={Mail}
+        />
+        <AdminSummaryCard label="Selected" value={stats.selectedCount} icon={Send} tone="warning" />
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Search users..."
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="user">User</option>
-              <option value="manager">Manager</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tenant</label>
-            <select
-              value={tenantFilter}
-              onChange={(e) => setTenantFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Tenants</option>
-              {Array.from(new Set(users.map(user => user.tenant))).map(tenant => (
-                <option key={tenant} value={tenant}>{tenant}</option>
-              ))}
-            </select>
-          </div>
+      <AdminFilterBar
+        search={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search users…"
+      >
+        <AdminField label="Status" htmlFor="email-status-filter">
+          <AdminField.Select
+            id="email-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="pending">Pending</option>
+          </AdminField.Select>
+        </AdminField>
+        <AdminField label="Role" htmlFor="email-role-filter">
+          <AdminField.Select
+            id="email-role-filter"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+          >
+            <option value="all">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
+            <option value="manager">Manager</option>
+          </AdminField.Select>
+        </AdminField>
+        <AdminField label="Tenant" htmlFor="email-tenant-filter">
+          <AdminField.Select
+            id="email-tenant-filter"
+            value={tenantFilter}
+            onChange={(e) => setTenantFilter(e.target.value)}
+          >
+            <option value="all">All Tenants</option>
+            {Array.from(new Set(users.map((user) => user.tenant).filter(Boolean))).map((tenant) => (
+              <option key={tenant} value={tenant}>
+                {tenant}
+              </option>
+            ))}
+          </AdminField.Select>
+        </AdminField>
+      </AdminFilterBar>
+
+      {loading ? <AdminLoadingState label="Loading users" /> : null}
+      {!loading && filteredUsers.length === 0 ? (
+        <AdminEmptyState title="No users match" description="Adjust filters to find recipients." />
+      ) : null}
+      {!loading && filteredUsers.length > 0 ? (
+        <AdminDataTable columns={columns} rows={filteredUsers} rowKey="id" />
+      ) : null}
+
+      <AdminModal
+        open={showEmailForm}
+        onClose={() => setShowEmailForm(false)}
+        title="Send Rich Email"
+        size="lg"
+        className="max-w-4xl"
+      >
+        <div className="mb-4 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3 text-sm text-[var(--admin-text)]">
+          <strong>Recipients:</strong> {selectedUsers.length} user(s) selected
         </div>
-      </div>
-
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">Users</h3>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handleSelectAll}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                {selectedUsers.length === filteredUsers.length ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="p-8 text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-            <p className="mt-2 text-gray-500">Loading users...</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Select
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenant
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Login
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleSelectUser(user.id)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {selectedUsers.includes(user.id) ? (
-                          <CheckSquare className="h-4 w-4" />
-                        ) : (
-                          <Square className="h-4 w-4" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-medium text-sm">
-                          {user.avatar}
-                        </div>
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{user.role}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{user.tenant}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
-                        {getStatusIcon(user.status)}
-                        {user.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Email Form Modal */}
-      {showEmailForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Send Rich Email</h3>
-              <button
-                onClick={() => setShowEmailForm(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <p className="text-sm text-blue-800">
-                  <strong>Recipients:</strong> {selectedUsers.length} user(s) selected
-                </p>
-              </div>
-
-              <UltimateEmailComposer
-                subject={emailData.subject}
-                setSubject={(value) => setEmailData({...emailData, subject: value})}
-                message={emailData.htmlContent}
-                setMessage={(value) => setEmailData({...emailData, htmlContent: value})}
-                attachments={attachments}
-                setAttachments={setAttachments}
-                onSend={handleSendEmail}
-                isSending={sending}
-                priority={emailData.priority}
-                setPriority={(value) => setEmailData({...emailData, priority: value})}
-                showPriority={emailData.showPriority}
-                setShowPriority={(value) => setEmailData({...emailData, showPriority: value})}
-                selectedTemplate={emailData.selectedTemplate}
-                setSelectedTemplate={(value) => {
-                  const newData = {...emailData, selectedTemplate: value};
-                  // Apply template content if template is selected
-                  if (value !== 'custom') {
-                    const template = emailTemplates[value];
-                    if (template) {
-                      newData.subject = template.subject;
-                      newData.htmlContent = template.content;
-                    }
-                  }
-                  setEmailData(newData);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-
+        <UltimateEmailComposer
+          subject={emailData.subject}
+          setSubject={(value) => setEmailData({ ...emailData, subject: value })}
+          message={emailData.htmlContent}
+          setMessage={(value) => setEmailData({ ...emailData, htmlContent: value })}
+          attachments={attachments}
+          setAttachments={setAttachments}
+          onSend={handleSendEmail}
+          isSending={sending}
+          priority={emailData.priority}
+          setPriority={(value) => setEmailData({ ...emailData, priority: value })}
+          showPriority={emailData.showPriority}
+          setShowPriority={(value) => setEmailData({ ...emailData, showPriority: value })}
+          selectedTemplate={emailData.selectedTemplate}
+          setSelectedTemplate={(value) => {
+            const newData = { ...emailData, selectedTemplate: value };
+            if (value !== 'custom') {
+              const template = emailTemplates[value];
+              if (template) {
+                newData.subject = template.subject;
+                newData.htmlContent = template.content;
+              }
+            }
+            setEmailData(newData);
+          }}
+        />
+      </AdminModal>
     </div>
   );
 };

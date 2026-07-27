@@ -25,13 +25,13 @@ async function fetchReport(type) {
 function StatusBreakdown({ byStatus }) {
   if (!byStatus || typeof byStatus !== 'object') return null;
   const entries = Object.entries(byStatus);
-  if (!entries.length) return <p className="text-sm text-[var(--text-muted)]">No status breakdown</p>;
+  if (!entries.length) return <p className="text-sm text-[var(--admin-text-muted)]">No status breakdown</p>;
   return (
-    <ul className="mt-2 space-y-1 text-sm text-[var(--text-secondary)]">
+    <ul className="mt-2 space-y-1 text-sm text-[var(--admin-text-muted)]">
       {entries.map(([status, count]) => (
         <li key={status} className="flex justify-between gap-4">
           <span className="capitalize">{status}</span>
-          <span className="tabular-nums font-medium text-[var(--text-primary)]">{count}</span>
+          <span className="font-medium tabular-nums text-[var(--admin-text)]">{count}</span>
         </li>
       ))}
     </ul>
@@ -100,7 +100,7 @@ export default function PlatformReportsPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               href="/insightbooks/imports"
-              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm"
+              className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]"
             >
               <Upload className="h-4 w-4" aria-hidden />
               Import dry-run
@@ -108,7 +108,7 @@ export default function PlatformReportsPage() {
             <button
               type="button"
               onClick={load}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)]"
+              className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-90"
             >
               <RefreshCw className="h-4 w-4" aria-hidden />
               Refresh
@@ -129,9 +129,9 @@ export default function PlatformReportsPage() {
 
       {!loading && !allFailed ? (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-text)]">
                 <Building2 className="h-4 w-4" aria-hidden />
                 Tenants
               </h2>
@@ -154,7 +154,7 @@ export default function PlatformReportsPage() {
                 />
                 <StatusBreakdown byStatus={tenants?.summary?.byStatus} />
                 {tenants?.generatedAt ? (
-                  <p className="mt-3 text-xs text-[var(--text-muted)]">
+                  <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
                     Generated {new Date(tenants.generatedAt).toLocaleString()}
                   </p>
                 ) : null}
@@ -162,9 +162,9 @@ export default function PlatformReportsPage() {
             )}
           </section>
 
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-text)]">
                 <CreditCard className="h-4 w-4" aria-hidden />
                 Subscriptions
               </h2>
@@ -197,7 +197,7 @@ export default function PlatformReportsPage() {
                   />
                 </div>
                 {subscriptions?.generatedAt ? (
-                  <p className="mt-3 text-xs text-[var(--text-muted)]">
+                  <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
                     Generated {new Date(subscriptions.generatedAt).toLocaleString()}
                   </p>
                 ) : null}
@@ -205,9 +205,9 @@ export default function PlatformReportsPage() {
             )}
           </section>
 
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
+          <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-text)]">
                 <Handshake className="h-4 w-4" aria-hidden />
                 Affiliates
               </h2>
@@ -234,7 +234,7 @@ export default function PlatformReportsPage() {
                   <AdminSummaryCard label="Payouts" value={affiliates?.summary?.payouts} />
                 </div>
                 {affiliates?.generatedAt ? (
-                  <p className="mt-3 text-xs text-[var(--text-muted)]">
+                  <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
                     Generated {new Date(affiliates.generatedAt).toLocaleString()}
                   </p>
                 ) : null}

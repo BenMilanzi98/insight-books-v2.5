@@ -2,21 +2,39 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { RefreshCw } from 'lucide-react';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminEmptyState,
+  AdminStatusBadge,
+  AdminDataTable,
+} from '@/components/admin';
 
-function StatusBadge({ status }) {
-  const tone =
-    status === 'ENABLED' || status === 'ENTITLED_PRODUCTION' || status === 'ENTITLED_SANDBOX_ONLY'
-      ? 'bg-emerald-100 text-emerald-800'
-      : status === 'EMERGENCY_PAUSED' || status === 'SUSPENDED' || status === 'REVOKED'
-        ? 'bg-red-100 text-red-800'
-        : status === 'MAINTENANCE' || status === 'ENTITLEMENT_PENDING'
-          ? 'bg-amber-100 text-amber-900'
-          : 'bg-slate-100 text-slate-700';
-  return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${tone}`}>
-      {status || 'UNKNOWN'}
-    </span>
-  );
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+const inputCls =
+  'w-full rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
+const sectionCls =
+  'mb-6 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-5';
+
+function statusTone(status) {
+  if (
+    status === 'ENABLED' ||
+    status === 'ENTITLED_PRODUCTION' ||
+    status === 'ENTITLED_SANDBOX_ONLY'
+  ) {
+    return 'success';
+  }
+  if (status === 'EMERGENCY_PAUSED' || status === 'SUSPENDED' || status === 'REVOKED') {
+    return 'danger';
+  }
+  if (status === 'MAINTENANCE' || status === 'ENTITLEMENT_PENDING') return 'warning';
+  return 'neutral';
 }
 
 export default function AdminMraEisPage() {
@@ -118,215 +136,228 @@ export default function AdminMraEisPage() {
     load();
   }
 
+  const columns = [
+    {
+      key: 'tenant',
+      header: 'Tenant',
+      render: (row) => (
+        <div>
+          <div className="font-medium text-[var(--admin-text)]">
+            {row.tenant?.name || row.tenantId}
+          </div>
+          <div className="text-xs text-[var(--admin-text-muted)]">
+            {row.tenant?.subdomain || row.tenantId}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => (
+        <AdminStatusBadge tone={statusTone(row.status)}>{row.status || 'UNKNOWN'}</AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'environment',
+      header: 'Environment',
+      render: (row) => (
+        <span className="text-xs text-[var(--admin-text)]">
+          {row.productionAllowed ? 'Production allowed' : 'Sandbox only'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (row) => (
+        <Link
+          className="text-sm text-[var(--action-primary)] underline"
+          href={`/insightbooks/mra-eis/tenants/${row.tenantId}`}
+        >
+          Open detail
+        </Link>
+      ),
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <header className="mb-8">
-          <p className="text-sm font-medium text-slate-500">System Administration</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">MRA EIS entitlement</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Platform and tenant control plane. Terminal activation is available under Terminals (metadata
-            only — credentials are never displayed). This screen does not submit fiscal transactions.
-          </p>
-          <p className="mt-3 flex flex-wrap gap-2">
-            <Link
-              href="/insightbooks/mra-eis/centre"
-              className="inline-block rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-            >
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="MRA EIS entitlement"
+        description="Platform and tenant control plane. Terminal activation is under Terminals (metadata only — credentials are never displayed). This screen does not submit fiscal transactions."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/insightbooks/mra-eis/centre" className={btnPrimary}>
               EIS Administration Centre
             </Link>
-            <Link
-              href="/insightbooks/mra-eis/terminals"
-              className="inline-block rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900"
-            >
-              View EIS terminals
+            <Link href="/insightbooks/mra-eis/terminals" className={btnGhost}>
+              Terminals
             </Link>
-            <Link
-              href="/insightbooks/mra-eis/configuration"
-              className="inline-block rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900"
-            >
-              Configuration freshness
+            <Link href="/insightbooks/mra-eis/configuration" className={btnGhost}>
+              Configuration
             </Link>
-          </p>
-        </header>
+            <Link href="/insightbooks/mra-eis/mappings" className={btnGhost}>
+              Mappings
+            </Link>
+            <Link href="/insightbooks/mra-eis/catalogue" className={btnGhost}>
+              Catalogue
+            </Link>
+          </div>
+        }
+      />
 
-        {error && (
-          <div role="alert" className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {error}
-          </div>
-        )}
-        {message && (
-          <div role="status" className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            {message}
-          </div>
-        )}
+      {error ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-[var(--admin-radius)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          {error}
+        </div>
+      ) : null}
+      {message ? (
+        <div
+          role="status"
+          className="mb-4 rounded-[var(--admin-radius)] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+        >
+          {message}
+        </div>
+      ) : null}
 
-        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="platform-heading">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="platform-heading" className="text-lg font-semibold">
-              Platform status
-            </h2>
-            {platform && <StatusBadge status={platform.status} />}
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">Status</span>
-              <select
-                className="w-full rounded border border-slate-300 px-3 py-2"
-                value={platformForm.status}
-                onChange={(e) => setPlatformForm((f) => ({ ...f, status: e.target.value }))}
-              >
-                <option value="DISABLED">Disabled</option>
-                <option value="ENABLED">Enabled</option>
-                <option value="EMERGENCY_PAUSED">Emergency paused</option>
-                <option value="MAINTENANCE">Maintenance</option>
-                <option value="RETIRED">Retired</option>
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">Reason (required for pause/disable)</span>
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2"
-                value={platformForm.reason}
-                onChange={(e) => setPlatformForm((f) => ({ ...f, reason: e.target.value }))}
-              />
-            </label>
-          </div>
-          <button
-            type="button"
-            onClick={savePlatform}
-            className="mt-4 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            Update platform status
-          </button>
-        </section>
-
-        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="grant-heading">
-          <h2 id="grant-heading" className="text-lg font-semibold">
-            Grant tenant entitlement
+      <section className={sectionCls} aria-labelledby="platform-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="platform-heading" className="text-base font-semibold text-[var(--admin-text)]">
+            Platform status
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Tenants cannot self-entitle. Production does not imply certification or operational readiness.
-          </p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">Tenant ID</span>
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2"
-                value={grant.tenantId}
-                onChange={(e) => setGrant((g) => ({ ...g, tenantId: e.target.value }))}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">Reason</span>
-              <input
-                className="w-full rounded border border-slate-300 px-3 py-2"
-                value={grant.reason}
-                onChange={(e) => setGrant((g) => ({ ...g, reason: e.target.value }))}
-              />
-            </label>
-          </div>
-          <label className="mt-3 flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={grant.production}
-              onChange={(e) => setGrant((g) => ({ ...g, production: e.target.checked }))}
-            />
-            Grant production entitlement (visually distinct — still requires certification)
+          {platform ? (
+            <AdminStatusBadge tone={statusTone(platform.status)}>
+              {platform.status}
+            </AdminStatusBadge>
+          ) : null}
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">Status</span>
+            <select
+              className={inputCls}
+              value={platformForm.status}
+              onChange={(e) => setPlatformForm((f) => ({ ...f, status: e.target.value }))}
+            >
+              <option value="DISABLED">Disabled</option>
+              <option value="ENABLED">Enabled</option>
+              <option value="EMERGENCY_PAUSED">Emergency paused</option>
+              <option value="MAINTENANCE">Maintenance</option>
+              <option value="RETIRED">Retired</option>
+            </select>
           </label>
-          <button
-            type="button"
-            onClick={grantEntitlement}
-            className="mt-4 rounded bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600"
-          >
-            Grant entitlement
-          </button>
-        </section>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">
+              Reason (required for pause/disable)
+            </span>
+            <input
+              className={inputCls}
+              value={platformForm.reason}
+              onChange={(e) => setPlatformForm((f) => ({ ...f, reason: e.target.value }))}
+            />
+          </label>
+        </div>
+        <button type="button" onClick={savePlatform} className={`${btnPrimary} mt-4`}>
+          Update platform status
+        </button>
+      </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="list-heading">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 id="list-heading" className="text-lg font-semibold">
-              Tenant entitlements
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <input
-                aria-label="Search tenants"
-                placeholder="Search name or ID"
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <select
-                aria-label="Filter status"
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">All statuses</option>
-                <option value="ENTITLED_SANDBOX_ONLY">Sandbox</option>
-                <option value="ENTITLED_PRODUCTION">Production</option>
-                <option value="SUSPENDED">Suspended</option>
-                <option value="REVOKED">Revoked</option>
-                <option value="EXPIRED">Expired</option>
-              </select>
-              <button type="button" onClick={load} className="rounded border border-slate-300 px-3 py-2 text-sm">
-                Refresh
-              </button>
-            </div>
-          </div>
+      <section className={sectionCls} aria-labelledby="grant-heading">
+        <h2 id="grant-heading" className="text-base font-semibold text-[var(--admin-text)]">
+          Grant tenant entitlement
+        </h2>
+        <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+          Tenants cannot self-entitle. Production does not imply certification or operational readiness.
+        </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">Tenant ID</span>
+            <input
+              className={inputCls}
+              value={grant.tenantId}
+              onChange={(e) => setGrant((g) => ({ ...g, tenantId: e.target.value }))}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">Reason</span>
+            <input
+              className={inputCls}
+              value={grant.reason}
+              onChange={(e) => setGrant((g) => ({ ...g, reason: e.target.value }))}
+            />
+          </label>
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm text-[var(--admin-text)]">
+          <input
+            type="checkbox"
+            checked={grant.production}
+            onChange={(e) => setGrant((g) => ({ ...g, production: e.target.checked }))}
+          />
+          Grant production entitlement (still requires certification)
+        </label>
+        <button type="button" onClick={grantEntitlement} className={`${btnPrimary} mt-4`}>
+          Grant entitlement
+        </button>
+      </section>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-slate-200 text-slate-500">
-                <tr>
-                  <th className="px-2 py-2 font-medium">Tenant</th>
-                  <th className="px-2 py-2 font-medium">Status</th>
-                  <th className="px-2 py-2 font-medium">Environment</th>
-                  <th className="px-2 py-2 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={4} className="px-2 py-6 text-slate-500">
-                      Loading…
-                    </td>
-                  </tr>
-                )}
-                {!loading && items.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-2 py-6 text-slate-500">
-                      No entitlement records yet. Ordinary tenants default to not entitled.
-                    </td>
-                  </tr>
-                )}
-                {items.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100">
-                    <td className="px-2 py-3">
-                      <div className="font-medium">{row.tenant?.name || row.tenantId}</div>
-                      <div className="text-xs text-slate-500">{row.tenant?.subdomain || row.tenantId}</div>
-                    </td>
-                    <td className="px-2 py-3">
-                      <StatusBadge status={row.status} />
-                    </td>
-                    <td className="px-2 py-3 text-xs">
-                      {row.productionAllowed ? 'Production allowed' : 'Sandbox only'}
-                    </td>
-                    <td className="px-2 py-3">
-                      <Link
-                        className="text-indigo-700 underline"
-                        href={`/insightbooks/mra-eis/tenants/${row.tenantId}`}
-                      >
-                        Open detail
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <section
+        className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-5"
+        aria-labelledby="list-heading"
+      >
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <h2 id="list-heading" className="text-base font-semibold text-[var(--admin-text)]">
+            Tenant entitlements
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <input
+              aria-label="Search tenants"
+              placeholder="Search name or ID"
+              className={`${inputCls} w-auto min-w-[10rem]`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <select
+              aria-label="Filter status"
+              className={`${inputCls} w-auto`}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="ENTITLED_SANDBOX_ONLY">Sandbox</option>
+              <option value="ENTITLED_PRODUCTION">Production</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="REVOKED">Revoked</option>
+              <option value="EXPIRED">Expired</option>
+            </select>
+            <button type="button" onClick={load} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              Refresh
+            </button>
           </div>
-        </section>
-      </div>
-    </div>
+        </div>
+
+        {loading ? (
+          <AdminLoadingState label="Loading entitlements" />
+        ) : error && items.length === 0 ? (
+          <AdminErrorState title="Entitlements unavailable" message={error} onRetry={load} />
+        ) : items.length === 0 ? (
+          <AdminEmptyState
+            title="No entitlement records yet"
+            description="Ordinary tenants default to not entitled."
+          />
+        ) : (
+          <AdminDataTable
+            columns={columns}
+            rows={items}
+            rowKey="id"
+            emptyTitle="No entitlement records yet"
+          />
+        )}
+      </section>
+    </AdminPageContainer>
   );
 }

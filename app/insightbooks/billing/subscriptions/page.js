@@ -1,27 +1,44 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
   Edit, 
   Trash2, 
   Eye, 
-  Search, 
-  Filter, 
+  Search,
   RefreshCw,
-  Calendar,
-  DollarSign,
-  Building,
-  CheckCircle,
   AlertCircle,
-  Clock,
-  User,
-  FileText,
   CreditCard,
   X
 } from 'lucide-react';
 import { PUBLIC_SUBSCRIPTION_PLANS, SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
+import {
+  AdminPageContainer,
+  AdminPageHeader,
+  AdminSummaryCard,
+  AdminFilterBar,
+  AdminField,
+  AdminDataTable,
+  AdminStatusBadge,
+  AdminLoadingState,
+  AdminErrorState,
+  AdminEmptyState,
+} from '@/components/admin';
 
 const SHOW_EIS_SUBSCRIPTION_UI = false;
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
+
+function statusTone(status) {
+  const s = String(status || '');
+  if (s === 'Active' || s === 'Trial') return 'success';
+  if (s === 'Pending') return 'warning';
+  if (s === 'Failed' || s === 'Expired' || s === 'Cancelled') return 'danger';
+  return 'neutral';
+}
 
 export default function AdminSubscriptions() {
   const [activeTab, setActiveTab] = useState('subscriptions');
@@ -398,24 +415,6 @@ export default function AdminSubscriptions() {
     setShowEISDeactivateModal(true);
   };
 
-  const getStatusBadge = (status) => {
-    const statusColors = {
-      'Pending': 'bg-yellow-100 text-yellow-800',
-      'Active': 'bg-green-100 text-green-800',
-      'Trial': 'bg-blue-100 text-blue-800',
-      'Failed': 'bg-red-100 text-red-800',
-      'Cancelled': 'bg-gray-100 text-gray-800',
-      'Expired': 'bg-red-100 text-red-800'
-    };
-    return statusColors[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getTrialBadge = (isTrial) => {
-    return isTrial 
-      ? 'bg-blue-100 text-blue-800' 
-      : 'bg-gray-100 text-gray-800';
-  };
-
   const getPlanDisplayName = (plan) => {
     const planConfig = SUBSCRIPTION_PLANS[plan];
     return planConfig ? planConfig.displayName : plan;
@@ -438,270 +437,231 @@ export default function AdminSubscriptions() {
     subscriptionPage * subscriptionsPerPage
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
+  const columns = useMemo(() => [
+    {
+      key: 'tenant',
+      header: 'Tenant',
+      render: (subscription) => (
+        <div>
+          <div className="font-medium text-[var(--admin-text)]">
+            {subscription.tenant?.name || 'Unknown'}
+          </div>
+          <div className="text-xs text-[var(--admin-text-muted)]">
+            {subscription.tenant?.subdomain || 'No subdomain'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'plan',
+      header: 'Plan',
+      render: (subscription) => getPlanDisplayName(subscription.plan),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (subscription) => (
+        <AdminStatusBadge tone={statusTone(subscription.status)}>
+          {subscription.status}
+        </AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'isTrial',
+      header: 'Trial',
+      render: (subscription) => (
+        <AdminStatusBadge tone={subscription.isTrial ? 'info' : 'neutral'}>
+          {subscription.isTrial ? 'Trial' : 'Paid'}
+        </AdminStatusBadge>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      cellClassName: 'tabular-nums',
+      render: (subscription) =>
+        `${subscription.currency} ${(subscription.amount || 0).toLocaleString()}`,
+    },
+    {
+      key: 'expiresAt',
+      header: 'Expires',
+      render: (subscription) =>
+        subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString() : 'N/A',
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      hideOnMobile: false,
+      render: (subscription) => (
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => openEditModal(subscription)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)] hover:text-[var(--admin-text)]"
+            title="Edit subscription"
+            aria-label="Edit subscription"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openDeleteModal(subscription)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-danger)] hover:bg-[var(--admin-surface-muted)]"
+            title="Delete subscription"
+            aria-label="Delete subscription"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ], []);
 
   return (
-    <div className="space-y-6">
-      {/* Header with Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Subscription Management</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage all system subscriptions, create new ones, and monitor subscription status
-          </p>
-        </div>
-        <div className="mt-4 sm:mt-0 flex gap-2">
-          <button
-            onClick={() => setActiveTab('subscriptions')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'subscriptions'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Subscriptions
-          </button>
-          {SHOW_EIS_SUBSCRIPTION_UI && (
-            <button
-              onClick={() => setActiveTab('eis')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'eis'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              EIS Subscriptions
+    <AdminPageContainer>
+      <AdminPageHeader
+        title="Subscription Management"
+        description="Manage all system subscriptions, create new ones, and monitor subscription status"
+        actions={
+          <>
+            {SHOW_EIS_SUBSCRIPTION_UI ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('subscriptions')}
+                  className={activeTab === 'subscriptions' ? btnPrimary : btnGhost}
+                >
+                  Subscriptions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('eis')}
+                  className={activeTab === 'eis' ? btnPrimary : btnGhost}
+                >
+                  EIS Subscriptions
+                </button>
+              </>
+            ) : null}
+            <button type="button" onClick={fetchSubscriptions} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
             </button>
-          )}
-          {activeTab === 'subscriptions' && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Subscription
-            </button>
-          )}
-        </div>
-      </div>
+            {activeTab === 'subscriptions' ? (
+              <button type="button" onClick={() => setShowAddModal(true)} className={btnPrimary}>
+                <Plus className="h-4 w-4" aria-hidden /> Add Subscription
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
-      {/* Tab Content */}
-      {activeTab === 'subscriptions' && (
+      {isLoading ? <AdminLoadingState label="Loading subscriptions" /> : null}
+      {!isLoading && error ? (
+        <AdminErrorState message={error} onRetry={fetchSubscriptions} />
+      ) : null}
+
+      {!isLoading && activeTab === 'subscriptions' && (
         <>
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AdminSummaryCard label="Total Subscriptions" value={subscriptions.length} icon={CreditCard} />
+            <AdminSummaryCard
+              label="Active Subscriptions"
+              value={subscriptions.filter((s) => s.isActive).length}
+              tone="success"
+            />
+            <AdminSummaryCard
+              label="Trial Users"
+              value={subscriptions.filter((s) => s.isTrial).length}
+            />
+            <AdminSummaryCard
+              label="Pending"
+              value={subscriptions.filter((s) => s.status === 'Pending').length}
+              tone="warning"
+            />
+          </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Total Subscriptions</p>
-            <p className="text-2xl font-bold text-gray-900">{subscriptions.length}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Active Subscriptions</p>
-            <p className="text-2xl font-bold text-green-600">
-              {subscriptions.filter(s => s.isActive).length}
-            </p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Trial Users</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {subscriptions.filter(s => s.isTrial).length}
-            </p>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Pending</p>
-            <p className="text-2xl font-bold text-yellow-600">
-              {subscriptions.filter(s => s.status === 'Pending').length}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by tenant name, email, subdomain, or plan..."
-                value={searchTerm}
+          <AdminFilterBar
+            search={searchTerm}
+            onSearchChange={(v) => {
+              setSearchTerm(v);
+              setSubscriptionPage(1);
+            }}
+            searchPlaceholder="Search by tenant name, email, subdomain, or plan…"
+          >
+            <AdminField label="Status" htmlFor="sub-status-filter">
+              <AdminField.Select
+                id="sub-status-filter"
+                value={statusFilter}
                 onChange={(e) => {
-                  setSearchTerm(e.target.value);
+                  setStatusFilter(e.target.value);
                   setSubscriptionPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="all">All Statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="Active">Active</option>
-              <option value="Failed">Failed</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="Expired">Expired</option>
-            </select>
-            <button
-              onClick={fetchSubscriptions}
-              className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              title="Refresh"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
+              >
+                <option value="all">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Active">Active</option>
+                <option value="Failed">Failed</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Expired">Expired</option>
+              </AdminField.Select>
+            </AdminField>
+          </AdminFilterBar>
 
-      {/* Subscriptions Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Subscriptions</h3>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tenant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Plan
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trial
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Expires
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {pagedSubscriptions.length > 0 ? (
-                pagedSubscriptions.map((subscription) => (
-                  <tr key={subscription.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {subscription.tenant?.name || 'Unknown'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {subscription.tenant?.subdomain || 'No subdomain'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {getPlanDisplayName(subscription.plan)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(subscription.status)}`}>
-                        {subscription.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTrialBadge(subscription.isTrial)}`}>
-                        {subscription.isTrial ? 'Trial' : 'Paid'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {subscription.currency} {(subscription.amount || 0).toLocaleString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString() : 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => openEditModal(subscription)}
-                          className="text-indigo-600 hover:text-indigo-900 p-1"
-                          title="Edit subscription"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteModal(subscription)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Delete subscription"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                    {subscriptions.length === 0 ? 'No subscriptions found' : 'No subscriptions match your filters'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-600">
-          <div>
-            Showing {(subscriptionPage - 1) * subscriptionsPerPage + 1}
-            {' '}to{' '}
-            {Math.min(subscriptionPage * subscriptionsPerPage, filteredSubscriptions.length)} of{' '}
-            {filteredSubscriptions.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSubscriptionPage((prev) => Math.max(1, prev - 1))}
-              className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
-              disabled={subscriptionPage === 1}
-            >
-              Prev
-            </button>
-            <span>
-              Page {subscriptionPage} of {subscriptionTotalPages}
-            </span>
-            <button
-              onClick={() => setSubscriptionPage((prev) => Math.min(subscriptionTotalPages, prev + 1))}
-              className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
-              disabled={subscriptionPage === subscriptionTotalPages}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </div>
+          {!error && pagedSubscriptions.length === 0 ? (
+            <AdminEmptyState
+              title={subscriptions.length === 0 ? 'No subscriptions found' : 'No subscriptions match your filters'}
+              description="Adjust filters or add a new subscription."
+              action={
+                <button type="button" onClick={() => setShowAddModal(true)} className={btnPrimary}>
+                  <Plus className="h-4 w-4" aria-hidden /> Add Subscription
+                </button>
+              }
+            />
+          ) : null}
+
+          {!error && pagedSubscriptions.length > 0 ? (
+            <>
+              <AdminDataTable columns={columns} rows={pagedSubscriptions} rowKey="id" />
+              <div className="mt-4 flex flex-col gap-3 border-t border-[var(--admin-border)] pt-4 text-sm text-[var(--admin-text-muted)] sm:flex-row sm:items-center sm:justify-between">
+                <p>
+                  Showing{' '}
+                  <span className="font-medium text-[var(--admin-text)]">
+                    {filteredSubscriptions.length === 0
+                      ? 0
+                      : (subscriptionPage - 1) * subscriptionsPerPage + 1}
+                  </span>
+                  {' '}to{' '}
+                  <span className="font-medium text-[var(--admin-text)]">
+                    {Math.min(subscriptionPage * subscriptionsPerPage, filteredSubscriptions.length)}
+                  </span>
+                  {' '}of{' '}
+                  <span className="font-medium text-[var(--admin-text)]">{filteredSubscriptions.length}</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubscriptionPage((prev) => Math.max(1, prev - 1))}
+                    className={btnGhost}
+                    disabled={subscriptionPage === 1}
+                  >
+                    Prev
+                  </button>
+                  <span>
+                    Page {subscriptionPage} of {subscriptionTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSubscriptionPage((prev) => Math.min(subscriptionTotalPages, prev + 1))}
+                    className={btnGhost}
+                    disabled={subscriptionPage === subscriptionTotalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </>
+      )}
 
       {/* Add Subscription Modal */}
       {showAddModal && (
@@ -1155,9 +1115,6 @@ export default function AdminSubscriptions() {
         </div>
       )}
 
-      </>
-      )}
-
       {/* EIS Subscriptions Section */}
       {SHOW_EIS_SUBSCRIPTION_UI && activeTab === 'eis' && (
         <div className="space-y-6">
@@ -1442,17 +1399,6 @@ export default function AdminSubscriptions() {
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex">
-            <AlertCircle className="h-5 w-5 text-red-400" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error</h3>
-              <div className="mt-2 text-sm text-red-700">{error}</div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </AdminPageContainer>
   );
 }

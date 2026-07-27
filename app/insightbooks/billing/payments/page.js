@@ -10,7 +10,13 @@ import {
   AdminErrorState,
   AdminEmptyState,
   AdminStatusBadge,
+  AdminFilterBar,
+  AdminField,
+  AdminDataTable,
 } from '@/components/admin';
+
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-95';
 
 function statusTone(status) {
   const s = String(status || '').toUpperCase();
@@ -93,17 +99,61 @@ export default function AdminPlatformPaymentsPage() {
     return { total: payments.length, completed, pending, failed, totalAmount };
   }, [payments]);
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'paymentNumber',
+        header: 'Payment',
+        render: (p) => (
+          <div>
+            <div className="font-medium text-[var(--admin-text)]">{p.paymentNumber}</div>
+            {p.gatewayReference ? (
+              <div className="text-xs text-[var(--admin-text-muted)]">Ref: {p.gatewayReference}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        key: 'tenantId',
+        header: 'Tenant',
+        render: (p) => (
+          <span className="break-all text-[var(--admin-text-muted)]">{p.tenantId}</span>
+        ),
+      },
+      {
+        key: 'amount',
+        header: 'Amount',
+        cellClassName: 'tabular-nums',
+        render: (p) => formatMoney(p.amount, p.currency),
+      },
+      {
+        key: 'method',
+        header: 'Method / Gateway',
+        render: (p) => [p.method, p.gateway].filter(Boolean).join(' / ') || '—',
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (p) => (
+          <AdminStatusBadge tone={statusTone(p.status)}>{p.status}</AdminStatusBadge>
+        ),
+      },
+      {
+        key: 'createdAt',
+        header: 'Date',
+        render: (p) => (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'),
+      },
+    ],
+    []
+  );
+
   return (
     <AdminPageContainer>
       <AdminPageHeader
         title="Platform payments"
         description="SaaS platform payment records with gateway idempotency. Separate from tenant AR payments."
         actions={
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)]"
-          >
+          <button type="button" onClick={load} className={btnPrimary}>
             <RefreshCw className="h-4 w-4" aria-hidden />
             Refresh
           </button>
@@ -122,25 +172,24 @@ export default function AdminPlatformPaymentsPage() {
         />
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by payment #, tenant, reference, or method"
-          className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
-        >
-          <option value="all">All statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="FAILED">Failed</option>
-        </select>
-      </div>
+      <AdminFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by payment #, tenant, reference, or method"
+      >
+        <AdminField label="Status" htmlFor="payment-status-filter">
+          <AdminField.Select
+            id="payment-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="FAILED">Failed</option>
+          </AdminField.Select>
+        </AdminField>
+      </AdminFilterBar>
 
       {loading ? <AdminLoadingState label="Loading platform payments" /> : null}
       {!loading && error ? (
@@ -153,63 +202,8 @@ export default function AdminPlatformPaymentsPage() {
           description="Record platform payments via the billing API. Tenant AR payments are not shown here."
         />
       ) : null}
-
       {!loading && !error && filtered.length > 0 ? (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)]">
-          <table className="min-w-full divide-y divide-[var(--border-default)] text-sm">
-            <thead className="bg-[var(--surface-muted)]">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Payment
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Tenant
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Amount
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Method / Gateway
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-default)]">
-              {filtered.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-[var(--text-primary)]">
-                      {p.paymentNumber}
-                    </div>
-                    {p.gatewayReference ? (
-                      <div className="text-xs text-[var(--text-muted)]">
-                        Ref: {p.gatewayReference}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">{p.tenantId}</td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {formatMoney(p.amount, p.currency)}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">
-                    {[p.method, p.gateway].filter(Boolean).join(' / ') || '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <AdminStatusBadge tone={statusTone(p.status)}>{p.status}</AdminStatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">
-                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminDataTable columns={columns} rows={filtered} rowKey="id" />
       ) : null}
     </AdminPageContainer>
   );

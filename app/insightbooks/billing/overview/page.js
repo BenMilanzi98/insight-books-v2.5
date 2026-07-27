@@ -11,6 +11,9 @@ import {
   AdminErrorState,
 } from '@/components/admin';
 
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]';
+
 function money(amount, currency = 'MWK') {
   const n = Number(amount);
   if (!Number.isFinite(n)) return `${currency} —`;
@@ -53,11 +56,7 @@ export default function AdminBillingOverviewPage() {
         title="Billing Overview"
         description="InsightBooks platform SaaS billing — not tenant customer AR revenue."
         actions={
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-sm"
-          >
+          <button type="button" onClick={load} className={btnGhost}>
             <RefreshCw className="h-4 w-4" aria-hidden />
             Refresh
           </button>
@@ -71,7 +70,7 @@ export default function AdminBillingOverviewPage() {
 
       {!loading && !error && s ? (
         <>
-          <p className="mb-4 text-xs text-[var(--text-muted)]">
+          <p className="mb-4 text-xs text-[var(--admin-text-muted)]">
             Source: {data.source} · Checked {new Date(data.checkedAt).toLocaleString()}
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import {
   AdminPageContainer,
@@ -9,7 +9,15 @@ import {
   AdminErrorState,
   AdminEmptyState,
   AdminStatusBadge,
+  AdminDataTable,
+  AdminModal,
+  AdminField,
 } from '@/components/admin';
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function EmailTemplatesPage() {
   const [templates, setTemplates] = useState([]);
@@ -66,6 +74,43 @@ export default function EmailTemplatesPage() {
     }
   };
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'code',
+        header: 'Code',
+        render: (t) => <span className="font-mono text-xs text-[var(--admin-text)]">{t.code}</span>,
+      },
+      {
+        key: 'name',
+        header: 'Name',
+        render: (t) => <span className="text-[var(--admin-text)]">{t.name}</span>,
+      },
+      {
+        key: 'version',
+        header: 'Version',
+        render: (t) => `v${t.version}`,
+      },
+      {
+        key: 'subject',
+        header: 'Subject',
+        render: (t) => (
+          <span className="max-w-xs truncate text-[var(--admin-text-muted)]">{t.subject}</span>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (t) => (
+          <AdminStatusBadge tone={t.status === 'ACTIVE' ? 'success' : 'neutral'}>
+            {t.status}
+          </AdminStatusBadge>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <AdminPageContainer>
       <AdminPageHeader
@@ -73,97 +118,80 @@ export default function EmailTemplatesPage() {
         description="Versioned templates. SMTP secrets are never stored here — configure transport under Global Settings."
         actions={
           <>
-            <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm">
-              <RefreshCw className="h-4 w-4" /> Refresh
+            <button type="button" onClick={load} className={btnGhost}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
             </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-2 rounded bg-[var(--action-primary)] px-3 py-2 text-sm text-white"
-            >
-              <Plus className="h-4 w-4" /> New version
+            <button type="button" onClick={() => setShowForm(true)} className={btnPrimary}>
+              <Plus className="h-4 w-4" aria-hidden /> New version
             </button>
           </>
         }
       />
 
-      {loading ? <AdminLoadingState /> : null}
-      {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
+      {loading ? <AdminLoadingState label="Loading templates" /> : null}
+      {!loading && error && templates.length === 0 ? (
+        <AdminErrorState message={error} onRetry={load} />
+      ) : null}
       {!loading && !error && templates.length === 0 ? (
         <AdminEmptyState title="No templates" description="Create a versioned template to get started." />
       ) : null}
-
-      {!loading && !error && templates.length > 0 ? (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-muted)]">
-              <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Version</th>
-                <th className="px-4 py-3">Subject</th>
-                <th className="px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map((t) => (
-                <tr key={t.id} className="border-t">
-                  <td className="px-4 py-3 font-mono text-xs">{t.code}</td>
-                  <td className="px-4 py-3">{t.name}</td>
-                  <td className="px-4 py-3">v{t.version}</td>
-                  <td className="max-w-xs truncate px-4 py-3">{t.subject}</td>
-                  <td className="px-4 py-3">
-                    <AdminStatusBadge tone={t.status === 'ACTIVE' ? 'success' : 'neutral'}>
-                      {t.status}
-                    </AdminStatusBadge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {!loading && templates.length > 0 ? (
+        <AdminDataTable columns={columns} rows={templates} rowKey="id" />
       ) : null}
 
-      {showForm ? (
-        <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-lg">
-            <h2 className="text-lg font-semibold">New template version</h2>
-            {['code', 'name', 'subject'].map((key) => (
-              <label key={key} className="mt-3 block text-sm">
-                <span className="mb-1 block font-medium capitalize">{key}</span>
-                <input
-                  required
-                  className="w-full rounded border px-3 py-2"
-                  value={form[key]}
-                  onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
-                />
-              </label>
-            ))}
-            <label className="mt-3 block text-sm">
-              <span className="mb-1 block font-medium">HTML body</span>
-              <textarea
-                required
-                rows={6}
-                className="w-full rounded border px-3 py-2 font-mono text-xs"
-                value={form.bodyHtml}
-                onChange={(e) => setForm((p) => ({ ...p, bodyHtml: e.target.value }))}
-              />
-            </label>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="rounded border px-3 py-2 text-sm">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded bg-[var(--action-primary)] px-3 py-2 text-sm text-white disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : 'Save version'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <AdminModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="New template version"
+        size="lg"
+        footer={
+          <>
+            <button type="button" onClick={() => setShowForm(false)} className={btnGhost}>
+              Cancel
+            </button>
+            <button type="submit" form="email-template-form" disabled={saving} className={btnPrimary}>
+              {saving ? 'Saving…' : 'Save version'}
+            </button>
+          </>
+        }
+      >
+        <form id="email-template-form" onSubmit={save} className="space-y-3">
+          <AdminField label="Code" htmlFor="tpl-code" required>
+            <AdminField.Input
+              id="tpl-code"
+              required
+              value={form.code}
+              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Name" htmlFor="tpl-name" required>
+            <AdminField.Input
+              id="tpl-name"
+              required
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="Subject" htmlFor="tpl-subject" required>
+            <AdminField.Input
+              id="tpl-subject"
+              required
+              value={form.subject}
+              onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
+            />
+          </AdminField>
+          <AdminField label="HTML body" htmlFor="tpl-body" required>
+            <AdminField.Textarea
+              id="tpl-body"
+              required
+              rows={6}
+              className="font-mono text-xs"
+              value={form.bodyHtml}
+              onChange={(e) => setForm((p) => ({ ...p, bodyHtml: e.target.value }))}
+            />
+          </AdminField>
+        </form>
+      </AdminModal>
     </AdminPageContainer>
   );
 }

@@ -1,6 +1,7 @@
-"use client";
+'use client';
+
 import { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -19,9 +20,7 @@ export default function AdminLogin() {
     try {
       const response = await fetch('/api/admin/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
@@ -41,7 +40,7 @@ export default function AdminLogin() {
       }
 
       if (data.success) {
-        setSuccess('Login successful! Redirecting...');
+        setSuccess('Login successful. Redirecting…');
         setTimeout(() => {
           window.location.href = '/insightbooks/dashboard';
         }, 500);
@@ -51,177 +50,143 @@ export default function AdminLogin() {
             ? ` (${data.details.trim()})`
             : '';
         const base =
-          data.error ||
-          (response.status === 503
+          data.error
+          || (response.status === 503
             ? 'Service unavailable. The server may be missing JWT configuration.'
             : 'Login failed');
         setError(base + hint);
       }
-    } catch (error) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
-      
-      {/* Branding Section */}
-      <div className="hidden md:flex md:w-1/2 bg-indigo-900 text-white p-8 flex-col justify-between">
-        <div>
-          <div className="flex items-center mb-8">
-            <div className="h-12 w-12 rounded-lg bg-white text-indigo-900 flex items-center justify-center font-bold text-2xl mr-4">
-              IB
-            </div>
-            <h1 className="text-3xl font-bold">InsightBooks</h1>
-          </div>
-          <div className="max-w-md mt-8">
-            <h2 className="text-4xl font-bold mb-6">Admin Portal</h2>
-            <p className="text-lg mb-6 text-indigo-100">
-              Complete system administration and oversight for the InsightBooks platform.
-            </p>
-            <div className="space-y-4">
-              <div className="flex items-center">
-                <div className="h-6 w-6 rounded-full bg-indigo-700 flex items-center justify-center mr-3 text-sm">✓</div>
-                <span>System-wide monitoring and analytics</span>
-              </div>
-              <div className="flex items-center">
-                <div className="h-6 w-6 rounded-full bg-indigo-700 flex items-center justify-center mr-3 text-sm">✓</div>
-                <span>Tenant and user management</span>
-              </div>
-              <div className="flex items-center">
-                <div className="h-6 w-6 rounded-full bg-indigo-700 flex items-center justify-center mr-3 text-sm">✓</div>
-                <span>Financial oversight and reporting</span>
-              </div>
-              <div className="flex items-center">
-                <div className="h-6 w-6 rounded-full bg-indigo-700 flex items-center justify-center mr-3 text-sm">✓</div>
-                <span>Security and audit logging</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="text-sm opacity-80">
-          © InsightBooks - Enterprise Administration
-        </div>
-      </div>
-
-      {/* Login Form Section */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8 md:hidden">
-            <div className="flex items-center justify-center mb-4">
-              <div className="h-10 w-10 rounded-lg bg-indigo-900 text-white flex items-center justify-center font-bold text-xl mr-3">
+    <div className="min-h-screen bg-[var(--admin-bg,#f8fafc)] text-[var(--admin-text,#0f172a)]">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col lg:flex-row">
+        <aside className="relative flex flex-1 flex-col justify-between overflow-hidden bg-slate-900 px-8 py-10 text-slate-50 lg:max-w-md lg:px-10">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-40"
+            style={{
+              background:
+                'radial-gradient(ellipse at 20% 0%, rgba(148,163,184,0.35), transparent 55%), radial-gradient(ellipse at 80% 100%, rgba(71,85,105,0.45), transparent 50%)',
+            }}
+            aria-hidden
+          />
+          <div className="relative">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[var(--admin-radius,0.5rem)] bg-white text-lg font-bold text-slate-900">
                 IB
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">InsightBooks</h1>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-700">Admin Portal</h2>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-xl p-8 border border-gray-200">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Login</h2>
-              <p className="text-gray-600">Access the system administration panel</p>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center">
-                <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                <span className="text-red-700 text-sm">{error}</span>
-              </div>
-            )}
-
-            {success && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-center">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                <span className="text-green-700 text-sm">{success}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Admin Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="admin@insightbooks.com"
-                    required
-                  />
+                <p className="text-xl font-semibold tracking-tight">InsightBooks</p>
+                <p className="text-sm text-slate-300">Admin portal</p>
+              </div>
+            </div>
+            <p className="mt-10 max-w-sm text-sm leading-relaxed text-slate-300">
+              Calm operations console for tenants, billing, affiliates, and platform health.
+            </p>
+          </div>
+          <p className="relative text-xs text-slate-400">
+            © InsightBooks — system administration
+          </p>
+        </aside>
+
+        <main className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8">
+          <div className="w-full max-w-md">
+            <div className="mb-8 lg:hidden">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[var(--admin-radius,0.5rem)] bg-slate-900 text-sm font-bold text-white">
+                  IB
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">InsightBooks</p>
+                  <p className="text-sm text-[var(--admin-text-muted,#64748b)]">Admin portal</p>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Enter your password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={togglePasswordVisibility}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    )}
-                  </button>
+            <div className="rounded-[var(--admin-radius,0.5rem)] border border-[var(--admin-border,#e2e8f0)] bg-[var(--admin-surface,#fff)] p-6 shadow-sm sm:p-8">
+              <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
+              <p className="mt-1 text-sm text-[var(--admin-text-muted,#64748b)]">
+                Access the system administration panel
+              </p>
+
+              {error ? (
+                <div className="mt-4 flex items-start gap-2 rounded-[var(--admin-radius,0.5rem)] border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800" role="alert">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <span>{error}</span>
                 </div>
-              </div>
+              ) : null}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-900 hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Signing in...
+              {success ? (
+                <div className="mt-4 flex items-start gap-2 rounded-[var(--admin-radius,0.5rem)] border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900" role="status">
+                  <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <span>{success}</span>
+                </div>
+              ) : null}
+
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                <div>
+                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
+                    Admin email
+                  </label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--admin-text-muted,#64748b)]" aria-hidden />
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="h-11 w-full rounded-[var(--admin-radius,0.5rem)] border border-[var(--admin-border,#e2e8f0)] bg-white py-2 pl-9 pr-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring,#334155)]"
+                      placeholder="admin@example.com"
+                      autoComplete="username"
+                      required
+                    />
                   </div>
-                ) : (
-                  'Sign In to Admin Portal'
-                )}
-              </button>
-            </form>
+                </div>
 
-            <div className="mt-6 text-center">
-              <p className="text-xs text-gray-500">
-                Default credentials: admin@insightbooks.com / admin123
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                ⚠️ Change password after first login
-              </p>
+                <div>
+                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--admin-text-muted,#64748b)]" aria-hidden />
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-11 w-full rounded-[var(--admin-radius,0.5rem)] border border-[var(--admin-border,#e2e8f0)] bg-white py-2 pl-9 pr-10 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring,#334155)]"
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--admin-text-muted,#64748b)] hover:text-[var(--admin-text,#0f172a)]"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-[var(--admin-radius,0.5rem)] bg-[var(--action-primary,#0f172a)] px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {isLoading ? 'Signing in…' : 'Sign in'}
+                </button>
+              </form>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
-} 
+}

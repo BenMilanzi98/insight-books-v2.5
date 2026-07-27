@@ -10,7 +10,13 @@ import {
   AdminErrorState,
   AdminEmptyState,
   AdminStatusBadge,
+  AdminFilterBar,
+  AdminField,
+  AdminDataTable,
 } from '@/components/admin';
+
+const btnPrimary =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-95';
 
 function statusTone(status) {
   const s = String(status || '').toUpperCase();
@@ -88,17 +94,57 @@ export default function AdminPlatformInvoicesPage() {
     };
   }, [invoices]);
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'invoiceNumber',
+        header: 'Invoice',
+        render: (inv) => (
+          <span className="font-medium text-[var(--admin-text)]">{inv.invoiceNumber}</span>
+        ),
+      },
+      {
+        key: 'tenantId',
+        header: 'Tenant',
+        render: (inv) => (
+          <span className="break-all text-[var(--admin-text-muted)]">{inv.tenantId}</span>
+        ),
+      },
+      {
+        key: 'total',
+        header: 'Total',
+        cellClassName: 'tabular-nums',
+        render: (inv) => formatMoney(inv.total, inv.currency),
+      },
+      {
+        key: 'outstanding',
+        header: 'Outstanding',
+        cellClassName: 'tabular-nums',
+        render: (inv) => formatMoney(inv.outstanding, inv.currency),
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (inv) => (
+          <AdminStatusBadge tone={statusTone(inv.status)}>{inv.status}</AdminStatusBadge>
+        ),
+      },
+      {
+        key: 'createdAt',
+        header: 'Created',
+        render: (inv) => (inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '—'),
+      },
+    ],
+    []
+  );
+
   return (
     <AdminPageContainer>
       <AdminPageHeader
         title="Platform invoices"
         description="SaaS platform invoices for tenant subscriptions. Separate from tenant AR invoices."
         actions={
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)]"
-          >
+          <button type="button" onClick={load} className={btnPrimary}>
             <RefreshCw className="h-4 w-4" aria-hidden />
             Refresh
           </button>
@@ -112,27 +158,26 @@ export default function AdminPlatformInvoicesPage() {
         <AdminSummaryCard label="Overdue" value={stats.overdue} tone="danger" />
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by invoice #, tenant id, or status"
-          className="w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm"
-        >
-          <option value="all">All statuses</option>
-          <option value="DRAFT">Draft</option>
-          <option value="ISSUED">Issued</option>
-          <option value="PARTIALLY_PAID">Partially paid</option>
-          <option value="PAID">Paid</option>
-          <option value="OVERDUE">Overdue</option>
-        </select>
-      </div>
+      <AdminFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by invoice #, tenant id, or status"
+      >
+        <AdminField label="Status" htmlFor="invoice-status-filter">
+          <AdminField.Select
+            id="invoice-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="ISSUED">Issued</option>
+            <option value="PARTIALLY_PAID">Partially paid</option>
+            <option value="PAID">Paid</option>
+            <option value="OVERDUE">Overdue</option>
+          </AdminField.Select>
+        </AdminField>
+      </AdminFilterBar>
 
       {loading ? <AdminLoadingState label="Loading platform invoices" /> : null}
       {!loading && error ? (
@@ -145,58 +190,8 @@ export default function AdminPlatformInvoicesPage() {
           description="Create platform invoices via the billing API. Tenant AR invoices are not shown here."
         />
       ) : null}
-
       {!loading && !error && filtered.length > 0 ? (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)]">
-          <table className="min-w-full divide-y divide-[var(--border-default)] text-sm">
-            <thead className="bg-[var(--surface-muted)]">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Invoice
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Tenant
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Total
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Outstanding
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">
-                  Created
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-default)]">
-              {filtered.map((inv) => (
-                <tr key={inv.id}>
-                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
-                    {inv.invoiceNumber}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">{inv.tenantId}</td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {formatMoney(inv.total, inv.currency)}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {formatMoney(inv.outstanding, inv.currency)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <AdminStatusBadge tone={statusTone(inv.status)}>
-                      {inv.status}
-                    </AdminStatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">
-                    {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminDataTable columns={columns} rows={filtered} rowKey="id" />
       ) : null}
     </AdminPageContainer>
   );
