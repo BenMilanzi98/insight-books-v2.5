@@ -102,7 +102,7 @@ async function main() {
           tenantId: tenant.id,
           currencyCode: 'MWK',
           taxEnabled: true,
-          defaultTaxRate: 0,
+          defaultTaxRate: 17.5,
           invoicePrefix: 'INV',
           enabledModules: ['invoicing', 'clients', 'expenses', 'inventory', 'hr'],
         },

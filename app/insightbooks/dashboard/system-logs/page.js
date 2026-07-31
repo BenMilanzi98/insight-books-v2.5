@@ -1,14 +1,16 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AdminPageContainer, AdminPageHeader } from '@/components/admin';
 
 export default function SystemLogsPage() {
+  const { t } = useI18n();
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="System logs"
+        title={t('admin-pages.stubs.systemLogs.title')}
         description="Standalone log views for this route are not maintained separately. Audit and operational history live under Audit and the main dashboard."
         actions={
           <div className="flex flex-wrap gap-2">

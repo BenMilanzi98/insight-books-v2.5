@@ -1,0 +1,299 @@
+InsightBooks V2
+Financial Calendar & Accounting Period Framework
+Developer Implementation Guide
+1. Purpose
+The purpose of the Financial Calendar and Accounting Period framework is to provide structure, accuracy, and control over financial reporting without introducing unnecessary complexity for business users.
+Accounting periods should not be treated as a feature that users manually manage every day. Instead, they should operate as a hidden accounting control system that organizes financial transactions, reporting, closing procedures, forecasting, and compliance.
+The design principle:
+Hide accounting complexity from users while maintaining professional financial accuracy behind the scenes.
+2. Core Concept
+Every financial transaction in InsightBooks must belong to a defined accounting period.
+Examples:
+Sales invoice
+Expense
+Purchase
+Payment
+Bank transaction
+Payroll
+Journal entry
+Inventory movement
+Each transaction automatically receives:
+Financial Year
+Accounting Period
+Transaction Date
+Posting Date
+The user should not manually select periods.
+The system determines the period based on the transaction date.
+3. Financial Year Setup
+When a company is created, InsightBooks should require the user to define the financial year.
+Example:
+Financial Year:
+January - December
+or
+July - June
+Financial Year Configuration
+The system stores:
+Financial Year Start Date
+Financial Year End Date
+Number of Periods
+Current Active Year
+Status
+Example:
+Financial Year 2026Start:01 January 2026End:31 December 2026Periods:12 Months
+4. Automatic Period Creation
+Once the financial year is created, InsightBooks automatically generates monthly accounting periods.
+Example:
+Period
+Start Date
+End Date
+Status
+January 2026
+01 Jan
+31 Jan
+Open
+February 2026
+01 Feb
+28 Feb
+Open
+March 2026
+01 Mar
+31 Mar
+Open
+April 2026
+01 Apr
+30 Apr
+Open
+The system should create periods automatically without requiring user input.
+5. Period Status Management
+InsightBooks should have only three simple statuses.
+Open
+Normal business operation.
+Users can:
+Create transactions
+Edit transactions
+Post payments
+Record expenses
+Process sales
+Closed
+The period has been reviewed.
+Restrictions:
+Normal users cannot edit transactions.
+New transactions cannot be posted into the closed period.
+Corrections require authorized adjustments.
+Reopened
+Used temporarily when corrections are required.
+Only authorized users can reopen periods.
+Every reopening action must be recorded in the audit trail.
+6. User Experience Design
+Accounting periods should not appear as complicated accounting terms.
+Do not expose:
+“Period 001”
+“Posting Period”
+“Fiscal Posting Control”
+Instead show:
+Financial Calendar
+Example:
+2026 Financial CalendarJanuary PerformanceRevenue:MK50,000,000Expenses:MK35,000,000Profit:MK15,000,000Status:Closed[View Reports][Compare]
+The user should feel like they are reviewing a business month, not managing accounting periods.
+7. Period Dashboard
+Each period should have a summary dashboard.
+Example:
+January 2026
+Financial Overview
+Revenue
+MK50M
+Expenses
+MK35M
+Profit
+MK15M
+Cash Movement
++MK10M
+Business Activity
+Sales Transactions: 250
+Purchase Transactions: 80
+Expense Transactions: 120
+Bank Transactions: 300
+Financial Status
+Bank Reconciliation:
+Completed
+Inventory Updated:
+Completed
+Reports Generated:
+Completed
+8. Reports Within Accounting Periods
+Every accounting period should automatically generate financial reports.
+8.1 Profit & Loss Report
+Purpose:
+Measure profitability during the period.
+Structure:
+Revenue
+Sales
+Services
+Other Income
+Less:
+Cost of Sales
+Gross Profit
+Less:
+Operating Expenses
+Net Profit
+8.2 Cash Flow Report
+Purpose:
+Understand cash movement.
+Structure:
+Opening Cash Balance
+Cash Received
+Cash Paid
+=
+Closing Cash Balance
+8.3 Balance Sheet Snapshot
+Purpose:
+Show financial position at the end of the period.
+Assets:
+Cash
+Inventory
+Receivables
+Fixed Assets
+Liabilities:
+Loans
+Suppliers
+Taxes
+Equity:
+Capital
+Retained Earnings
+Current Profit
+8.4 Trial Balance
+Purpose:
+Confirm accounting accuracy.
+The system must ensure:
+Total Debits = Total Credits
+8.5 General Ledger Report
+Shows every account movement during the period.
+Example:
+Cash Account
+Opening Balance:
+MK10M
+Transactions:
+Customer Payment: +MK5M
+Rent: -MK2M
+Salary: -MK3M
+Closing Balance:
+MK10M
+8.6 Receivables Report
+Shows money customers owe.
+Example:
+Customer
+Amount
+Customer A
+MK5M
+Customer B
+MK2M
+8.7 Payables Report
+Shows money owed to suppliers.
+8.8 Inventory Report
+Shows:
+Opening Stock
+Purchases
+Sales
+=
+Closing Stock
+9. Month-End Closing Process
+At the end of each month, the system should provide a closing checklist.
+Before closing, InsightBooks checks:
+Accounting Checks
+✓ All journal entries balanced
+✓ No unposted transactions
+✓ Bank accounts reconciled
+✓ Inventory updated
+✓ Expenses recorded
+✓ Payroll completed
+✓ Tax records updated
+✓ Trial balance balanced
+If all checks pass:
+User can select:
+“Close Period”
+10. Period Comparison Reports
+The Financial Calendar should allow comparisons.
+Month Comparison
+Example:
+January vs February
+Compare:
+Revenue
+Expenses
+Profit
+Cash Flow
+Customers
+Inventory
+Quarter Comparison
+Example:
+Q1 vs Q2
+Year Comparison
+Example:
+2025 vs 2026
+11. Accounting Periods and Forecasting
+Accounting periods provide the historical foundation for projections.
+The projection engine uses closed periods as trusted historical data.
+Example:
+Historical:
+January 2025
+Revenue: MK40M
+January 2026
+Revenue: MK55M
+System calculates:
+Growth trend:
+37.5%
+Projection:
+January 2027
+Estimated Revenue:
+MK75M
+12. Year-End Closing
+At the end of the financial year, InsightBooks performs year-end processing.
+The system:
+Generates final financial statements.
+Closes income accounts.
+Closes expense accounts.
+Calculates annual profit.
+Transfers profit to retained earnings.
+Creates the next financial year.
+13. Permissions
+Accounting period controls should follow user roles.
+Business Owner
+Can:
+View reports
+View performance
+Cannot:
+Close periods
+Reopen periods
+Finance Manager
+Can:
+Review periods
+Approve closing
+Accountant
+Can:
+Prepare reports
+Manage adjustments
+Close periods
+Administrator
+Can:
+Configure financial years
+Reopen locked periods
+14. Database Structure
+Recommended entities:
+FinancialYearAccountingPeriodPeriodStatusTransactionJournalEntryJournalEntryLineClosingChecklistPeriodAdjustmentAuditLog
+15. Development Rules
+The development team must follow these principles:
+Users should not manually manage accounting periods.
+Every transaction must automatically belong to a period.
+Financial reports must be generated from period data.
+Closed periods must protect historical financial information.
+Corrections must happen through adjustments, not editing history.
+Every period action must have an audit trail.
+The system must remain simple for business owners while maintaining professional accounting standards.
+Final Product Vision
+The Financial Calendar should make InsightBooks feel simple:
+A business owner sees:
+“January Performance”
+An accountant sees:
+“January Accounting Period”
+A bank receives:
+“Financial Statements for the year ended December 2026”
+The complexity remains inside the accounting engine, while users experience a simple and intelligent financial management platform.

@@ -92,30 +92,31 @@ export default function AffiliateDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background-secondary)]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            Loading your dashboard...
-          </p>
+          <div
+            className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[var(--action-primary)]"
+            role="status"
+            aria-label="Loading"
+          />
+          <p className="text-[var(--text-secondary)]">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <Users className="h-6 w-6 text-indigo-600" />
+    <div className="min-h-screen bg-[var(--background-secondary)]">
+      <div className="bg-[var(--surface-primary)] shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 py-6">
+            <div className="flex min-w-0 items-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--action-primary)]/10">
+                <Users className="h-6 w-6 text-[var(--action-primary)]" aria-hidden="true" />
               </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold text-gray-900">Affiliate Dashboard</h1>
-                <p className="text-sm text-gray-500">Welcome back, {affiliate?.name}</p>
+              <div className="ml-3 min-w-0">
+                <h1 className="truncate text-2xl font-bold text-[var(--text-primary)]">Affiliate Dashboard</h1>
+                <p className="truncate text-sm text-[var(--text-muted)]">Welcome back, {affiliate?.name}</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">

@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react';
 import { X, Calendar, DollarSign, FileText, Building, CreditCard, Hash, StickyNote, History, Loader } from 'lucide-react';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
+import AddTransferFundsPanel from '@/components/payments/AddTransferFundsPanel';
+import {
+  checkPaymentAccountFunds,
+  formatPaymentAccountOptionLabel,
+  getCashOutflowRequired,
+} from '@/lib/paymentAccountFunds';
 
 const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = false }) => {
   const [formData, setFormData] = useState({
@@ -22,9 +28,15 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
 
   const [errors, setErrors] = useState({});
   const [availableCategories, setAvailableCategories] = useState([]);
+  const [fundsCheck, setFundsCheck] = useState(null);
+  const [showFundPanel, setShowFundPanel] = useState(false);
 
   // Load payment accounts dynamically
-  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+  const {
+    paymentAccounts,
+    isLoading: isLoadingPaymentAccounts,
+    refresh: refreshPaymentAccounts,
+  } = usePaymentAccounts();
 
   // Load categories from API
   const loadCategories = async () => {
@@ -123,6 +135,29 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
       if (!formData.paymentReference.trim()) {
         newErrors.paymentReference = 'Payment reference is required for partial payments';
       }
+    }
+
+    if (formData.paymentStatus !== 'Pending' && formData.paymentMethod) {
+      const required = getCashOutflowRequired({
+        paymentStatus: formData.paymentStatus,
+        amount: formData.amount,
+        paidAmount: formData.paidAmount,
+      });
+      const check = checkPaymentAccountFunds({
+        paymentAccounts,
+        paymentAccountId: formData.paymentMethod,
+        requiredAmount: required,
+      });
+      if (!check.ok) {
+        newErrors.paymentMethod = `Insufficient funds. Available MWK ${Number(check.available).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, required MWK ${Number(check.required).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
+        setFundsCheck(check);
+        setShowFundPanel(true);
+      } else {
+        setFundsCheck(null);
+      }
+    } else {
+      setFundsCheck(null);
+      setShowFundPanel(false);
     }
 
     setErrors(newErrors);
@@ -320,12 +355,31 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                   <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
                   {paymentAccounts.map(account => (
                     <option key={account.id} value={account.id}>
-                      {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                      {formatPaymentAccountOptionLabel(account)}
                     </option>
                   ))}
                 </select>
                 {errors.paymentMethod && (
                   <p className="text-red-500 text-sm mt-1">{errors.paymentMethod}</p>
+                )}
+                {showFundPanel && fundsCheck && !fundsCheck.ok && (
+                  <AddTransferFundsPanel
+                    destinationAccountId={formData.paymentMethod}
+                    destinationAccountName={
+                      paymentAccounts.find((a) => a.id === formData.paymentMethod)?.name || ''
+                    }
+                    shortfall={fundsCheck.shortfall}
+                    requiredAmount={fundsCheck.required}
+                    availableAmount={fundsCheck.available}
+                    paymentAccounts={paymentAccounts}
+                    onCancel={() => setShowFundPanel(false)}
+                    onSuccess={async () => {
+                      setShowFundPanel(false);
+                      setFundsCheck(null);
+                      setErrors((prev) => ({ ...prev, paymentMethod: null }));
+                      await refreshPaymentAccounts();
+                    }}
+                  />
                 )}
               </div>
             )}

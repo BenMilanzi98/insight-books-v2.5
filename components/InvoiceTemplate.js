@@ -285,7 +285,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                     <span>MK 250.00</span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span>Tax (16.5%):</span>
+                    <span>Tax (17.5%):</span>
                     <span>MK 41.25</span>
                   </div>
                   <div 

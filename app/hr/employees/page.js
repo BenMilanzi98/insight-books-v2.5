@@ -32,7 +32,10 @@ import {
   Percent,
 } from "lucide-react";
 import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
+import EmploymentContractsPanel from "@/components/hr/EmploymentContractsPanel";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
+import PageHeader from "@/components/shell/PageHeader";
+
 
 function formatNpsPercentLabel(v) {
   if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
@@ -2593,11 +2596,10 @@ const EmployeeManagement = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Employee Management</h1>
-          <p className="text-gray-600">Manage your employees and their information</p>
-        </div>
+      <PageHeader
+        title="Employee Management"
+        description="Manage your employees and their information"
+        actions={
         <div className="flex flex-wrap gap-2">
           <label className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md flex items-center gap-2 hover:bg-gray-50 cursor-pointer">
             <Download size={16} />
@@ -2672,9 +2674,11 @@ const EmployeeManagement = () => {
             <span>Add Employee</span>
           </button>
         </div>
-      </div>
+        }
+      />
 
       {/* Statistics Cards */}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow flex items-center">
           <div className="bg-blue-100 p-3 rounded-full mr-4">
@@ -3370,6 +3374,11 @@ const EmployeeManagement = () => {
                     </div>
                   </div>
                 </div>
+
+                <EmploymentContractsPanel
+                  employeeId={viewingEmployee.id}
+                  formatCurrency={formatCurrency}
+                />
 
                 {/* Emergency Contact */}
                 {viewingEmployee.emergencyContact && typeof viewingEmployee.emergencyContact === 'object' && (

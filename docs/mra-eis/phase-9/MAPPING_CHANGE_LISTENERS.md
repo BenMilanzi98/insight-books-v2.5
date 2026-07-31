@@ -1,0 +1,6 @@
+# Mapping Change Listeners
+
+Phase 8 Outbox events → `revalidateMappingsForConfigurationChange`. Local master changes should mark STALE (service hooks).
+
+---
+*Phase 9 implementation. Suggestions never auto-activate. No Product/Service sync. No Sale submission. No fiscal numbers. No Journal/Stock mutations. Zero-rated ≠ exempt. VAT5 separate. Split payments fail-closed. Virtual Warehouse blocked pending MRA clarification.*

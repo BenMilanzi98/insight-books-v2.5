@@ -43,6 +43,8 @@ import ClientModal from "@/components/ClientModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { getPaymentMethodName, paymentMethods } from "@/lib/paymentMethods";
+import { RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM } from "@/lib/receiptPaperWidthPresets";
+import { normalizeReceiptPaperWidthMm } from "@/lib/receiptPaperWidth";
 
 const SalesPage = () => {
   const router = useRouter();
@@ -86,9 +88,9 @@ const SalesPage = () => {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [discount, setDiscount] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [taxRate, setTaxRate] = useState(16.5);
+  const [taxRate, setTaxRate] = useState(17.5);
   const [isEditingTax, setIsEditingTax] = useState(false);
-  const [tempTaxRate, setTempTaxRate] = useState(16.5);
+  const [tempTaxRate, setTempTaxRate] = useState(17.5);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentAccountsForEdit, setPaymentAccountsForEdit] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,6 +102,7 @@ const SalesPage = () => {
   // Receipt modal
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState(null);
+  const [receiptPaperWidthMm, setReceiptPaperWidthMm] = useState(80);
   
   // References
   const productSearchRef = useRef(null);
@@ -145,7 +148,7 @@ const SalesPage = () => {
     
     // Set default tax rate from tenant settings
     // This would typically come from your API, but we'll hard-code it for now
-    setTaxRate(16.5);
+    setTaxRate(17.5);
   }, []);
   
   // Filter products based on search query
@@ -217,6 +220,28 @@ const SalesPage = () => {
       return () => clearTimeout(timer);
     }
   }, [saleSuccess, saleError]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/tenant/settings');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setReceiptPaperWidthMm(
+            normalizeReceiptPaperWidthMm(data.receiptPaperWidthMm)
+          );
+        }
+      } catch {
+        // Keep default 80 mm
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 // Load sale details
 const loadSale = async (productList) => {
     try {
@@ -284,7 +309,7 @@ const loadSale = async (productList) => {
     }
     setPaymentMethod(resolvedPm);
     setDiscount(saleData.discount || 0);
-    setTaxRate(saleData.taxRate || 16.5);
+    setTaxRate(saleData.taxRate || 17.5);
     setSelectedCustomer(saleData.clientId || "");
     setActiveTab(saleData.clientId ? "registered" : "walkIn");
     setSaleNotes(saleData.notes || "");
@@ -668,11 +693,13 @@ const loadSale = async (productList) => {
   };
   
   // Print the current receipt
-  const handlePrintReceipt = async (paperWidth = 80) => {
+  const handlePrintReceipt = async (paperWidth = receiptPaperWidthMm) => {
     if (!currentReceipt) return;
     
     try {
-      await printReceipt(currentReceipt.id, { paperWidth });
+      await printReceipt(currentReceipt.id, {
+        paperWidth: normalizeReceiptPaperWidthMm(paperWidth),
+      });
     } catch (error) {
       console.error("Error printing receipt:", error);
       alert("Failed to print receipt. Please try again.");
@@ -1307,27 +1334,40 @@ const loadSale = async (productList) => {
               </p>
             </div>
             
-            <div className="flex space-x-3">
-              <button 
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 flex items-center justify-center hover:bg-gray-50"
-                onClick={() => setShowReceiptModal(false)}
-              >
-                Close
-              </button>
-              <button 
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
-                onClick={() => handlePrintReceipt(80)}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print 80mm
-              </button>
-              <button
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center justify-center hover:bg-indigo-700"
-                onClick={() => handlePrintReceipt(58)}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print 58mm
-              </button>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Thermal paper width
+                </label>
+                <select
+                  value={receiptPaperWidthMm}
+                  onChange={(e) =>
+                    setReceiptPaperWidthMm(normalizeReceiptPaperWidthMm(e.target.value))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  {RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM.map((mm) => (
+                    <option key={mm} value={mm}>
+                      {mm} mm{mm === 80 ? ' (most common)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex space-x-3">
+                <button 
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 flex items-center justify-center hover:bg-gray-50"
+                  onClick={() => setShowReceiptModal(false)}
+                >
+                  Close
+                </button>
+                <button 
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
+                  onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print Receipt
+                </button>
+              </div>
             </div>
           </div>
         </div>

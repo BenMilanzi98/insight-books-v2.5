@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
+import LanguageSettingsCard from "@/components/i18n/LanguageSettingsCard";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 export default function Profile() {
+  const { t } = useI18n();
   const [profile, setProfile] = useState({
     name: "",
     email: "",
@@ -111,7 +114,10 @@ export default function Profile() {
 
   return (
     <main className="max-w-lg mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">My Profile</h1>
+      <h1 className="text-2xl font-bold mb-4">{t('navigation.profile')}</h1>
+      <div className="mb-6">
+        <LanguageSettingsCard />
+      </div>
 
       <form onSubmit={saveProfile} className="space-y-4 mb-8">
         {profileMsg && <p className="text-sm text-red-500">{profileMsg}</p>}

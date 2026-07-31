@@ -1,0 +1,10 @@
+{
+  "businessId": null,
+  "capturedAt": "2026-07-22T10:05:25.518Z",
+  "journalCount": null,
+  "journalLineCount": null,
+  "totalDebits": null,
+  "totalCredits": null,
+  "balanced": null,
+  "notes": "TO FILL FROM PRODUCTION — use exact decimals; never floating-point authority."
+}

@@ -15,8 +15,12 @@ import { calculateDateRange, getTimeframeLabel } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
+import PageHeader from "@/components/shell/PageHeader";
+import { useI18n } from "@/components/i18n/I18nProvider";
+
 
 export default function TaxManagement() {
+  const { t } = useI18n();
   // State for filtering and data
   const [timeframe, setTimeframe] = useState("thisMonth");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
@@ -121,7 +125,7 @@ export default function TaxManagement() {
       collectedTaxes: {
         byRate: [
           {
-            rate: 16.5,
+            rate: 17.5,
             taxableAmount: 12500,
             taxAmount: 2062.5,
             items: [
@@ -270,19 +274,24 @@ export default function TaxManagement() {
 
   return (
     <PermissionGuard permission="tax.view">
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-bold">Tax Management</h1>
-        {exportTaxPermissions && ( <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => handleExport('csv')}
-            className="btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded flex items-center gap-2"
-          >
-            <Download size={16} />
-            Export
-          </button>
-        </div>)}
-      </div>
+    <div className="container mx-auto py-2">
+      <PageHeader
+        title={t('navigation.taxManagement')}
+        description={t('common.loading.default')}
+        actions={
+          exportTaxPermissions ? (
+            <button
+              type="button"
+              onClick={() => handleExport('csv')}
+              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--surface-muted)] px-4 py-2 text-[var(--text-secondary)] hover:bg-[var(--border-default)]"
+            >
+              <Download size={16} aria-hidden="true" />
+              {t('common.actions.export')}
+            </button>
+          ) : null
+        }
+      />
+
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-6">

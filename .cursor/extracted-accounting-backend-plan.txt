@@ -1,0 +1,697 @@
+INSIGHTBOOKS V2
+Full Accounting Backend Reimplementation Plan
+Product: InsightBooks Business Management System Primary Objective: Rebuild the entire accounting backend so that every financial transaction is posted once, posted to the correct accounts, fully traceable, and consistently reflected in the General Ledger, Trial Balance, financial statements, operational reports, bank reconciliation, equity reports, accounting periods, and financial projections.
+1. IMPLEMENTATION VISION
+InsightBooks must be transformed from a collection of financial modules into a unified financial operating system.
+The system currently contains accounting inconsistencies including:
+· Unbalanced Trial Balance results. · General Ledger balances that do not agree with reports. · Duplicate financial postings. · Transactions posted to incorrect accounts. · Parent and child accounts being counted together incorrectly. · Owner capital appearing more than once. · Liabilities appearing in the Chart of Accounts but not in journals. · Reports reading directly from operational tables. · Different modules calculating their own independent balances. · Missing or incomplete transaction audit trails. · Posted transactions being editable without proper reversals. · Financial reports that cannot be traced to their source transactions.
+The reimplementation must establish one authoritative accounting path:
+Operational Transaction 
+Accounting Posting Engine 
+Balanced Journal Entry 
+Journal Entry Lines 
+General Ledger 
+Trial Balance 
+Financial Statements
+1
+
+ Management Reports and Forecasts
+Every financial module must use this same path.
+The General Ledger must become the single source of truth for financial reporting. Operational modules such as sales, purchases, payroll, inventory, expenses, banking, loans, fixed assets, and equity must never update financial reports or account balances directly.
+2. PROJECT OBJECTIVES
+The implementation must accomplish the following objectives:
+2.1 Accounting Integrity
+· Every posted journal entry must balance. · Total debits must always equal total credits. · Every business transaction must create no more than one accounting event. · Duplicate posting must be prevented at database and application levels. · Every posting must use the correct Chart of Accounts mappings. · Parent and child accounts must not be double-counted. · Posted entries must become immutable. · Corrections must be performed through reversals or adjustment journals.
+2.2 Reporting Integrity
+· The Trial Balance must be generated exclusively from posted journal lines. · The General Ledger must be generated exclusively from posted journal lines. · The Balance Sheet must be generated exclusively from the General Ledger. · The Income Statement must be generated exclusively from the General Ledger. · Cash Flow, equity, tax, aging, inventory, payroll, and management reports must reconcile with
+the General Ledger. · Every report figure must show the account code and account name from which it was derived. · Every figure must support drill-down to journal lines and source transactions.
+2.3 Data Preservation
+· Existing production data must not be deleted. · Database migrations must be additive and reversible. · Historical transactions must be analyzed before modification. · Data repair scripts must be idempotent and safe to rerun. · Every repair must be logged. · A full backup and rollback strategy must be created before any production migration.
+2
+
+2.4 Operational Integration
+The following modules must post through the centralized accounting engine:
+· Sales · Invoices · Customer payments · Credit notes · Purchases · Supplier bills · Supplier payments · Expenses · Payroll · Inventory · Point of Sale · Bank accounts · Mobile money · Cashbook · Bank reconciliation · Fixed assets · Depreciation · Asset disposal · Loans · Loan repayments · Taxes · Equity · Owner drawings · Dividends · Opening balances · Opening inventory · Manual journals · Year-end closing · Period adjustments
+2.5 Auditability
+Every financial transaction must be traceable from:
+Financial Statement  Report Line  Ledger Account  Journal Entry Line  Journal Entry  Source Transaction  Source Document  User and Approval History
+3
+
+3. IMPLEMENTATION PRINCIPLES
+The development team must follow these principles throughout the project.
+3.1 General Ledger as the Single Source of Truth
+Financial statements must never calculate balances directly from:
+· Invoice tables · Payment tables · Sales tables · Expense tables · Inventory tables · Payroll tables · Asset tables · Bank transaction tables · Loan tables · Equity transaction tables These operational tables may provide supporting information, but financial values must come from posted journal entries.
+3.2 One Accounting Event, One Posting
+Each financial event must have a unique accounting identity.
+Examples:
+Invoice ID + POST_INVOICE Payment ID + POST_CUSTOMER_PAYMENT Expense ID + POST_EXPENSE Payroll Run ID + POST_PAYROLL Asset ID + POST_ASSET_ACQUISITION
+The system must reject attempts to post the same event more than once.
+3.3 Balanced Entries
+Before posting:
+Sum of Debits = Sum of Credits
+Any unbalanced entry must be rejected before the database transaction is committed.
+4
+
+3.4 Atomic Posting
+The following actions must occur inside one database transaction:
+1. Validate the source transaction. 2. Resolve account mappings. 3. Create the journal entry. 4. Create journal lines. 5. Mark the source transaction as posted. 6. Create audit records. 7. Update any rebuildable reporting projections or caches. 8. Commit everything together. If any step fails, the entire transaction must roll back.
+3.5 Immutability
+Once posted:
+· Journal dates cannot be silently changed. · Accounts cannot be changed. · Debit and credit values cannot be edited. · Journal lines cannot be deleted. · Source linkage cannot be changed. · Posted source transactions cannot be financially edited. Corrections must use:
+· Full reversal · Partial reversal where legally and structurally appropriate · Adjustment journal · Credit note · Debit note · Void-and-repost workflow
+3.6 Exact Monetary Values
+All monetary values must use exact decimal database types.
+Do not use:
+· JavaScript floating-point calculations for accounting totals. · Database FLOAT or REAL types for financial amounts. · Rounded intermediate values without defined precision rules. Use controlled decimal precision and currency rounding policies.
+3.7 Separation of Actuals and Forecasts
+Actual accounting data and financial projections must remain separate.
+5
+
+Actual Data  General Ledger
+Forecast Data  Projection Models
+Forecasts must never post to the actual General Ledger.
+4. PROJECT DELIVERY STRATEGY
+The system must not be rewritten in one uncontrolled release.
+Implementation must be divided into controlled phases.
+Each phase must include:
+· Repository analysis. · Database analysis. · Technical design. · Implementation. · Automated testing. · Data validation. · User acceptance testing. · Migration scripts. · Rollback scripts. · Technical documentation. · Deployment checklist. · Sign-off criteria.
+The recommended implementation order is:
+Phase 0 -- Project Safety and Environment Preparation Phase 1 -- Complete Accounting Forensic Audit Phase 2 -- Target Accounting Architecture Phase 3 -- Chart of Accounts Reconstruction Phase 4 -- Accounting Posting Engine Phase 5 -- Journal and General Ledger Reimplementation Phase 6 -- Historical Data Reconciliation and Repair Phase 7 -- Trial Balance and Financial Reports Phase 8 -- Financial Calendar and Accounting Periods Phase 9 -- Operational Module Integration Phase 10 -- Bank Reconciliation Phase 11 -- Equity Management Phase 12 -- Period Closing and Year-End Closing Phase 13 -- Financial Planning and Projection Phase 14 -- Loan Readiness and Executive Reporting Phase 15 -- Security, Audit, and Compliance Phase 16 -- Performance and Scalability
+6
+
+Phase 17 -- Production Migration Phase 18 -- Post-Deployment Validation
+5. PHASE 0 -- PROJECT SAFETY AND ENVIRONMENT PREPARATION
+5.1 Establish Environments
+Maintain separate environments for:
+· Local development · Shared development · Testing · Staging · User acceptance testing · Production No accounting repair script should be executed directly in production before being validated against a recent production database copy.
+5.2 Create Full Backups
+Before any database changes:
+· Create a full PostgreSQL custom-format backup. · Back up uploaded files and transaction attachments. · Back up environment configuration securely. · Record application version and Git commit. · Record database migration version. · Validate that the backup can be restored successfully. A backup is not considered valid until a restoration test has passed.
+5.3 Establish a Migration Ledger
+Create an internal migration registry containing:
+· Migration name · Migration version · Date executed · Environment · User or deployment process · Number of records inspected · Number of records changed · Number of records skipped · Errors
+7
+
+· Rollback status · Integrity-check results
+5.4 Freeze Unsafe Accounting Changes
+During the initial audit, prevent developers from introducing new direct balance updates.
+Create a temporary development rule:
+No module may add or modify accounting behaviour until the existing posting flow has been documented.
+5.5 Establish Baseline Metrics
+Capture the current state:
+· Total journals. · Total journal lines. · Total unbalanced journals. · Total source transactions without journals. · Total journals without sources. · Total duplicate postings. · Total accounts with invalid categories. · Total transactions posted to inactive accounts. · Total periods represented in the data. · Current Trial Balance difference. · Balance Sheet imbalance. · General Ledger and report differences. · Number of negative or abnormal account balances. · Number of owner capital discrepancies. · Number of liabilities without traceable journal lines.
+6. PHASE 1 -- COMPLETE ACCOUNTING FORENSIC AUDIT
+Cursor must analyze the complete application before implementing fixes.
+6.1 Repository Audit
+Inspect:
+· Database schema. · Prisma schema or ORM models. · Migrations. · API routes. · Server actions. · Controllers.
+8
+
+· Services. · Background jobs. · Event listeners. · Webhooks. · Scheduled jobs. · Import scripts. · Seeders. · Report queries. · Dashboard queries. · Utility functions. · Account balance calculations. · Journal creation functions. · Account mapping constants. · Source transaction status changes. · Reversal logic. · Delete and update handlers.
+6.2 Identify Every Posting Path
+Produce a posting inventory such as:
+
+Module Transaction
+
+Sales
+
+Invoice
+
+Sales
+
+Customer payment
+
+Expenses Expense
+
+Payroll
+
+Payroll run
+
+Existing Posting Function
+Existing service
+
+Current Debit
+
+Current Credit
+
+Duplicate Risk
+
+Status
+
+Receivable Revenue/VAT High
+
+Review
+
+API handler Bank
+
+Receivable
+
+Medium
+
+Review
+
+Multiple handlers
+Payroll service
+
+Expense Salaries
+
+Cash/ Payable
+PAYE/ Pension/ Bank
+
+High High
+
+Review Review
+
+No financial transaction type should be omitted.
+
+6.3 Detect Duplicate Posting Causes
+Search for:
+· API route posting plus service-layer posting. · afterCreate or event listeners repeating API posting. · Webhooks repeating completed payments. · Retry processes without idempotency. · Frontend double submission. · Multiple posting functions for the same transaction. · Posting during record creation and again during approval. · Imports posting data that has already been posted.
+
+9
+
+· Reconciliation adjustments creating repeated journals. · Reports summing both source transactions and journals. · Parent accounts and child accounts aggregated together.
+6.4 Detect Wrong Account Mappings
+Review:
+· Hardcoded account IDs. · Hardcoded account names. · Account-code fallbacks. · Default account creation. · Per-business mappings. · Missing account mappings. · Duplicate account codes. · Accounts sharing the same purpose. · Transactions posted to parent accounts instead of posting accounts. · Expense categories mapped outside the expense hierarchy. · Salaries posted to multiple salary accounts. · Taxes posted directly to expenses instead of liability accounts. · Loan principal posted as income or expense. · Asset purchases posted entirely as expenses. · Capital contributions posted as revenue. · Owner withdrawals posted as business expenses.
+6.5 Analyze Historical Data
+Generate reports for:
+· Duplicate journal entries. · Identical journal lines. · Multiple journals linked to one source. · Sources linked to multiple active journals. · Journals with no source. · Sources marked posted without journals. · Journals marked posted without lines. · Journals with unequal debits and credits. · Lines with both debit and credit values. · Lines with neither debit nor credit. · Missing account references. · Deleted or inactive account references. · Cross-business posting. · Cross-branch posting. · Transactions outside valid financial years. · Backdated transactions in closed periods. · Reversals without original journals. · Original journals reversed more than once.
+10
+
+6.6 Audit Deliverable
+Produce a formal audit report containing:
+· Current architecture. · Identified posting paths. · Accounting defects. · Duplicate-posting causes. · Wrong-account causes. · Report-source inconsistencies. · Data corruption risks. · Historical-data repair categories. · Recommended migration strategy. · High-risk modules. · Dependencies. · Proposed implementation order.
+No destructive repair should begin until this audit is completed.
+7. PHASE 2 -- TARGET ACCOUNTING ARCHITECTURE
+7.1 Core Components
+Implement or reimplement:
+· Chart of Accounts · Account mappings · Accounting Posting Engine · Posting templates · Journal entries · Journal lines · Financial years · Accounting periods · General Ledger query service · Trial Balance service · Reversal service · Adjustment service · Period closing service · Year-end closing service · Audit trail · Attachments · Approval workflow · Report engine · Accounting integrity service
+11
+
+7.2 Core Service Boundaries
+Recommended services:
+AccountingPostingService AccountMappingService JournalValidationService JournalPostingService JournalReversalService LedgerQueryService TrialBalanceService FinancialStatementService PeriodService PeriodClosingService YearEndClosingService BankReconciliationService EquityPostingService AccountingAuditService HistoricalRepairService
+7.3 Posting Command Structure
+Every posting request should follow a standard structure:
+Posting Command - businessId - sourceModule - sourceType - sourceId - eventType - transactionDate - postingDate - currency - exchangeRate - branchId - departmentId - projectId - costCentreId - description - userId - approvalId - attachmentIds - metadata
+7.4 Posting Result
+Every successful posting should return:
+12
+
+- journalEntryId - journalNumber - postingDate - accountingPeriodId - totalDebit - totalCredit - status - sourceReference - auditReference
+8. PHASE 3 -- CHART OF ACCOUNTS RECONSTRUCTION
+8.1 Account Structure
+Every account must include:
+· Business or tenant · Account code · Account name · Description · Parent account · Account category · Account type · Normal balance · Financial statement section · Cash-flow classification · Tax mapping · Currency policy · Posting permission · Active status · System account flag · Created and updated audit fields
+8.2 Account Categories
+At minimum:
+· Assets · Liabilities · Equity · Revenue · Cost of Sales · Expenses · Other Income · Other Expenses
+13
+
+8.3 Posting and Control Accounts
+Differentiate between:
+· Header accounts · Parent accounts · Posting accounts · Control accounts · System accounts · Contra accounts Transactions must not be posted to non-posting parent accounts.
+8.4 Account Uniqueness
+Enforce:
+· Unique account codes per business. · No duplicate active system-account mappings. · One account per required accounting purpose unless explicitly designed otherwise. · No repeated salary, revenue, receivable, payable, tax, capital, or retained-earnings mappings.
+8.5 Expense Account Rules
+The expense-entry interface must retrieve categories only from active posting accounts under the configured Expenses hierarchy.
+Salaries and wages must post only to the approved Salaries and Wages account, such as Account 5200, unless the business has deliberately configured a valid replacement.
+Remove or merge conflicting accounts such as:
+· Salaries Expense · Salary Costs · Payroll Expense · Wages Expense Historical records must be remapped carefully rather than deleted.
+8.6 Parent and Child Aggregation
+A financial report must use one of two methods:
+1. Sum posting accounts and display parent accounts as presentation totals. 2. Sum only the direct balances of each selected account. It must never sum parent totals and then add child totals again.
+14
+
+8.7 Account Mapping Registry
+Create a business-specific mapping table for:
+· Accounts Receivable · Accounts Payable · Sales Revenue · Service Revenue · Inventory · Cost of Sales · VAT Output · VAT Input · Cash · Bank · Mobile Money · Salaries and Wages · PAYE Payable · Pension Payable · Loan Principal · Interest Expense · Fixed Assets · Accumulated Depreciation · Depreciation Expense · Owner Capital · Share Capital · Retained Earnings · Current Year Profit · Owner Drawings · Dividends Payable · Bank Charges · Exchange Gains and Losses · Opening Balance Equity
+9. PHASE 4 -- CENTRAL ACCOUNTING POSTING ENGINE
+9.1 Responsibilities
+The engine must:
+1. Receive a posting command. 2. Validate business ownership. 3. Validate transaction status. 4. Validate approval status. 5. Resolve accounting period. 6. Confirm the period is open. 7. Resolve account mappings.
+15
+
+8. Generate journal lines. 9. Validate debit-credit equality. 10. Validate currencies and exchange rates. 11. Create the journal and journal lines. 12. Link the journal to its source. 13. Mark the source as posted. 14. Write audit records. 15. Return the posting result.
+9.2 Idempotency
+Create a unique constraint similar to:
+businessId + sourceModule + sourceType + sourceId + eventType + activePostingStatus
+Retries must return the original journal result rather than generating another journal.
+9.3 Journal Numbering
+Generate controlled journal numbers such as:
+JE-2026-000001 SALE-2026-000001 PAY-2026-000001 EXP-2026-000001 PAYROLL-2026-000001 BANK-2026-000001 EQ-2026-000001
+Number generation must be safe under concurrent requests.
+9.4 Validation Rules
+Reject postings where:
+· Debits do not equal credits. · Accounts belong to another business. · An account is inactive. · A parent account is non-posting. · A period is closed. · Required mappings are missing. · Monetary values are invalid. · Source records do not exist.
+16
+
+· The source is cancelled or deleted. · The event has already been posted. · Required approval has not been completed. · Currency information is inconsistent. · Dimensions conflict with source data.
+9.5 Posting Templates
+Use configurable posting templates. Example:
+Customer Invoice Dr Accounts Receivable Cr Sales Revenue Cr VAT Output, where applicable
+Customer Payment Dr Bank/Cash/Mobile Money Cr Accounts Receivable
+Cash Expense Dr Expense Account Dr VAT Input, where applicable Cr Bank/Cash/Mobile Money
+Supplier Bill Dr Expense/Inventory/Asset Dr VAT Input, where applicable Cr Accounts Payable
+Supplier Payment Dr Accounts Payable Cr Bank/Cash
+17
+
+10. PHASE 5 -- JOURNAL AND GENERAL LEDGER REIMPLEMENTATION
+10.1 Journal Entry Model
+Include:
+· Journal ID · Business ID · Journal number · Source module · Source type · Source ID · Event type · Transaction date · Posting date · Financial year · Accounting period · Description · Currency · Exchange rate · Status · Approval status · Reversal status · Original journal ID · Created by · Approved by · Posted by · Created timestamp · Posted timestamp · Metadata
+10.2 Journal Line Model
+Include:
+· Journal line ID · Journal entry ID · Account ID · Debit · Credit · Base-currency debit · Base-currency credit · Description · Customer · Supplier · Employee · Owner · Bank account
+18
+
+· Branch · Department · Project · Cost centre · Tax code · Due date · Reference · Sequence
+10.3 General Ledger Architecture
+The authoritative ledger must be derived from posted journal lines.
+Do not maintain an independently editable General Ledger table.
+A materialized view or cache may be used for performance only when:
+· It can be fully rebuilt from journal lines. · It is never treated as the source of truth. · Rebuild procedures are available. · Integrity checks compare it with journal lines.
+10.4 Ledger Views
+Support:
+· Account ledger · Business ledger · Branch ledger · Department ledger · Project ledger · Cost-centre ledger · Customer subledger · Supplier subledger · Employee subledger · Owner subledger · Bank-account ledger
+10.5 Opening and Closing Balances
+For any selected range:
+Opening Balance + Period Debits - Period Credits = Closing Balance
+The presentation must respect each account's normal balance.
+19
+
+10.6 Journal Reversal
+A reversal must:
+· Create a new journal. · Reverse every original debit and credit. · Link to the original journal. · Record the reason. · Record the authorized user. · Prevent repeated active reversals. · Respect accounting-period permissions. · Preserve both journals permanently.
+11. PHASE 6 -- HISTORICAL DATA RECONCILIATION AND REPAIR
+Historical repair must be evidence-driven.
+11.1 Classify Historical Records
+Place discrepancies into categories:
+· Valid posting · Duplicate journal · Missing journal · Unbalanced journal · Wrong account · Wrong amount · Wrong date · Wrong business · Wrong period · Missing source · Orphaned source · Invalid reversal · Duplicate opening balance · Duplicate capital posting · Liability without journal support · Parent-child double count · Report-only discrepancy
+11.2 Duplicate Detection
+Use combinations of:
+· Source record · Event type · Amount
+20
+
+· Date · Reference · Account pairs · User · Posting time · External payment reference · Import batch
+Never delete duplicates automatically based only on matching amounts.
+11.3 Historical Repair Actions
+Depending on evidence:
+· Link an orphan journal to the correct source. · Create a missing journal. · Reverse a duplicate journal. · Create an adjustment journal. · Remap an account. · Correct report mappings. · Consolidate duplicate accounts. · Reclassify account types. · Rebuild reporting caches. · Reassign accounting periods. · Mark irreparable records for manual review.
+11.4 Owner Capital Repair
+Investigate the reported case where MK1,000,000 was posted but MK2,000,000 appeared.
+Check for:
+· Duplicate journals. · Dashboard summing source and journal data. · Parent and child equity double counting. · Current-year profit incorrectly added to capital. · Opening balance plus capital contribution duplication. · Owner subledger and equity account both being aggregated. · Stored account balance plus journal-derived balance.
+Repair must preserve the correct MK1,000,000 accounting event and reverse or exclude the duplicated impact.
+11.5 Liability Repair
+For liabilities appearing in the Chart of Accounts but not journals:
+· Determine whether the Chart of Accounts view is showing stored balances. · Identify source obligations. · Locate missing supplier, tax, loan, or payroll journals.
+21
+
+· Create controlled migration journals where supporting evidence exists. · Do not invent liabilities merely to force reports to balance. · Flag unsupported balances for finance-team review.
+11.6 Repair Logging
+Every repair record must capture:
+· Original values · Corrected values · Reason · Evidence · Script version · User or migration · Timestamp · Related journal · Rollback procedure
+12. PHASE 7 -- TRIAL BALANCE AND FINANCIAL REPORTS
+12.1 Trial Balance
+The Trial Balance must:
+· Read posted journal lines only. · Support date and accounting-period filters. · Show opening balance. · Show period debits. · Show period credits. · Show closing debit or credit balance. · Show account code and name. · Support account hierarchy. · Avoid parent-child double counting. · Support branch, department, project, and cost-centre filters. · Confirm total debits equal total credits.
+The system must block final financial-statement approval if the Trial Balance does not balance.
+12.2 General Ledger Report
+Each account must show:
+· Opening balance · Transaction date · Posting date · Journal number
+22
+
+· Source module · Source reference · Description · Debit · Credit · Running balance · User · Approval status · Attachments · Reversal status
+12.3 Income Statement
+Structure:
+Revenue Less: Cost of Sales Gross Profit Less: Operating Expenses EBITDA Less: Depreciation and Amortization Operating Profit Less: Finance Costs Profit Before Tax Less: Tax Net Profit
+12.4 Balance Sheet
+Structure:
+Assets Current Assets Non-current Assets
+Liabilities Current Liabilities Long-term Liabilities
+Equity Share Capital Capital Contributions Retained Earnings Current Year Profit Drawings
+The report must always validate:
+23
+
+Assets = Liabilities + Equity
+12.5 Cash Flow Statement
+Implement cash flow classifications:
+· Operating activities · Investing activities · Financing activities The report must reconcile opening cash, movement, and closing cash with cash and bank ledger accounts.
+12.6 Statement of Changes in Equity
+Show:
+· Opening equity · Capital contributions · Share issues · Current-year profit or loss · Dividends · Drawings · Prior-period adjustments · Closing equity
+12.7 Report Drill-Down
+Every line must support:
+Report line  Accounts included  Journal lines  Journal entry  Source transaction  Source document
+12.8 Report Exports
+Support:
+· PDF · Excel · Print · Company branding · Reporting period · Generation date
+24
+
+· Prepared by · Reviewed by · Approval section · Account codes and names · Comparative periods
+13. PHASE 8 -- FINANCIAL CALENDAR AND ACCOUNTING PERIODS
+Every transaction must automatically receive a financial year and accounting period based on its transaction date. Users should not ordinarily select accounting periods manually.
+13.1 Financial Year Setup
+Store:
+· Name · Start date · End date · Status · Current active year · Number of periods · Business ID Support financial years such as:
+· January to December · July to June · Other valid twelve-month configurations
+13.2 Automatic Period Creation
+When a financial year is created:
+· Generate monthly periods automatically. · Assign correct start and end dates. · Account for leap years. · Prevent overlapping periods. · Prevent gaps. · Set initial status.
+13.3 Period Statuses
+Use:
+· Open · Closed
+25
+
+· Reopened
+13.4 Period Closing Checklist
+Before closure, verify:
+· All journals balance. · No required transactions remain unposted. · Bank reconciliation is complete or exceptions are authorized. · Inventory is updated. · Payroll is completed. · Taxes are recorded. · Trial Balance balances. · Required approvals are complete. · Suspense accounts are reviewed. · Draft journals are resolved. · Reconciliation differences are resolved. · Required reports have been generated.
+13.5 Closed Period Controls
+Normal users cannot:
+· Create backdated transactions. · Edit posted transactions. · Delete transactions. · Post adjustments. · Change journal dates. Authorized corrections must use controlled adjustments or a formal reopening workflow.
+13.6 Reopening
+Reopening requires:
+· Authorized role. · Reason. · Approval. · Audit record. · Reopening date. · Automatic notification. · Re-closing checklist.
+26
+
+14. PHASE 9 -- OPERATIONAL MODULE INTEGRATION
+14.1 Sales and Invoicing
+Invoice
+Dr Accounts Receivable Cr Sales or Service Revenue Cr VAT Output
+Cash Sale
+Dr Cash/Bank/Mobile Money Cr Sales Revenue Cr VAT Output
+Customer Payment
+Dr Cash/Bank/Mobile Money Cr Accounts Receivable
+Customer Credit Note
+Dr Sales Returns Dr VAT Output Adjustment Cr Accounts Receivable
+Prevent invoice posting from being repeated when:
+· An invoice is approved. · An invoice is emailed. · A payment is recorded. · A receipt is generated. · A webhook confirms payment.
+14.2 Purchases and Payables
+Supplier Bill
+Dr Expense/Inventory/Asset Dr VAT Input Cr Accounts Payable
+27
+
+Supplier Payment
+Dr Accounts Payable Cr Bank/Cash
+Supplier Credit
+Dr Accounts Payable Cr Expense/Inventory/Asset Cr VAT Input Adjustment
+14.3 Expenses
+Support: · Immediate payment · Unpaid expense · Reimbursement · Petty cash · Mobile money · Recurring expense · Staff expense claim · Supplier-linked expense
+The category must resolve to a valid posting account under Expenses.
+14.4 Inventory
+Inventory Purchase
+Dr Inventory Cr Accounts Payable/Bank
+Inventory Sale
+Revenue entry:
+Dr Accounts Receivable/Bank Cr Sales Revenue Cr VAT Output
+Cost entry:
+28
+
+Dr Cost of Sales Cr Inventory
+Inventory valuation and cost-of-sales policies must be consistent.
+14.5 Payroll
+Typical posting:
+Dr Salaries and Wages Dr Employer Pension Expense Cr PAYE Payable Cr Employee Pension Payable Cr Employer Pension Payable Cr Salary Deductions Payable Cr Bank/Payroll Payable
+Salary costs must not be posted to multiple expense accounts.
+14.6 Fixed Assets
+Acquisition
+Dr Fixed Asset Cr Bank/Accounts Payable
+Depreciation
+Dr Depreciation Expense Cr Accumulated Depreciation
+Disposal
+Record: · Asset cost removal · Accumulated depreciation removal · Proceeds · Profit or loss on disposal
+29
+
+14.7 Loans
+Loan Proceeds
+Dr Bank Cr Loan Liability
+Loan Repayment
+Dr Loan Liability Dr Interest Expense Cr Bank
+Loan principal must not be treated as revenue or expense.
+14.8 Taxes
+Maintain separate accounts for:
+· VAT Output · VAT Input · VAT Payable/Receivable · PAYE Payable · Withholding Tax · Corporate Tax · Other statutory obligations
+14.9 Opening Balances
+Opening balances must be posted through a controlled opening journal.
+Assets, liabilities, and equity must be supported by evidence.
+The opening journal must balance before posting.
+15. PHASE 10 -- BANK RECONCILIATION
+The Bank Reconciliation module must compare the book balance recorded in InsightBooks with imported bank statement activity.
+15.1 Bank Account Setup
+Store:
+· Bank name
+30
+
+· Branch · Account name · Account number · Currency · Linked General Ledger account · Opening balance · Opening date · Status · Business · Branch or department where applicable
+15.2 Statement Import
+Support:
+· CSV · Excel · Future OFX · Future direct-bank APIs
+Validate:
+· Required columns · Dates · Debit and credit values · Running balances · Duplicate file imports · Duplicate statement lines · Currency · Account ownership · Statement period
+15.3 Matching Engine
+Match using:
+· Exact amount · Date tolerance · Reference · Description · Payee or payer · Transaction type · External payment reference · Batch settlement reference
+Assign confidence scores:
+· Exact · High confidence · Possible · No match
+31
+
+15.4 Matching Types
+Support:
+· One bank line to one book transaction. · One bank line to multiple book transactions. · Multiple bank lines to one book transaction. · Split transactions. · Merged settlements. · Partial matches where properly controlled.
+15.5 Reconciliation Adjustments
+Support controlled posting of:
+· Bank charges · Interest income · Direct debits · Direct deposits · Standing orders · Loan repayments · Returned payments · Mobile money settlements · Currency adjustments Each adjustment must create a balanced journal through the Accounting Posting Engine.
+15.6 Completion
+A reconciliation can be completed only when:
+· The statement closing balance is recorded. · The adjusted book balance agrees with the bank balance. · All differences are explained. · Outstanding items are documented. · Required approval is complete.
+15.7 Reversal
+Reversing a reconciliation must:
+· Preserve the original record. · Record a reason. · Reverse reconciliation-created adjustments where appropriate. · Reopen affected items. · Maintain the audit trail.
+32
+
+16. PHASE 11 -- EQUITY MANAGEMENT
+The Equity module must support capital contributions, share capital, retained earnings, owner drawings, dividends, and ownership registers while hiding journal-entry complexity from ordinary users.
+16.1 Owners and Shareholders
+Store:
+· Full name · Type · Contact details · Ownership percentage · Date joined · Status · Number of shares · Nominal value · Capital account · Drawings account · Dividend information
+16.2 Capital Contributions
+Cash Contribution
+Dr Bank/Cash Cr Owner Capital/Share Capital
+Asset Contribution
+Dr Relevant Asset Cr Owner Capital/Capital Contribution
+Capital contributions must not automatically change ownership percentages.
+16.3 Share Issues
+Dr Bank/Shareholder Receivable Cr Share Capital Cr Share Premium
+33
+
+16.4 Owner Drawings
+Dr Owner Drawings Cr Bank/Cash/Relevant Asset
+Owner drawings must reduce equity and must not appear as normal business expenses.
+16.5 Dividend Declaration
+Dr Retained Earnings/Dividends Declared Cr Dividends Payable
+16.6 Dividend Payment
+Dr Dividends Payable Cr Bank
+16.7 Current-Year Profit
+Current-year profit must be calculated from posted revenue and expense account balances. It must not be manually entered as an independent balance.
+16.8 Equity Reports
+Implement: · Equity dashboard · Equity Statement · Statement of Changes in Equity · Owner statement · Capital contributions report · Share-capital report · Dividend report · Owner-drawings report
+17. PHASE 12 -- PERIOD CLOSING AND YEAR-END CLOSING
+17.1 Month-End Closing
+Generate a close checklist and store each result.
+34
+
+Require approval according to role.
+17.2 Year-End Closing
+The year-end process must:
+1. Validate all periods. 2. Generate final Trial Balance. 3. Generate financial statements. 4. Calculate annual profit or loss. 5. Close revenue accounts. 6. Close expense accounts. 7. Transfer profit or loss to retained earnings. 8. Carry forward assets. 9. Carry forward liabilities. 10. Carry forward equity. 11. Create the next financial year. 12. Generate new accounting periods. 13. Store year-end closing journals. 14. Lock the completed year.
+17.3 Closing Entries
+Closing journals must be identifiable, auditable, and reversible only under highly restricted authorization.
+18. PHASE 13 -- FINANCIAL PLANNING AND PROJECTION
+The Financial Planning module must use trusted closed-period historical data to prepare forecasts, scenarios, trends, and loan-readiness analysis.
+This phase must begin only after historical accounting information is reliable.
+18.1 Projection Data Sources
+Use:
+· Closed accounting periods. · Historical General Ledger data. · Sales trends. · Expense behaviour. · Customer collection trends. · Supplier payment trends. · Inventory turnover. · Loan schedules. · Payroll commitments.
+35
+
+· Asset plans. · Tax assumptions. · Seasonal trends.
+18.2 Assumptions Engine
+Support:
+· Revenue growth · Seasonal adjustment · Customer growth · Customer churn · Product pricing · Inflation · Salary increases · Rent increases · Utility increases · Marketing plans · Capital expenditure · Asset disposal · New loans · Interest rates · Repayment schedules · Tax rates · Inventory cost inflation · Stock turnover
+Every assumptions change must trigger a recalculation of dependent projections.
+18.3 Projection Types
+Implement:
+· Projected Profit and Loss · Projected Cash Flow · Projected Balance Sheet · Working Capital forecast · Loan capacity · Cash runway · EBITDA projection · Debt-ratio projection · Retained-earnings projection
+18.4 Scenario Planning
+Support:
+· Conservative · Expected · Optimistic
+36
+
+· Custom scenarios Scenarios must be isolated and versioned.
+18.5 Projected Balance Sheet Integrity
+Every projected Balance Sheet must validate:
+Projected Assets = Projected Liabilities + Projected Equity
+18.6 Variance Analysis
+Compare:
+Projected vs Actual
+Show:
+· Amount · Variance · Percentage · Status · Explanation · Drill-down to actual transactions
+18.7 AI-Assisted Forecasting
+The AI feature may:
+· Analyze historical trends. · Prepare draft assumptions. · Identify seasonality. · Identify unusual expenses. · Explain projected cash shortages. · Produce plain-language summaries. AI output must be:
+· Clearly marked as a draft. · Reviewable. · Editable. · Versioned.
+37
+
+· Separate from actual accounting records. · Unsupported by automatic General Ledger postings.
+19. PHASE 14 -- LOAN READINESS AND EXECUTIVE REPORTING
+19.1 Ratios
+Implement:
+· Current ratio · Quick ratio · Gross profit margin · Net profit margin · Debt-to-equity ratio · Interest-coverage ratio · Debt-service coverage ratio · Working capital · Return on assets · Inventory turnover · Receivable collection period · Payable payment period
+19.2 Readiness Checks
+Check:
+· Financial statements generated. · Trial Balance balanced. · Accounting periods closed. · Bank reconciliations completed. · Tax reports available. · Audit trail completeness. · Cash flow stability. · Revenue consistency. · Profitability. · Debt capacity. · Supporting documents. Include a clear disclaimer that the result is an internal financial-readiness assessment and not a guarantee of financing.
+38
+
+20. PHASE 15 -- SECURITY, APPROVALS, AND AUDIT
+20.1 Roles
+Support at least:
+· Super Administrator · Administrator · Business Owner · CEO · Finance Manager · Accountant · Cashier · Payroll Officer · Auditor · Read-only finance user
+20.2 Permissions
+Control:
+· Create draft transactions · Approve transactions · Post journals · Reverse journals · Create adjustments · Close periods · Reopen periods · Run year-end closing · Import bank statements · Match bank transactions · Complete reconciliations · Reverse reconciliations · Configure account mappings · Manage Chart of Accounts · Record equity transactions · Approve equity transactions · View financial reports · Export reports · View audit trails
+20.3 Audit Trail
+Capture:
+· User · Action
+39
+
+· Date and time · Previous values · New values · Source record · Journal entry · Device information where available · IP address where permitted · Approval information · Reason · Attachments
+20.4 Auditor Role
+Auditors should be able to:
+· View reports. · View attachments. · Trace transactions. · Review journals. · Review reversals. · Review period closing. · Review reconciliations. · Export audit reports. · View immutable audit history.
+Auditors should not be able to alter accounting data unless separately granted an operational role.
+21. PHASE 16 -- AUTOMATED ACCOUNTING TESTING
+21.1 Unit Tests
+Test:
+· Account mapping. · Debit-credit generation. · Decimal calculations. · Journal validation. · Period resolution. · Currency conversion. · Idempotency. · Reversals. · Account normal balances. · Parent-child aggregation. · Ratio calculations.
+40
+
+21.2 Integration Tests
+For every module:
+Source transaction  Posting engine  Journal  Ledger  Trial Balance  Financial statements
+21.3 Double-Entry Tests
+For every test transaction:
+Total Debit = Total Credit
+21.4 Report Reconciliation Tests
+Validate:
+· General Ledger equals Trial Balance. · Trial Balance debit total equals credit total. · Income Statement net profit agrees with equity movement. · Balance Sheet balances. · Cash Flow closing cash agrees with cash and bank accounts. · Receivable aging agrees with Accounts Receivable control account. · Payable aging agrees with Accounts Payable control account. · Inventory valuation agrees with Inventory control account. · Asset register agrees with fixed-asset accounts. · Loan schedules agree with loan liabilities. · Equity reports agree with equity accounts.
+21.5 Duplicate Prevention Tests
+Simulate:
+· Double clicks. · API retries. · Network retries. · Duplicate webhooks. · Repeated imports. · Concurrent posting. · Multiple workers. · Duplicate approval callbacks. Only one active journal may be produced.
+41
+
+21.6 Closed Period Tests
+Ensure:
+· Normal posting is rejected. · Unauthorized edits are rejected. · Reversals follow permission rules. · Reopening is audited. · Re-closing performs validation again.
+21.7 Migration Tests
+Test repair scripts using:
+· Clean database. · Production-like database. · Partially migrated database. · Script rerun. · Failed execution. · Rollback. · Large datasets.
+22. PHASE 17 -- PERFORMANCE AND SCALABILITY
+22.1 Database Indexes
+Index:
+· Business ID · Account ID · Journal ID · Source ID · Posting date · Transaction date · Accounting period · Financial year · Journal status · Source module · Event type · Branch · Department · Project · Cost centre
+42
+
+22.2 Query Optimization
+Avoid:
+· Loading all journal lines into application memory. · Repeated per-account queries. · N+1 queries. · Client-side aggregation of large ledgers. · Full-table scans for period reports.
+22.3 Reporting Caches
+Materialized summaries may be introduced only when:
+· The journal lines remain authoritative. · Cache refresh rules are documented. · Cache results are validated. · Full cache reconstruction is possible.
+22.4 Large Export Jobs
+Large PDF and Excel exports should be processed safely without causing application timeouts or memory exhaustion.
+23. PHASE 18 -- PRODUCTION MIGRATION PLAN
+23.1 Pre-Migration
+· Complete production backup. · Validate restoration. · Deploy code to staging. · Restore a recent production copy into staging. · Run schema migrations. · Run audit scripts. · Run repair scripts. · Rebuild reporting caches. · Run integrity tests. · Obtain finance-team sign-off.
+23.2 Controlled Maintenance Window
+During final migration:
+· Restrict new accounting postings. · Complete final backup. · Record final transaction counts. · Deploy code. · Execute schema migrations.
+43
+
+· Execute approved data repair. · Rebuild financial summaries. · Run integrity checks. · Re-enable postings only after validation.
+23.3 Mandatory Production Validation
+Confirm:
+Total Debits = Total Credits
+For:
+· Every journal · Every business · Every accounting period · Every financial year · The complete platform Also validate:
+· Balance Sheets balance. · Cash agrees with bank and cash ledgers. · Receivables agree with customer balances. · Payables agree with supplier balances. · Equity agrees with equity reports. · Historical reports are available. · No duplicate journals were introduced. · No production records were lost.
+23.4 Rollback Conditions
+Rollback if:
+· Migrations fail. · Journal totals change unexpectedly. · Trial Balance becomes unbalanced. · Production posting fails. · Source links are lost. · Critical reports fail. · Cross-business data exposure is discovered. · Migration performance threatens system stability.
+24. POST-DEPLOYMENT MONITORING
+Create automated integrity monitoring.
+44
+
+24.1 Daily Checks
+· Unbalanced journals. · Duplicate source postings. · Missing journals. · Journals without sources. · Failed posting attempts. · Closed-period violations. · Inactive-account postings. · Cross-business references. · Report cache differences.
+24.2 Monthly Checks
+· Trial Balance. · Balance Sheet equation. · Receivable-control reconciliation. · Payable-control reconciliation. · Inventory reconciliation. · Payroll-liability reconciliation. · Bank reconciliation status. · Equity reconciliation. · Suspense accounts. · Period-close readiness.
+24.3 Accounting Integrity Dashboard
+Display:
+· Trial Balance status · Unbalanced journals · Duplicate posting warnings · Missing-account mappings · Reconciliation completion · Open-period status · Suspense-account balance · Unposted transactions · Historical repair warnings · Financial statement status
+25. REQUIRED DEVELOPMENT DELIVERABLES
+The implementation team must deliver:
+1. Current-state accounting audit. 2. Target architecture document. 3. Complete posting matrix. 4. Chart of Accounts mapping registry.
+45
+
+5. Database schema changes. 6. Migration scripts. 7. Rollback scripts. 8. Historical data-repair scripts. 9. Accounting Posting Engine. 10. Journal and reversal services. 11. General Ledger service. 12. Trial Balance service. 13. Financial statement services. 14. Accounting-period framework. 15. Bank reconciliation module. 16. Equity module. 17. Period and year-end closing. 18. Projection module. 19. Loan-readiness module. 20. Audit and permissions implementation. 21. Automated test suite. 22. Data-reconciliation reports. 23. Deployment guide. 24. Support and troubleshooting guide. 25. Accounting architecture developer documentation.
+26. PHASE ACCEPTANCE GATES
+Each phase must pass a formal gate before the next one begins.
+Gate A -- Architecture
+· All posting paths documented. · Target architecture approved. · No unknown financial mutation paths remain.
+Gate B -- Posting Engine
+· Balanced journals guaranteed. · Idempotency proven. · Transaction rollback proven. · Source linkage proven.
+Gate C -- General Ledger
+· Ledger derived from journal lines. · Opening and closing balances correct. · Multi-business isolation confirmed.
+Gate D -- Reports
+· Trial Balance balances.
+46
+
+· Balance Sheet balances. · Income Statement reconciles. · Cash Flow reconciles. · Drill-down works.
+Gate E -- Historical Repair
+· Duplicates classified. · Wrong-account postings corrected. · Owner capital discrepancy resolved. · Liability discrepancy resolved. · Repair logs complete.
+Gate F -- Period Controls
+· Automatic period assignment works. · Closed-period restrictions work. · Reopening is audited. · Closing checklist works.
+Gate G -- Banking and Equity
+· Reconciliation adjustments post correctly. · Completed reconciliations are auditable. · Equity movements reconcile to the Balance Sheet.
+Gate H -- Production Readiness
+· Full test suite passes. · Production-like migration succeeds. · Rollback succeeds. · Finance team signs off. · Auditor review is complete.
+27. FINAL SYSTEM ACCEPTANCE CRITERIA
+The implementation is complete only when all of the following are true:
+1. Every posted journal balances. 2. Trial Balance total debits equal total credits. 3. The General Ledger agrees with the Trial Balance. 4. The Balance Sheet balances. 5. Net profit agrees with the movement in current-year earnings. 6. Cash Flow closing cash agrees with cash and bank ledgers. 7. Receivables agree with customer balances. 8. Payables agree with supplier balances. 9. Inventory agrees with the inventory control account. 10. Fixed assets agree with the asset register.
+47
+
+11. Loan balances agree with repayment schedules. 12. Payroll liabilities agree with payroll records. 13. Equity reports agree with equity accounts. 14. Owner capital is not duplicated. 15. Parent and child accounts are not double-counted. 16. Duplicate transaction posting is technically prevented. 17. Every report figure can be traced to journal lines. 18. Every journal can be traced to a source transaction. 19. Posted transactions cannot be edited silently. 20. Closed periods protect historical records. 21. Reversals and adjustments are fully auditable. 22. Historical data is preserved. 23. Migration scripts are reversible. 24. Reports use the General Ledger as their only accounting source. 25. Forecast data remains separate from actual accounting data. 26. Business and tenant data are fully isolated. 27. The system performs reliably with production-scale data. 28. Finance personnel approve the corrected balances. 29. Auditors can trace the complete transaction history. 30. Production deployment completes without loss of data.
+28. FINAL IMPLEMENTATION PRIORITY
+The team must prioritize correctness over visual enhancement.
+The implementation order must remain:
+Accounting Integrity 
+Historical Data Repair 
+General Ledger 
+Trial Balance 
+Financial Statements 
+Accounting Periods 
+Operational Integrations 
+Bank Reconciliation 
+Equity Management 
+Forecasting
+48
+
+ Executive Dashboards No dashboard, report design, AI forecast, or visual feature should be considered reliable until the underlying accounting engine has passed all integrity checks. The final result must be an accounting backend in which every value is posted once, mapped correctly, balanced, period-controlled, immutable after posting, and traceable from the financial statements to the original business transaction.
+49
+
+

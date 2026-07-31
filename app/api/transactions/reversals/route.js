@@ -398,8 +398,9 @@ export async function GET(request) {
         date: invoice.issueDate, // Invoices use issueDate, not date
         reversedAt: invoice.reversedAt,
         reversalReason: invoice.reversalReason,
-        originalTransactionId: invoice.id,
-        reversalTransactionId: invoice.reversedTransactionId,
+        // Child reversal row: reversedTransactionId → original (same as expense mapping)
+        originalTransactionId: invoice.reversedTransactionId,
+        reversalTransactionId: invoice.id,
         client: invoice.client,
         invoiceNumber: invoice.invoiceNumber,
         status: invoice.status,
@@ -410,6 +411,7 @@ export async function GET(request) {
           date: p.paymentDate
         }))
       })),
+
       ...paymentReversals.map(payment => ({
         id: payment.id,
         type: 'payment',

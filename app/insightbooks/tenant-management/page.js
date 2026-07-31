@@ -1,11 +1,12 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2,
   Headphones,
-  MoreVertical,
   Plus,
   RefreshCw,
 } from 'lucide-react';
@@ -22,7 +23,9 @@ import {
   AdminDataTable,
   AdminModal,
   AdminField,
+  AdminActionMenu,
 } from '@/components/admin';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 function statusTone(status) {
   const s = String(status || '').toUpperCase();
@@ -34,6 +37,7 @@ function statusTone(status) {
 
 export default function TenantManagementPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -50,7 +54,7 @@ export default function TenantManagementPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/tenants', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/tenants', { credentials: 'include' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Failed to load (${res.status})`);
       setTenants(Array.isArray(body.tenants) ? body.tenants : []);
@@ -65,14 +69,6 @@ export default function TenantManagementPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    const onDoc = (e) => {
-      if (!e.target.closest?.('[data-tenant-menu]')) setMenuId(null);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -108,7 +104,7 @@ export default function TenantManagementPage() {
     setActionLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/tenants/${tenantId}/lifecycle`, {
+      const res = await adminFetch(`/api/admin/tenants/${tenantId}/lifecycle`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -137,7 +133,7 @@ export default function TenantManagementPage() {
     setActionLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/support-access', {
+      const res = await adminFetch('/api/admin/support-access', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -164,7 +160,7 @@ export default function TenantManagementPage() {
     setCreating(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/tenants', {
+      const res = await adminFetch('/api/admin/tenants', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -185,8 +181,8 @@ export default function TenantManagementPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Tenant Management"
-        description="Create, activate, suspend, reactivate, and archive tenants. Hard delete is prohibited — archive preserves history."
+        title={t('admin-pages.tenants.title')}
+        description={t('admin-pages.tenants.description')}
         actions={
           <>
             <button
@@ -200,7 +196,7 @@ export default function TenantManagementPage() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white"
+              className="admin-btn-primary inline-flex items-center gap-2 rounded-[var(--admin-radius)] px-3.5 py-2.5 text-sm font-semibold"
             >
               <Plus className="h-4 w-4" aria-hidden />
               Create tenant
@@ -314,84 +310,71 @@ export default function TenantManagementPage() {
               mobileLabel: 'Actions',
               cellClassName: 'text-right',
               render: (tenant) => (
-                <div className="relative text-right" data-tenant-menu>
-                  <button
-                    type="button"
-                    aria-label="Actions"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--admin-radius)] hover:bg-[var(--admin-surface-muted)]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuId((id) => (id === tenant.id ? null : tenant.id));
-                    }}
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {menuId === tenant.id ? (
-                    <div className="absolute right-0 z-20 mt-1 w-52 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-white py-1 shadow-lg">
-                      <MenuBtn
-                        onClick={() =>
-                          router.push(`/insightbooks/tenants/${tenant.id}/dashboard`)
-                        }
-                      >
-                        Open dashboard
-                      </MenuBtn>
-                      <MenuBtn
-                        onClick={() =>
-                          setConfirm({
-                            tenant,
-                            command: 'ACTIVATE',
-                            title: 'Activate tenant',
-                            description: `Activate ${tenant.name}?`,
-                          })
-                        }
-                      >
-                        Activate
-                      </MenuBtn>
-                      <MenuBtn
-                        onClick={() =>
-                          setConfirm({
-                            tenant,
-                            command: 'SUSPEND',
-                            title: 'Suspend tenant',
-                            description: `Suspend ${tenant.name}? A reason is required.`,
-                            needReason: true,
-                          })
-                        }
-                      >
-                        Suspend
-                      </MenuBtn>
-                      <MenuBtn
-                        onClick={() =>
-                          setConfirm({
-                            tenant,
-                            command: 'REACTIVATE',
-                            title: 'Reactivate tenant',
-                            description: `Reactivate ${tenant.name}?`,
-                          })
-                        }
-                      >
-                        Reactivate
-                      </MenuBtn>
-                      <MenuBtn
-                        onClick={() =>
-                          setConfirm({
-                            tenant,
-                            command: 'ARCHIVE',
-                            title: 'Archive tenant',
-                            description: `Archive ${tenant.name}? Data is preserved; hard delete is not allowed.`,
-                            needReason: true,
-                          })
-                        }
-                      >
-                        Archive
-                      </MenuBtn>
-                      <MenuBtn onClick={() => startSupportAccess(tenant)}>
-                        <Headphones className="mr-2 inline h-3.5 w-3.5" />
-                        Support access
-                      </MenuBtn>
-                    </div>
-                  ) : null}
-                </div>
+                <AdminActionMenu
+                  open={menuId === tenant.id}
+                  onOpenChange={(next) => setMenuId(next ? tenant.id : null)}
+                  items={[
+                    {
+                      key: 'dashboard',
+                      label: 'Open dashboard',
+                      onSelect: () =>
+                        router.push(`/insightbooks/tenants/${tenant.id}/dashboard`),
+                    },
+                    {
+                      key: 'activate',
+                      label: 'Activate',
+                      onSelect: () =>
+                        setConfirm({
+                          tenant,
+                          command: 'ACTIVATE',
+                          title: 'Activate tenant',
+                          description: `Activate ${tenant.name}?`,
+                        }),
+                    },
+                    {
+                      key: 'suspend',
+                      label: 'Suspend',
+                      onSelect: () =>
+                        setConfirm({
+                          tenant,
+                          command: 'SUSPEND',
+                          title: 'Suspend tenant',
+                          description: `Suspend ${tenant.name}? A reason is required.`,
+                          needReason: true,
+                        }),
+                    },
+                    {
+                      key: 'reactivate',
+                      label: 'Reactivate',
+                      onSelect: () =>
+                        setConfirm({
+                          tenant,
+                          command: 'REACTIVATE',
+                          title: 'Reactivate tenant',
+                          description: `Reactivate ${tenant.name}?`,
+                        }),
+                    },
+                    {
+                      key: 'archive',
+                      label: 'Archive',
+                      tone: 'danger',
+                      onSelect: () =>
+                        setConfirm({
+                          tenant,
+                          command: 'ARCHIVE',
+                          title: 'Archive tenant',
+                          description: `Archive ${tenant.name}? Data is preserved; hard delete is not allowed.`,
+                          needReason: true,
+                        }),
+                    },
+                    {
+                      key: 'support',
+                      label: 'Support access',
+                      icon: Headphones,
+                      onSelect: () => startSupportAccess(tenant),
+                    },
+                  ]}
+                />
               ),
             },
           ]}
@@ -444,18 +427,6 @@ export default function TenantManagementPage() {
         }
       />
     </AdminPageContainer>
-  );
-}
-
-function MenuBtn({ children, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--surface-muted)]"
-    >
-      {children}
-    </button>
   );
 }
 

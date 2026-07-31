@@ -5,10 +5,13 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { calculatePayroll, toPayrollNumber } from '@/lib/payrollCalculations';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { resolveEmployeeCompensation } from '@/lib/resolveEmployeeCompensation';
+import { addMoney, roundMoney } from '@/lib/money';
 
 /**
- * POST handler for salary calculation during employee creation
- * Calculates net salary based on gross salary and selected deductions
+ * POST handler for salary calculation during employee creation / edit.
+ * When employeeId is provided, gross defaults from the EmploymentContract
+ * effective for asOf (or periodEnd), falling back to Employee fields.
  */
 export async function POST(request) {
   try {
@@ -28,9 +31,28 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { grossSalary, deductionIds = [], employmentType = 'Permanent', benefits = [] } = body;
+    const {
+      grossSalary,
+      deductionIds = [],
+      employmentType = 'Permanent',
+      benefits = [],
+      employeeId = null,
+      asOf = null,
+      periodEnd = null,
+    } = body;
 
-    const baseSalary = toPayrollNumber(grossSalary);
+    let compensation = null;
+    if (employeeId) {
+      compensation = await resolveEmployeeCompensation({
+        tenantId: user.tenantId,
+        employeeId,
+        asOf: periodEnd || asOf || new Date(),
+      });
+    }
+
+    const baseSalary =
+      toPayrollNumber(grossSalary) ??
+      (compensation ? compensation.basicSalary : null);
     if (baseSalary == null || baseSalary <= 0) {
       return NextResponse.json(
         { error: 'Gross salary must be a positive number' },
@@ -73,19 +95,23 @@ export async function POST(request) {
     }
 
     const payrollCalculation = calculatePayroll(baseSalary, deductions, npsOptions);
-    const netWithBenefits =
-      Math.round((payrollCalculation.netPay + totalBenefits) * 100) / 100;
+    const netWithBenefits = roundMoney(addMoney(payrollCalculation.netPay, totalBenefits));
     const calculation = {
       ...payrollCalculation,
-      baseSalary: Math.round(baseSalary * 100) / 100,
-      totalBenefits: Math.round(totalBenefits * 100) / 100,
-      grossSalary: Math.round(payrollCalculation.grossSalary * 100) / 100,
+      baseSalary: roundMoney(baseSalary),
+      totalBenefits: roundMoney(totalBenefits),
+      grossSalary: roundMoney(payrollCalculation.grossSalary),
       netPay: netWithBenefits,
+      compensationSource: compensation?.source || 'request',
+      contractId: compensation?.contractId || null,
+      contractVersion: compensation?.contractVersion || null,
+      payBasis: compensation?.payBasis || null,
     };
 
     return NextResponse.json({
       calculation,
-      deductions
+      deductions,
+      compensation,
     });
 
   } catch (error) {

@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useState } from 'react';
 import {
   AdminPageContainer,
@@ -12,6 +15,7 @@ import {
 const btnPrimary = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50';
 
 export default function AdminImportsPage() {
+  const { t } = useI18n();
   const [type, setType] = useState('tenants');
   const [csvText, setCsvText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,7 +27,7 @@ export default function AdminImportsPage() {
     setError('');
     setResult(null);
     try {
-      const res = await fetch('/api/admin/imports/dry-run', {
+      const res = await adminFetch('/api/admin/imports/dry-run', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -47,7 +51,7 @@ export default function AdminImportsPage() {
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="Import dry-run"
+        title={t('admin-pages.imports.title')}
         description="Validate tenant or user CSV rows without writing to the database (max 1000 rows)."
       />
 

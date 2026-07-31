@@ -43,9 +43,6 @@ import {
   Shield,
   Globe,
   Lock,
-  Building2,
-  LayoutGrid,
-  List,
   Sparkles,
 
 } from 'lucide-react';
@@ -58,7 +55,9 @@ import {
   fetchClients,
   printReceipt,
   voidSale,
-  refundSale
+  refundSale,
+  countSaleReceiptsExport,
+  exportSaleReceiptsPdf,
 } from "@/app/services/salesService";
 import { calculateProductTaxes, calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
 import { isMalawiStandardVatRate, MALAWI_STANDARD_VAT_RATE } from "@/lib/malawiTaxCatalog";
@@ -73,6 +72,9 @@ import {
   queueOfflineSale, syncOfflineSales, checkOfflineThresholds,
   getOfflineSalesCount, getPendingOfflineSales
 } from '@/lib/offlineSalesQueue';
+import HistoricalSalesImportWizard from '@/components/pos/HistoricalSalesImportWizard';
+import { RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM } from '@/lib/receiptPaperWidthPresets';
+import { normalizeReceiptPaperWidthMm } from '@/lib/receiptPaperWidth';
 
 const POSPage = () => {
   const router = useRouter();
@@ -86,13 +88,8 @@ const POSPage = () => {
   const [originalReference, setOriginalReference] = useState('');
   const [migrationBatch, setMigrationBatch] = useState('');
   
-  // Batch upload state
+  // Historical CSV import wizard vs single entry
   const [showBatchUpload, setShowBatchUpload] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [batchName, setBatchName] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadResults, setUploadResults] = useState(null);
-  const fileInputRef = useRef(null);
   
   // Sales data
   const [recentSales, setRecentSales] = useState([]);
@@ -127,8 +124,6 @@ const POSPage = () => {
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showProductSearch, setShowProductSearch] = useState(false);
-  /** When true, show a scrollable grid of products (filtered by search) for click-to-add */
-  const [productPickerGrid, setProductPickerGrid] = useState(true);
   
   // Clients
   const [clients, setClients] = useState([]);
@@ -157,11 +152,7 @@ const POSPage = () => {
   const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [isLoadingPaymentAccounts, setIsLoadingPaymentAccounts] = useState(true);
   const [paymentAllocations, setPaymentAllocations] = useState([]); // [{ paymentAccountId, amount }]
-  const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
-  const [tenants, setTenants] = useState([]);
-  const [currentTenantId, setCurrentTenantId] = useState(null);
-  const [isLoadingTenants, setIsLoadingTenants] = useState(true);
-  const [isSwitchingBusiness, setIsSwitchingBusiness] = useState(false);
+  const [showSplitPayment, setShowSplitPayment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saleSuccess, setSaleSuccess] = useState(false);
   const [saleError, setSaleError] = useState(null);
@@ -204,6 +195,17 @@ const POSPage = () => {
   // Receipt modal
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState(null);
+  const [receiptPaperWidthMm, setReceiptPaperWidthMm] = useState(80);
+
+  // Bulk receipts PDF export
+  const [showReceiptsPdfModal, setShowReceiptsPdfModal] = useState(false);
+  const [receiptsPdfPreset, setReceiptsPdfPreset] = useState("this_month");
+  const [receiptsPdfCustomFrom, setReceiptsPdfCustomFrom] = useState("");
+  const [receiptsPdfCustomTo, setReceiptsPdfCustomTo] = useState("");
+  const [receiptsPdfCount, setReceiptsPdfCount] = useState(null);
+  const [receiptsPdfError, setReceiptsPdfError] = useState(null);
+  const [isCountingReceiptsPdf, setIsCountingReceiptsPdf] = useState(false);
+  const [isExportingReceiptsPdf, setIsExportingReceiptsPdf] = useState(false);
   
   // References
   const productSearchRef = useRef(null);
@@ -265,6 +267,27 @@ const POSPage = () => {
     };
   
     fetchPermissions();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/tenant/settings');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setReceiptPaperWidthMm(
+            normalizeReceiptPaperWidthMm(data.receiptPaperWidthMm)
+          );
+        }
+      } catch {
+        // Keep default 80 mm
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Fetch active tax types and default tax for inflow (sales) for auto-population
@@ -406,60 +429,7 @@ const POSPage = () => {
     }
   };
 
-  // NOTE: Branch switching option was removed from POS by request.
-  // Branch context (if any) is taken from the server session/user defaults.
-
-  const loadTenants = async () => {
-    try {
-      setIsLoadingTenants(true);
-      const res = await fetch('/api/tenant/list', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setTenants(data.tenants || []);
-        setCurrentTenantId(data.currentTenantId || null);
-      }
-    } catch (e) {
-      console.error('Failed to load businesses:', e);
-    } finally {
-      setIsLoadingTenants(false);
-    }
-  };
-
-  /** Reload POS-scoped data for the active business (tenant). */
-  const refreshPosData = async () => {
-    await Promise.all([
-      loadRecentSales(),
-      loadProducts(),
-      loadClients(),
-      loadStatistics(),
-      loadPaymentAccounts(),
-      loadIncomeAccounts(),
-      fetchPosTaxTypes(),
-      loadDailyReport(dailyReportDate),
-      loadEISStatus(),
-    ]);
-  };
-
-  const handleTenantChange = async (e) => {
-    const tenantId = e.target.value;
-    if (!tenantId || tenantId === currentTenantId) return;
-    setIsSwitchingBusiness(true);
-    try {
-      const res = await fetch('/api/tenant/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId }),
-      });
-      if (res.ok) {
-        window.location.reload();
-        return;
-      }
-    } catch (err) {
-      console.error('Business switch failed:', err);
-    } finally {
-      setIsSwitchingBusiness(false);
-    }
-  };
+  // Branch/business switching UI was removed from POS; session supplies tenant context.
 
   // Load payment accounts (same as /payments/management: balances API, then list fallback)
   const loadPaymentAccounts = async () => {
@@ -547,7 +517,6 @@ const POSPage = () => {
 
   // Load recent sales, products, and clients on initial render
   useEffect(() => {
-    loadTenants();
     loadRecentSales();
     loadProducts();
     loadClients();
@@ -833,6 +802,72 @@ const POSPage = () => {
     }
   }, []);
 
+  const getReceiptsPdfExportFilters = () => {
+    if (receiptsPdfPreset === "custom") {
+      return {
+        preset: "custom",
+        dateFrom: receiptsPdfCustomFrom
+          ? new Date(
+              Number(receiptsPdfCustomFrom.slice(0, 4)),
+              Number(receiptsPdfCustomFrom.slice(5, 7)) - 1,
+              Number(receiptsPdfCustomFrom.slice(8, 10)),
+              0,
+              0,
+              0,
+              0
+            ).toISOString()
+          : undefined,
+        dateTo: receiptsPdfCustomTo
+          ? new Date(
+              Number(receiptsPdfCustomTo.slice(0, 4)),
+              Number(receiptsPdfCustomTo.slice(5, 7)) - 1,
+              Number(receiptsPdfCustomTo.slice(8, 10)),
+              23,
+              59,
+              59,
+              999
+            ).toISOString()
+          : undefined,
+      };
+    }
+    return { preset: receiptsPdfPreset };
+  };
+
+  const handlePreviewReceiptsPdfCount = async () => {
+    setReceiptsPdfError(null);
+    setReceiptsPdfCount(null);
+    if (receiptsPdfPreset === "custom" && !receiptsPdfCustomFrom && !receiptsPdfCustomTo) {
+      setReceiptsPdfError("Select a custom from and/or to date.");
+      return;
+    }
+    setIsCountingReceiptsPdf(true);
+    try {
+      const data = await countSaleReceiptsExport(getReceiptsPdfExportFilters());
+      setReceiptsPdfCount(data);
+    } catch (e) {
+      setReceiptsPdfError(e?.message || "Failed to count receipts");
+    } finally {
+      setIsCountingReceiptsPdf(false);
+    }
+  };
+
+  const handleExportReceiptsPdf = async () => {
+    setReceiptsPdfError(null);
+    if (receiptsPdfPreset === "custom" && !receiptsPdfCustomFrom && !receiptsPdfCustomTo) {
+      setReceiptsPdfError("Select a custom from and/or to date.");
+      return;
+    }
+    setIsExportingReceiptsPdf(true);
+    try {
+      await exportSaleReceiptsPdf(getReceiptsPdfExportFilters());
+      setShowReceiptsPdfModal(false);
+    } catch (e) {
+      setReceiptsPdfError(e?.message || "Failed to export receipts PDF");
+    } finally {
+      setIsExportingReceiptsPdf(false);
+    }
+  };
+
   const openPosRegisterDay = async () => {
     try {
       setPosCashActionLoading(true);
@@ -906,15 +941,20 @@ const POSPage = () => {
 
   // Load products
   const loadProducts = async () => {
-    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v1';
+    // v2: services excluded from POS (invoice-only)
+    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v2';
+    const onlyPosProducts = (list) =>
+      (Array.isArray(list) ? list : []).filter((p) => p && !p.isService);
     try {
       setIsLoadingProducts(true);
       setProductsError(null);
       
-      const productsData = await fetchProductsForSaleAll({
-        pageSize: 100,
-        allBranches: true,
-      });
+      const productsData = onlyPosProducts(
+        await fetchProductsForSaleAll({
+          pageSize: 100,
+          allBranches: true,
+        })
+      );
       setProducts(productsData);
       setFilteredProducts(productsData);
       try {
@@ -925,7 +965,7 @@ const POSPage = () => {
       try {
         const cached = localStorage.getItem(POS_PRODUCTS_CACHE_KEY);
         if (cached) {
-          const parsed = JSON.parse(cached);
+          const parsed = onlyPosProducts(JSON.parse(cached));
           if (Array.isArray(parsed) && parsed.length > 0) {
             setProducts(parsed);
             setFilteredProducts(parsed);
@@ -1672,9 +1712,11 @@ const POSPage = () => {
         if (defaultAccount) {
           setPaymentMethod(defaultAccount.id);
           setPaymentAllocations([]); // Will be set when sale is completed
+          setShowSplitPayment(false);
         } else {
           setPaymentMethod("");
           setPaymentAllocations([]);
+          setShowSplitPayment(false);
         }
     setQuantity(1);
     setProductSearchQuery("");
@@ -1683,104 +1725,9 @@ const POSPage = () => {
     setHistoricalDate('');
     setOriginalReference('');
     setMigrationBatch('');
-    
-    // Reset batch upload state
     setShowBatchUpload(false);
-    setSelectedFile(null);
-    setBatchName('');
-    setUploadResults(null);
     
     // Note: keep receipt data separate; avoid resetting non-existent totals
-  };
-
-  // Download CSV template
-  const downloadTemplate = async () => {
-    try {
-      const response = await fetch('/api/historical-transactions/template');
-      if (!response.ok) {
-        throw new Error('Failed to download template');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'historical_transactions_template.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading template:', error);
-      setSaleError('Failed to download template. Please try again.');
-    }
-  };
-
-  // Handle file selection
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setUploadResults(null);
-      // Auto-generate batch name if empty
-      if (!batchName) {
-        setBatchName(`BATCH-${new Date().toISOString().split('T')[0]}-${Date.now()}`);
-      }
-    }
-  };
-
-  // Handle batch upload
-  const handleBatchUpload = async () => {
-    if (!selectedFile) {
-      setSaleError('Please select a file to upload');
-      return;
-    }
-
-    setIsUploading(true);
-    setSaleError(null);
-    setUploadResults(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('migrationBatch', batchName || `BATCH-${new Date().toISOString().split('T')[0]}-${Date.now()}`);
-
-      const response = await fetch('/api/historical-transactions/batch-upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (result.details && Array.isArray(result.details)) {
-          // Validation errors
-          setSaleError(`Validation failed: ${result.details.slice(0, 5).join(', ')}${result.details.length > 5 ? '...' : ''}`);
-        } else {
-          setSaleError(result.error || 'Upload failed');
-        }
-        return;
-      }
-
-      setUploadResults(result);
-      
-      // Clear file selection on successful upload
-      setSelectedFile(null);
-      setBatchName('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-
-      // Refresh sales data
-      loadRecentSales();
-      loadStatistics();
-
-    } catch (error) {
-      console.error('Error uploading batch:', error);
-      setSaleError('Failed to upload batch. Please try again.');
-    } finally {
-      setIsUploading(false);
-    }
   };
   
   // Save sale as draft
@@ -2041,8 +1988,10 @@ const POSPage = () => {
         branchId: null,
         items: selectedProducts.map(product => {
           const lineTax = resolveCheckoutLineTax(product);
+          // Historical POS sales: custom lines only — never touch stock/FIFO
+          const forceCustom = activeTab === 'historical' || product.isCustom;
           const itemData = {
-          productId: product.isCustom ? null : product.id,
+          productId: forceCustom ? null : product.id,
           description: product.name,
           quantity: product.quantity,
           unitPrice: product.price,
@@ -2052,9 +2001,9 @@ const POSPage = () => {
           taxBreakdown: lineTax.taxBreakdown,
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
-          isCustom: product.isCustom || false,
+          isCustom: Boolean(forceCustom),
           accountId: resolvedIncomeAccountId, // Always use default revenue account for POS transactions
-          ...(product.isCustom
+          ...(forceCustom
             ? {
                 orderPrice: product.orderPrice ?? 0,
                 customProductData: {
@@ -2064,6 +2013,8 @@ const POSPage = () => {
                   orderPrice: product.orderPrice ?? 0,
                   cost: product.orderPrice ?? 0,
                   productCostAtSale: product.orderPrice ?? 0,
+                  historicalImport: activeTab === 'historical',
+                  noStockImpact: activeTab === 'historical',
                 },
               }
             : {}),
@@ -2223,12 +2174,14 @@ const POSPage = () => {
     return methodMap[method] || method;
   };
   
-  // Print the current receipt
-  const handlePrintReceipt = async (paperWidth = 80) => {
+  // Print the current receipt (uses selected thermal width, 58–90 mm)
+  const handlePrintReceipt = async (paperWidth = receiptPaperWidthMm) => {
     if (!currentReceipt) return;
     
     try {
-      await printReceipt(currentReceipt.id, { paperWidth });
+      await printReceipt(currentReceipt.id, {
+        paperWidth: normalizeReceiptPaperWidthMm(paperWidth),
+      });
     } catch (error) {
       console.error("Error printing receipt:", error);
       alert("Failed to print receipt. Please try again.");
@@ -2289,7 +2242,7 @@ const POSPage = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Point of Sale</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] sm:text-4xl">Point of Sale</h1>
             {cartToast ? (
               <div
                 role="status"
@@ -2430,13 +2383,23 @@ const POSPage = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
         {/* Left Column - New Sale Form */}
         {pagePermissions.canCreateSales && (
-          <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
+          <div className="lg:col-span-9 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-5 lg:p-6 border border-gray-100 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
           <div>
-            <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">New Sale</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <button
+                type="button"
+                className="px-4 py-2.5 border-2 border-dashed border-gray-300 bg-white/50 backdrop-blur-sm rounded-xl text-gray-700 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center transition-all font-medium text-sm"
+                onClick={() => setShowCustomProduct(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Custom Product
+              </button>
+              <h2 className="text-xl lg:text-2xl font-bold text-gray-900 ml-auto">New Sale</h2>
+            </div>
             <div className="flex flex-wrap gap-2 mb-6 bg-gray-50 p-1 rounded-xl">
               <button
                 className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -2673,20 +2636,19 @@ const POSPage = () => {
                       onClick={() => setShowBatchUpload(!showBatchUpload)}
                     >
                       <Package className="w-3 h-3 mr-1" />
-                      {showBatchUpload ? 'Single Entry' : 'Batch Upload'}
+                      {showBatchUpload ? 'Single Entry' : 'CSV Import'}
                     </button>
                   </div>
                 </div>
                 <p className="text-xs text-yellow-700 mb-4">
-                  Record transactions that occurred before system implementation. All entries will be audited and marked as historical data.
+                  Record past sales before go-live. Dates are stored on each sale. Accounting is posted; stock is not changed.
                 </p>
                 
                 {!showBatchUpload ? (
-                  // Single transaction entry form
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">Transaction Date *</label>
+                        <label className="block text-sm font-medium mb-1 text-gray-700">Sale date *</label>
                         <input
                           type="date"
                           className="w-full p-2 border border-gray-200 rounded-md"
@@ -2698,10 +2660,10 @@ const POSPage = () => {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">Original Reference</label>
+                        <label className="block text-sm font-medium mb-1 text-gray-700">Original reference</label>
                         <input
                           type="text"
-                          placeholder="Original receipt/invoice number"
+                          placeholder="Old receipt / invoice number"
                           className="w-full p-2 border border-gray-200 rounded-md"
                           value={originalReference}
                           onChange={(e) => setOriginalReference(e.target.value)}
@@ -2710,10 +2672,10 @@ const POSPage = () => {
                     </div>
                     
                     <div className="mt-4">
-                      <label className="block text-sm font-medium mb-1 text-gray-700">Migration Batch</label>
+                      <label className="block text-sm font-medium mb-1 text-gray-700">Batch label (optional)</label>
                       <input
                         type="text"
-                        placeholder="e.g., BATCH-2024-001 (optional)"
+                        placeholder="e.g. HIST-2024-01"
                         className="w-full p-2 border border-gray-200 rounded-md"
                         value={migrationBatch}
                         onChange={(e) => setMigrationBatch(e.target.value)}
@@ -2721,7 +2683,7 @@ const POSPage = () => {
                     </div>
 
                     <div className="mt-4">
-                      <label className="block text-sm font-medium mb-1 text-gray-700">Customer (Optional)</label>
+                      <label className="block text-sm font-medium mb-1 text-gray-700">Customer (optional)</label>
                       <ClientSearchCombobox
                         clients={clients}
                         value={selectedCustomer}
@@ -2734,140 +2696,22 @@ const POSPage = () => {
                         emptyLabel="Walk-in Customer"
                       />
                     </div>
+                    <p className="mt-3 text-xs text-yellow-800">
+                      Add line items below, then complete the sale. Historical lines do not reduce stock.
+                    </p>
                   </>
                 ) : (
-                  // Batch upload form
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                      <h4 className="text-sm font-medium text-blue-800 mb-2">Batch Upload Instructions</h4>
-                      <ul className="text-xs text-blue-700 space-y-1">
-                        <li>• Download the CSV template below and fill in your historical transactions</li>
-                        <li>• Each row represents one transaction with all required details</li>
-                        <li>• Ensure dates are in YYYY-MM-DD format and not in the future</li>
-                        <li>• Upload the completed file to process all transactions at once</li>
-                      </ul>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"
-                        onClick={downloadTemplate}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download CSV Template
-                      </button>
-                      
-                      <div className="flex-1">
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          accept=".csv,.xlsx,.xls"
-                          onChange={handleFileSelect}
-                          className="hidden"
-                        />
-                        <button
-                          type="button"
-                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="w-4 h-4 mr-2" />
-                          Select File to Upload
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {selectedFile && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <FileText className="w-4 h-4 text-gray-500 mr-2" />
-                            <span className="text-sm text-gray-700">{selectedFile.name}</span>
-                            <span className="text-xs text-gray-500 ml-2">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
-                          </div>
-                          <button
-                            type="button"
-                            className="text-red-600 hover:text-red-800"
-                            onClick={() => {
-                              setSelectedFile(null);
-                              if (fileInputRef.current) fileInputRef.current.value = '';
-                            }}
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                        
-                        <div className="mt-3">
-                          <label className="block text-sm font-medium mb-1 text-gray-700">Migration Batch Name</label>
-                          <input
-                            type="text"
-                            placeholder={`BATCH-${new Date().toISOString().split('T')[0]}`}
-                            className="w-full p-2 border border-gray-200 rounded-md text-sm"
-                            value={batchName}
-                            onChange={(e) => setBatchName(e.target.value)}
-                          />
-                        </div>
-                        
-                        <button
-                          type="button"
-                          className="mt-3 w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center justify-center disabled:opacity-50"
-                          onClick={handleBatchUpload}
-                          disabled={isUploading}
-                        >
-                          {isUploading ? (
-                            <>
-                              <Loader className="w-4 h-4 mr-2 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-4 h-4 mr-2" />
-                              Upload Batch Transactions
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                    
-                    {uploadResults && (
-                      <div className={`border rounded-md p-4 ${uploadResults.results.failed > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
-                        <h4 className={`text-sm font-medium mb-2 ${uploadResults.results.failed > 0 ? 'text-yellow-800' : 'text-green-800'}`}>
-                          Upload Results
-                        </h4>
-                        <div className="text-sm space-y-1">
-                          <p className="text-green-700">✓ {uploadResults.results.successful} transactions processed successfully</p>
-                          {uploadResults.results.failed > 0 && (
-                            <p className="text-red-700">✗ {uploadResults.results.failed} transactions failed</p>
-                          )}
-                          <p className="text-gray-600">Migration Batch: {uploadResults.results.migrationBatch}</p>
-                        </div>
-                        
-                        {uploadResults.results.failedTransactions?.length > 0 && (
-                          <details className="mt-3">
-                            <summary className="text-sm font-medium text-red-700 cursor-pointer">View Failed Transactions</summary>
-                            <div className="mt-2 text-xs space-y-1">
-                              {uploadResults.results.failedTransactions.map((failed, index) => (
-                                <div key={index} className="text-red-600">
-                                  Row {failed.rowNumber}: {failed.error}
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <HistoricalSalesImportWizard
+                    onImported={() => {
+                      loadRecentSales();
+                      loadStatistics();
+                    }}
+                  />
                 )}
               </div>
             )}
 
             <div className="mb-6 relative">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Add Products</label>
-              <p className="text-xs text-gray-500 mb-2">
-                {productPickerGrid
-                  ? 'Grid view: scroll and click products to add. Search narrows the grid.'
-                  : 'Search by name, SKU, or barcode — or open grid view to browse all products.'}
-              </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-grow" ref={productSearchRef}>
                   <input
@@ -2876,9 +2720,7 @@ const POSPage = () => {
                     className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
-                    onFocus={() => {
-                      if (!productPickerGrid) setShowProductSearch(true);
-                    }}
+                    onFocus={() => setShowProductSearch(true)}
                     onKeyDown={(e) => {
                       // Add first matching product on Enter
                       if (e.key === 'Enter' && filteredProducts.length > 0) {
@@ -2893,8 +2735,8 @@ const POSPage = () => {
                     <Search className="w-5 h-5 text-gray-400" />
                   </div>
                   
-                  {/* Product search results dropdown (hidden in grid mode — grid shows the same filtered list) */}
-                  {showProductSearch && !productPickerGrid && (
+                  {/* Product search results list */}
+                  {showProductSearch && (
                     <div className="absolute z-10 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                       {isLoadingProducts ? (
                         <div className="p-6 text-center">
@@ -2961,128 +2803,8 @@ const POSPage = () => {
                       placeholder="Qty"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProductPickerGrid((prev) => {
-                        const next = !prev;
-                        if (next) setShowProductSearch(false);
-                        return next;
-                      });
-                    }}
-                    className={`shrink-0 flex items-center justify-center w-12 h-[50px] rounded-xl border-2 transition-all ${
-                      productPickerGrid
-                        ? 'border-blue-600 bg-blue-600 text-white shadow-md'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-blue-400 hover:text-blue-600'
-                    }`}
-                    title={productPickerGrid ? 'Switch to list search dropdown' : 'Show product grid (browse & click)'}
-                    aria-pressed={productPickerGrid}
-                  >
-                    {productPickerGrid ? (
-                      <List className="w-5 h-5" aria-hidden />
-                    ) : (
-                      <LayoutGrid className="w-5 h-5" aria-hidden />
-                    )}
-                  </button>
                 </div>
               </div>
-
-              {/* Scrollable product grid — same filter as search */}
-              {productPickerGrid && (
-                <div className="mt-3 rounded-xl border-2 border-gray-200 bg-gradient-to-b from-white to-gray-50/80 shadow-inner max-h-[min(52vh,32rem)] overflow-y-auto overscroll-contain">
-                  {isLoadingProducts ? (
-                    <div className="p-10 flex flex-col items-center justify-center text-gray-500">
-                      <Loader className="w-8 h-8 text-blue-500 animate-spin mb-2" />
-                      <span className="text-sm">Loading products…</span>
-                    </div>
-                  ) : filteredProducts.length === 0 ? (
-                    <div className="p-10 text-center text-gray-500 text-sm">
-                      {productSearchQuery.trim()
-                        ? 'No products match your search.'
-                        : 'No products available.'}
-                    </div>
-                  ) : (
-                    <div className="p-2 sm:p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
-                      {filteredProducts.map((product) => {
-                        const out =
-                          product.stockLevel !== null && product.stockLevel <= 0;
-                        const imgSrc =
-                          product.image &&
-                          String(product.image).trim() !== '' &&
-                          !String(product.image).includes('placeholder')
-                            ? product.image
-                            : null;
-                        return (
-                          <button
-                            key={product.id}
-                            type="button"
-                            disabled={out}
-                            onClick={() => !out && handleQuickAdd(product)}
-                            className={`flex flex-col rounded-lg border text-left transition-all min-h-[112px] ${
-                              out
-                                ? 'border-gray-100 bg-gray-100/80 opacity-60 cursor-not-allowed'
-                                : 'border-gray-200 bg-white hover:border-blue-400 hover:shadow-md hover:bg-blue-50/50 active:scale-[0.98]'
-                            }`}
-                          >
-                            <div className="h-14 w-full rounded-t-md bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
-                              {imgSrc ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={imgSrc}
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <Package className="w-7 h-7 text-gray-400" />
-                              )}
-                            </div>
-                            <div className="p-2 flex-1 flex flex-col min-w-0">
-                              <div className="flex flex-wrap items-center gap-1">
-                                <span className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight">
-                                  {product.name}
-                                </span>
-                                {renderProductExpiryBadge(product)}
-                              </div>
-                              {product.sku ? (
-                                <span className="text-[10px] text-gray-500 truncate mt-0.5">
-                                  {product.sku}
-                                </span>
-                              ) : null}
-                              <span className="text-sm font-bold text-gray-900 mt-auto pt-1">
-                                {formatCurrency(product.price)}
-                              </span>
-                              <span
-                                className={`text-[10px] font-medium mt-0.5 ${
-                                  out
-                                    ? 'text-red-600'
-                                    : product.stockLevel > 0
-                                      ? 'text-green-600'
-                                      : 'text-gray-500'
-                                }`}
-                              >
-                                {out
-                                  ? 'Out of stock'
-                                  : `Stock: ${product.stockLevel ?? '—'}`}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Custom Product Button */}
-            <div className="mb-6">
-              <button
-                className="w-full p-3 border-2 border-dashed border-gray-300 bg-white/50 backdrop-blur-sm rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all font-medium"
-                onClick={() => setShowCustomProduct(true)}
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Add Custom Product
-              </button>
             </div>
 
             <div className="border-2 border-gray-200 rounded-xl overflow-hidden mb-6 shadow-sm">
@@ -3450,138 +3172,274 @@ const POSPage = () => {
         )}
 
         {/* Right Column - Payment Method & Action Buttons */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
+        <div className="lg:col-span-3 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-3 lg:p-4 border border-gray-100 relative overflow-hidden min-w-0">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
-          {/* Business (tenant) — POS is scoped per business */}
-          {(!isLoadingTenants && tenants.length > 0) && (
-            <div className="mb-6 space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Business</label>
-              {isLoadingTenants ? (
-                <div className="text-sm text-gray-500 py-2">Loading businesses...</div>
-              ) : tenants.length > 1 ? (
-                <select
-                  value={currentTenantId || ''}
-                  onChange={handleTenantChange}
-                  disabled={isSwitchingBusiness}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60"
-                >
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              ) : tenants.length === 1 ? (
-                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-800 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 flex-shrink-0 text-gray-500" />
-                  <span className="truncate font-medium">{tenants[0].name}</span>
-                </div>
-              ) : null}
-            </div>
-          )}
-
-          <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
-          <div className="mb-6">
+          <h2 className="text-sm font-bold text-gray-900 mb-2">Payment Method</h2>
+          <div className="mb-3">
             {isLoadingPaymentAccounts ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader className="animate-spin h-6 w-6 text-gray-400" />
-                <span className="ml-2 text-gray-500">Loading payment accounts...</span>
+              <div className="flex items-center justify-center p-3">
+                <Loader className="animate-spin h-4 w-4 text-gray-400" />
+                <span className="ml-2 text-xs text-gray-500">Loading...</span>
               </div>
             ) : paymentAccounts.length === 0 ? (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
-                No payment accounts available. Please configure payment accounts in Settings.
+              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-xs">
+                No payment accounts available. Configure them in Settings.
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-                  {paymentAccounts.map(account => (
-                    <button
-                      key={account.id}
-                      onClick={() => {
-                        setPaymentMethod(account.id);
-                        // Update allocation when account is selected - always use current total
-                        const currentTotal = calculateTotal();
-                        if (currentTotal > 0) {
-                          setPaymentAllocations([{ paymentAccountId: account.id, amount: currentTotal }]);
-                        } else {
-                          // If total is 0, still set allocation but with 0 amount (will be updated when products are added)
-                          setPaymentAllocations([{ paymentAccountId: account.id, amount: 0 }]);
-                        }
-                        setShowSplitPaymentModal(false); // Close split modal if open
-                      }}
-                      className={`p-4 border-2 rounded-xl flex flex-col justify-center items-center transition-all ${
-                        paymentMethod === account.id || (paymentAllocations.length === 1 && paymentAllocations[0].paymentAccountId === account.id)
-                          ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-md scale-105'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-2xl mb-2">
-                        {account.accountType === 'Cash' && <DollarSign className="w-6 h-6" />}
-                        {account.accountType === 'Bank' && <DollarSign className="w-6 h-6" />}
-                        {account.accountType === 'Mobile Money' && <Smartphone className="w-6 h-6" />}
-                        {account.accountType === 'Wallet' && <CreditCard className="w-6 h-6" />}
-                        {account.accountType === 'POS Terminal' && <CreditCard className="w-6 h-6" />}
-                        {!['Cash', 'Bank', 'Mobile Money', 'Wallet', 'POS Terminal'].includes(account.accountType) && <DollarSign className="w-6 h-6" />}
-                      </span>
-                      <span className="text-sm font-semibold">{account.name}</span>
-                      {account.reference && (
-                        <span className="text-xs text-gray-500 mt-1">{account.reference}</span>
-                      )}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                  {paymentAccounts.map(account => {
+                    const selected =
+                      paymentMethod === account.id ||
+                      (paymentAllocations.length === 1 &&
+                        paymentAllocations[0].paymentAccountId === account.id);
+                    const Icon =
+                      account.accountType === 'Mobile Money'
+                        ? Smartphone
+                        : account.accountType === 'Wallet' ||
+                            account.accountType === 'POS Terminal'
+                          ? CreditCard
+                          : DollarSign;
+                    return (
+                      <button
+                        key={account.id}
+                        type="button"
+                        onClick={() => {
+                          setPaymentMethod(account.id);
+                          const currentTotal = calculateTotal();
+                          setPaymentAllocations([
+                            {
+                              paymentAccountId: account.id,
+                              amount: currentTotal > 0 ? currentTotal : 0,
+                            },
+                          ]);
+                          setShowSplitPayment(false);
+                        }}
+                        className={`min-h-[2.5rem] px-1.5 py-1.5 border rounded-md flex items-center gap-1.5 text-left transition-all ${
+                          selected
+                            ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm ring-1 ring-blue-500'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-800'
+                        }`}
+                        title={account.reference ? `${account.name} (${account.reference})` : account.name}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0 opacity-80" aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[11px] font-semibold leading-tight truncate">
+                            {account.name}
+                          </span>
+                          {account.reference ? (
+                            <span className="block text-[9px] text-gray-500 truncate leading-tight">
+                              {account.reference}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {paymentAllocations.length > 1 && (
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="text-sm font-semibold text-blue-900 mb-2">Split Payment:</div>
+                {!showSplitPayment && paymentAllocations.length > 1 && (
+                  <div className="mt-1.5 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="text-[11px] font-semibold text-blue-900 mb-0.5">Split Payment:</div>
                     {paymentAllocations.map((alloc, idx) => {
                       const account = paymentAccounts.find(a => a.id === alloc.paymentAccountId);
                       return (
-                        <div key={idx} className="text-xs text-blue-700">
+                        <div key={idx} className="text-[11px] text-blue-700">
                           {account?.name}: {formatCurrency(alloc.amount)}
                         </div>
                       );
                     })}
                   </div>
                 )}
-            <button
-              onClick={() => {
-                // Initialize split payment with current total if no allocations exist
-                if (paymentAllocations.length === 0) {
-                  const total = calculateTotal();
-                  const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
-                  const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
-                  if (defaultAccount) {
-                    setPaymentAllocations([{ paymentAccountId: defaultAccount.id, amount: total }]);
-                  }
-                }
-                setShowSplitPaymentModal(true);
-              }}
-              className="mt-2 w-full px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
-            >
-              Split Payment
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showSplitPayment) {
+                      setShowSplitPayment(false);
+                      return;
+                    }
+                    const total = calculateTotal();
+                    const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+                    const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+                    if (!defaultAccount) return;
+                    const secondAccount =
+                      paymentAccounts.find((acc) => acc.id !== defaultAccount.id && acc.isActive) ||
+                      paymentAccounts.find((acc) => acc.id !== defaultAccount.id) ||
+                      defaultAccount;
+                    if (paymentAllocations.length < 2) {
+                      const firstId = paymentAllocations[0]?.paymentAccountId || defaultAccount.id;
+                      const firstAmount = paymentAllocations[0]?.amount ?? total;
+                      setPaymentAllocations([
+                        { paymentAccountId: firstId, amount: firstAmount },
+                        { paymentAccountId: secondAccount.id, amount: 0 },
+                      ]);
+                    }
+                    setPaymentMethod('');
+                    setShowSplitPayment(true);
+                  }}
+                  className={`mt-1.5 w-full px-2 py-1 text-[11px] border rounded-md transition-colors ${
+                    showSplitPayment
+                      ? 'border-blue-400 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  {showSplitPayment ? 'Hide Split Payment' : 'Split Payment'}
+                </button>
+                {showSplitPayment && (
+                  <div className="mt-2 p-2 border border-blue-200 bg-blue-50/40 rounded-lg space-y-2">
+                    <div className="flex justify-between text-[11px] text-gray-600">
+                      <span>Sale total</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(calculateTotal())}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {paymentAllocations.map((alloc, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5">
+                          <select
+                            value={alloc.paymentAccountId}
+                            onChange={(e) => {
+                              const newAllocations = [...paymentAllocations];
+                              newAllocations[idx] = {
+                                ...newAllocations[idx],
+                                paymentAccountId: e.target.value,
+                              };
+                              setPaymentAllocations(newAllocations);
+                            }}
+                            className="min-w-0 flex-1 px-1.5 py-1 text-[11px] border border-gray-300 rounded-md bg-white"
+                          >
+                            {paymentAccounts.map((acc) => (
+                              <option key={acc.id} value={acc.id}>{acc.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            value={alloc.amount === 0 ? '0' : alloc.amount || ''}
+                            onChange={(e) => {
+                              const newAllocations = [...paymentAllocations];
+                              newAllocations[idx] = {
+                                ...newAllocations[idx],
+                                amount: parseFloat(e.target.value) || 0,
+                              };
+                              setPaymentAllocations(newAllocations);
+                            }}
+                            className="w-20 shrink-0 px-1.5 py-1 text-[11px] border border-gray-300 rounded-md bg-white"
+                            placeholder="Amt"
+                            min="0"
+                            step="0.01"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (paymentAllocations.length <= 1) return;
+                              setPaymentAllocations(paymentAllocations.filter((_, i) => i !== idx));
+                            }}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-40"
+                            disabled={paymentAllocations.length <= 1}
+                            aria-label="Remove payment line"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const usedIds = new Set(paymentAllocations.map((a) => a.paymentAccountId));
+                        const nextAccount =
+                          paymentAccounts.find((acc) => acc.isActive && !usedIds.has(acc.id)) ||
+                          paymentAccounts.find((acc) => !usedIds.has(acc.id)) ||
+                          paymentAccounts.find((acc) => acc.isActive) ||
+                          paymentAccounts[0];
+                        if (nextAccount) {
+                          setPaymentAllocations([
+                            ...paymentAllocations,
+                            { paymentAccountId: nextAccount.id, amount: 0 },
+                          ]);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-[11px] border border-dashed border-gray-300 rounded-md hover:bg-white text-gray-700"
+                    >
+                      + Add account
+                    </button>
+                    {(() => {
+                      const allocated = paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+                      const remaining = calculateTotal() - allocated;
+                      const balanced = Math.abs(remaining) < 0.01;
+                      return (
+                        <div className="space-y-1 text-[11px]">
+                          <div className="flex justify-between text-gray-600">
+                            <span>Allocated</span>
+                            <span className="font-semibold">{formatCurrency(allocated)}</span>
+                          </div>
+                          <div className="flex justify-between font-semibold">
+                            <span>Remaining</span>
+                            <span className={balanced ? 'text-green-600' : 'text-red-600'}>
+                              {formatCurrency(remaining)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const total = calculateTotal();
+                              const allocatedSum = paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+                              const rem = total - allocatedSum;
+                              if (rem !== 0 && paymentAllocations.length > 0) {
+                                const newAllocations = [...paymentAllocations];
+                                const last = newAllocations.length - 1;
+                                newAllocations[last] = {
+                                  ...newAllocations[last],
+                                  amount: (newAllocations[last].amount || 0) + rem,
+                                };
+                                setPaymentAllocations(newAllocations);
+                              }
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded-md hover:bg-white text-gray-700"
+                          >
+                            Auto-allocate remaining
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+                              const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+                              if (defaultAccount) {
+                                setPaymentMethod(defaultAccount.id);
+                                setPaymentAllocations([
+                                  { paymentAccountId: defaultAccount.id, amount: calculateTotal() },
+                                ]);
+                              }
+                              setShowSplitPayment(false);
+                            }}
+                            className="w-full px-2 py-1 text-red-700 border border-red-200 rounded-md hover:bg-red-50"
+                          >
+                            Cancel split
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </>
             )}
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="flex flex-col gap-3">
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="flex flex-col gap-2">
               <button 
-                className="w-full px-6 py-3 border-2 border-gray-300 bg-white rounded-xl flex items-center justify-center font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm hover:shadow-md"
+                className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg flex items-center justify-center text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all"
                 onClick={clearSale}
               >
-                <X className="w-5 h-5 mr-2" />
+                <X className="w-4 h-4 mr-1.5" />
                 Clear
               </button>
               <button 
-                className={`w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-xl flex items-center justify-center font-semibold transition-all shadow-sm hover:shadow-md ${
+                className={`w-full px-3 py-2 bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center text-sm font-semibold transition-all ${
                   isSubmitting || selectedProducts.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300'
                 }`}
                 onClick={saveDraft}
                 disabled={isSubmitting || selectedProducts.length === 0}
               >
-                <Save className="w-5 h-5 mr-2" />
+                <Save className="w-4 h-4 mr-1.5" />
                 Save Draft
               </button>
               {(() => {
@@ -3592,19 +3450,19 @@ const POSPage = () => {
                 const splitPay = paymentAllocations.length > 1;
                 const changeDue = paidParsedOk ? paidNum - checkoutTotal : null;
                 return (
-                  <div className="w-full rounded-xl border border-gray-200 bg-gray-50/80 p-4 space-y-3">
-                    <div className="flex justify-between items-center text-sm">
+                  <div className="w-full rounded-lg border border-gray-200 bg-gray-50/80 p-2.5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
                       <span className="font-semibold text-gray-700">Sale total</span>
                       <span className="font-bold text-gray-900">{formatCurrency(checkoutTotal)}</span>
                     </div>
                     {splitPay ? (
-                      <p className="text-xs text-gray-500">
-                        Amount paid and change apply to single-payment sales only (not split payment).
+                      <p className="text-[11px] text-gray-500">
+                        Amount paid and change apply to single-payment sales only.
                       </p>
                     ) : (
                       <>
                         <div>
-                          <label htmlFor="pos-paid-amount" className="block text-xs font-semibold text-gray-600 mb-1">
+                          <label htmlFor="pos-paid-amount" className="block text-[11px] font-semibold text-gray-600 mb-0.5">
                             Amount paid (optional)
                           </label>
                           <input
@@ -3614,22 +3472,19 @@ const POSPage = () => {
                             min={0}
                             step="any"
                             placeholder="Cash tendered"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             value={posPaidAmount}
                             onChange={(e) => setPosPaidAmount(e.target.value)}
                             disabled={selectedProducts.length === 0}
                           />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Leave blank if not needed. If set, must be at least the sale total; change is calculated automatically.
-                          </p>
                         </div>
                         {paidTrim !== '' && (
-                          <div className="text-sm space-y-1">
+                          <div className="text-xs space-y-1">
                             {!paidParsedOk ? (
                               <p className="text-red-600 font-medium">Enter a valid amount.</p>
                             ) : changeDue < -0.005 ? (
                               <p className="text-red-600 font-medium">
-                                Short by {formatCurrency(Math.abs(changeDue))}. Amount paid must cover the sale total.
+                                Short by {formatCurrency(Math.abs(changeDue))}.
                               </p>
                             ) : (
                               <div className="flex justify-between items-center pt-1 border-t border-gray-200">
@@ -3645,20 +3500,20 @@ const POSPage = () => {
                 );
               })()}
               <button 
-                className={`w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl flex items-center justify-center font-bold transition-all shadow-lg hover:shadow-xl ${
-                  isSubmitting || selectedProducts.length === 0 ? 'opacity-70 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800 transform hover:scale-105'
+                className={`w-full px-3 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg flex items-center justify-center text-sm font-bold transition-all shadow-md hover:shadow-lg ${
+                  isSubmitting || selectedProducts.length === 0 ? 'opacity-70 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800'
                 }`}
                 onClick={completeSale}
                 disabled={isSubmitting || selectedProducts.length === 0}
               >
                 {isSubmitting ? (
                   <>
-                    <Loader className="animate-spin h-5 w-5 mr-2" />
+                    <Loader className="animate-spin h-4 w-4 mr-1.5" />
                     Processing...
                   </>
                 ) : (
                   <>
-                    <ShoppingCart className="w-5 h-5 mr-2" />
+                    <ShoppingCart className="w-4 h-4 mr-1.5" />
                     Complete Sale
                   </>
                 )}
@@ -3705,6 +3560,19 @@ const POSPage = () => {
             >
               Export PDF
             </a>
+            {pagePermissions.canExportSales && (
+              <button
+                type="button"
+                onClick={() => {
+                  setReceiptsPdfError(null);
+                  setReceiptsPdfCount(null);
+                  setShowReceiptsPdfModal(true);
+                }}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+              >
+                Download receipts PDF
+              </button>
+            )}
           </div>
         </div>
         {posCashMessage && (
@@ -4178,27 +4046,40 @@ const POSPage = () => {
               )}
             </div>
             
-            <div className="flex space-x-3">
-              <button 
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 flex items-center justify-center hover:bg-gray-50"
-                onClick={() => setShowReceiptModal(false)}
-              >
-                Close
-              </button>
-              <button 
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
-                onClick={() => handlePrintReceipt(80)}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print 80mm
-              </button>
-              <button
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center justify-center hover:bg-indigo-700"
-                onClick={() => handlePrintReceipt(58)}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print 58mm
-              </button>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Thermal paper width
+                </label>
+                <select
+                  value={receiptPaperWidthMm}
+                  onChange={(e) =>
+                    setReceiptPaperWidthMm(normalizeReceiptPaperWidthMm(e.target.value))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  {RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM.map((mm) => (
+                    <option key={mm} value={mm}>
+                      {mm} mm{mm === 80 ? ' (most common)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex space-x-3">
+                <button 
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 flex items-center justify-center hover:bg-gray-50"
+                  onClick={() => setShowReceiptModal(false)}
+                >
+                  Close
+                </button>
+                <button 
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
+                  onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print Receipt
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -4394,133 +4275,6 @@ const POSPage = () => {
         </div>
       )}
 
-      {/* Split Payment Modal */}
-      {showSplitPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Split Payment</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Total Amount: <span className="font-bold">{formatCurrency(calculateTotal())}</span>
-            </p>
-            
-            <div className="space-y-3 mb-4">
-              {paymentAllocations.map((alloc, idx) => {
-                const account = paymentAccounts.find(a => a.id === alloc.paymentAccountId);
-                return (
-                  <div key={idx} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
-                    <select
-                      value={alloc.paymentAccountId}
-                      onChange={(e) => {
-                        const newAllocations = [...paymentAllocations];
-                        newAllocations[idx].paymentAccountId = e.target.value;
-                        setPaymentAllocations(newAllocations);
-                      }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      {paymentAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.name}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      value={alloc.amount}
-                      onChange={(e) => {
-                        const newAllocations = [...paymentAllocations];
-                        newAllocations[idx].amount = parseFloat(e.target.value) || 0;
-                        setPaymentAllocations(newAllocations);
-                      }}
-                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder="Amount"
-                      min="0"
-                      step="0.01"
-                    />
-                    <button
-                      onClick={() => {
-                        const newAllocations = paymentAllocations.filter((_, i) => i !== idx);
-                        setPaymentAllocations(newAllocations);
-                      }}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded"
-                      disabled={paymentAllocations.length === 1}
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <button
-              onClick={() => {
-                const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
-                const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
-                if (defaultAccount) {
-                  setPaymentAllocations([...paymentAllocations, { paymentAccountId: defaultAccount.id, amount: 0 }]);
-                }
-              }}
-              className="mb-4 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              + Add Payment Account
-            </button>
-            
-            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-              <div className="flex justify-between text-sm">
-                <span>Allocated:</span>
-                <span className="font-semibold">{formatCurrency(paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0))}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span>Total:</span>
-                <span className="font-semibold">{formatCurrency(calculateTotal())}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1 font-bold">
-                <span>Remaining:</span>
-                <span className={Math.abs(calculateTotal() - paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0)) < 0.01 ? 'text-green-600' : 'text-red-600'}>
-                  {formatCurrency(calculateTotal() - paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0))}
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  // Auto-allocate remaining amount to first account
-                  const total = calculateTotal();
-                  const allocated = paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
-                  const remaining = total - allocated;
-                  if (remaining > 0 && paymentAllocations.length > 0) {
-                    const newAllocations = [...paymentAllocations];
-                    newAllocations[0].amount = (newAllocations[0].amount || 0) + remaining;
-                    setPaymentAllocations(newAllocations);
-                  }
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Auto-Allocate Remaining
-              </button>
-              <button
-                onClick={() => setShowSplitPaymentModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const total = calculateTotal();
-                  const allocated = paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
-                  if (Math.abs(total - allocated) < 0.01) {
-                    setShowSplitPaymentModal(false);
-                  } else {
-                    alert(`Payment allocations must equal the total amount. Remaining: ${formatCurrency(total - allocated)}`);
-                  }
-                }}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Refund Sale Modal */}
       {showRefundModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -4578,6 +4332,148 @@ const POSPage = () => {
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Process Refund
                   </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk receipts PDF export */}
+      {showReceiptsPdfModal && (
+        <div className="fixed inset-0 z-[220] flex items-end justify-center bg-black/50 p-4 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Download receipts PDF</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  One PDF with every receipt on its own page (or pages). Max 5,000 receipts per export.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="text-slate-400 hover:text-slate-700"
+                onClick={() => setShowReceiptsPdfModal(false)}
+                disabled={isExportingReceiptsPdf}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {receiptsPdfError && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{receiptsPdfError}</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {[
+                { id: "this_week", label: "This week" },
+                { id: "this_month", label: "This month" },
+                { id: "this_year", label: "This year" },
+                { id: "custom", label: "Custom date range" },
+              ].map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                    receiptsPdfPreset === opt.id
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-900"
+                      : "border-slate-200 text-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="receiptsPdfPreset"
+                    value={opt.id}
+                    checked={receiptsPdfPreset === opt.id}
+                    onChange={() => {
+                      setReceiptsPdfPreset(opt.id);
+                      setReceiptsPdfCount(null);
+                      setReceiptsPdfError(null);
+                    }}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+
+            {receiptsPdfPreset === "custom" && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">From</label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    value={receiptsPdfCustomFrom}
+                    onChange={(e) => {
+                      setReceiptsPdfCustomFrom(e.target.value);
+                      setReceiptsPdfCount(null);
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">To</label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    value={receiptsPdfCustomTo}
+                    onChange={(e) => {
+                      setReceiptsPdfCustomTo(e.target.value);
+                      setReceiptsPdfCount(null);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {receiptsPdfCount && (
+              <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <span className="font-semibold">{receiptsPdfCount.count}</span> receipt
+                {receiptsPdfCount.count === 1 ? "" : "s"} in range
+                {receiptsPdfCount.count > (receiptsPdfCount.max || 5000) ? (
+                  <span className="text-rose-700"> — too many; narrow the range.</span>
+                ) : null}
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => setShowReceiptsPdfModal(false)}
+                disabled={isExportingReceiptsPdf}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={handlePreviewReceiptsPdfCount}
+                disabled={isCountingReceiptsPdf || isExportingReceiptsPdf}
+              >
+                {isCountingReceiptsPdf ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader className="h-4 w-4 animate-spin" /> Counting…
+                  </span>
+                ) : (
+                  "Preview count"
+                )}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                onClick={handleExportReceiptsPdf}
+                disabled={isExportingReceiptsPdf || isCountingReceiptsPdf}
+              >
+                {isExportingReceiptsPdf ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader className="h-4 w-4 animate-spin" /> Generating PDF…
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    <FileText className="h-4 w-4" /> Generate PDF
+                  </span>
                 )}
               </button>
             </div>

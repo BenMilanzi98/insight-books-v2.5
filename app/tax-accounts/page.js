@@ -273,7 +273,8 @@ export default function TaxAccountsPage() {
             </button>
           )}
           <Link
-            href={`/tax-accounts/${account.taxType.id}`}
+            href={`/tax-management/accounts/${account.taxType.id}`}
+
             className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
           >
             <Eye size={18} />
@@ -509,7 +510,8 @@ export default function TaxAccountsPage() {
             <Info className="mx-auto text-gray-400 mb-4" size={48} />
             <p className="text-gray-500">No tax accounts found. Create tax types to get started.</p>
             <Link
-              href="/tax-types"
+              href="/tax-management/tax-codes"
+
               className="mt-4 inline-block text-blue-600 hover:text-blue-700 font-medium"
             >
               Go to Tax Types →

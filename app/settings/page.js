@@ -15,6 +15,10 @@ import {
   Download,
   Hash
 } from 'lucide-react';
+import PageHeader from '@/components/shell/PageHeader';
+import LanguageSettingsCard from '@/components/i18n/LanguageSettingsCard';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 
 const DOC_SEQ_TYPES = ['PO', 'GR', 'INV', 'QUO'];
 const DOC_SEQ_LABELS = {
@@ -25,6 +29,7 @@ const DOC_SEQ_LABELS = {
 };
 
 const SettingsPage = () => {
+  const { t } = useI18n();
   const [settings, setSettings] = useState({
     // Business Information
     name: '',
@@ -41,12 +46,13 @@ const SettingsPage = () => {
     
     // Receipt Customization
     receiptFooter: '',
+    receiptPaperWidthMm: 80,
     
     // Other Settings
     emailFooter: '',
     currencyCode: 'MWK',
     taxEnabled: true,
-    defaultTaxRate: 0,
+    defaultTaxRate: 17.5,
   });
   
   const [isLoading, setIsLoading] = useState(true);
@@ -103,6 +109,7 @@ const SettingsPage = () => {
           businessPhone: data.businessPhone || '',
           businessEmail: data.businessEmail || '',
           receiptFooter: data.receiptFooter || '',
+          receiptPaperWidthMm: data.receiptPaperWidthMm ?? 80,
           emailFooter: data.emailFooter || '',
           currencyCode: data.currencyCode || 'MWK',
           taxEnabled: data.taxEnabled !== undefined ? data.taxEnabled : true,
@@ -273,17 +280,21 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <Settings className="w-8 h-8 text-blue-600 mr-3" />
-            <h1 className="text-3xl font-bold text-gray-900">Business Settings</h1>
-          </div>
-          <p className="text-gray-600">
-            Configure your business information, receipt settings, and other preferences.
-          </p>
+    <div className="min-h-screen bg-[var(--background-secondary)]">
+      <div className="mx-auto max-w-4xl py-8">
+        <PageHeader
+          title={t('settings.title')}
+          description={t('settings.languageHelp')}
+          breadcrumb={
+            <span className="inline-flex items-center gap-2">
+              <Settings className="h-4 w-4 text-[var(--action-primary)]" aria-hidden="true" />
+              {t('navigation.settings')}
+            </span>
+          }
+        />
+
+        <div className="mb-6">
+          <LanguageSettingsCard />
         </div>
 
         {/* Save Status */}
@@ -475,23 +486,46 @@ const SettingsPage = () => {
               <h2 className="text-xl font-semibold text-gray-900">Receipt Customization</h2>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Customize the footer message that appears on your receipts.
+              Customize receipt footer text and preferred thermal paper width for POS printing.
             </p>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Receipt Footer Message
-              </label>
-              <textarea
-                value={settings.receiptFooter}
-                onChange={(e) => handleChange('receiptFooter', e.target.value)}
-                rows={3}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Thank you for your business! We appreciate your support."
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                This message will appear at the bottom of all receipts. Leave empty to use the default message.
-              </p>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Thermal paper width
+                </label>
+                <select
+                  value={settings.receiptPaperWidthMm ?? 80}
+                  onChange={(e) =>
+                    handleChange('receiptPaperWidthMm', Number(e.target.value))
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {[58, 70, 72, 76, 80, 88, 90].map((mm) => (
+                    <option key={mm} value={mm}>
+                      {mm} mm{mm === 80 ? ' (most common)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Default size for POS thermal printing (58–90 mm). You can still change it when printing.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Receipt Footer Message
+                </label>
+                <textarea
+                  value={settings.receiptFooter}
+                  onChange={(e) => handleChange('receiptFooter', e.target.value)}
+                  rows={3}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Thank you for your business! We appreciate your support."
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  This message will appear at the bottom of all receipts. Leave empty to use the default message.
+                </p>
+              </div>
             </div>
           </div>
 

@@ -3,16 +3,21 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
+import { toItemTaxCreateRows } from '@/lib/documentLineTaxes';
 
 // Enhanced helper function to calculate quotation totals with discounts
 function calculateQuotationTotals(items, globalDiscount = 0) {
   const totals = calculateInvoiceTotals(items, globalDiscount);
   const processedItems = totals.processedItems.map((item, index) => ({
     ...items[index],
+    ...item,
+    description: item.description ?? items[index]?.description,
     discountAmount: item.discountAmount,
     netAmount: item.netAmount,
     amount: item.amount,
     taxAmount: item.taxAmount,
+    taxRate: item.taxRate,
+    itemTaxes: item.itemTaxes || [],
   }));
 
   return {
@@ -63,7 +68,7 @@ export async function GET(request, { params }) {
             email: true
           }
         },
-        items: true
+        items: { include: { itemTaxes: true } }
       }
     });
     
@@ -108,7 +113,9 @@ export async function GET(request, { params }) {
         discountAmount: item.discountAmount,
         netAmount: item.netAmount,
         amount: item.amount,
-        productId: item.productId
+        productId: item.productId,
+        itemTaxes: item.itemTaxes || [],
+        taxes: item.itemTaxes || [],
       }))
     };
     
@@ -199,13 +206,16 @@ export async function PUT(request, { params }) {
               discountAmount: item.discountAmount || 0,
               netAmount: item.netAmount || 0,
               amount: item.amount,
-              productId: item.productId || null
+              productId: item.productId || null,
+              itemTaxes: {
+                create: toItemTaxCreateRows(item.itemTaxes).filter((r) => r.taxTypeId),
+              },
             }))
           }
         },
         include: {
           client: true,
-          items: true
+          items: { include: { itemTaxes: true } }
         }
       });
     });
@@ -248,7 +258,9 @@ export async function PUT(request, { params }) {
         unitPrice: item.unitPrice,
         taxRate: item.taxRate,
         amount: item.amount,
-        productId: item.productId
+        productId: item.productId,
+        itemTaxes: item.itemTaxes || [],
+        taxes: item.itemTaxes || [],
       }))
     };
     

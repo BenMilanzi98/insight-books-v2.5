@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 /**
  * Same source as /payments/management: balances first, then active accounts list.
@@ -25,6 +25,7 @@ async function fetchPaymentAccountsLikeManagement() {
       name: a.name,
       accountType: a.accountType,
       reference: a.reference,
+      accountCode: a.accountCode || a.coaAccount?.accountCode || null,
       isSystem: a.isSystem,
       isActive: a.isActive,
       balance: typeof a.balance === 'number' ? a.balance : 0,
@@ -32,31 +33,31 @@ async function fetchPaymentAccountsLikeManagement() {
 }
 
 /**
- * @returns {{ paymentAccounts: Array, isLoading: boolean, error: string|null }}
+ * @returns {{ paymentAccounts: Array, isLoading: boolean, error: string|null, refresh: () => Promise<void> }}
  */
 export function usePaymentAccounts() {
   const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const accounts = await fetchPaymentAccountsLikeManagement();
-        setPaymentAccounts(accounts);
-      } catch (err) {
-        console.error('Error fetching payment accounts:', err);
-        setError(err.message);
-        setPaymentAccounts([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    run();
+  const refresh = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const accounts = await fetchPaymentAccountsLikeManagement();
+      setPaymentAccounts(accounts);
+    } catch (err) {
+      console.error('Error fetching payment accounts:', err);
+      setError(err.message);
+      setPaymentAccounts([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  return { paymentAccounts, isLoading, error };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { paymentAccounts, isLoading, error, refresh };
 }

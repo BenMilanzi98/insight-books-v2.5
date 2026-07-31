@@ -1,0 +1,6 @@
+# Sync State Machine
+
+CREATED→QUEUED→CLAIMED→VALIDATING_READINESS→FETCHING_*→STORING→EXTRACTING→VALIDATING_SET→REVALIDATING→ACTIVATING→COMPLETED|COMPLETED_NO_CHANGES|COMPLETED_WITH_WARNINGS|PARTIALLY_COMPLETED|CONFLICT|UNKNOWN_OUTCOME|FAILED|MANUAL_REVIEW.
+
+---
+*Phase 8 implementation. No Sale submission. No fiscal number/QR. No Journal/Stock/local-tax mutations. Snapshots immutable. Activation atomic. Offline remains disabled.*

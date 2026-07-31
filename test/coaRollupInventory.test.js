@@ -419,6 +419,39 @@ describe('apply3100CapitalBucketAncestorPropagation', () => {
     expect(capRow.currentBalance).toBe(1_000_000);
     expect(eqRow.currentBalance).toBe(1_000_000);
   });
+
+  it('REG-CAP-002: MK1,000,000 capital child under 3100 never becomes MK2,000,000 after full fold pipeline', () => {
+    const eq = {
+      id: 'eq',
+      parentAccountId: null,
+      accountCode: '3000',
+      postedDirectBalance: 0,
+      currentBalance: 0,
+    };
+    const cap = {
+      id: 'cap',
+      parentAccountId: 'eq',
+      accountCode: '3100',
+      postedDirectBalance: 0,
+      currentBalance: 0,
+    };
+    const cap3101 = {
+      id: 'c3101',
+      parentAccountId: 'cap',
+      accountCode: '3101',
+      postedDirectBalance: 1_000_000,
+      currentBalance: 1_000_000,
+    };
+    const first = applyCoaParentRollup([eq, cap, cap3101]);
+    const folded = foldCatchAllBucketTotalsIntoPostedDirect(first);
+    const second = applyCoaParentRollup(folded);
+    const patched = apply3100CapitalBucketAncestorPropagation(second);
+    const capRow = patched.find((a) => a.id === 'cap');
+    const eqRow = patched.find((a) => a.id === 'eq');
+    expect(capRow.currentBalance).toBe(1_000_000);
+    expect(eqRow.currentBalance).toBe(1_000_000);
+    expect(capRow.currentBalance).not.toBe(2_000_000);
+  });
 });
 
 describe('structureRowDisplayBalance', () => {

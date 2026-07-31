@@ -2,19 +2,18 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { hasEISAccess } from '@/lib/subscriptionService';
-import eisService from '@/lib/eisService';
+import { bridgeSalesInvoiceAfterCommit } from '@/lib/mraEis/application/eligibility/finalizationIntegration.js';
 import { allocateNextInvNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
-import { createInvoiceJournalEntry } from '@/lib/transactionJournalHelpers';
+import { postInvoiceAccounting } from '@/lib/accountingV2/adapters';
 import { findDefaultInvoiceRevenueAccount } from '@/lib/coaPostingCodes';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { parseMoney } from '@/lib/money';
 import { classifyApiError } from '@/lib/apiErrorUtils';
 import {
   requireInvoiceItemAccountIdColumn,
   buildInvoiceItemCreateData,
 } from '@/lib/ensureInvoiceItemAccountId';
+import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 
 // POST - Convert a quotation to an invoice
 export async function POST(request, { params }) {
@@ -32,7 +31,7 @@ export async function POST(request, { params }) {
 
     const quotation = await prisma.quotation.findFirst({
       where: { id: quotationId, tenantId: user.tenantId },
-      include: { client: true, items: true },
+      include: { client: true, items: { include: { itemTaxes: true } } },
     });
 
     if (!quotation) {
@@ -96,30 +95,24 @@ export async function POST(request, { params }) {
       });
       const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
 
-      const processedItems = quotation.items.map((item) => {
-        const qty = Number(item.quantity);
-        const unitPrice = Number(item.unitPrice);
-        const taxRate = Number(item.taxRate || 0);
-        const discountAmount = Number(item.discountAmount || 0);
-        const lineAmount = Number(item.amount);
-        const netAmount =
-          item.netAmount != null && item.netAmount !== ''
-            ? Number(item.netAmount)
-            : Math.max(0, lineAmount / (1 + taxRate / 100) || lineAmount - discountAmount);
-        const taxAmount = Math.max(0, lineAmount - netAmount);
-        return {
+      const calculations = calculateInvoiceTotals(
+        quotation.items.map((item) => ({
           description: item.description,
-          quantity: qty,
-          unitPrice,
-          taxRate,
-          discountAmount,
-          amount: lineAmount,
-          netAmount,
-          taxAmount,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discountAmount: item.discountAmount,
           productId: item.productId,
+          taxes: item.itemTaxes?.length ? item.itemTaxes : undefined,
+          taxRate: item.taxRate,
           accountId: revenueAccount.id,
-        };
-      });
+        })),
+        quotation.discount || 0
+      );
+
+      const processedItems = calculations.processedItems.map((item) => ({
+        ...item,
+        accountId: revenueAccount.id,
+      }));
 
       const inv = await tx.invoice.create({
         data: {
@@ -128,11 +121,11 @@ export async function POST(request, { params }) {
           createdById: user.id,
           issueDate,
           dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          discount: quotation.discount,
-          subtotal: quotation.subtotal,
-          taxAmount: quotation.taxAmount,
-          totalDiscountAmount: quotation.totalDiscountAmount || 0,
-          total: quotation.total,
+          discount: calculations.globalDiscount,
+          subtotal: calculations.subtotal,
+          taxAmount: calculations.taxAmount,
+          totalDiscountAmount: calculations.totalDiscountAmount || 0,
+          total: calculations.total,
           status: 'Pending',
           notes: `${quotation.notes ? `${quotation.notes}\n\n` : ''}Generated from quotation ${quotation.quotationNumber}.`,
           tenantId: user.tenantId,
@@ -143,60 +136,15 @@ export async function POST(request, { params }) {
             ),
           },
         },
-        include: { client: true, items: true },
+        include: { client: true, items: { include: { itemTaxes: true } } },
       });
 
-      await createInvoiceJournalEntry({
+      await postInvoiceAccounting({
+        db: tx,
         tenantId: user.tenantId,
         userId: user.id,
         invoiceId: inv.id,
-        invoiceNumber,
-        issueDate,
-        totalAmount: parseMoney(inv.total),
-        items: processedItems,
-        hasServices: true,
-        cogsAmount: 0,
-        taxAmount: 0,
-        taxTypeId: null,
-        tx,
       });
-
-      const taxAmount = parseMoney(inv.taxAmount);
-      if (taxAmount > 0) {
-        const { autoPostTaxEntry } = await import('@/lib/taxCalculationService');
-        const activeTaxTypes = await tx.taxType.findMany({
-          where: { tenantId: user.tenantId, status: 'Active' },
-        });
-        const nonPayeTypes = activeTaxTypes.filter((t) => Number(t.taxRate) > 0);
-        const primaryRate =
-          processedItems.map((i) => i.taxRate).find((r) => r > 0) || 0;
-        let taxTypeId = null;
-        if (primaryRate > 0) {
-          taxTypeId =
-            nonPayeTypes.find((t) => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id ||
-            nonPayeTypes[0]?.id ||
-            null;
-        } else {
-          taxTypeId = nonPayeTypes[0]?.id || null;
-        }
-        if (taxTypeId) {
-          try {
-            await autoPostTaxEntry({
-              tenantId: user.tenantId,
-              userId: user.id,
-              taxTypeId,
-              taxAmount,
-              transactionDate: issueDate,
-              sourceType: 'Invoice',
-              sourceId: inv.id,
-              description: `Tax for invoice ${invoiceNumber} (from quotation)`,
-              tx,
-            });
-          } catch (taxErr) {
-            console.warn('Quotation convert: tax posting skipped:', taxErr?.message);
-          }
-        }
-      }
 
       await tx.quotation.update({
         where: { id: quotationId },
@@ -250,40 +198,17 @@ export async function POST(request, { params }) {
       })),
     };
 
+    // Phase 11: bridge issued invoice from quotation convert (no MRA API call)
     let eisResult = null;
     try {
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: user.tenantId },
-        select: { eisEnabled: true },
+      eisResult = await bridgeSalesInvoiceAfterCommit({
+        tenantId: user.tenantId,
+        invoice: newInvoice,
+        actorContext: { userId: user.id },
       });
-      if (tenant?.eisEnabled) {
-        const eisAccess = await hasEISAccess(user.tenantId);
-        if (eisAccess) {
-          eisResult = await eisService.submitInvoice(
-            user.tenantId,
-            {
-              invoiceNumber: newInvoice.invoiceNumber,
-              invoiceDate: newInvoice.issueDate,
-              customerName: newInvoice.client?.name || quotation.client?.name || '',
-              customerTPIN: '',
-              items: (newInvoice.items || []).map((item) => ({
-                description: item.description,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                taxRate: item.taxRate || 0,
-              })),
-              subtotal: Number(newInvoice.subtotal),
-              taxTotal: Number(newInvoice.taxAmount || 0),
-              total: Number(newInvoice.total),
-              paymentMethod: 'Bank Transfer',
-            },
-            'quotation-convert',
-            newInvoice.id,
-          );
-        }
-      }
     } catch (eisErr) {
-      console.error('⚠️ EIS quotation-convert submission failed (invoice still saved):', eisErr.message);
+      console.error('⚠️ EIS Phase 11 quotation-convert bridge failed (invoice still saved):', eisErr.message);
+      eisResult = { ok: false, recoveryRequired: true, message: eisErr.message };
     }
 
     return NextResponse.json({
@@ -291,7 +216,17 @@ export async function POST(request, { params }) {
       invoice: formattedInvoice,
       invoiceId: newInvoice.id,
       invoiceNumber: newInvoice.invoiceNumber,
-      eis: eisResult ? { submissionId: eisResult.submissionId, status: eisResult.status } : null,
+      eis: eisResult
+        ? {
+            status: eisResult.eisStatus || eisResult.bridge?.status || null,
+            bridgeId: eisResult.bridge?.id || null,
+            message: eisResult.message || null,
+            mraSubmitted: false,
+            mraAccepted: false,
+            fiscalNumber: null,
+            qrPresent: false,
+          }
+        : null,
     });
   } catch (error) {
     console.error('Error converting quotation to invoice:', error);

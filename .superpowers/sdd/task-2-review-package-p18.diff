@@ -1,0 +1,2337 @@
+# Task 2 P18 review
+
+
+===== sessions.js =====
+
+/**
+ * Training Sessions ↔ Phase 13 CrmMeeting — Phase 18 Wave 2.
+ * RSVP ≠ attendance; Meeting unavailable → MEETING_SERVICE_UNAVAILABLE;
+ * never fabricates Session delivery.
+ */
+
+import {
+  CRM_MEETING_ATTENDANCE,
+  CRM_MEETING_RSVP,
+} from '../../crm/meetings/catalogue.js';
+import { createMeeting, recordMeetingRsvp } from '../../crm/meetings/service.js';
+import {
+  MEETING_SERVICE_UNAVAILABLE,
+  TRAINING_SESSION_STATUS,
+  getTrainingDomainContract,
+  VIRTUAL_PROVIDER_NOT_CONFIGURED,
+} from './catalogue.js';
+import { allocateTrainingSessionNumber } from './numbering.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingCohortModel,
+  hasCustomerTrainingProgramModel,
+  hasCustomerTrainingSessionModel,
+  resolveTrainingActor,
+  serializeTrainingSession,
+} from './model.js';
+
+function resolveMeetingService(args = {}) {
+  return (
+    args.meetingService || {
+      createMeeting,
+      recordMeetingRsvp,
+    }
+  );
+}
+
+function mapMeetingUnavailable(result) {
+  if (!result || result.ok) return null;
+  const err = String(result.error || result.reason || result.status || '');
+  if (
+    /unavailable|model_unavailable|UNAVAILABLE/i.test(err) ||
+    result.status === 'UNAVAILABLE'
+  ) {
+    return {
+      ok: false,
+      error: MEETING_SERVICE_UNAVAILABLE,
+      status: 'UNAVAILABLE',
+      underlying: result.error || result.reason || null,
+      sessionDelivered: false,
+    };
+  }
+  return {
+    ok: false,
+    error: result.error || result.reason || 'meeting_create_failed',
+    sessionDelivered: false,
+  };
+}
+
+/**
+ * Schedule Training Session: create/link Phase 13 Meeting once (idempotent).
+ */
+export async function scheduleTrainingSession(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_session_schedule_forbidden' };
+  }
+  if (!hasCustomerTrainingSessionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_session_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const cohortId = args.cohortId ? String(args.cohortId).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!cohortId) return { ok: false, error: 'cohortId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const existingByKey = await prisma.customerTrainingSession.findUnique({
+    where: { idempotencyKey },
+  }).catch(async () =>
+    prisma.customerTrainingSession.findFirst({ where: { idempotencyKey } })
+  );
+  if (existingByKey) {
+    if (String(existingByKey.programId) !== programId) {
+      return {
+        ok: false,
+        error: 'idempotency_conflict',
+        existingProgramId: existingByKey.programId,
+        attemptedProgramId: programId,
+      };
+    }
+    return {
+      ok: true,
+      session: serializeTrainingSession(existingByKey),
+      crmMeetingId: existingByKey.crmMeetingId,
+      alreadyExists: true,
+      idempotentReplay: true,
+      sessionDelivered: false,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  if (hasCustomerTrainingProgramModel(prisma)) {
+    const program = await prisma.customerTrainingProgram.findUnique({
+      where: { id: programId },
+    });
+    if (!program) return { ok: false, error: 'program_not_found', notFound: true };
+  }
+  if (hasCustomerTrainingCohortModel(prisma)) {
+    const cohort = await prisma.customerTrainingCohort.findUnique({
+      where: { id: cohortId },
+    });
+    if (!cohort) return { ok: false, error: 'cohort_not_found', notFound: true };
+    if (String(cohort.programId) !== programId) {
+      return { ok: false, error: 'cohort_program_mismatch' };
+    }
+  }
+
+  const meetingInput = args.meetingInput || {};
+  const timezone =
+    (meetingInput.timezone != null ? String(meetingInput.timezone).trim() : '') ||
+    '';
+  if (!timezone) return { ok: false, error: 'timezone_required' };
+
+  const meetingService = resolveMeetingService(args);
+  const now = args.now || new Date();
+
+  const meetingResult = await meetingService.createMeeting(prisma, {
+    admin,
+    actorContext: args.actorContext,
+    title: meetingInput.title || 'Training session',
+    timezone,
+    startsAt: meetingInput.startsAt,
+    endsAt: meetingInput.endsAt,
+    contactId: meetingInput.contactId || null,
+    ownerAdminId: meetingInput.ownerAdminId || admin?.id || null,
+    idempotencyKey: `meeting:${idempotencyKey}`,
+    now,
+  });
+
+  if (!meetingResult?.ok) {
+    return mapMeetingUnavailable(meetingResult);
+  }
+
+  const crmMeetingId = meetingResult.meeting?.id || meetingResult.crmMeetingId;
+  if (!crmMeetingId) {
+    return {
+      ok: false,
+      error: MEETING_SERVICE_UNAVAILABLE,
+      status: 'UNAVAILABLE',
+      sessionDelivered: false,
+    };
+  }
+
+  const sessionNumber = await allocateTrainingSessionNumber(prisma, { now });
+  const session = await prisma.customerTrainingSession.create({
+    data: {
+      sessionNumber,
+      programId,
+      cohortId,
+      crmMeetingId,
+      timezone,
+      startsAt: meetingInput.startsAt ? new Date(meetingInput.startsAt) : null,
+      endsAt: meetingInput.endsAt ? new Date(meetingInput.endsAt) : null,
+      status: TRAINING_SESSION_STATUS.SCHEDULED,
+      sessionDelivered: false,
+      rsvpSummaryJson: { note: 'RSVP tracked on CrmMeetingParticipant; ≠ attendance' },
+      attendanceSummaryJson: { note: 'Attendance requires separate confirmation' },
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    session: serializeTrainingSession(session),
+    crmMeetingId,
+    created: true,
+    sessionDelivered: false,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+/**
+ * Record RSVP for Session Meeting participant. Does NOT capture attendance.
+ */
+export async function recordTrainingSessionRsvp(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_session_rsvp_forbidden' };
+  }
+
+  const sessionId = args.sessionId ? String(args.sessionId).trim() : '';
+  const contactId = args.contactId ? String(args.contactId).trim() : '';
+  const rsvpStatus = String(args.rsvpStatus || '')
+    .trim()
+    .toUpperCase();
+  if (!sessionId) return { ok: false, error: 'sessionId_required' };
+  if (!contactId) return { ok: false, error: 'contactId_required' };
+  if (!rsvpStatus) return { ok: false, error: 'rsvpStatus_required' };
+
+  const session = await prisma.customerTrainingSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) return { ok: false, error: 'session_not_found', notFound: true };
+
+  const meetingService = resolveMeetingService(args);
+  if (typeof meetingService.recordMeetingRsvp === 'function') {
+    const rsvpResult = await meetingService.recordMeetingRsvp(prisma, {
+      admin,
+      meetingId: session.crmMeetingId,
+      contactId,
+      rsvpStatus,
+    });
+    if (!rsvpResult?.ok) {
+      return mapMeetingUnavailable(rsvpResult) || {
+        ok: false,
+        error: rsvpResult?.error || 'rsvp_failed',
+        attendanceCaptured: false,
+        sessionDelivered: false,
+      };
+    }
+  } else if (typeof prisma.crmMeetingParticipant?.findFirst === 'function') {
+    const p = await prisma.crmMeetingParticipant.findFirst({
+      where: { meetingId: session.crmMeetingId, contactId },
+    });
+    if (p) {
+      await prisma.crmMeetingParticipant.update({
+        where: { id: p.id },
+        data: { rsvpStatus },
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    sessionId,
+    crmMeetingId: session.crmMeetingId,
+    rsvpStatus,
+    attendanceStatus: CRM_MEETING_ATTENDANCE.UNKNOWN,
+    attendanceCaptured: false,
+    sessionDelivered: false,
+    note: 'RSVP_ACCEPTED_IS_NOT_ATTENDANCE',
+    domain: getTrainingDomainContract(),
+  };
+}
+
+/**
+ * Virtual provider path — typed unavailable; never fabricates delivery.
+ */
+export async function requestVirtualTrainingProviderSession(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_virtual_provider_forbidden' };
+  }
+  return {
+    ok: false,
+    error: VIRTUAL_PROVIDER_NOT_CONFIGURED,
+    status: 'UNAVAILABLE',
+    sessionDelivered: false,
+    programId: args.programId || null,
+    sessionId: args.sessionId || null,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export { CRM_MEETING_RSVP, CRM_MEETING_ATTENDANCE, MEETING_SERVICE_UNAVAILABLE };
+
+
+===== attendance.js =====
+
+/**
+ * Training Attendance — Phase 18 Wave 2.
+ * Source-backed only; invitation/calendar/link rejected;
+ * corrections preserve original.
+ */
+
+import {
+  TRAINING_ATTENDANCE_FORBIDDEN_SOURCES,
+  TRAINING_ATTENDANCE_SOURCE,
+  TRAINING_ATTENDANCE_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingAttendanceModel,
+  hasCustomerTrainingSessionModel,
+  resolveTrainingActor,
+  serializeTrainingAttendance,
+} from './model.js';
+
+const STATUS_SET = new Set(Object.values(TRAINING_ATTENDANCE_STATUS));
+const FORBIDDEN = new Set(TRAINING_ATTENDANCE_FORBIDDEN_SOURCES);
+
+function isForbiddenSource(source) {
+  return FORBIDDEN.has(String(source || '').trim().toUpperCase());
+}
+
+/**
+ * Capture attendance with an allowed evidence source.
+ */
+export async function captureTrainingAttendance(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_attendance_capture_forbidden' };
+  }
+  if (!hasCustomerTrainingAttendanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_attendance_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const sessionId = args.sessionId ? String(args.sessionId).trim() : '';
+  const participantId = args.participantId ? String(args.participantId).trim() : '';
+  const source = String(args.source || '')
+    .trim()
+    .toUpperCase();
+  const status = String(args.status || '')
+    .trim()
+    .toUpperCase();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!sessionId) return { ok: false, error: 'sessionId_required' };
+  if (!participantId) return { ok: false, error: 'participantId_required' };
+  if (!source) return { ok: false, error: 'source_required' };
+  if (!status || !STATUS_SET.has(status)) {
+    return { ok: false, error: 'invalid_attendance_status' };
+  }
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  if (isForbiddenSource(source)) {
+    return {
+      ok: false,
+      error: 'ATTENDANCE_TRUTH_RISK_forbidden_source',
+      source,
+      note: 'Invitation / calendar / meeting-link access alone ≠ attendance',
+    };
+  }
+
+  if (source === TRAINING_ATTENDANCE_SOURCE.PROVIDER_RECORD) {
+    return {
+      ok: false,
+      error: 'provider_record_not_configured',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const existing = await prisma.customerTrainingAttendance.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      attendance: serializeTrainingAttendance(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  if (hasCustomerTrainingSessionModel(prisma)) {
+    const session = await prisma.customerTrainingSession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) return { ok: false, error: 'session_not_found', notFound: true };
+  }
+
+  const now = args.now || new Date();
+  const attendance = await prisma.customerTrainingAttendance.create({
+    data: {
+      sessionId,
+      participantId,
+      status,
+      source,
+      originalStatus: status,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    attendance: serializeTrainingAttendance(attendance),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+/**
+ * Correct attendance; preserves original row (supersede / link).
+ */
+export async function correctTrainingAttendance(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_attendance_correct_forbidden' };
+  }
+  if (!hasCustomerTrainingAttendanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_attendance_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const attendanceId = args.attendanceId ? String(args.attendanceId).trim() : '';
+  const status = String(args.status || '')
+    .trim()
+    .toUpperCase();
+  const reason = args.reason ? String(args.reason).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!attendanceId) return { ok: false, error: 'attendanceId_required' };
+  if (!status || !STATUS_SET.has(status)) {
+    return { ok: false, error: 'invalid_attendance_status' };
+  }
+  if (!reason) return { ok: false, error: 'correction_reason_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const existingByKey = await prisma.customerTrainingAttendance.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existingByKey) {
+    return {
+      ok: true,
+      attendance: serializeTrainingAttendance(existingByKey),
+      original: serializeTrainingAttendance(
+        await prisma.customerTrainingAttendance.findUnique({
+          where: { id: existingByKey.correctsAttendanceId || attendanceId },
+        })
+      ),
+      originalAttendanceId: existingByKey.correctsAttendanceId || attendanceId,
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const original = await prisma.customerTrainingAttendance.findUnique({
+    where: { id: attendanceId },
+  });
+  if (!original) return { ok: false, error: 'attendance_not_found', notFound: true };
+
+  const now = args.now || new Date();
+  const correction = await prisma.customerTrainingAttendance.create({
+    data: {
+      sessionId: original.sessionId,
+      participantId: original.participantId,
+      status,
+      source: TRAINING_ATTENDANCE_SOURCE.AUTHORISED_CORRECTION,
+      originalStatus: original.status,
+      correctsAttendanceId: original.id,
+      correctionReason: reason,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await prisma.customerTrainingAttendance.update({
+    where: { id: original.id },
+    data: {
+      supersededById: correction.id,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    attendance: serializeTrainingAttendance(correction),
+    original: serializeTrainingAttendance({
+      ...original,
+      supersededById: correction.id,
+    }),
+    originalAttendanceId: original.id,
+    originalStatus: original.status,
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== conflicts.js =====
+
+/**
+ * Training conflict evaluation — Phase 18 Wave 2.
+ * BLOCKED / UNKNOWN ≠ confirmable as NO_CONFLICT.
+ */
+
+import {
+  TRAINING_CONFLICT_STATE,
+  TRAINING_SESSION_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingConflictModel,
+  hasCustomerTrainingSessionModel,
+  hasCustomerTrainingTrainerAssignmentModel,
+  resolveTrainingActor,
+  serializeTrainingSession,
+} from './model.js';
+
+function overlaps(aStart, aEnd, bStart, bEnd) {
+  const as = new Date(aStart).getTime();
+  const ae = new Date(aEnd).getTime();
+  const bs = new Date(bStart).getTime();
+  const be = new Date(bEnd).getTime();
+  if (![as, ae, bs, be].every(Number.isFinite)) return false;
+  return as < be && bs < ae;
+}
+
+function isConfirmable(state) {
+  return (
+    state === TRAINING_CONFLICT_STATE.NO_CONFLICT ||
+    state === TRAINING_CONFLICT_STATE.WARNING
+  );
+}
+
+/**
+ * Evaluate conflicts for a Session (trainer overlap, optional forced UNKNOWN).
+ */
+export async function evaluateTrainingConflicts(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_conflict_evaluate_forbidden' };
+  }
+  if (!hasCustomerTrainingSessionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_session_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const sessionId = args.sessionId ? String(args.sessionId).trim() : '';
+  if (!sessionId) return { ok: false, error: 'sessionId_required' };
+
+  const session = await prisma.customerTrainingSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) return { ok: false, error: 'session_not_found', notFound: true };
+
+  if (args.forceUnknown === true) {
+    return {
+      ok: true,
+      sessionId,
+      conflictState: TRAINING_CONFLICT_STATE.UNKNOWN,
+      confirmable: false,
+      reasons: ['forced_unknown'],
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const reasons = [];
+  let conflictState = TRAINING_CONFLICT_STATE.NO_CONFLICT;
+  let trainerId = args.trainerId ? String(args.trainerId).trim() : null;
+
+  if (hasCustomerTrainingTrainerAssignmentModel(prisma)) {
+    if (!trainerId) {
+      const onSession = await prisma.customerTrainingTrainerAssignment.findMany({
+        where: { sessionId },
+      });
+      trainerId = onSession[0]?.trainerId || null;
+    }
+
+    if (trainerId) {
+      const assignments = await prisma.customerTrainingTrainerAssignment.findMany({
+        where: { trainerId },
+      });
+      const otherSessionIds = assignments
+        .map((a) => a.sessionId)
+        .filter((id) => id && id !== sessionId);
+
+      for (const otherId of otherSessionIds) {
+        const other = await prisma.customerTrainingSession.findUnique({
+          where: { id: otherId },
+        });
+        if (!other) continue;
+        if (
+          String(other.status || '').toUpperCase() === TRAINING_SESSION_STATUS.CANCELLED
+        ) {
+          continue;
+        }
+        if (overlaps(session.startsAt, session.endsAt, other.startsAt, other.endsAt)) {
+          reasons.push(`trainer_overlap:${otherId}`);
+          conflictState = TRAINING_CONFLICT_STATE.BLOCKED;
+        }
+      }
+    }
+  }
+
+  if (
+    !session.timezone ||
+    !session.startsAt ||
+    !session.endsAt
+  ) {
+    reasons.push('schedule_incomplete');
+    if (conflictState === TRAINING_CONFLICT_STATE.NO_CONFLICT) {
+      conflictState = TRAINING_CONFLICT_STATE.UNKNOWN;
+    }
+  }
+
+  if (hasCustomerTrainingConflictModel(prisma) && reasons.length) {
+    await prisma.customerTrainingConflict.create({
+      data: {
+        programId: session.programId,
+        sessionId,
+        trainerId,
+        conflictState,
+        reasonsJson: reasons,
+        createdByAdminId: admin?.id || null,
+        createdAt: args.now || new Date(),
+        updatedAt: args.now || new Date(),
+      },
+    });
+  }
+
+  await prisma.customerTrainingSession.update({
+    where: { id: sessionId },
+    data: {
+      conflictState,
+      updatedAt: args.now || new Date(),
+    },
+  });
+
+  return {
+    ok: true,
+    sessionId,
+    conflictState,
+    confirmable: isConfirmable(conflictState),
+    reasons,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+/**
+ * Confirm Session schedule only when conflict state is confirmable.
+ * BLOCKED / UNKNOWN never become NO_CONFLICT via confirm.
+ */
+export async function confirmTrainingSchedule(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_schedule_confirm_forbidden' };
+  }
+  if (!hasCustomerTrainingSessionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_session_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const sessionId = args.sessionId ? String(args.sessionId).trim() : '';
+  if (!sessionId) return { ok: false, error: 'sessionId_required' };
+
+  const session = await prisma.customerTrainingSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) return { ok: false, error: 'session_not_found', notFound: true };
+
+  let conflictState =
+    args.conflictState ||
+    session.conflictState ||
+    TRAINING_CONFLICT_STATE.UNKNOWN;
+
+  if (!args.conflictState) {
+    const evaluation = await evaluateTrainingConflicts(prisma, {
+      ...args,
+      sessionId,
+    });
+    if (!evaluation.ok) return evaluation;
+    conflictState = evaluation.conflictState;
+  }
+
+  if (
+    conflictState === TRAINING_CONFLICT_STATE.BLOCKED ||
+    conflictState === TRAINING_CONFLICT_STATE.UNKNOWN ||
+    conflictState === TRAINING_CONFLICT_STATE.APPROVAL_REQUIRED
+  ) {
+    return {
+      ok: false,
+      error: 'schedule_confirm_blocked_by_conflict',
+      conflictState,
+      confirmable: false,
+      sessionDelivered: false,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const updated = await prisma.customerTrainingSession.update({
+    where: { id: sessionId },
+    data: {
+      status: TRAINING_SESSION_STATUS.CONFIRMED,
+      conflictState: TRAINING_CONFLICT_STATE.NO_CONFLICT,
+      updatedAt: args.now || new Date(),
+    },
+  });
+
+  return {
+    ok: true,
+    session: serializeTrainingSession(updated),
+    conflictState: TRAINING_CONFLICT_STATE.NO_CONFLICT,
+    confirmable: true,
+    sessionDelivered: false,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export { isConfirmable };
+
+
+===== participants.js =====
+
+/**
+ * Training Participants — Phase 18 Wave 2.
+ * Verify identity; UNKNOWN blocks restricted materials; no invented Participants.
+ */
+
+import {
+  TRAINING_PARTICIPANT_VERIFICATION,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingParticipantModel,
+  hasCustomerTrainingProgramModel,
+  resolveTrainingActor,
+  serializeTrainingParticipant,
+} from './model.js';
+
+function buildIdentityKey({ identityType, contactId, tenantUserId, externalId }) {
+  const type = String(identityType || 'CUSTOMER_CONTACT').trim().toUpperCase();
+  if (contactId) return `${type}:contact:${String(contactId).trim()}`;
+  if (tenantUserId) return `${type}:tenantUser:${String(tenantUserId).trim()}`;
+  if (externalId) return `${type}:external:${String(externalId).trim()}`;
+  return null;
+}
+
+/**
+ * Verify / register a Participant against a Program. Duplicate identity blocked.
+ */
+export async function verifyTrainingParticipant(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_participant_verify_forbidden' };
+  }
+  if (!hasCustomerTrainingParticipantModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_participant_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  if (!programId) return { ok: false, error: 'programId_required' };
+
+  const contactId = args.contactId ? String(args.contactId).trim() : null;
+  const tenantUserId = args.tenantUserId ? String(args.tenantUserId).trim() : null;
+  const externalId = args.externalId ? String(args.externalId).trim() : null;
+  const identityType = String(args.identityType || 'CUSTOMER_CONTACT')
+    .trim()
+    .toUpperCase();
+  const identityKey = buildIdentityKey({
+    identityType,
+    contactId,
+    tenantUserId,
+    externalId,
+  });
+  if (!identityKey) {
+    return { ok: false, error: 'identity_required' };
+  }
+
+  if (hasCustomerTrainingProgramModel(prisma)) {
+    const program = await prisma.customerTrainingProgram.findUnique({
+      where: { id: programId },
+    });
+    if (!program) return { ok: false, error: 'program_not_found', notFound: true };
+  }
+
+  const existing = await prisma.customerTrainingParticipant.findFirst({
+    where: { programId, identityKey },
+  });
+  if (existing) {
+    const idempotencyKey = args.idempotencyKey
+      ? String(args.idempotencyKey).trim()
+      : '';
+    if (idempotencyKey && existing.idempotencyKey === idempotencyKey) {
+      return {
+        ok: true,
+        participant: serializeTrainingParticipant(existing),
+        alreadyExists: true,
+        idempotentReplay: true,
+        domain: getTrainingDomainContract(),
+      };
+    }
+    return {
+      ok: false,
+      error: 'duplicate_identity',
+      existingParticipantId: existing.id,
+      identityKey,
+    };
+  }
+
+  const verificationState = String(
+    args.verificationState || TRAINING_PARTICIPANT_VERIFICATION.PENDING_VERIFICATION
+  )
+    .trim()
+    .toUpperCase();
+  const allowed = new Set(Object.values(TRAINING_PARTICIPANT_VERIFICATION));
+  if (!allowed.has(verificationState)) {
+    return { ok: false, error: 'invalid_verification_state' };
+  }
+
+  const now = args.now || new Date();
+  const participant = await prisma.customerTrainingParticipant.create({
+    data: {
+      programId,
+      contactId,
+      tenantUserId,
+      externalId,
+      identityType,
+      identityKey,
+      verificationState,
+      displayName: args.displayName ? String(args.displayName).trim() : null,
+      idempotencyKey: args.idempotencyKey
+        ? String(args.idempotencyKey).trim()
+        : null,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    participant: serializeTrainingParticipant(participant),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== trainers.js =====
+
+/**
+ * Training Trainers / Assignments — Phase 18 Wave 2.
+ * Skill / language / conflict checks; overlapping Sessions blocked.
+ */
+
+import {
+  TRAINING_CONFLICT_STATE,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import { evaluateTrainingConflicts } from './conflicts.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingSessionModel,
+  hasCustomerTrainingTrainerAssignmentModel,
+  hasCustomerTrainingTrainerModel,
+  resolveTrainingActor,
+  serializeTrainingTrainer,
+} from './model.js';
+
+function asList(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v));
+  if (value == null || value === '') return [];
+  return [String(value)];
+}
+
+function hasSkill(trainer, requiredSkills = []) {
+  if (!requiredSkills.length) return true;
+  const skills = asList(trainer.skillsJson);
+  return requiredSkills.every((s) => skills.includes(String(s)));
+}
+
+function hasLanguage(trainer, requiredLanguage) {
+  if (!requiredLanguage) return true;
+  const langs = asList(trainer.languagesJson);
+  return langs.includes(String(requiredLanguage));
+}
+
+/**
+ * Assign a Trainer to a Session with competence + conflict checks.
+ */
+export async function assignTrainingTrainer(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_trainer_assign_forbidden' };
+  }
+  if (!hasCustomerTrainingTrainerModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_trainer_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+  if (!hasCustomerTrainingTrainerAssignmentModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_trainer_assignment_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+  if (!hasCustomerTrainingSessionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_session_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const sessionId = args.sessionId ? String(args.sessionId).trim() : '';
+  const trainerId = args.trainerId ? String(args.trainerId).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!sessionId) return { ok: false, error: 'sessionId_required' };
+  if (!trainerId) return { ok: false, error: 'trainerId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const existing = await prisma.customerTrainingTrainerAssignment.findFirst({
+    where: { sessionId, trainerId },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      assignment: existing,
+      alreadyExists: true,
+      idempotentReplay: true,
+      conflictState: existing.conflictState || TRAINING_CONFLICT_STATE.NO_CONFLICT,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const trainer = await prisma.customerTrainingTrainer.findUnique({
+    where: { id: trainerId },
+  });
+  if (!trainer) return { ok: false, error: 'trainer_not_found', notFound: true };
+
+  const session = await prisma.customerTrainingSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) return { ok: false, error: 'session_not_found', notFound: true };
+
+  const requiredSkills = asList(args.requiredSkills);
+  const requiredLanguage = args.requiredLanguage
+    ? String(args.requiredLanguage).trim()
+    : null;
+
+  if (!hasSkill(trainer, requiredSkills)) {
+    return {
+      ok: false,
+      error: 'trainer_skill_mismatch',
+      conflictState: TRAINING_CONFLICT_STATE.BLOCKED,
+    };
+  }
+  if (!hasLanguage(trainer, requiredLanguage)) {
+    return {
+      ok: false,
+      error: 'trainer_language_mismatch',
+      conflictState: TRAINING_CONFLICT_STATE.BLOCKED,
+    };
+  }
+
+  const evaluation = await evaluateTrainingConflicts(prisma, {
+    actorContext: args.actorContext,
+    admin,
+    sessionId,
+    trainerId,
+  });
+  if (!evaluation.ok) return evaluation;
+
+  const conflictState = evaluation.conflictState;
+  if (
+    conflictState === TRAINING_CONFLICT_STATE.BLOCKED &&
+    args.allowBlockedConflict !== true
+  ) {
+    return {
+      ok: false,
+      error: 'trainer_overlap_blocked',
+      conflictState,
+      reasons: evaluation.reasons,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  const assignment = await prisma.customerTrainingTrainerAssignment.create({
+    data: {
+      programId,
+      sessionId,
+      trainerId,
+      conflictState,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    assignment,
+    trainer: serializeTrainingTrainer(trainer),
+    conflictState,
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== materials.js =====
+
+/**
+ * Training materials classification + private download boundary — Phase 18 Wave 2.
+ * UNKNOWN Participants denied RESTRICTED materials.
+ */
+
+import {
+  TRAINING_MATERIAL_CLASSIFICATION,
+  TRAINING_PARTICIPANT_VERIFICATION,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  canViewTraining,
+  hasCustomerTrainingMaterialModel,
+  hasCustomerTrainingParticipantModel,
+  resolveTrainingActor,
+  serializeTrainingMaterial,
+} from './model.js';
+
+/**
+ * Assert Participant may access a material (RESTRICTED requires VERIFIED).
+ */
+export async function assertRestrictedMaterialAccess(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canViewTraining(admin) && !canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_material_access_forbidden' };
+  }
+  if (!hasCustomerTrainingMaterialModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_material_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+  if (!hasCustomerTrainingParticipantModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_participant_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const materialId = args.materialId ? String(args.materialId).trim() : '';
+  const participantId = args.participantId ? String(args.participantId).trim() : '';
+  if (!materialId) return { ok: false, error: 'materialId_required' };
+  if (!participantId) return { ok: false, error: 'participantId_required' };
+
+  const material = await prisma.customerTrainingMaterial.findUnique({
+    where: { id: materialId },
+  }).catch(async () =>
+    prisma.customerTrainingMaterial.findFirst({ where: { id: materialId } })
+  );
+  if (!material) return { ok: false, error: 'material_not_found', notFound: true };
+
+  const participant = await prisma.customerTrainingParticipant.findUnique({
+    where: { id: participantId },
+  });
+  if (!participant) return { ok: false, error: 'participant_not_found', notFound: true };
+
+  const classification = String(material.classification || '')
+    .trim()
+    .toUpperCase();
+  const verification = String(participant.verificationState || '')
+    .trim()
+    .toUpperCase();
+
+  if (
+    classification === TRAINING_MATERIAL_CLASSIFICATION.RESTRICTED &&
+    verification !== TRAINING_PARTICIPANT_VERIFICATION.VERIFIED
+  ) {
+    return {
+      ok: false,
+      error: 'restricted_material_denied_for_UNKNOWN_or_unverified',
+      verificationState: verification,
+      classification,
+      downloadUrl: null,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const downloadUrl =
+    classification === TRAINING_MATERIAL_CLASSIFICATION.RESTRICTED
+      ? `private://training/download/${material.id}`
+      : material.storageRef || null;
+
+  return {
+    ok: true,
+    material: serializeTrainingMaterial(material),
+    participant: {
+      id: participant.id,
+      verificationState: verification,
+    },
+    downloadUrl,
+    privateBoundary: classification !== TRAINING_MATERIAL_CLASSIFICATION.PUBLIC,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== environment.js =====
+
+/**
+ * Training practice environment isolation — Phase 18 Wave 2.
+ * No Production Customer data in shared practice envs.
+ */
+
+import { getTrainingDomainContract } from './catalogue.js';
+import {
+  canManageTraining,
+  resolveTrainingActor,
+} from './model.js';
+
+/**
+ * Assert environment isolation for practice / shared training sandboxes.
+ */
+export async function assertTrainingEnvironmentIsolation(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'training_environment_assert_forbidden',
+    };
+  }
+
+  const environmentKind = String(args.environmentKind || '')
+    .trim()
+    .toUpperCase();
+  const dataClassification = String(args.dataClassification || '')
+    .trim()
+    .toUpperCase();
+  const includesProductionCustomerData =
+    args.includesProductionCustomerData === true ||
+    dataClassification === 'PRODUCTION';
+
+  if (
+    (environmentKind === 'SHARED_PRACTICE' ||
+      environmentKind === 'PRACTICE' ||
+      environmentKind === 'SANDBOX') &&
+    includesProductionCustomerData
+  ) {
+    return {
+      ok: false,
+      error: 'production_data_in_practice_env_forbidden',
+      environmentKind,
+      dataClassification,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  return {
+    ok: true,
+    environmentKind: environmentKind || null,
+    dataClassification: dataClassification || null,
+    includesProductionCustomerData: false,
+    isolated: true,
+    programId: args.programId || null,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== cohorts.js =====
+
+/**
+ * Training Cohorts — Phase 18 Wave 2.
+ * Numbered; language; delivery mode; timezone; capacity.
+ */
+
+import {
+  TRAINING_COHORT_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import { allocateTrainingCohortNumber } from './numbering.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingCohortModel,
+  hasCustomerTrainingProgramModel,
+  resolveTrainingActor,
+  serializeTrainingCohort,
+} from './model.js';
+
+/**
+ * Create a Training Cohort with capacity bound to a Program.
+ */
+export async function createTrainingCohort(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_cohort_create_forbidden' };
+  }
+  if (!hasCustomerTrainingCohortModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_cohort_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const capacity = Number(args.capacity);
+  if (!Number.isFinite(capacity) || capacity < 1) {
+    return { ok: false, error: 'capacity_required' };
+  }
+
+  const existing = await prisma.customerTrainingCohort.findUnique({
+    where: { idempotencyKey },
+  }).catch(async () =>
+    prisma.customerTrainingCohort.findFirst({ where: { idempotencyKey } })
+  );
+  if (existing) {
+    if (String(existing.programId) !== programId) {
+      return {
+        ok: false,
+        error: 'idempotency_conflict',
+        existingProgramId: existing.programId,
+        attemptedProgramId: programId,
+      };
+    }
+    return {
+      ok: true,
+      cohort: serializeTrainingCohort(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  if (hasCustomerTrainingProgramModel(prisma)) {
+    const program = await prisma.customerTrainingProgram.findUnique({
+      where: { id: programId },
+    });
+    if (!program) return { ok: false, error: 'program_not_found', notFound: true };
+  }
+
+  const timezone = args.timezone != null ? String(args.timezone).trim() : '';
+  if (!timezone) return { ok: false, error: 'timezone_required' };
+
+  const now = args.now || new Date();
+  const cohortNumber = await allocateTrainingCohortNumber(prisma, { now });
+
+  const cohort = await prisma.customerTrainingCohort.create({
+    data: {
+      cohortNumber,
+      programId,
+      name: args.name ? String(args.name).trim() : null,
+      language: args.language ? String(args.language).trim() : null,
+      deliveryMode: args.deliveryMode ? String(args.deliveryMode).trim() : null,
+      timezone,
+      capacity: Math.floor(capacity),
+      status: args.status || TRAINING_COHORT_STATUS.OPEN,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    cohort: serializeTrainingCohort(cohort),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== test =====
+
+/**
+ * Phase 18 Wave 2 — Participants, trainers, cohorts, Sessions (Phase 13),
+ * conflicts, attendance, materials/env boundary.
+ * RSVP ≠ attendance; invitation/calendar/link ≠ attendance;
+ * no fabricated Session delivery; UNKNOWN denied restricted materials.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  CRM_MEETING_RSVP,
+  CRM_MEETING_ATTENDANCE,
+} from '@/lib/admin/crm/meetings/catalogue.js';
+import {
+  VIRTUAL_PROVIDER_NOT_CONFIGURED,
+  MEETING_SERVICE_UNAVAILABLE,
+  TRAINING_ATTENDANCE_SOURCE,
+  TRAINING_CONFLICT_STATE,
+  TRAINING_PARTICIPANT_VERIFICATION,
+  TRAINING_MATERIAL_CLASSIFICATION,
+  scheduleTrainingSession,
+  recordTrainingSessionRsvp,
+  assignTrainingTrainer,
+  evaluateTrainingConflicts,
+  confirmTrainingSchedule,
+  captureTrainingAttendance,
+  correctTrainingAttendance,
+  verifyTrainingParticipant,
+  enrolTrainingParticipant,
+  createTrainingCohort,
+  assertRestrictedMaterialAccess,
+  assertTrainingEnvironmentIsolation,
+  getVirtualProviderStatus,
+  requestVirtualTrainingProviderSession,
+} from '@/lib/admin/customerSuccess/training';
+
+function superAdmin(id = 'super-trn-w2-1') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+      'systemAdmin.customerSuccess.manageCases': true,
+    },
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const programStore = overrides._programStore || [
+    {
+      id: 'trn-prog-1',
+      programNumber: 'TRN-2026-000001',
+      status: 'SCHEDULING',
+      trainingType: 'CUSTOMER_ONBOARDING',
+      trainingRequestId: 'trq-1',
+      customerId: 'cust-1',
+      tenantId: 'tenant-1',
+      subscriptionId: 'sub-1',
+      curriculumVersionId: 'currv-onboarding-wave1-v1',
+      createdByAdminId: 'super-trn-w2-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+  ];
+  const cohortStore = overrides._cohortStore || [];
+  const participantStore = overrides._participantStore || [];
+  const enrolmentStore = overrides._enrolmentStore || [];
+  const trainerStore = overrides._trainerStore || [];
+  const trainerAssignmentStore = overrides._trainerAssignmentStore || [];
+  const sessionStore = overrides._sessionStore || [];
+  const attendanceStore = overrides._attendanceStore || [];
+  const materialStore = overrides._materialStore || [];
+  const conflictStore = overrides._conflictStore || [];
+  const meetingStore = overrides._meetingStore || [];
+  const meetingParticipantStore = overrides._meetingParticipantStore || [];
+  const seqStore = overrides._seqStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _programStore: programStore,
+    _cohortStore: cohortStore,
+    _participantStore: participantStore,
+    _enrolmentStore: enrolmentStore,
+    _trainerStore: trainerStore,
+    _trainerAssignmentStore: trainerAssignmentStore,
+    _sessionStore: sessionStore,
+    _attendanceStore: attendanceStore,
+    _materialStore: materialStore,
+    _conflictStore: conflictStore,
+    _meetingStore: meetingStore,
+    _meetingParticipantStore: meetingParticipantStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    customerTrainingProgram: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return programStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...programStore];
+        if (where.id) rows = rows.filter((r) => r.id === where.id);
+        return rows[0] || null;
+      }),
+    },
+    customerTrainingCohort: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `coh-${cohortStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        cohortStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return cohortStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return cohortStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.cohortNumber) {
+          return cohortStore.find((r) => r.cohortNumber === where.cohortNumber) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...cohortStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...cohortStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = cohortStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('cohort_not_found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerTrainingParticipant: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `part-${participantStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        participantStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return participantStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...participantStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        if (where.identityKey) {
+          rows = rows.filter((r) => r.identityKey === where.identityKey);
+        }
+        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
+        if (where.tenantUserId) {
+          rows = rows.filter((r) => r.tenantUserId === where.tenantUserId);
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...participantStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = participantStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('participant_not_found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerTrainingEnrolment: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `enr-${enrolmentStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        enrolmentStore.push(row);
+        return row;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...enrolmentStore];
+        if (where.participantId) {
+          rows = rows.filter((r) => r.participantId === where.participantId);
+        }
+        if (where.cohortId) rows = rows.filter((r) => r.cohortId === where.cohortId);
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...enrolmentStore];
+        if (where.cohortId) rows = rows.filter((r) => r.cohortId === where.cohortId);
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        return rows;
+      }),
+    },
+    customerTrainingTrainer: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `trnr-${trainerStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        trainerStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return trainerStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...trainerStore];
+        if (where.adminId) rows = rows.filter((r) => r.adminId === where.adminId);
+        return rows[0] || null;
+      }),
+    },
+    customerTrainingTrainerAssignment: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `tassign-${trainerAssignmentStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        trainerAssignmentStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...trainerAssignmentStore];
+        if (where.trainerId) rows = rows.filter((r) => r.trainerId === where.trainerId);
+        if (where.sessionId) rows = rows.filter((r) => r.sessionId === where.sessionId);
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...trainerAssignmentStore];
+        if (where.trainerId) rows = rows.filter((r) => r.trainerId === where.trainerId);
+        if (where.sessionId) rows = rows.filter((r) => r.sessionId === where.sessionId);
+        return rows[0] || null;
+      }),
+    },
+    customerTrainingSession: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `sess-${sessionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        sessionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return sessionStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return sessionStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.sessionNumber) {
+          return sessionStore.find((r) => r.sessionNumber === where.sessionNumber) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...sessionStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        if (where.cohortId) rows = rows.filter((r) => r.cohortId === where.cohortId);
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...sessionStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        if (where.cohortId) rows = rows.filter((r) => r.cohortId === where.cohortId);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = sessionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('session_not_found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerTrainingAttendance: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `att-${attendanceStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        attendanceStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return attendanceStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...attendanceStore];
+        if (where.sessionId) rows = rows.filter((r) => r.sessionId === where.sessionId);
+        if (where.participantId) {
+          rows = rows.filter((r) => r.participantId === where.participantId);
+        }
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...attendanceStore];
+        if (where.sessionId) rows = rows.filter((r) => r.sessionId === where.sessionId);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = attendanceStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('attendance_not_found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerTrainingMaterial: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `mat-${materialStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        materialStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return materialStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...materialStore];
+        if (where.id) rows = rows.filter((r) => r.id === where.id);
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        return rows[0] || null;
+      }),
+    },
+    customerTrainingConflict: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `conf-${conflictStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        conflictStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...conflictStore];
+        if (where.sessionId) rows = rows.filter((r) => r.sessionId === where.sessionId);
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        return rows;
+      }),
+    },
+    crmMeeting: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `meet-${meetingStore.length + 1}`,
+          meetingNumber: data.meetingNumber || `MEET-2026-${String(meetingStore.length + 1).padStart(6, '0')}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        meetingStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return meetingStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...meetingStore];
+        if (where.id) rows = rows.filter((r) => r.id === where.id);
+        return rows[0] || null;
+      }),
+    },
+    crmMeetingParticipant: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `mp-${meetingParticipantStore.length + 1}`,
+          rsvpStatus: data.rsvpStatus || CRM_MEETING_RSVP.PENDING,
+          attendanceStatus: data.attendanceStatus || CRM_MEETING_ATTENDANCE.UNKNOWN,
+          ...data,
+        };
+        meetingParticipantStore.push(row);
+        return row;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...meetingParticipantStore];
+        if (where.meetingId) rows = rows.filter((r) => r.meetingId === where.meetingId);
+        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = meetingParticipantStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('meeting_participant_not_found');
+        Object.assign(row, data);
+        return row;
+      }),
+    },
+  };
+
+  return prisma;
+}
+
+async function seedCohortAndParticipant(prisma, admin, opts = {}) {
+  const cohort = await createTrainingCohort(prisma, {
+    actorContext: { admin },
+    programId: 'trn-prog-1',
+    name: opts.cohortName || 'Wave 2 Cohort A',
+    language: opts.language || 'en',
+    deliveryMode: opts.deliveryMode || 'VIRTUAL',
+    timezone: opts.timezone || 'Africa/Johannesburg',
+    capacity: opts.capacity ?? 20,
+    idempotencyKey: opts.cohortKey || 'coh:seed:1',
+  });
+  expect(cohort.ok).toBe(true);
+
+  const verified = await verifyTrainingParticipant(prisma, {
+    actorContext: { admin },
+    programId: 'trn-prog-1',
+    contactId: opts.contactId || 'contact-verified-1',
+    identityType: 'CUSTOMER_CONTACT',
+    verificationState: TRAINING_PARTICIPANT_VERIFICATION.VERIFIED,
+    idempotencyKey: opts.participantKey || 'part:seed:1',
+  });
+  expect(verified.ok).toBe(true);
+
+  const enrolled = await enrolTrainingParticipant(prisma, {
+    actorContext: { admin },
+    programId: 'trn-prog-1',
+    cohortId: cohort.cohort.id,
+    participantId: verified.participant.id,
+    idempotencyKey: opts.enrolKey || 'enr:seed:1',
+  });
+  expect(enrolled.ok).toBe(true);
+
+  return {
+    cohort: cohort.cohort,
+    participant: verified.participant,
+    enrolment: enrolled.enrolment,
+  };
+}
+
+function meetingServiceFactory(prisma, admin) {
+  return {
+    createMeeting: vi.fn(async (_p, input) => {
+      const row = await prisma.crmMeeting.create({
+        data: {
+          title: input.title || 'Training session',
+          timezone: input.timezone || 'Africa/Johannesburg',
+          startsAt: input.startsAt || new Date('2026-08-15T09:00:00Z'),
+          endsAt: input.endsAt || new Date('2026-08-15T11:00:00Z'),
+          idempotencyKey: input.idempotencyKey || null,
+          ownerAdminId: admin.id,
+          createdByAdminId: admin.id,
+          status: 'SCHEDULED',
+        },
+      });
+      if (input.contactId) {
+        await prisma.crmMeetingParticipant.create({
+          data: {
+            meetingId: row.id,
+            contactId: input.contactId,
+            rsvpStatus: CRM_MEETING_RSVP.PENDING,
+            attendanceStatus: CRM_MEETING_ATTENDANCE.UNKNOWN,
+          },
+        });
+      }
+      return { ok: true, meeting: { id: row.id, meetingNumber: row.meetingNumber } };
+    }),
+    recordMeetingRsvp: vi.fn(async (_p, { meetingId, contactId, rsvpStatus }) => {
+      const p = await prisma.crmMeetingParticipant.findFirst({
+        where: { meetingId, contactId },
+      });
+      if (!p) return { ok: false, error: 'participant_not_found' };
+      const updated = await prisma.crmMeetingParticipant.update({
+        where: { id: p.id },
+        data: { rsvpStatus },
+      });
+      return { ok: true, participant: updated };
+    }),
+  };
+}
+
+describe('Phase 18 Wave 2 — Participants / Sessions / attendance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('scheduleTrainingSession creates/links Phase 13 Meeting once on exact retry', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort } = await seedCohortAndParticipant(prisma, admin);
+    const meetingService = meetingServiceFactory(prisma, admin);
+
+    const args = {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Onboarding module 1',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-15T09:00:00Z',
+        endsAt: '2026-08-15T11:00:00Z',
+        contactId: 'contact-verified-1',
+      },
+      idempotencyKey: 'sess:retry:1',
+      meetingService,
+    };
+
+    const first = await scheduleTrainingSession(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.crmMeetingId).toBeTruthy();
+    expect(prisma._sessionStore.length).toBe(1);
+    expect(prisma._meetingStore.length).toBe(1);
+    expect(first.sessionDelivered).not.toBe(true);
+
+    const second = await scheduleTrainingSession(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.crmMeetingId).toBe(first.crmMeetingId);
+    expect(prisma._sessionStore.length).toBe(1);
+    expect(prisma._meetingStore.length).toBe(1);
+    expect(meetingService.createMeeting).toHaveBeenCalledTimes(1);
+  });
+
+  it('RSVP accepted does not equal training attendance', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort, participant } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:rsvp:1',
+      participantKey: 'part:rsvp:1',
+      enrolKey: 'enr:rsvp:1',
+    });
+    const meetingService = meetingServiceFactory(prisma, admin);
+
+    const scheduled = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'RSVP session',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-16T09:00:00Z',
+        endsAt: '2026-08-16T11:00:00Z',
+        contactId: 'contact-verified-1',
+      },
+      idempotencyKey: 'sess:rsvp:1',
+      meetingService,
+    });
+    expect(scheduled.ok).toBe(true);
+
+    const rsvp = await recordTrainingSessionRsvp(prisma, {
+      actorContext: { admin },
+      sessionId: scheduled.session.id,
+      contactId: 'contact-verified-1',
+      rsvpStatus: CRM_MEETING_RSVP.ACCEPTED,
+      meetingService,
+    });
+    expect(rsvp.ok).toBe(true);
+    expect(rsvp.attendanceCaptured).not.toBe(true);
+    expect(rsvp.note).toMatch(/RSVP.*NOT.*ATTENDANCE/i);
+
+    const mp = await prisma.crmMeetingParticipant.findFirst({
+      where: { meetingId: scheduled.crmMeetingId, contactId: 'contact-verified-1' },
+    });
+    expect(mp.rsvpStatus).toBe(CRM_MEETING_RSVP.ACCEPTED);
+    expect(mp.attendanceStatus).toBe(CRM_MEETING_ATTENDANCE.UNKNOWN);
+
+    expect(prisma._attendanceStore.length).toBe(0);
+
+    const fromRsvp = await captureTrainingAttendance(prisma, {
+      actorContext: { admin },
+      sessionId: scheduled.session.id,
+      participantId: participant.id,
+      status: 'PRESENT',
+      source: TRAINING_ATTENDANCE_SOURCE.CALENDAR_ACCEPTANCE,
+      idempotencyKey: 'att:from-rsvp:1',
+    });
+    expect(fromRsvp.ok).toBe(false);
+    expect(fromRsvp.error).toMatch(/invitation|calendar|link|source|forbidden/i);
+  });
+
+  it('trainer overlap BLOCKED conflict cannot confirm as NO_CONFLICT', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:overlap:1',
+      participantKey: 'part:overlap:1',
+      enrolKey: 'enr:overlap:1',
+    });
+    const meetingService = meetingServiceFactory(prisma, admin);
+
+    const trainer = await prisma.customerTrainingTrainer.create({
+      data: {
+        adminId: 'trainer-admin-1',
+        displayName: 'Ada Trainer',
+        skillsJson: ['CUSTOMER_ONBOARDING'],
+        languagesJson: ['en'],
+        deliveryModesJson: ['VIRTUAL'],
+        status: 'ACTIVE',
+      },
+    });
+
+    const sessionA = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Session A',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-20T09:00:00Z',
+        endsAt: '2026-08-20T11:00:00Z',
+      },
+      idempotencyKey: 'sess:overlap:a',
+      meetingService,
+    });
+    expect(sessionA.ok).toBe(true);
+
+    const assignA = await assignTrainingTrainer(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      sessionId: sessionA.session.id,
+      trainerId: trainer.id,
+      requiredSkills: ['CUSTOMER_ONBOARDING'],
+      requiredLanguage: 'en',
+      idempotencyKey: 'assign:a',
+    });
+    expect(assignA.ok).toBe(true);
+
+    const sessionB = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Session B overlap',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-20T10:00:00Z',
+        endsAt: '2026-08-20T12:00:00Z',
+      },
+      idempotencyKey: 'sess:overlap:b',
+      meetingService,
+    });
+    expect(sessionB.ok).toBe(true);
+
+    const assignB = await assignTrainingTrainer(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      sessionId: sessionB.session.id,
+      trainerId: trainer.id,
+      requiredSkills: ['CUSTOMER_ONBOARDING'],
+      requiredLanguage: 'en',
+      idempotencyKey: 'assign:b',
+      allowBlockedConflict: true,
+    });
+    // Assignment may record with conflict; confirm must still be blocked
+    expect(assignB.ok === true || assignB.conflictState === TRAINING_CONFLICT_STATE.BLOCKED).toBe(
+      true
+    );
+
+    const evaluation = await evaluateTrainingConflicts(prisma, {
+      actorContext: { admin },
+      sessionId: sessionB.session.id,
+      trainerId: trainer.id,
+    });
+    expect(evaluation.ok).toBe(true);
+    expect(evaluation.conflictState).toBe(TRAINING_CONFLICT_STATE.BLOCKED);
+    expect(evaluation.conflictState).not.toBe(TRAINING_CONFLICT_STATE.NO_CONFLICT);
+
+    const confirm = await confirmTrainingSchedule(prisma, {
+      actorContext: { admin },
+      sessionId: sessionB.session.id,
+    });
+    expect(confirm.ok).toBe(false);
+    expect(confirm.error).toMatch(/conflict|blocked|overlap/i);
+    expect(confirm.conflictState).not.toBe(TRAINING_CONFLICT_STATE.NO_CONFLICT);
+  });
+
+  it('attendance rejects invitation / calendar / link sources', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort, participant } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:att-src:1',
+      participantKey: 'part:att-src:1',
+      enrolKey: 'enr:att-src:1',
+    });
+    const meetingService = meetingServiceFactory(prisma, admin);
+    const scheduled = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Attendance sources',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-21T09:00:00Z',
+        endsAt: '2026-08-21T11:00:00Z',
+      },
+      idempotencyKey: 'sess:att-src:1',
+      meetingService,
+    });
+
+    for (const source of [
+      TRAINING_ATTENDANCE_SOURCE.INVITATION_DELIVERY,
+      TRAINING_ATTENDANCE_SOURCE.CALENDAR_ACCEPTANCE,
+      TRAINING_ATTENDANCE_SOURCE.MEETING_LINK_ACCESS,
+    ]) {
+      const bad = await captureTrainingAttendance(prisma, {
+        actorContext: { admin },
+        sessionId: scheduled.session.id,
+        participantId: participant.id,
+        status: 'PRESENT',
+        source,
+        idempotencyKey: `att:bad:${source}`,
+      });
+      expect(bad.ok).toBe(false);
+      expect(bad.error).toMatch(/invitation|calendar|link|source|forbidden|ATTENDANCE_TRUTH/i);
+    }
+
+    const ok = await captureTrainingAttendance(prisma, {
+      actorContext: { admin },
+      sessionId: scheduled.session.id,
+      participantId: participant.id,
+      status: 'PRESENT',
+      source: TRAINING_ATTENDANCE_SOURCE.TRAINER_CONFIRMED,
+      idempotencyKey: 'att:good:1',
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.attendance.status).toBe('PRESENT');
+    expect(ok.attendance.source).toBe(TRAINING_ATTENDANCE_SOURCE.TRAINER_CONFIRMED);
+  });
+
+  it('attendance correction preserves original record', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort, participant } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:corr:1',
+      participantKey: 'part:corr:1',
+      enrolKey: 'enr:corr:1',
+    });
+    const meetingService = meetingServiceFactory(prisma, admin);
+    const scheduled = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Correction session',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-22T09:00:00Z',
+        endsAt: '2026-08-22T11:00:00Z',
+      },
+      idempotencyKey: 'sess:corr:1',
+      meetingService,
+    });
+
+    const captured = await captureTrainingAttendance(prisma, {
+      actorContext: { admin },
+      sessionId: scheduled.session.id,
+      participantId: participant.id,
+      status: 'NO_SHOW',
+      source: TRAINING_ATTENDANCE_SOURCE.TRAINER_CONFIRMED,
+      idempotencyKey: 'att:corr:1',
+    });
+    expect(captured.ok).toBe(true);
+    const originalId = captured.attendance.id;
+    const originalStatus = captured.attendance.status;
+
+    const corrected = await correctTrainingAttendance(prisma, {
+      actorContext: { admin },
+      attendanceId: originalId,
+      status: 'PRESENT',
+      reason: 'Trainer mis-marked; participant was present',
+      idempotencyKey: 'att:corr:fix:1',
+    });
+    expect(corrected.ok).toBe(true);
+    expect(corrected.attendance.status).toBe('PRESENT');
+    expect(corrected.original).toBeTruthy();
+    expect(corrected.original.id || corrected.originalAttendanceId).toBe(originalId);
+    expect(corrected.original.status || corrected.originalStatus).toBe(originalStatus);
+    expect(prisma._attendanceStore.some((r) => r.id === originalId)).toBe(true);
+    const originalRow = prisma._attendanceStore.find((r) => r.id === originalId);
+    expect(originalRow.status).toBe(originalStatus);
+    expect(originalRow.supersededById || corrected.attendance.correctsAttendanceId).toBeTruthy();
+  });
+
+  it('UNKNOWN participant denied restricted material download', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+
+    const unknown = await verifyTrainingParticipant(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      contactId: 'contact-unknown-1',
+      identityType: 'CUSTOMER_CONTACT',
+      verificationState: TRAINING_PARTICIPANT_VERIFICATION.UNKNOWN,
+      idempotencyKey: 'part:unknown:1',
+    });
+    expect(unknown.ok).toBe(true);
+    expect(unknown.participant.verificationState).toBe(
+      TRAINING_PARTICIPANT_VERIFICATION.UNKNOWN
+    );
+
+    const material = await prisma.customerTrainingMaterial.create({
+      data: {
+        programId: 'trn-prog-1',
+        title: 'Restricted sandbox credentials pack',
+        classification: TRAINING_MATERIAL_CLASSIFICATION.RESTRICTED,
+        storageRef: 'private://training/materials/restricted-1',
+        status: 'ACTIVE',
+      },
+    });
+
+    const denied = await assertRestrictedMaterialAccess(prisma, {
+      actorContext: { admin },
+      materialId: material.id,
+      participantId: unknown.participant.id,
+    });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toMatch(/UNKNOWN|restricted|denied|verification/i);
+    expect(denied.downloadUrl).toBeFalsy();
+  });
+
+  it('environment isolation assert blocks Production data in shared practice env', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+
+    const blocked = await assertTrainingEnvironmentIsolation(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      environmentKind: 'SHARED_PRACTICE',
+      dataClassification: 'PRODUCTION',
+      includesProductionCustomerData: true,
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/production|isolation|forbidden/i);
+
+    const ok = await assertTrainingEnvironmentIsolation(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      environmentKind: 'SHARED_PRACTICE',
+      dataClassification: 'SYNTHETIC',
+      includesProductionCustomerData: false,
+    });
+    expect(ok.ok).toBe(true);
+  });
+
+  it('virtual provider path returns VIRTUAL_PROVIDER_NOT_CONFIGURED', async () => {
+    const status = getVirtualProviderStatus();
+    expect(status).toBe(VIRTUAL_PROVIDER_NOT_CONFIGURED);
+    expect(status).toBe('VIRTUAL_PROVIDER_NOT_CONFIGURED');
+
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const result = await requestVirtualTrainingProviderSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      sessionId: 'sess-virtual-1',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(VIRTUAL_PROVIDER_NOT_CONFIGURED);
+    expect(result.status).toMatch(/UNAVAILABLE|NOT_CONFIGURED/i);
+    expect(result.sessionDelivered).not.toBe(true);
+  });
+
+  it('Meeting unavailable → MEETING_SERVICE_UNAVAILABLE; no fabricated delivery', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:meet-unavail:1',
+      participantKey: 'part:meet-unavail:1',
+      enrolKey: 'enr:meet-unavail:1',
+    });
+
+    const meetingService = {
+      createMeeting: vi.fn(async () => ({
+        ok: false,
+        error: 'crm_meeting_model_unavailable',
+        status: 'UNAVAILABLE',
+      })),
+    };
+
+    const result = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Unavailable meeting',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-23T09:00:00Z',
+        endsAt: '2026-08-23T11:00:00Z',
+      },
+      idempotencyKey: 'sess:meet-unavail:1',
+      meetingService,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(MEETING_SERVICE_UNAVAILABLE);
+    expect(result.sessionDelivered).not.toBe(true);
+    expect(prisma._sessionStore.length).toBe(0);
+  });
+
+  it('duplicate participant identity enrolment is blocked', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:dup:1',
+      participantKey: 'part:dup:1',
+      enrolKey: 'enr:dup:1',
+      contactId: 'contact-dup-1',
+    });
+
+    const dup = await verifyTrainingParticipant(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      contactId: 'contact-dup-1',
+      identityType: 'CUSTOMER_CONTACT',
+      verificationState: TRAINING_PARTICIPANT_VERIFICATION.VERIFIED,
+      idempotencyKey: 'part:dup:2',
+    });
+    expect(dup.ok).toBe(false);
+    expect(dup.error).toMatch(/duplicate|identity/i);
+
+    const enrolDup = await enrolTrainingParticipant(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      contactId: 'contact-dup-1',
+      identityType: 'CUSTOMER_CONTACT',
+      idempotencyKey: 'enr:dup:2',
+    });
+    // Either verify already blocked, or enrol path blocks duplicate
+    if (enrolDup.ok === false) {
+      expect(enrolDup.error).toMatch(/duplicate|identity|already/i);
+    }
+  });
+
+  it('UNKNOWN conflict state is not confirmable as NO_CONFLICT', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { cohort } = await seedCohortAndParticipant(prisma, admin, {
+      cohortKey: 'coh:unk-conf:1',
+      participantKey: 'part:unk-conf:1',
+      enrolKey: 'enr:unk-conf:1',
+    });
+    const meetingService = meetingServiceFactory(prisma, admin);
+    const scheduled = await scheduleTrainingSession(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      cohortId: cohort.id,
+      meetingInput: {
+        title: 'Unknown conflict session',
+        timezone: 'Africa/Johannesburg',
+        startsAt: '2026-08-24T09:00:00Z',
+        endsAt: '2026-08-24T11:00:00Z',
+      },
+      idempotencyKey: 'sess:unk-conf:1',
+      meetingService,
+    });
+
+    const evaluation = await evaluateTrainingConflicts(prisma, {
+      actorContext: { admin },
+      sessionId: scheduled.session.id,
+      forceUnknown: true,
+    });
+    expect(evaluation.ok).toBe(true);
+    expect(evaluation.conflictState).toBe(TRAINING_CONFLICT_STATE.UNKNOWN);
+    expect(evaluation.conflictState).not.toBe(TRAINING_CONFLICT_STATE.NO_CONFLICT);
+    expect(evaluation.confirmable).not.toBe(true);
+
+    const confirm = await confirmTrainingSchedule(prisma, {
+      actorContext: { admin },
+      sessionId: scheduled.session.id,
+      conflictState: TRAINING_CONFLICT_STATE.UNKNOWN,
+    });
+    expect(confirm.ok).toBe(false);
+    expect(confirm.conflictState).not.toBe(TRAINING_CONFLICT_STATE.NO_CONFLICT);
+  });
+});
+

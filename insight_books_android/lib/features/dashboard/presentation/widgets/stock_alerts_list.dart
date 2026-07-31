@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 const int _kStockAlertsPreviewCount = 5;
+
+bool _isExpiryAlertType(String type) {
+  switch (type.toLowerCase()) {
+    case 'expiry':
+    case 'expired':
+    case 'urgent':
+    case 'early':
+      return true;
+    default:
+      return false;
+  }
+}
 
 class StockAlertsList extends StatefulWidget {
   final List<StockAlert> alerts;
@@ -182,9 +195,16 @@ class _StockAlertsListState extends State<StockAlertsList> {
           ),
           TextButton(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Coming soon')),
-              );
+              if (_isExpiryAlertType(alert.type)) {
+                context.push('/stock/expiry');
+                return;
+              }
+              final id = alert.id.trim();
+              if (id.isEmpty) {
+                context.go('/stock');
+              } else {
+                context.push('/stock/products/$id');
+              }
             },
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.primary,

@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CreditCard, RefreshCw } from 'lucide-react';
 import {
@@ -33,6 +36,7 @@ function formatMoney(amount, currency = 'MWK') {
 }
 
 export default function AdminPlatformPaymentsPage() {
+  const { t } = useI18n();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,7 +48,7 @@ export default function AdminPlatformPaymentsPage() {
     setError('');
     try {
       const qs = statusFilter !== 'all' ? `?status=${encodeURIComponent(statusFilter)}` : '';
-      const res = await fetch(`/api/admin/platform-billing/payments${qs}`, {
+      const res = await adminFetch(`/api/admin/platform-billing/payments${qs}`, {
         credentials: 'include',
       });
       const body = await res.json().catch(() => ({}));
@@ -150,7 +154,7 @@ export default function AdminPlatformPaymentsPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Platform payments"
+        title={t('admin-pages.billing.payments.title')}
         description="SaaS platform payment records with gateway idempotency. Separate from tenant AR payments."
         actions={
           <button type="button" onClick={load} className={btnPrimary}>

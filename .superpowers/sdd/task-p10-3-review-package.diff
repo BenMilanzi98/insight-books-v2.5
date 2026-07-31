@@ -1,0 +1,4472 @@
+﻿# Review package — Phase 10 Task 3 (WORKING_TREE)
+
+diff --git "a/lib\\admin\\support\\sla\\calendars.js" "b/lib\\admin\\support\\sla\\calendars.js"
+new file mode 100644
+index 0000000..ae92744
+--- /dev/null
++++ "b/lib\\admin\\support\\sla\\calendars.js"
+@@ -0,0 +1,223 @@
++/**
++ * Support SLA business calendars ΓÇö timezone + working hours + holidays.
++ */
++
++import {
++  SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID,
++} from './catalogue.js';
++
++const WEEKDAY_MAP = Object.freeze({
++  Sun: 0,
++  Mon: 1,
++  Tue: 2,
++  Wed: 3,
++  Thu: 4,
++  Fri: 5,
++  Sat: 6,
++});
++
++/**
++ * Default Support calendar (Africa/Blantyre, MonΓÇôFri 08:00ΓÇô17:00, no holidays).
++ */
++export function getDefaultSlaCalendar() {
++  return Object.freeze({
++    versionId: SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID,
++    timezone: 'Africa/Blantyre',
++    /** JS getDay()-style: 0=Sun ΓÇª 6=Sat */
++    workdays: Object.freeze([1, 2, 3, 4, 5]),
++    workingHours: Object.freeze({ start: '08:00', end: '17:00' }),
++    holidays: Object.freeze([]),
++  });
++}
++
++function parseHm(hm) {
++  const [h, m] = String(hm || '00:00').split(':').map((n) => Number(n));
++  return {
++    hour: Number.isFinite(h) ? h : 0,
++    minute: Number.isFinite(m) ? m : 0,
++  };
++}
++
++function partsInZone(date, timeZone) {
++  const f = new Intl.DateTimeFormat('en-US', {
++    timeZone,
++    year: 'numeric',
++    month: '2-digit',
++    day: '2-digit',
++    hour: '2-digit',
++    minute: '2-digit',
++    second: '2-digit',
++    hourCycle: 'h23',
++    weekday: 'short',
++  });
++  const parts = {};
++  for (const p of f.formatToParts(date)) {
++    if (p.type !== 'literal') parts[p.type] = p.value;
++  }
++  return {
++    year: Number(parts.year),
++    month: Number(parts.month),
++    day: Number(parts.day),
++    hour: Number(parts.hour),
++    minute: Number(parts.minute),
++    second: Number(parts.second),
++    weekday: WEEKDAY_MAP[parts.weekday] ?? 0,
++  };
++}
++
++/**
++ * Convert a wall-clock time in `timeZone` to a UTC Date.
++ */
++export function zonedLocalToUtc(year, month, day, hour, minute, timeZone) {
++  let utcMs = Date.UTC(year, month - 1, day, hour, minute, 0);
++  for (let i = 0; i < 4; i += 1) {
++    const p = partsInZone(new Date(utcMs), timeZone);
++    const asLocal = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
++    const want = Date.UTC(year, month - 1, day, hour, minute, 0);
++    const delta = want - asLocal;
++    if (delta === 0) break;
++    utcMs += delta;
++  }
++  return new Date(utcMs);
++}
++
++function ymdKey(year, month, day) {
++  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
++}
++
++function isHoliday(year, month, day, calendar) {
++  const key = ymdKey(year, month, day);
++  const holidays = calendar?.holidays || [];
++  return holidays.some((h) => String(h) === key);
++}
++
++function addLocalDays(year, month, day, days) {
++  const dt = new Date(Date.UTC(year, month - 1, day + days));
++  return {
++    year: dt.getUTCFullYear(),
++    month: dt.getUTCMonth() + 1,
++    day: dt.getUTCDate(),
++  };
++}
++
++/**
++ * Elapsed business milliseconds between `from` and `to` under the pinned calendar.
++ *
++ * @param {Date|string|number} from
++ * @param {Date|string|number} to
++ * @param {ReturnType<typeof getDefaultSlaCalendar>} [calendar]
++ * @returns {number}
++ */
++export function elapsedBusinessMs(from, to, calendar = getDefaultSlaCalendar()) {
++  const start = new Date(from);
++  const end = new Date(to);
++  if (!(start.getTime() < end.getTime())) return 0;
++
++  const timeZone = calendar.timezone || 'UTC';
++  const workdays = new Set(calendar.workdays || [1, 2, 3, 4, 5]);
++  const { hour: startH, minute: startM } = parseHm(calendar.workingHours?.start || '08:00');
++  const { hour: endH, minute: endM } = parseHm(calendar.workingHours?.end || '17:00');
++
++  const startParts = partsInZone(start, timeZone);
++  const endParts = partsInZone(end, timeZone);
++
++  let total = 0;
++  let cursor = {
++    year: startParts.year,
++    month: startParts.month,
++    day: startParts.day,
++  };
++
++  for (let guard = 0; guard < 370; guard += 1) {
++    const dayStartUtc = zonedLocalToUtc(
++      cursor.year,
++      cursor.month,
++      cursor.day,
++      startH,
++      startM,
++      timeZone
++    );
++    const dayEndUtc = zonedLocalToUtc(
++      cursor.year,
++      cursor.month,
++      cursor.day,
++      endH,
++      endM,
++      timeZone
++    );
++    const dayParts = partsInZone(dayStartUtc, timeZone);
++    const workday =
++      workdays.has(dayParts.weekday) &&
++      !isHoliday(cursor.year, cursor.month, cursor.day, calendar);
++
++    if (workday) {
++      const segStart = Math.max(start.getTime(), dayStartUtc.getTime());
++      const segEnd = Math.min(end.getTime(), dayEndUtc.getTime());
++      if (segEnd > segStart) total += segEnd - segStart;
++    }
++
++    if (
++      cursor.year === endParts.year &&
++      cursor.month === endParts.month &&
++      cursor.day === endParts.day
++    ) {
++      break;
++    }
++    cursor = addLocalDays(cursor.year, cursor.month, cursor.day, 1);
++  }
++
++  return total;
++}
++
++/**
++ * Add `businessMs` of working time after `from` under the pinned calendar.
++ *
++ * @param {Date|string|number} from
++ * @param {number} businessMs
++ * @param {ReturnType<typeof getDefaultSlaCalendar>} [calendar]
++ * @returns {Date}
++ */
++export function addBusinessMs(from, businessMs, calendar = getDefaultSlaCalendar()) {
++  const start = new Date(from);
++  const target = Math.max(0, Number(businessMs) || 0);
++  if (target === 0) return start;
++
++  const timeZone = calendar.timezone || 'UTC';
++  const workdays = new Set(calendar.workdays || [1, 2, 3, 4, 5]);
++  const { hour: startH, minute: startM } = parseHm(calendar.workingHours?.start || '08:00');
++  const { hour: endH, minute: endM } = parseHm(calendar.workingHours?.end || '17:00');
++
++  let remaining = target;
++  let cursorMs = start.getTime();
++  const startParts = partsInZone(start, timeZone);
++  let day = {
++    year: startParts.year,
++    month: startParts.month,
++    day: startParts.day,
++  };
++
++  for (let guard = 0; guard < 3700 && remaining > 0; guard += 1) {
++    const dayStartUtc = zonedLocalToUtc(day.year, day.month, day.day, startH, startM, timeZone);
++    const dayEndUtc = zonedLocalToUtc(day.year, day.month, day.day, endH, endM, timeZone);
++    const dayParts = partsInZone(dayStartUtc, timeZone);
++    const workday =
++      workdays.has(dayParts.weekday) && !isHoliday(day.year, day.month, day.day, calendar);
++
++    if (workday) {
++      const segStart = Math.max(cursorMs, dayStartUtc.getTime());
++      const avail = dayEndUtc.getTime() - segStart;
++      if (avail > 0) {
++        if (remaining <= avail) {
++          return new Date(segStart + remaining);
++        }
++        remaining -= avail;
++        cursorMs = dayEndUtc.getTime();
++      }
++    }
++
++    day = addLocalDays(day.year, day.month, day.day, 1);
++    cursorMs = zonedLocalToUtc(day.year, day.month, day.day, startH, startM, timeZone).getTime();
++  }
++
++  return new Date(cursorMs + remaining);
++}
+diff --git "a/lib\\admin\\support\\sla\\catalogue.js" "b/lib\\admin\\support\\sla\\catalogue.js"
+new file mode 100644
+index 0000000..1a047e7
+--- /dev/null
++++ "b/lib\\admin\\support\\sla\\catalogue.js"
+@@ -0,0 +1,45 @@
++/**
++ * Support SLA catalogue ΓÇö Phase 10 Wave 3.
++ * Clock types + default pinned policy/calendar version ids.
++ */
++
++export const SUPPORT_SLA_CLOCK_TYPE = Object.freeze({
++  FIRST_RESPONSE: 'FIRST_RESPONSE',
++  NEXT_RESPONSE: 'NEXT_RESPONSE',
++  RESOLUTION: 'RESOLUTION',
++});
++
++export const SUPPORT_SLA_CLOCK_TYPES = Object.freeze(
++  Object.values(SUPPORT_SLA_CLOCK_TYPE)
++);
++
++export const SUPPORT_SLA_CLOCK_STATE = Object.freeze({
++  RUNNING: 'RUNNING',
++  PAUSED: 'PAUSED',
++  STOPPED: 'STOPPED',
++  BREACHED: 'BREACHED',
++});
++
++export const SUPPORT_SLA_CLOCK_STATES = Object.freeze(
++  Object.values(SUPPORT_SLA_CLOCK_STATE)
++);
++
++export const SUPPORT_SLA_EVENT_TYPE = Object.freeze({
++  STARTED: 'STARTED',
++  PAUSED: 'PAUSED',
++  RESUMED: 'RESUMED',
++  STOPPED: 'STOPPED',
++  BREACHED: 'BREACHED',
++});
++
++/** Pinned default policy version ΓÇö historical clocks never silently upgrade. */
++export const SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID = 'sla-policy-default-v1';
++
++/** Pinned default calendar version. */
++export const SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID = 'sla-calendar-default-v1';
++
++export const SUPPORT_SLA_AVAILABILITY = Object.freeze({
++  AVAILABLE: 'AVAILABLE',
++  UNAVAILABLE: 'UNAVAILABLE',
++  NOT_AVAILABLE: 'NOT_AVAILABLE',
++});
+diff --git "a/lib\\admin\\support\\sla\\clocks.js" "b/lib\\admin\\support\\sla\\clocks.js"
+new file mode 100644
+index 0000000..b7de251
+--- /dev/null
++++ "b/lib\\admin\\support\\sla\\clocks.js"
+@@ -0,0 +1,519 @@
++/**
++ * Support SLA clocks ΓÇö start / pause / stop / breach evaluation.
++ * Pins policyVersion + calendarVersion on each clock row.
++ * Breach events are append-only / immutable.
++ */
++
++import {
++  SUPPORT_SLA_CLOCK_TYPE,
++  SUPPORT_SLA_CLOCK_STATE,
++  SUPPORT_SLA_EVENT_TYPE,
++  SUPPORT_SLA_AVAILABILITY,
++  SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID,
++  SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID,
++} from './catalogue.js';
++import { getDefaultSlaCalendar, addBusinessMs, elapsedBusinessMs } from './calendars.js';
++import { getDefaultSlaPolicy, shouldPauseForStatus } from './policies.js';
++import { SUPPORT_TICKET_STATUS, SUPPORT_MESSAGE_TYPE } from '../catalogue.js';
++import { resolveSupportAccess } from '../authz.js';
++import { findSupportTicket } from '../ticketLookup.js';
++
++export function hasSupportSlaClockModel(prisma) {
++  return typeof prisma?.supportSlaClock?.create === 'function';
++}
++
++function serializeClock(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    ticketId: row.ticketId,
++    clockType: row.clockType,
++    state: row.state,
++    policyVersion: row.policyVersion,
++    calendarVersion: row.calendarVersion,
++    targetBusinessMs: row.targetBusinessMs ?? null,
++    startedAt: row.startedAt ? new Date(row.startedAt).toISOString() : null,
++    dueAt: row.dueAt ? new Date(row.dueAt).toISOString() : null,
++    pausedAt: row.pausedAt ? new Date(row.pausedAt).toISOString() : null,
++    pausedMs: row.pausedMs || 0,
++    stoppedAt: row.stoppedAt ? new Date(row.stoppedAt).toISOString() : null,
++    breachedAt: row.breachedAt ? new Date(row.breachedAt).toISOString() : null,
++  };
++}
++
++async function appendEvent(prisma, { clockId, eventType, at, meta }) {
++  if (typeof prisma.supportSlaEvent?.create !== 'function') return null;
++  return prisma.supportSlaEvent.create({
++    data: {
++      clockId,
++      eventType,
++      at: at || new Date(),
++      metaJson: meta ? JSON.stringify(meta) : null,
++    },
++  });
++}
++
++async function createClock(prisma, {
++  ticketId,
++  clockType,
++  policy,
++  calendar,
++  now,
++}) {
++  const target = policy.targets?.[clockType]?.businessMs;
++  if (target == null) return null;
++
++  const dueAt = addBusinessMs(now, target, calendar);
++  const row = await prisma.supportSlaClock.create({
++    data: {
++      ticketId,
++      clockType,
++      state: SUPPORT_SLA_CLOCK_STATE.RUNNING,
++      policyVersion: policy.versionId || SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID,
++      calendarVersion: calendar.versionId || SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID,
++      targetBusinessMs: target,
++      startedAt: now,
++      dueAt,
++      pausedAt: null,
++      pausedMs: 0,
++      stoppedAt: null,
++      breachedAt: null,
++    },
++  });
++  await appendEvent(prisma, {
++    clockId: row.id,
++    eventType: SUPPORT_SLA_EVENT_TYPE.STARTED,
++    at: now,
++  });
++  return row;
++}
++
++/**
++ * Start FIRST_RESPONSE (+ RESOLUTION when policy says CREATE).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ ticketId: string, now?: Date, policy?: object, calendar?: object }} args
++ */
++export async function startClocksOnTicketCreate(prisma, args = {}) {
++  if (!hasSupportSlaClockModel(prisma)) {
++    return {
++      ok: true,
++      status: SUPPORT_SLA_AVAILABILITY.UNAVAILABLE,
++      clocks: [],
++      reason: 'support_sla_model_unavailable',
++    };
++  }
++
++  const ticketId = args.ticketId ? String(args.ticketId).trim() : '';
++  if (!ticketId) return { ok: false, error: 'ticketId required', clocks: [] };
++
++  const policy = args.policy || getDefaultSlaPolicy();
++  const calendar = args.calendar || getDefaultSlaCalendar();
++  const now = args.now || new Date();
++
++  const existing = await prisma.supportSlaClock.findMany({ where: { ticketId } });
++  if (existing?.length) {
++    return { ok: true, clocks: existing.map(serializeClock), noop: true };
++  }
++
++  const clocks = [];
++  const fr = await createClock(prisma, {
++    ticketId,
++    clockType: SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE,
++    policy,
++    calendar,
++    now,
++  });
++  if (fr) clocks.push(fr);
++
++  if ((policy.resolutionStartsOn || 'CREATE') === 'CREATE') {
++    const res = await createClock(prisma, {
++      ticketId,
++      clockType: SUPPORT_SLA_CLOCK_TYPE.RESOLUTION,
++      policy,
++      calendar,
++      now,
++    });
++    if (res) clocks.push(res);
++  }
++
++  return { ok: true, clocks: clocks.map(serializeClock) };
++}
++
++async function stopClock(prisma, clock, now, reason) {
++  if (
++    !clock ||
++    clock.state === SUPPORT_SLA_CLOCK_STATE.STOPPED ||
++    clock.state === SUPPORT_SLA_CLOCK_STATE.BREACHED
++  ) {
++    return clock;
++  }
++
++  let pausedMs = clock.pausedMs || 0;
++  if (clock.state === SUPPORT_SLA_CLOCK_STATE.PAUSED && clock.pausedAt) {
++    pausedMs += Math.max(0, now.getTime() - new Date(clock.pausedAt).getTime());
++  }
++
++  const updated = await prisma.supportSlaClock.update({
++    where: { id: clock.id },
++    data: {
++      state: SUPPORT_SLA_CLOCK_STATE.STOPPED,
++      stoppedAt: now,
++      pausedAt: null,
++      pausedMs,
++    },
++  });
++  await appendEvent(prisma, {
++    clockId: clock.id,
++    eventType: SUPPORT_SLA_EVENT_TYPE.STOPPED,
++    at: now,
++    meta: { reason: reason || null },
++  });
++  return updated;
++}
++
++async function pauseClock(prisma, clock, now, reason) {
++  if (!clock || clock.state !== SUPPORT_SLA_CLOCK_STATE.RUNNING) return clock;
++  const updated = await prisma.supportSlaClock.update({
++    where: { id: clock.id },
++    data: {
++      state: SUPPORT_SLA_CLOCK_STATE.PAUSED,
++      pausedAt: now,
++    },
++  });
++  await appendEvent(prisma, {
++    clockId: clock.id,
++    eventType: SUPPORT_SLA_EVENT_TYPE.PAUSED,
++    at: now,
++    meta: { reason: reason || null },
++  });
++  return updated;
++}
++
++async function resumeClock(prisma, clock, now, calendar, reason) {
++  if (!clock || clock.state !== SUPPORT_SLA_CLOCK_STATE.PAUSED) return clock;
++
++  const pausedAt = clock.pausedAt ? new Date(clock.pausedAt) : now;
++  const pauseDelta = Math.max(0, now.getTime() - pausedAt.getTime());
++  const pausedMs = (clock.pausedMs || 0) + pauseDelta;
++
++  // Extend dueAt by wall pause using business calendar from pauseΓåÆnow
++  const pauseBusiness = elapsedBusinessMs(pausedAt, now, calendar || getDefaultSlaCalendar());
++  const priorDue = clock.dueAt ? new Date(clock.dueAt) : null;
++  const dueAt = priorDue
++    ? addBusinessMs(priorDue, pauseBusiness, calendar || getDefaultSlaCalendar())
++    : clock.dueAt;
++
++  const updated = await prisma.supportSlaClock.update({
++    where: { id: clock.id },
++    data: {
++      state: SUPPORT_SLA_CLOCK_STATE.RUNNING,
++      pausedAt: null,
++      pausedMs,
++      dueAt,
++    },
++  });
++  await appendEvent(prisma, {
++    clockId: clock.id,
++    eventType: SUPPORT_SLA_EVENT_TYPE.RESUMED,
++    at: now,
++    meta: { reason: reason || null },
++  });
++  return updated;
++}
++
++/**
++ * Stop FIRST_RESPONSE on first valid public human reply.
++ * SYSTEM_EVENT / non-PUBLIC_AGENT_REPLY do nothing.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ ticketId: string, now?: Date, messageType?: string, policy?: object }} args
++ */
++export async function stopFirstResponseOnPublicReply(prisma, args = {}) {
++  if (!hasSupportSlaClockModel(prisma)) {
++    return {
++      ok: true,
++      status: SUPPORT_SLA_AVAILABILITY.UNAVAILABLE,
++      reason: 'support_sla_model_unavailable',
++    };
++  }
++
++  const messageType = String(args.messageType || SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY);
++  if (messageType !== SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY) {
++    return { ok: true, skipped: true, reason: 'not_public_agent_reply' };
++  }
++
++  const ticketId = String(args.ticketId || '').trim();
++  if (!ticketId) return { ok: false, error: 'ticketId required' };
++
++  const now = args.now || new Date();
++  const clock = await prisma.supportSlaClock.findFirst({
++    where: {
++      ticketId,
++      clockType: SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE,
++      state: {
++        in: [SUPPORT_SLA_CLOCK_STATE.RUNNING, SUPPORT_SLA_CLOCK_STATE.PAUSED],
++      },
++    },
++  });
++
++  if (!clock) return { ok: true, noop: true };
++  const updated = await stopClock(prisma, clock, now, 'PUBLIC_AGENT_REPLY');
++  return { ok: true, clock: serializeClock(updated) };
++}
++
++/**
++ * Status-driven SLA hooks: ack (optional), pause WAITING_*, stop RESOLUTION.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   ticketId: string,
++ *   fromStatus?: string,
++ *   toStatus: string,
++ *   now?: Date,
++ *   policy?: object,
++ *   calendar?: object,
++ * }} args
++ */
++export async function onTicketStatusChangeForSla(prisma, args = {}) {
++  if (!hasSupportSlaClockModel(prisma)) {
++    return {
++      ok: true,
++      status: SUPPORT_SLA_AVAILABILITY.UNAVAILABLE,
++      reason: 'support_sla_model_unavailable',
++    };
++  }
++
++  const ticketId = String(args.ticketId || '').trim();
++  if (!ticketId) return { ok: false, error: 'ticketId required' };
++
++  const policy = args.policy || getDefaultSlaPolicy();
++  const calendar = args.calendar || getDefaultSlaCalendar();
++  const now = args.now || new Date();
++  const toStatus = String(args.toStatus || '').toUpperCase();
++  const fromStatus = args.fromStatus
++    ? String(args.fromStatus).toUpperCase()
++    : null;
++
++  const clocks = await prisma.supportSlaClock.findMany({ where: { ticketId } });
++  const actions = [];
++
++  // Ack as first response only when policy explicitly enables it
++  if (
++    toStatus === SUPPORT_TICKET_STATUS.ACKNOWLEDGED &&
++    policy.ackCountsAsFirstResponse === true
++  ) {
++    const fr = clocks.find(
++      (c) =>
++        c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE &&
++        (c.state === SUPPORT_SLA_CLOCK_STATE.RUNNING ||
++          c.state === SUPPORT_SLA_CLOCK_STATE.PAUSED)
++    );
++    if (fr) {
++      await stopClock(prisma, fr, now, 'ACK_COUNTS_AS_FIRST_RESPONSE');
++      actions.push('stop_first_response_ack');
++    }
++  }
++
++  const pauseNow = shouldPauseForStatus(policy, toStatus);
++  const wasPaused = fromStatus ? shouldPauseForStatus(policy, fromStatus) : false;
++
++  for (const clock of clocks) {
++    if (
++      clock.state === SUPPORT_SLA_CLOCK_STATE.STOPPED ||
++      clock.state === SUPPORT_SLA_CLOCK_STATE.BREACHED
++    ) {
++      continue;
++    }
++
++    if (pauseNow && clock.state === SUPPORT_SLA_CLOCK_STATE.RUNNING) {
++      await pauseClock(prisma, clock, now, toStatus);
++      actions.push(`pause_${clock.clockType}`);
++    } else if (
++      !pauseNow &&
++      wasPaused &&
++      clock.state === SUPPORT_SLA_CLOCK_STATE.PAUSED
++    ) {
++      await resumeClock(prisma, clock, now, calendar, toStatus);
++      actions.push(`resume_${clock.clockType}`);
++    }
++  }
++
++  const stopResolution =
++    toStatus === SUPPORT_TICKET_STATUS.RESOLVED ||
++    (toStatus === SUPPORT_TICKET_STATUS.CLOSED &&
++      policy.stopResolutionOnClosed !== false);
++
++  if (stopResolution) {
++    const refreshed = await prisma.supportSlaClock.findMany({ where: { ticketId } });
++    const res = refreshed.find(
++      (c) =>
++        c.clockType === SUPPORT_SLA_CLOCK_TYPE.RESOLUTION &&
++        (c.state === SUPPORT_SLA_CLOCK_STATE.RUNNING ||
++          c.state === SUPPORT_SLA_CLOCK_STATE.PAUSED)
++    );
++    if (res) {
++      await stopClock(prisma, res, now, toStatus);
++      actions.push('stop_resolution');
++    }
++  }
++
++  return { ok: true, actions };
++}
++
++/**
++ * Evaluate breach for a single clock. Breach facts are immutable once recorded.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ clockId: string, now?: Date, calendar?: object }} args
++ */
++export async function evaluateClockBreach(prisma, args = {}) {
++  if (!hasSupportSlaClockModel(prisma)) {
++    return {
++      ok: true,
++      status: SUPPORT_SLA_AVAILABILITY.UNAVAILABLE,
++      breached: false,
++      reason: 'support_sla_model_unavailable',
++    };
++  }
++
++  const clockId = String(args.clockId || '').trim();
++  if (!clockId) return { ok: false, error: 'clockId required', breached: false };
++
++  const now = args.now || new Date();
++  let clock = null;
++  if (typeof prisma.supportSlaClock.findUnique === 'function') {
++    try {
++      clock = await prisma.supportSlaClock.findUnique({ where: { id: clockId } });
++    } catch {
++      clock = null;
++    }
++  }
++  if (!clock && typeof prisma.supportSlaClock.findFirst === 'function') {
++    clock = await prisma.supportSlaClock.findFirst({ where: { id: clockId } });
++  }
++  if (!clock && typeof prisma.supportSlaClock.findMany === 'function') {
++    const all = await prisma.supportSlaClock.findMany({});
++    clock = (all || []).find((c) => c.id === clockId) || null;
++  }
++
++  if (!clock) return { ok: false, notFound: true, error: 'clock_not_found', breached: false };
++
++  if (clock.state === SUPPORT_SLA_CLOCK_STATE.BREACHED) {
++    return { ok: true, breached: true, clock: serializeClock(clock), alreadyBreached: true };
++  }
++
++  if (
++    clock.state === SUPPORT_SLA_CLOCK_STATE.STOPPED ||
++    clock.state === SUPPORT_SLA_CLOCK_STATE.PAUSED
++  ) {
++    return { ok: true, breached: false, clock: serializeClock(clock) };
++  }
++
++  const dueAt = clock.dueAt ? new Date(clock.dueAt) : null;
++  if (!dueAt || now.getTime() < dueAt.getTime()) {
++    return { ok: true, breached: false, clock: serializeClock(clock) };
++  }
++
++  // Existing BREACHED event? Do not duplicate.
++  let priorBreach = [];
++  if (typeof prisma.supportSlaEvent?.findMany === 'function') {
++    priorBreach = await prisma.supportSlaEvent.findMany({
++      where: { clockId: clock.id, eventType: SUPPORT_SLA_EVENT_TYPE.BREACHED },
++    });
++  }
++
++  if (priorBreach.length > 0) {
++    if (clock.state !== SUPPORT_SLA_CLOCK_STATE.BREACHED) {
++      clock = await prisma.supportSlaClock.update({
++        where: { id: clock.id },
++        data: {
++          state: SUPPORT_SLA_CLOCK_STATE.BREACHED,
++          breachedAt: clock.breachedAt || priorBreach[0].at || now,
++        },
++      });
++    }
++    return { ok: true, breached: true, clock: serializeClock(clock), alreadyBreached: true };
++  }
++
++  const updated = await prisma.supportSlaClock.update({
++    where: { id: clock.id },
++    data: {
++      state: SUPPORT_SLA_CLOCK_STATE.BREACHED,
++      breachedAt: now,
++    },
++  });
++  await appendEvent(prisma, {
++    clockId: clock.id,
++    eventType: SUPPORT_SLA_EVENT_TYPE.BREACHED,
++    at: now,
++  });
++
++  return { ok: true, breached: true, clock: serializeClock(updated) };
++}
++
++/**
++ * List clocks for a ticket. Never invent breach % when unavailable.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, ticketId: string, evaluate?: boolean, now?: Date }} args
++ */
++export async function listClocksForTicket(prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canViewTickets) {
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden', items: [] };
++  }
++
++  if (!hasSupportSlaClockModel(prisma)) {
++    return {
++      ok: true,
++      status: SUPPORT_SLA_AVAILABILITY.UNAVAILABLE,
++      items: [],
++      meta: {
++        unavailable: true,
++        reason: 'support_sla_model_unavailable',
++        // Explicitly omit breachRate / breachPercent ΓÇö never fake 0%
++      },
++    };
++  }
++
++  const ticket = await findSupportTicket(prisma, args.ticketId);
++  if (!ticket) {
++    return { ok: false, notFound: true, error: 'ticket_not_found', items: [] };
++  }
++
++  let rows = [];
++  try {
++    rows = await prisma.supportSlaClock.findMany({
++      where: { ticketId: ticket.id },
++      orderBy: { startedAt: 'asc' },
++    });
++  } catch {
++    rows = [];
++  }
++
++  if (args.evaluate !== false) {
++    const now = args.now || new Date();
++    for (const row of rows) {
++      if (row.state === SUPPORT_SLA_CLOCK_STATE.RUNNING) {
++        await evaluateClockBreach(prisma, { clockId: row.id, now });
++      }
++    }
++    rows = await prisma.supportSlaClock.findMany({
++      where: { ticketId: ticket.id },
++      orderBy: { startedAt: 'asc' },
++    });
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeClock),
++    meta: {
++      count: (rows || []).length,
++      ticketId: ticket.id,
++      policyVersionPinned: true,
++    },
++  };
++}
++
++export { serializeClock };
+diff --git "a/lib\\admin\\support\\sla\\index.js" "b/lib\\admin\\support\\sla\\index.js"
+new file mode 100644
+index 0000000..163ce28
+--- /dev/null
++++ "b/lib\\admin\\support\\sla\\index.js"
+@@ -0,0 +1,37 @@
++/**
++ * Support SLA public surface ΓÇö Phase 10 Wave 3.
++ */
++
++export {
++  SUPPORT_SLA_CLOCK_TYPE,
++  SUPPORT_SLA_CLOCK_TYPES,
++  SUPPORT_SLA_CLOCK_STATE,
++  SUPPORT_SLA_CLOCK_STATES,
++  SUPPORT_SLA_EVENT_TYPE,
++  SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID,
++  SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID,
++  SUPPORT_SLA_AVAILABILITY,
++} from './catalogue.js';
++
++export {
++  getDefaultSlaCalendar,
++  elapsedBusinessMs,
++  addBusinessMs,
++  zonedLocalToUtc,
++} from './calendars.js';
++
++export {
++  getDefaultSlaPolicy,
++  shouldPauseForStatus,
++  listSlaPolicies,
++} from './policies.js';
++
++export {
++  hasSupportSlaClockModel,
++  startClocksOnTicketCreate,
++  stopFirstResponseOnPublicReply,
++  onTicketStatusChangeForSla,
++  evaluateClockBreach,
++  listClocksForTicket,
++  serializeClock,
++} from './clocks.js';
+diff --git "a/lib\\admin\\support\\sla\\policies.js" "b/lib\\admin\\support\\sla\\policies.js"
+new file mode 100644
+index 0000000..f7a8de3
+--- /dev/null
++++ "b/lib\\admin\\support\\sla\\policies.js"
+@@ -0,0 +1,104 @@
++/**
++ * Versioned Support SLA policies ΓÇö FIRST_RESPONSE / RESOLUTION targets.
++ * NEXT_RESPONSE is an optional stub target.
++ */
++
++import {
++  SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID,
++  SUPPORT_SLA_CLOCK_TYPE,
++} from './catalogue.js';
++import { SUPPORT_WAITING_STATUSES, SUPPORT_TICKET_STATUS } from '../catalogue.js';
++import { resolveSupportAccess } from '../authz.js';
++
++const HOUR = 60 * 60 * 1000;
++
++/**
++ * Default pinned policy (ack does NOT count as first response).
++ */
++export function getDefaultSlaPolicy() {
++  return Object.freeze({
++    versionId: SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID,
++    name: 'Default Support SLA',
++    ackCountsAsFirstResponse: false,
++    /** Start RESOLUTION on ticket create (ASSIGN = start on first assign ΓÇö future). */
++    resolutionStartsOn: 'CREATE',
++    /** Stop RESOLUTION when ticket reaches CLOSED (after RESOLVED). */
++    stopResolutionOnClosed: true,
++    pauseOnWaitingForCustomer: true,
++    pauseOnWaitingForInternalTeam: true,
++    pauseOnWaitingForVendor: true,
++    targets: Object.freeze({
++      [SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE]: Object.freeze({ businessMs: 4 * HOUR }),
++      [SUPPORT_SLA_CLOCK_TYPE.RESOLUTION]: Object.freeze({ businessMs: 24 * HOUR }),
++      [SUPPORT_SLA_CLOCK_TYPE.NEXT_RESPONSE]: Object.freeze({ businessMs: 8 * HOUR }),
++    }),
++  });
++}
++
++/**
++ * @param {object} policy
++ * @param {string} status
++ */
++export function shouldPauseForStatus(policy, status) {
++  const s = String(status || '').toUpperCase();
++  if (s === SUPPORT_TICKET_STATUS.WAITING_FOR_CUSTOMER) {
++    return Boolean(policy?.pauseOnWaitingForCustomer);
++  }
++  if (s === SUPPORT_TICKET_STATUS.WAITING_FOR_INTERNAL_TEAM) {
++    return Boolean(policy?.pauseOnWaitingForInternalTeam);
++  }
++  if (s === SUPPORT_TICKET_STATUS.WAITING_FOR_VENDOR) {
++    return Boolean(policy?.pauseOnWaitingForVendor);
++  }
++  return SUPPORT_WAITING_STATUSES.includes(s);
++}
++
++/**
++ * List policies. DB table optional ΓÇö falls back to default catalogue.
++ * Readable with viewTickets; mutations gated by manageSla (none in Wave 3 UI).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object }} args
++ */
++export async function listSlaPolicies(prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canViewTickets) {
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden', items: [] };
++  }
++
++  if (typeof prisma?.supportSlaPolicy?.findMany === 'function') {
++    try {
++      const rows = await prisma.supportSlaPolicy.findMany({
++        where: { active: true },
++        orderBy: { versionId: 'asc' },
++      });
++      if (rows?.length) {
++        return {
++          ok: true,
++          items: rows.map((r) => ({
++            versionId: r.versionId,
++            name: r.name,
++            ackCountsAsFirstResponse: Boolean(r.ackCountsAsFirstResponse),
++            resolutionStartsOn: r.resolutionStartsOn || 'CREATE',
++            stopResolutionOnClosed: r.stopResolutionOnClosed !== false,
++            pauseOnWaitingForCustomer: r.pauseOnWaitingForCustomer !== false,
++            pauseOnWaitingForInternalTeam: r.pauseOnWaitingForInternalTeam !== false,
++            pauseOnWaitingForVendor: r.pauseOnWaitingForVendor !== false,
++            targets: typeof r.targetsJson === 'string'
++              ? JSON.parse(r.targetsJson)
++              : r.targetsJson || getDefaultSlaPolicy().targets,
++            source: 'db',
++          })),
++        };
++      }
++    } catch {
++      // fall through to catalogue default
++    }
++  }
++
++  return {
++    ok: true,
++    items: [{ ...getDefaultSlaPolicy(), source: 'catalogue' }],
++    meta: { catalogueFallback: true },
++  };
++}
+diff --git "a/app\\insightbooks\\support\\page.js" "b/app\\insightbooks\\support\\page.js"
+new file mode 100644
+index 0000000..efdfa2d
+--- /dev/null
++++ "b/app\\insightbooks\\support\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { SupportMyWorkView } from '@/components/admin';
++
++export default function SupportMyWorkPage() {
++  return <SupportMyWorkView />;
++}
+diff --git "a/app\\insightbooks\\support\\tickets\\page.js" "b/app\\insightbooks\\support\\tickets\\page.js"
+new file mode 100644
+index 0000000..12ee8fb
+--- /dev/null
++++ "b/app\\insightbooks\\support\\tickets\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { SupportTicketsView } from '@/components/admin';
++
++export default function SupportTicketsPage() {
++  return <SupportTicketsView />;
++}
+diff --git "a/app\\insightbooks\\support\\tickets\\[id]\\page.js" "b/app\\insightbooks\\support\\tickets\\[id]\\page.js"
+new file mode 100644
+index 0000000..81e3d5d
+--- /dev/null
++++ "b/app\\insightbooks\\support\\tickets\\[id]\\page.js"
+@@ -0,0 +1,9 @@
++'use client';
++
++import { use } from 'react';
++import { SupportTicketDetailView } from '@/components/admin';
++
++export default function SupportTicketDetailPage({ params }) {
++  const resolved = use(params);
++  return <SupportTicketDetailView ticketId={resolved?.id} />;
++}
+diff --git "a/components\\admin\\support\\SupportMyWorkView.jsx" "b/components\\admin\\support\\SupportMyWorkView.jsx"
+new file mode 100644
+index 0000000..1ac018f
+--- /dev/null
++++ "b/components\\admin\\support\\SupportMyWorkView.jsx"
+@@ -0,0 +1,119 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import Link from 'next/link';
++import { useI18n } from '@/components/i18n/I18nProvider';
++import { adminFetch } from '@/lib/admin/adminApi';
++import AdminPageContainer from '@/components/admin/AdminPageContainer';
++import AdminPageHeader from '@/components/admin/AdminPageHeader';
++import AdminLoadingState from '@/components/admin/AdminLoadingState';
++import AdminErrorState from '@/components/admin/AdminErrorState';
++import AdminEmptyState from '@/components/admin/AdminEmptyState';
++import AdminStatusBadge from '@/components/admin/AdminStatusBadge';
++import SupportSectionNav from './SupportSectionNav';
++
++const btnGhost =
++  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
++
++function channelLabel(channel, t) {
++  if (!channel || channel === 'ADMIN_MANUAL') return channel || 'ADMIN_MANUAL';
++  if (channel === 'EMAIL' || channel === 'WHATSAPP' || channel === 'PORTAL') {
++    return `${channel} (${t('admin-pages.support.channelNotAvailable')})`;
++  }
++  return channel;
++}
++
++export default function SupportMyWorkView() {
++  const { t } = useI18n();
++  const [items, setItems] = useState([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++
++  const load = useCallback(async () => {
++    setLoading(true);
++    setError('');
++    try {
++      const qs = new URLSearchParams({ limit: '50', myWork: 'true' });
++      const res = await adminFetch(`/api/admin/support/tickets?${qs}`, {
++        credentials: 'include',
++      });
++      const body = await res.json().catch(() => ({}));
++      if (res.status === 403) {
++        throw new Error(body.error || t('admin-pages.support.forbidden'));
++      }
++      if (!res.ok) throw new Error(body.error || t('admin-pages.support.loadFailed'));
++      setItems(Array.isArray(body.items) ? body.items : []);
++    } catch (e) {
++      setError(e.message || t('admin-pages.support.loadFailed'));
++      setItems([]);
++    } finally {
++      setLoading(false);
++    }
++  }, [t]);
++
++  useEffect(() => {
++    load();
++  }, [load]);
++
++  return (
++    <AdminPageContainer>
++      <AdminPageHeader
++        title={t('admin-pages.support.sections.myWork')}
++        description={t('admin-pages.support.sectionHints.myWork')}
++        actions={
++          <button type="button" className={btnGhost} onClick={load} disabled={loading}>
++            {t('admin-pages.common.refresh')}
++          </button>
++        }
++      />
++      <SupportSectionNav />
++
++      {loading ? <AdminLoadingState /> : null}
++      {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
++      {!loading && !error && items.length === 0 ? (
++        <AdminEmptyState
++          title={t('admin-pages.support.myWork.emptyTitle')}
++          description={t('admin-pages.support.myWork.emptyHint')}
++        />
++      ) : null}
++
++      {!loading && !error && items.length > 0 ? (
++        <div className="mt-4 overflow-x-auto rounded-[var(--admin-radius)] border border-[var(--admin-border)]">
++          <table className="min-w-full text-left text-sm">
++            <thead className="bg-[var(--admin-surface-muted)] text-[var(--admin-text-muted)]">
++              <tr>
++                <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colNumber')}</th>
++                <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colTitle')}</th>
++                <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.status')}</th>
++                <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colQueue')}</th>
++                <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colChannel')}</th>
++              </tr>
++            </thead>
++            <tbody>
++              {items.map((row) => (
++                <tr key={row.id} className="border-t border-[var(--admin-border)]">
++                  <td className="px-3 py-2 font-mono text-xs">
++                    <Link
++                      href={`/insightbooks/support/tickets/${encodeURIComponent(row.id)}`}
++                      className="text-[var(--admin-accent)] hover:underline"
++                    >
++                      {row.ticketNumber}
++                    </Link>
++                  </td>
++                  <td className="px-3 py-2">{row.title}</td>
++                  <td className="px-3 py-2">
++                    <AdminStatusBadge tone="info" label={row.status} />
++                  </td>
++                  <td className="px-3 py-2">{row.queueCode || 'ΓÇö'}</td>
++                  <td className="px-3 py-2 text-xs">
++                    {channelLabel(row.sourceChannel, t)}
++                  </td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        </div>
++      ) : null}
++    </AdminPageContainer>
++  );
++}
+diff --git "a/components\\admin\\support\\SupportSectionNav.jsx" "b/components\\admin\\support\\SupportSectionNav.jsx"
+new file mode 100644
+index 0000000..a1a4424
+--- /dev/null
++++ "b/components\\admin\\support\\SupportSectionNav.jsx"
+@@ -0,0 +1,85 @@
++'use client';
++
++import { useEffect, useState } from 'react';
++import Link from 'next/link';
++import { usePathname } from 'next/navigation';
++import { useI18n } from '@/components/i18n/I18nProvider';
++import { SUPPORT_SECTIONS, isSupportSectionActive } from '@/lib/admin/supportNav';
++import { adminHasPermission } from '@/lib/admin/permissions';
++import { cn } from '@/lib/utils';
++
++function sectionAllowed(admin, permission) {
++  if (!admin) return false;
++  return adminHasPermission(admin, permission) || admin.role === 'Super Admin';
++}
++
++export default function SupportSectionNav({ className }) {
++  const pathname = usePathname();
++  const { t } = useI18n();
++  const [admin, setAdmin] = useState(null);
++
++  useEffect(() => {
++    let cancelled = false;
++    (async () => {
++      try {
++        const res = await fetch('/api/admin/auth/me', { credentials: 'include' });
++        if (!res.ok) return;
++        const body = await res.json().catch(() => ({}));
++        if (!cancelled) setAdmin(body.admin || null);
++      } catch {
++        // Keep nav empty until admin is known
++      }
++    })();
++    return () => {
++      cancelled = true;
++    };
++  }, []);
++
++  return (
++    <nav
++      className={cn(
++        'mb-6 flex flex-wrap gap-2 border-b border-[var(--admin-border)] pb-3',
++        className
++      )}
++      aria-label={t('admin-pages.support.sectionNavLabel')}
++    >
++      {SUPPORT_SECTIONS.map((section) => {
++        const active = isSupportSectionActive(pathname, section);
++        const label = section.labelKey ? t(section.labelKey) : section.label;
++        const allowed = sectionAllowed(admin, section.permission);
++
++        if (!allowed) {
++          return (
++            <span
++              key={section.id}
++              aria-disabled="true"
++              title={t('admin-pages.support.gated')}
++              className={cn(
++                'cursor-not-allowed rounded-[var(--admin-radius)] px-3 py-1.5 text-sm font-medium opacity-50',
++                'border border-dashed border-[var(--admin-border)] bg-[var(--admin-surface-muted)] text-[var(--admin-text-muted)]'
++              )}
++            >
++              {label}
++            </span>
++          );
++        }
++
++        return (
++          <Link
++            key={section.id}
++            href={section.href}
++            aria-current={active ? 'page' : undefined}
++            className={cn(
++              'rounded-[var(--admin-radius)] px-3 py-1.5 text-sm font-medium transition-colors',
++              active
++                ? 'bg-[var(--action-primary)] text-white'
++                : 'border border-[var(--admin-border)] bg-[var(--admin-surface)] text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]'
++            )}
++          >
++            {label}
++          </Link>
++        );
++      })}
++    </nav>
++  );
++}
+diff --git "a/components\\admin\\support\\SupportTicketDetailView.jsx" "b/components\\admin\\support\\SupportTicketDetailView.jsx"
+new file mode 100644
+index 0000000..66a9f89
+--- /dev/null
++++ "b/components\\admin\\support\\SupportTicketDetailView.jsx"
+@@ -0,0 +1,395 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import Link from 'next/link';
++import { useI18n } from '@/components/i18n/I18nProvider';
++import { adminFetch } from '@/lib/admin/adminApi';
++import AdminPageContainer from '@/components/admin/AdminPageContainer';
++import AdminPageHeader from '@/components/admin/AdminPageHeader';
++import AdminLoadingState from '@/components/admin/AdminLoadingState';
++import AdminErrorState from '@/components/admin/AdminErrorState';
++import AdminStatusBadge from '@/components/admin/AdminStatusBadge';
++import SupportSectionNav from './SupportSectionNav';
++
++const btnGhost =
++  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
++const btnPrimary =
++  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--admin-accent)] px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50';
++const inputCls =
++  'h-10 w-full rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 text-sm text-[var(--admin-text)]';
++const areaCls =
++  'min-h-[5rem] w-full rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
++const selectCls =
++  'h-10 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 text-sm text-[var(--admin-text)]';
++
++function slaTone(state) {
++  if (state === 'BREACHED') return 'danger';
++  if (state === 'PAUSED') return 'warning';
++  if (state === 'STOPPED') return 'neutral';
++  return 'info';
++}
++
++function channelBadge(channel, t) {
++  if (channel === 'EMAIL' || channel === 'WHATSAPP' || channel === 'PORTAL') {
++    return `${channel} ┬╖ ${t('admin-pages.support.channelNotAvailable')}`;
++  }
++  return channel || 'ADMIN_MANUAL';
++}
++
++export default function SupportTicketDetailView({ ticketId }) {
++  const { t } = useI18n();
++  const [ticket, setTicket] = useState(null);
++  const [messages, setMessages] = useState([]);
++  const [clocks, setClocks] = useState([]);
++  const [slaStatus, setSlaStatus] = useState('AVAILABLE');
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [toStatus, setToStatus] = useState('');
++  const [resolutionCategory, setResolutionCategory] = useState('');
++  const [assigneeAdminId, setAssigneeAdminId] = useState('');
++  const [queueCode, setQueueCode] = useState('');
++  const [replyBody, setReplyBody] = useState('');
++  const [noteBody, setNoteBody] = useState('');
++
++  const load = useCallback(async () => {
++    if (!ticketId) return;
++    setLoading(true);
++    setError('');
++    try {
++      const [ticketRes, msgRes, slaRes] = await Promise.all([
++        adminFetch(`/api/admin/support/tickets/${encodeURIComponent(ticketId)}`, {
++          credentials: 'include',
++        }),
++        adminFetch(`/api/admin/support/tickets/${encodeURIComponent(ticketId)}/messages`, {
++          credentials: 'include',
++        }),
++        adminFetch(`/api/admin/support/tickets/${encodeURIComponent(ticketId)}/sla`, {
++          credentials: 'include',
++        }),
++      ]);
++
++      const ticketBody = await ticketRes.json().catch(() => ({}));
++      if (ticketRes.status === 403) {
++        throw new Error(ticketBody.error || t('admin-pages.support.forbidden'));
++      }
++      if (ticketRes.status === 404) {
++        throw new Error(t('admin-pages.support.tickets.notFound'));
++      }
++      if (!ticketRes.ok) {
++        throw new Error(ticketBody.error || t('admin-pages.support.tickets.loadFailed'));
++      }
++      setTicket(ticketBody.ticket || null);
++      setAssigneeAdminId(ticketBody.ticket?.assigneeAdminId || '');
++      setQueueCode(ticketBody.ticket?.queueCode || '');
++
++      const msgBody = await msgRes.json().catch(() => ({}));
++      setMessages(msgRes.ok && Array.isArray(msgBody.items) ? msgBody.items : []);
++
++      const slaBody = await slaRes.json().catch(() => ({}));
++      setSlaStatus(slaBody.status || (slaRes.ok ? 'AVAILABLE' : 'UNAVAILABLE'));
++      setClocks(slaRes.ok && Array.isArray(slaBody.items) ? slaBody.items : []);
++    } catch (e) {
++      setError(e.message || t('admin-pages.support.tickets.loadFailed'));
++      setTicket(null);
++    } finally {
++      setLoading(false);
++    }
++  }, [ticketId, t]);
++
++  useEffect(() => {
++    load();
++  }, [load]);
++
++  const transition = async () => {
++    if (!toStatus) return;
++    setBusy(true);
++    setError('');
++    try {
++      const res = await adminFetch(
++        `/api/admin/support/tickets/${encodeURIComponent(ticketId)}/status`,
++        {
++          method: 'POST',
++          credentials: 'include',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({
++            toStatus,
++            resolutionCategory: resolutionCategory || undefined,
++            reason: 'admin_ui',
++          }),
++        }
++      );
++      const body = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(body.error || t('admin-pages.support.tickets.updateFailed'));
++      setToStatus('');
++      await load();
++    } catch (e) {
++      setError(e.message);
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  const assign = async () => {
++    setBusy(true);
++    setError('');
++    try {
++      const res = await adminFetch(
++        `/api/admin/support/tickets/${encodeURIComponent(ticketId)}/assign`,
++        {
++          method: 'POST',
++          credentials: 'include',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({
++            assigneeAdminId: assigneeAdminId || null,
++            queueCode: queueCode || null,
++          }),
++        }
++      );
++      const body = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(body.error || t('admin-pages.support.tickets.assignFailed'));
++      await load();
++    } catch (e) {
++      setError(e.message);
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  const postMessage = async (type) => {
++    const bodyText = type === 'INTERNAL_NOTE' ? noteBody : replyBody;
++    if (!bodyText.trim()) return;
++    setBusy(true);
++    setError('');
++    try {
++      const res = await adminFetch(
++        `/api/admin/support/tickets/${encodeURIComponent(ticketId)}/messages`,
++        {
++          method: 'POST',
++          credentials: 'include',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({ type, body: bodyText.trim() }),
++        }
++      );
++      const body = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(body.error || t('admin-pages.support.tickets.messageFailed'));
++      if (type === 'INTERNAL_NOTE') setNoteBody('');
++      else setReplyBody('');
++      await load();
++    } catch (e) {
++      setError(e.message);
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  return (
++    <AdminPageContainer>
++      <AdminPageHeader
++        title={ticket?.ticketNumber || t('admin-pages.support.sections.tickets')}
++        description={ticket?.title || t('admin-pages.support.sectionHints.tickets')}
++        actions={
++          <Link href="/insightbooks/support/tickets" className={btnGhost}>
++            {t('admin-pages.support.tickets.backToList')}
++          </Link>
++        }
++      />
++      <SupportSectionNav />
++
++      {loading ? <AdminLoadingState /> : null}
++      {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
++
++      {!loading && ticket ? (
++        <div className="mt-4 space-y-6">
++          <div className="flex flex-wrap gap-3 text-sm">
++            <AdminStatusBadge tone="info" label={ticket.status} />
++            <AdminStatusBadge tone="neutral" label={ticket.priority || 'ΓÇö'} />
++            <span className="text-[var(--admin-text-muted)]">
++              {channelBadge(ticket.sourceChannel, t)}
++            </span>
++            <span className="font-mono text-xs text-[var(--admin-text-muted)]">
++              {ticket.tenantId}
++            </span>
++          </div>
++
++          {ticket.description ? (
++            <p className="whitespace-pre-wrap text-sm text-[var(--admin-text)]">
++              {ticket.description}
++            </p>
++          ) : null}
++
++          <section>
++            <h2 className="mb-2 text-sm font-semibold text-[var(--admin-text)]">
++              {t('admin-pages.support.sla.title')}
++            </h2>
++            {slaStatus === 'UNAVAILABLE' || slaStatus === 'NOT_AVAILABLE' ? (
++              <p className="text-sm text-[var(--admin-text-muted)]">
++                {t('admin-pages.support.sla.unavailable')}
++              </p>
++            ) : null}
++            {slaStatus !== 'UNAVAILABLE' &&
++            slaStatus !== 'NOT_AVAILABLE' &&
++            clocks.length === 0 ? (
++              <p className="text-sm text-[var(--admin-text-muted)]">
++                {t('admin-pages.support.sla.empty')}
++              </p>
++            ) : null}
++            {clocks.length > 0 ? (
++              <div className="grid gap-3 sm:grid-cols-2">
++                {clocks.map((c) => (
++                  <div
++                    key={c.id}
++                    className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] p-3"
++                  >
++                    <div className="flex items-center justify-between gap-2">
++                      <span className="text-sm font-medium">{c.clockType}</span>
++                      <AdminStatusBadge tone={slaTone(c.state)} label={c.state} />
++                    </div>
++                    <dl className="mt-2 space-y-1 text-xs text-[var(--admin-text-muted)]">
++                      <div className="flex justify-between gap-2">
++                        <dt>{t('admin-pages.support.sla.dueAt')}</dt>
++                        <dd className="font-mono">{c.dueAt || 'ΓÇö'}</dd>
++                      </div>
++                      <div className="flex justify-between gap-2">
++                        <dt>{t('admin-pages.support.sla.policyVersion')}</dt>
++                        <dd className="font-mono">{c.policyVersion}</dd>
++                      </div>
++                      <div className="flex justify-between gap-2">
++                        <dt>{t('admin-pages.support.sla.calendarVersion')}</dt>
++                        <dd className="font-mono">{c.calendarVersion}</dd>
++                      </div>
++                    </dl>
++                  </div>
++                ))}
++              </div>
++            ) : null}
++          </section>
++
++          <section className="grid gap-4 md:grid-cols-2">
++            <div className="space-y-2">
++              <h2 className="text-sm font-semibold">
++                {t('admin-pages.support.tickets.transition')}
++              </h2>
++              <select
++                className={selectCls + ' w-full'}
++                value={toStatus}
++                onChange={(e) => setToStatus(e.target.value)}
++              >
++                <option value="">{t('admin-pages.support.tickets.selectStatus')}</option>
++                <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
++                <option value="TRIAGE">TRIAGE</option>
++                <option value="ASSIGNED">ASSIGNED</option>
++                <option value="IN_PROGRESS">IN_PROGRESS</option>
++                <option value="WAITING_FOR_CUSTOMER">WAITING_FOR_CUSTOMER</option>
++                <option value="WAITING_FOR_INTERNAL_TEAM">WAITING_FOR_INTERNAL_TEAM</option>
++                <option value="WAITING_FOR_VENDOR">WAITING_FOR_VENDOR</option>
++                <option value="RESOLVED">RESOLVED</option>
++                <option value="CLOSED">CLOSED</option>
++                <option value="REOPENED">REOPENED</option>
++              </select>
++              {toStatus === 'RESOLVED' ? (
++                <input
++                  className={inputCls}
++                  placeholder={t('admin-pages.support.tickets.resolutionCategory')}
++                  value={resolutionCategory}
++                  onChange={(e) => setResolutionCategory(e.target.value)}
++                />
++              ) : null}
++              <button
++                type="button"
++                className={btnPrimary}
++                disabled={busy || !toStatus}
++                onClick={transition}
++              >
++                {t('admin-pages.support.tickets.applyStatus')}
++              </button>
++            </div>
++
++            <div className="space-y-2">
++              <h2 className="text-sm font-semibold">{t('admin-pages.support.tickets.assign')}</h2>
++              <input
++                className={inputCls}
++                placeholder={t('admin-pages.support.tickets.assigneeAdminId')}
++                value={assigneeAdminId}
++                onChange={(e) => setAssigneeAdminId(e.target.value)}
++              />
++              <input
++                className={inputCls}
++                placeholder={t('admin-pages.support.tickets.queueCode')}
++                value={queueCode}
++                onChange={(e) => setQueueCode(e.target.value)}
++              />
++              <button type="button" className={btnPrimary} disabled={busy} onClick={assign}>
++                {t('admin-pages.support.tickets.applyAssign')}
++              </button>
++            </div>
++          </section>
++
++          <section>
++            <h2 className="mb-2 text-sm font-semibold">
++              {t('admin-pages.support.tickets.messages')}
++            </h2>
++            <ul className="space-y-2">
++              {messages.map((m) => (
++                <li
++                  key={m.id}
++                  className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] p-3 text-sm"
++                >
++                  <div className="mb-1 flex flex-wrap gap-2 text-xs text-[var(--admin-text-muted)]">
++                    <AdminStatusBadge tone="neutral" label={m.type} />
++                    <span>{m.createdAt}</span>
++                  </div>
++                  <p className="whitespace-pre-wrap">{m.body}</p>
++                </li>
++              ))}
++              {messages.length === 0 ? (
++                <li className="text-sm text-[var(--admin-text-muted)]">
++                  {t('admin-pages.support.tickets.noMessages')}
++                </li>
++              ) : null}
++            </ul>
++
++            <div className="mt-4 grid gap-4 md:grid-cols-2">
++              <div className="space-y-2">
++                <label className="text-xs text-[var(--admin-text-muted)]">
++                  {t('admin-pages.support.tickets.publicReply')}
++                </label>
++                <textarea
++                  className={areaCls}
++                  value={replyBody}
++                  onChange={(e) => setReplyBody(e.target.value)}
++                />
++                <button
++                  type="button"
++                  className={btnPrimary}
++                  disabled={busy || !replyBody.trim()}
++                  onClick={() => postMessage('PUBLIC_AGENT_REPLY')}
++                >
++                  {t('admin-pages.support.tickets.sendReply')}
++                </button>
++              </div>
++              <div className="space-y-2">
++                <label className="text-xs text-[var(--admin-text-muted)]">
++                  {t('admin-pages.support.tickets.internalNote')}
++                </label>
++                <textarea
++                  className={areaCls}
++                  value={noteBody}
++                  onChange={(e) => setNoteBody(e.target.value)}
++                />
++                <button
++                  type="button"
++                  className={btnGhost}
++                  disabled={busy || !noteBody.trim()}
++                  onClick={() => postMessage('INTERNAL_NOTE')}
++                >
++                  {t('admin-pages.support.tickets.addNote')}
++                </button>
++              </div>
++            </div>
++          </section>
++        </div>
++      ) : null}
++    </AdminPageContainer>
++  );
++}
+diff --git "a/components\\admin\\support\\SupportTicketsView.jsx" "b/components\\admin\\support\\SupportTicketsView.jsx"
+new file mode 100644
+index 0000000..34bf4a2
+--- /dev/null
++++ "b/components\\admin\\support\\SupportTicketsView.jsx"
+@@ -0,0 +1,183 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import Link from 'next/link';
++import { useI18n } from '@/components/i18n/I18nProvider';
++import { adminFetch } from '@/lib/admin/adminApi';
++import AdminPageContainer from '@/components/admin/AdminPageContainer';
++import AdminPageHeader from '@/components/admin/AdminPageHeader';
++import AdminLoadingState from '@/components/admin/AdminLoadingState';
++import AdminErrorState from '@/components/admin/AdminErrorState';
++import AdminEmptyState from '@/components/admin/AdminEmptyState';
++import AdminStatusBadge from '@/components/admin/AdminStatusBadge';
++import SupportSectionNav from './SupportSectionNav';
++
++const btnGhost =
++  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
++const selectCls =
++  'h-10 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 text-sm text-[var(--admin-text)]';
++
++const PAGE_SIZE = 25;
++
++function priorityTone(priority) {
++  if (priority === 'P1') return 'danger';
++  if (priority === 'P2') return 'warning';
++  if (priority === 'P4' || priority === 'P5') return 'neutral';
++  return 'info';
++}
++
++export default function SupportTicketsView() {
++  const { t } = useI18n();
++  const [items, setItems] = useState([]);
++  const [status, setStatus] = useState('');
++  const [offset, setOffset] = useState(0);
++  const [meta, setMeta] = useState({ limit: PAGE_SIZE, count: 0 });
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++
++  const load = useCallback(async () => {
++    setLoading(true);
++    setError('');
++    try {
++      const qs = new URLSearchParams({
++        limit: String(PAGE_SIZE),
++        offset: String(offset),
++      });
++      if (status) qs.set('status', status);
++      const res = await adminFetch(`/api/admin/support/tickets?${qs}`, {
++        credentials: 'include',
++      });
++      const body = await res.json().catch(() => ({}));
++      if (res.status === 403) {
++        throw new Error(body.error || t('admin-pages.support.forbidden'));
++      }
++      if (!res.ok) throw new Error(body.error || t('admin-pages.support.tickets.loadFailed'));
++      setItems(Array.isArray(body.items) ? body.items : []);
++      setMeta(body.meta || { limit: PAGE_SIZE, count: 0, offset });
++    } catch (e) {
++      setError(e.message || t('admin-pages.support.tickets.loadFailed'));
++      setItems([]);
++    } finally {
++      setLoading(false);
++    }
++  }, [status, offset, t]);
++
++  useEffect(() => {
++    load();
++  }, [load]);
++
++  const canPrev = offset > 0;
++  const canNext = (meta.count || 0) >= PAGE_SIZE;
++
++  return (
++    <AdminPageContainer>
++      <AdminPageHeader
++        title={t('admin-pages.support.sections.tickets')}
++        description={t('admin-pages.support.sectionHints.tickets')}
++        actions={
++          <div className="flex flex-wrap items-center gap-2">
++            <label className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
++              <span>{t('admin-pages.support.tickets.status')}</span>
++              <select
++                className={selectCls}
++                value={status}
++                onChange={(e) => {
++                  setOffset(0);
++                  setStatus(e.target.value);
++                }}
++                aria-label={t('admin-pages.support.tickets.status')}
++              >
++                <option value="">{t('admin-pages.support.tickets.statusAll')}</option>
++                <option value="NEW">NEW</option>
++                <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
++                <option value="TRIAGE">TRIAGE</option>
++                <option value="ASSIGNED">ASSIGNED</option>
++                <option value="IN_PROGRESS">IN_PROGRESS</option>
++                <option value="WAITING_FOR_CUSTOMER">WAITING_FOR_CUSTOMER</option>
++                <option value="RESOLVED">RESOLVED</option>
++                <option value="CLOSED">CLOSED</option>
++              </select>
++            </label>
++            <button type="button" className={btnGhost} onClick={load} disabled={loading}>
++              {t('admin-pages.common.refresh')}
++            </button>
++          </div>
++        }
++      />
++      <SupportSectionNav />
++
++      {loading ? <AdminLoadingState /> : null}
++      {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
++      {!loading && !error && items.length === 0 ? (
++        <AdminEmptyState
++          title={t('admin-pages.support.tickets.emptyTitle')}
++          description={t('admin-pages.support.tickets.emptyHint')}
++        />
++      ) : null}
++
++      {!loading && !error && items.length > 0 ? (
++        <>
++          <div className="mt-4 overflow-x-auto rounded-[var(--admin-radius)] border border-[var(--admin-border)]">
++            <table className="min-w-full text-left text-sm">
++              <thead className="bg-[var(--admin-surface-muted)] text-[var(--admin-text-muted)]">
++                <tr>
++                  <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colNumber')}</th>
++                  <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colTitle')}</th>
++                  <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colTenant')}</th>
++                  <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.status')}</th>
++                  <th className="px-3 py-2 font-medium">{t('admin-pages.support.tickets.colPriority')}</th>
++                </tr>
++              </thead>
++              <tbody>
++                {items.map((row) => (
++                  <tr key={row.id} className="border-t border-[var(--admin-border)]">
++                    <td className="px-3 py-2 font-mono text-xs">
++                      <Link
++                        href={`/insightbooks/support/tickets/${encodeURIComponent(row.id)}`}
++                        className="text-[var(--admin-accent)] hover:underline"
++                      >
++                        {row.ticketNumber}
++                      </Link>
++                    </td>
++                    <td className="px-3 py-2">{row.title}</td>
++                    <td className="px-3 py-2 font-mono text-xs">{row.tenantId}</td>
++                    <td className="px-3 py-2">
++                      <AdminStatusBadge tone="info" label={row.status} />
++                    </td>
++                    <td className="px-3 py-2">
++                      <AdminStatusBadge
++                        tone={priorityTone(row.priority)}
++                        label={row.priority || 'ΓÇö'}
++                      />
++                    </td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++          <div className="mt-3 flex items-center gap-2">
++            <button
++              type="button"
++              className={btnGhost}
++              disabled={!canPrev || loading}
++              onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
++            >
++              {t('admin-pages.support.tickets.prev')}
++            </button>
++            <button
++              type="button"
++              className={btnGhost}
++              disabled={!canNext || loading}
++              onClick={() => setOffset((o) => o + PAGE_SIZE)}
++            >
++              {t('admin-pages.support.tickets.next')}
++            </button>
++            <span className="text-xs text-[var(--admin-text-muted)]">
++              {t('admin-pages.support.tickets.pageOffset')}: {offset}
++            </span>
++          </div>
++        </>
++      ) : null}
++    </AdminPageContainer>
++  );
++}
+diff --git a/scripts/sql/support-ops-phase10-wave3.sql b/scripts/sql/support-ops-phase10-wave3.sql
+new file mode 100644
+index 0000000..4d2ee83
+--- /dev/null
++++ b/scripts/sql/support-ops-phase10-wave3.sql
+@@ -0,0 +1,154 @@
++-- Phase 10 Wave 3 ΓÇö SupportSlaPolicy, SupportSlaCalendar, SupportSlaClock, SupportSlaEvent
++-- (PostgreSQL). Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine,
++-- or when applying schema without a full generate cycle.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Apply steps (EPERM fallback):
++--   1. Ensure Wave 1ΓÇô2 tables exist
++--   2. psql "$DATABASE_URL" -f scripts/sql/support-ops-phase10-wave3.sql
++--   3. App guards: hasSupportSlaClockModel
++--   4. Retry `npx prisma generate` when the query-engine file lock clears.
++--
++-- Support Ticket Γëá CsCase Γëá PlatformSupportAccess.
++-- Breach events are append-only ΓÇö do not DELETE/UPDATE breach facts in app code.
++
++CREATE TABLE IF NOT EXISTS "SupportSlaPolicy" (
++  "id" TEXT PRIMARY KEY,
++  "versionId" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "ackCountsAsFirstResponse" BOOLEAN NOT NULL DEFAULT FALSE,
++  "resolutionStartsOn" TEXT NOT NULL DEFAULT 'CREATE',
++  "stopResolutionOnClosed" BOOLEAN NOT NULL DEFAULT TRUE,
++  "pauseOnWaitingForCustomer" BOOLEAN NOT NULL DEFAULT TRUE,
++  "pauseOnWaitingForInternalTeam" BOOLEAN NOT NULL DEFAULT TRUE,
++  "pauseOnWaitingForVendor" BOOLEAN NOT NULL DEFAULT TRUE,
++  "targetsJson" TEXT NOT NULL,
++  "active" BOOLEAN NOT NULL DEFAULT TRUE,
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "SupportSlaPolicy_versionId_key"
++  ON "SupportSlaPolicy"("versionId");
++CREATE INDEX IF NOT EXISTS "SupportSlaPolicy_active_idx"
++  ON "SupportSlaPolicy"("active");
++
++CREATE TABLE IF NOT EXISTS "SupportSlaCalendar" (
++  "id" TEXT PRIMARY KEY,
++  "versionId" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "timezone" TEXT NOT NULL,
++  "definitionJson" TEXT NOT NULL,
++  "active" BOOLEAN NOT NULL DEFAULT TRUE,
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "SupportSlaCalendar_versionId_key"
++  ON "SupportSlaCalendar"("versionId");
++CREATE INDEX IF NOT EXISTS "SupportSlaCalendar_active_idx"
++  ON "SupportSlaCalendar"("active");
++
++CREATE TABLE IF NOT EXISTS "SupportSlaClock" (
++  "id" TEXT PRIMARY KEY,
++  "ticketId" TEXT NOT NULL,
++  "clockType" TEXT NOT NULL,
++  "state" TEXT NOT NULL DEFAULT 'RUNNING',
++  "policyVersion" TEXT NOT NULL,
++  "calendarVersion" TEXT NOT NULL,
++  "targetBusinessMs" INTEGER NOT NULL,
++  "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "dueAt" TIMESTAMP(3),
++  "pausedAt" TIMESTAMP(3),
++  "pausedMs" INTEGER NOT NULL DEFAULT 0,
++  "stoppedAt" TIMESTAMP(3),
++  "breachedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE INDEX IF NOT EXISTS "SupportSlaClock_ticketId_clockType_idx"
++  ON "SupportSlaClock"("ticketId", "clockType");
++CREATE INDEX IF NOT EXISTS "SupportSlaClock_ticketId_state_idx"
++  ON "SupportSlaClock"("ticketId", "state");
++CREATE INDEX IF NOT EXISTS "SupportSlaClock_state_dueAt_idx"
++  ON "SupportSlaClock"("state", "dueAt");
++CREATE INDEX IF NOT EXISTS "SupportSlaClock_policyVersion_idx"
++  ON "SupportSlaClock"("policyVersion");
++CREATE INDEX IF NOT EXISTS "SupportSlaClock_calendarVersion_idx"
++  ON "SupportSlaClock"("calendarVersion");
++
++CREATE TABLE IF NOT EXISTS "SupportSlaEvent" (
++  "id" TEXT PRIMARY KEY,
++  "clockId" TEXT NOT NULL,
++  "eventType" TEXT NOT NULL,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "metaJson" TEXT
++);
++
++CREATE INDEX IF NOT EXISTS "SupportSlaEvent_clockId_at_idx"
++  ON "SupportSlaEvent"("clockId", "at");
++CREATE INDEX IF NOT EXISTS "SupportSlaEvent_clockId_eventType_idx"
++  ON "SupportSlaEvent"("clockId", "eventType");
++CREATE INDEX IF NOT EXISTS "SupportSlaEvent_eventType_at_idx"
++  ON "SupportSlaEvent"("eventType", "at");
++
++-- Foreign keys (idempotent; matches prisma/schema.prisma Support* onDelete)
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportSlaPolicy_createdByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportSlaPolicy"
++      ADD CONSTRAINT "SupportSlaPolicy_createdByAdminId_fkey"
++      FOREIGN KEY ("createdByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportSlaCalendar_createdByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportSlaCalendar"
++      ADD CONSTRAINT "SupportSlaCalendar_createdByAdminId_fkey"
++      FOREIGN KEY ("createdByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportSlaClock_ticketId_fkey'
++  ) THEN
++    ALTER TABLE "SupportSlaClock"
++      ADD CONSTRAINT "SupportSlaClock_ticketId_fkey"
++      FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportSlaEvent_clockId_fkey'
++  ) THEN
++    ALTER TABLE "SupportSlaEvent"
++      ADD CONSTRAINT "SupportSlaEvent_clockId_fkey"
++      FOREIGN KEY ("clockId") REFERENCES "SupportSlaClock"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
+diff --git a/test/systemAdmin.support.sla.test.js b/test/systemAdmin.support.sla.test.js
+new file mode 100644
+index 0000000..9db7ec5
+--- /dev/null
++++ b/test/systemAdmin.support.sla.test.js
+@@ -0,0 +1,641 @@
++/**
++ * Phase 10 Wave 3 ΓÇö Support SLA clocks + calendar + policy pinning.
++ * Ack / SYSTEM_EVENT Γëá first response by default; breaches immutable.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  SUPPORT_SLA_CLOCK_TYPE,
++  SUPPORT_SLA_CLOCK_STATE,
++  SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID,
++  SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID,
++  SUPPORT_TICKET_STATUS,
++  SUPPORT_MESSAGE_TYPE,
++  SUPPORT_QUEUE_CODE,
++  getDefaultSlaPolicy,
++  getDefaultSlaCalendar,
++  elapsedBusinessMs,
++  hasSupportSlaClockModel,
++  startClocksOnTicketCreate,
++  stopFirstResponseOnPublicReply,
++  onTicketStatusChangeForSla,
++  evaluateClockBreach,
++  listClocksForTicket,
++  listSlaPolicies,
++  createTicket,
++  addPublicReply,
++  transitionTicketStatus,
++  listTickets,
++} from '@/lib/admin/support';
++import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
++import { NAV_PERMISSION_MAP } from '@/lib/admin/permissions';
++import { listSupportSectionHrefs, SUPPORT_SECTIONS } from '@/lib/admin/supportNav';
++import { listAdminNavHrefs } from '@/lib/admin/adminNav';
++
++function makeSlaPrisma(overrides = {}) {
++  const ticketStore = overrides._ticketStore || [
++    {
++      id: 'st-1',
++      ticketNumber: 'SUP-2026-000001',
++      tenantId: 'tenant-1',
++      status: 'NEW',
++      type: 'QUESTION',
++      title: 'Help',
++      description: 'desc',
++      assigneeAdminId: null,
++      queueCode: null,
++      resolutionCategory: null,
++      createdAt: new Date('2026-07-30T12:00:00.000Z'),
++      updatedAt: new Date('2026-07-30T12:00:00.000Z'),
++      resolvedAt: null,
++      closedAt: null,
++    },
++  ];
++  const clockStore = overrides._clockStore || [];
++  const eventStore = overrides._eventStore || [];
++  const messageStore = overrides._messageStore || [];
++  const historyStore = overrides._historyStore || [];
++  const seqStore = overrides._seqStore || [];
++
++  const prisma = {
++    supportTicket: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return ticketStore.find((r) => r.id === where.id) || null;
++        if (where.ticketNumber) {
++          return ticketStore.find((r) => r.ticketNumber === where.ticketNumber) || null;
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where?.OR) {
++          return (
++            ticketStore.find((r) =>
++              where.OR.some(
++                (c) =>
++                  (c.id && r.id === c.id) ||
++                  (c.ticketNumber && r.ticketNumber === c.ticketNumber)
++              )
++            ) || null
++          );
++        }
++        return ticketStore[0] || null;
++      }),
++      findMany: vi.fn(async ({ where = {}, take, skip = 0, orderBy } = {}) => {
++        let rows = [...ticketStore];
++        if (where?.assigneeAdminId !== undefined) {
++          rows = rows.filter((r) => r.assigneeAdminId === where.assigneeAdminId);
++        }
++        if (where?.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (clause.assigneeAdminId !== undefined) {
++                return r.assigneeAdminId === clause.assigneeAdminId;
++              }
++              if (clause.AND) {
++                return clause.AND.every((c) => {
++                  if (c.assigneeAdminId === null) return r.assigneeAdminId == null;
++                  if (c.queueCode) return r.queueCode === c.queueCode;
++                  return true;
++                });
++              }
++              return false;
++            })
++          );
++        }
++        if (where?.status) {
++          if (where.status.in) {
++            const set = new Set(where.status.in);
++            rows = rows.filter((r) => set.has(r.status));
++          } else {
++            rows = rows.filter((r) => r.status === where.status);
++          }
++        }
++        if (where?.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
++        if (orderBy?.createdAt === 'desc') {
++          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        }
++        if (skip) rows = rows.slice(skip);
++        if (take != null) rows = rows.slice(0, take);
++        return rows;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `st-${ticketStore.length + 1}`,
++          resolvedAt: null,
++          closedAt: null,
++          ...data,
++        };
++        ticketStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = ticketStore.find((r) => r.id === where.id);
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    supportTicketStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `hist-${historyStore.length + 1}`, ...data };
++        historyStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...historyStore]),
++    },
++    supportTicketNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return seqStore.find((r) => r.year === where.year) || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const existing = seqStore.find((r) => r.year === data.year);
++        if (existing) {
++          const err = new Error('Unique constraint');
++          err.code = 'P2002';
++          throw err;
++        }
++        const row = { ...data };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where = {}, data } = {}) => {
++        const row = seqStore.find(
++          (r) =>
++            r.year === where.year &&
++            (where.lastIssued === undefined || r.lastIssued === where.lastIssued)
++        );
++        if (!row) return { count: 0 };
++        Object.assign(row, data);
++        return { count: 1 };
++      }),
++    },
++    supportMessage: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `msg-${messageStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          ...data,
++        };
++        messageStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...messageStore]),
++    },
++    supportSlaClock: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `clk-${clockStore.length + 1}`,
++          pausedMs: data.pausedMs || 0,
++          breachedAt: data.breachedAt || null,
++          stoppedAt: data.stoppedAt || null,
++          dueAt: data.dueAt || null,
++          ...data,
++        };
++        clockStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...clockStore];
++        if (where.ticketId) rows = rows.filter((r) => r.ticketId === where.ticketId);
++        if (where.clockType) rows = rows.filter((r) => r.clockType === where.clockType);
++        if (where.state) {
++          if (where.state.in) {
++            const set = new Set(where.state.in);
++            rows = rows.filter((r) => set.has(r.state));
++          } else {
++            rows = rows.filter((r) => r.state === where.state);
++          }
++        }
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...clockStore];
++        if (where.id) rows = rows.filter((r) => r.id === where.id);
++        if (where.ticketId) rows = rows.filter((r) => r.ticketId === where.ticketId);
++        if (where.clockType) rows = rows.filter((r) => r.clockType === where.clockType);
++        if (where.state?.in) {
++          const set = new Set(where.state.in);
++          rows = rows.filter((r) => set.has(r.state));
++        } else if (where.state) {
++          rows = rows.filter((r) => r.state === where.state);
++        }
++        return rows[0] || null;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return clockStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = clockStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('clock_not_found');
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    supportSlaEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: data.id || `evt-${eventStore.length + 1}`, ...data };
++        eventStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...eventStore];
++        if (where.clockId) rows = rows.filter((r) => r.clockId === where.clockId);
++        if (where.eventType) rows = rows.filter((r) => r.eventType === where.eventType);
++        return rows;
++      }),
++      delete: vi.fn(async () => {
++        throw new Error('sla_events_immutable');
++      }),
++      update: vi.fn(async () => {
++        throw new Error('sla_events_immutable');
++      }),
++    },
++    supportSlaPolicy: overrides.supportSlaPolicy || undefined,
++    supportSlaCalendar: overrides.supportSlaCalendar || undefined,
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++  };
++
++  prisma._ticketStore = ticketStore;
++  prisma._clockStore = clockStore;
++  prisma._eventStore = eventStore;
++  prisma._messageStore = messageStore;
++  return prisma;
++}
++
++const superAdmin = { id: 'a-super', role: 'Super Admin', permissions: {} };
++
++const supportAgent = {
++  id: 'admin-agent',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        createTickets: true,
++        transitionStatus: true,
++        replyPublicly: true,
++        assignTickets: true,
++      },
++    },
++  },
++};
++
++describe('systemAdmin.support.sla', () => {
++  it('exposes clock types, default policy/calendar version ids, and manageSla permission', () => {
++    expect(SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE).toBe('FIRST_RESPONSE');
++    expect(SUPPORT_SLA_CLOCK_TYPE.RESOLUTION).toBe('RESOLUTION');
++    expect(SUPPORT_SLA_CLOCK_TYPE.NEXT_RESPONSE).toBe('NEXT_RESPONSE');
++    expect(SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID).toBe('sla-policy-default-v1');
++    expect(SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID).toBe('sla-calendar-default-v1');
++    expect(SYSTEM_ADMIN_PERMISSIONS.support.manageSla).toBe(
++      'systemAdmin.support.manageSla'
++    );
++    const policy = getDefaultSlaPolicy();
++    expect(policy.versionId).toBe(SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID);
++    expect(policy.ackCountsAsFirstResponse).toBe(false);
++    expect(policy.targets.FIRST_RESPONSE.businessMs).toBeGreaterThan(0);
++    expect(policy.targets.RESOLUTION.businessMs).toBeGreaterThan(0);
++    const cal = getDefaultSlaCalendar();
++    expect(cal.versionId).toBe(SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID);
++    expect(cal.timezone).toBeTruthy();
++  });
++
++  it('computes elapsed business ms using pinned calendar (skips weekend)', () => {
++    const cal = getDefaultSlaCalendar();
++    // Friday 16:00 ΓåÆ Monday 09:00 Africa/Blantyre-style weekday calendar (08ΓÇô17)
++    const start = new Date('2026-07-31T14:00:00.000Z'); // Fri 16:00 CAT (UTC+2)
++    const end = new Date('2026-08-03T07:00:00.000Z'); // Mon 09:00 CAT
++    const ms = elapsedBusinessMs(start, end, cal);
++    // Fri 16:00ΓÇô17:00 = 1h; Mon 08:00ΓÇô09:00 = 1h ΓåÆ 2 business hours
++    expect(ms).toBe(2 * 60 * 60 * 1000);
++  });
++
++  it('starts FIRST_RESPONSE + RESOLUTION on ticket create and pins policy+calendar versions', async () => {
++    const prisma = makeSlaPrisma({ _ticketStore: [] });
++    const now = new Date('2026-07-30T10:00:00.000Z');
++    const created = await createTicket(prisma, {
++      admin: supportAgent,
++      tenantId: 'tenant-1',
++      title: 'Login issue',
++      description: 'Cannot sign in',
++      type: 'ACCOUNT_ACCESS',
++      now,
++    });
++    expect(created.ok).toBe(true);
++
++    const started = await startClocksOnTicketCreate(prisma, {
++      ticketId: created.ticket.id,
++      now,
++    });
++    expect(started.ok).toBe(true);
++    expect(started.clocks.length).toBeGreaterThanOrEqual(2);
++
++    const fr = started.clocks.find((c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE);
++    const res = started.clocks.find((c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.RESOLUTION);
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.RUNNING);
++    expect(res.state).toBe(SUPPORT_SLA_CLOCK_STATE.RUNNING);
++    expect(fr.policyVersion).toBe(SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID);
++    expect(fr.calendarVersion).toBe(SUPPORT_DEFAULT_SLA_CALENDAR_VERSION_ID);
++    expect(res.policyVersion).toBe(SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID);
++  });
++
++  it('stops FIRST_RESPONSE on PUBLIC_AGENT_REPLY but not SYSTEM_EVENT or ACK alone', async () => {
++    const prisma = makeSlaPrisma();
++    const t0 = new Date('2026-07-30T08:00:00.000Z');
++    await startClocksOnTicketCreate(prisma, { ticketId: 'st-1', now: t0 });
++
++    const ackNow = new Date('2026-07-30T08:30:00.000Z');
++    await onTicketStatusChangeForSla(prisma, {
++      ticketId: 'st-1',
++      fromStatus: SUPPORT_TICKET_STATUS.NEW,
++      toStatus: SUPPORT_TICKET_STATUS.ACKNOWLEDGED,
++      now: ackNow,
++    });
++
++    let fr = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE
++    );
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.RUNNING);
++
++    // SYSTEM_EVENT must not stop
++    await stopFirstResponseOnPublicReply(prisma, {
++      ticketId: 'st-1',
++      now: new Date('2026-07-30T08:45:00.000Z'),
++      messageType: SUPPORT_MESSAGE_TYPE.SYSTEM_EVENT,
++    });
++    fr = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE
++    );
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.RUNNING);
++
++    const reply = await addPublicReply(prisma, {
++      admin: supportAgent,
++      ticketId: 'st-1',
++      body: 'We are looking into this.',
++    });
++    expect(reply.ok).toBe(true);
++
++    fr = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE
++    );
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.STOPPED);
++    expect(fr.stoppedAt).toBeTruthy();
++  });
++
++  it('does not treat ack as first response unless policy ackCountsAsFirstResponse', async () => {
++    const prisma = makeSlaPrisma();
++    const t0 = new Date('2026-07-30T08:00:00.000Z');
++    await startClocksOnTicketCreate(prisma, { ticketId: 'st-1', now: t0 });
++
++    const policyTrue = {
++      ...getDefaultSlaPolicy(),
++      ackCountsAsFirstResponse: true,
++    };
++    await onTicketStatusChangeForSla(prisma, {
++      ticketId: 'st-1',
++      fromStatus: SUPPORT_TICKET_STATUS.NEW,
++      toStatus: SUPPORT_TICKET_STATUS.ACKNOWLEDGED,
++      now: new Date('2026-07-30T08:10:00.000Z'),
++      policy: policyTrue,
++    });
++    const fr = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE
++    );
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.STOPPED);
++  });
++
++  it('pauses on WAITING_* per policy flags and stops RESOLUTION on RESOLVED', async () => {
++    const prisma = makeSlaPrisma();
++    prisma._ticketStore[0].status = SUPPORT_TICKET_STATUS.IN_PROGRESS;
++    const t0 = new Date('2026-07-30T08:00:00.000Z');
++    await startClocksOnTicketCreate(prisma, { ticketId: 'st-1', now: t0 });
++
++    await onTicketStatusChangeForSla(prisma, {
++      ticketId: 'st-1',
++      fromStatus: SUPPORT_TICKET_STATUS.IN_PROGRESS,
++      toStatus: SUPPORT_TICKET_STATUS.WAITING_FOR_CUSTOMER,
++      now: new Date('2026-07-30T09:00:00.000Z'),
++    });
++
++    let res = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.RESOLUTION
++    );
++    expect(res.state).toBe(SUPPORT_SLA_CLOCK_STATE.PAUSED);
++
++    await onTicketStatusChangeForSla(prisma, {
++      ticketId: 'st-1',
++      fromStatus: SUPPORT_TICKET_STATUS.WAITING_FOR_CUSTOMER,
++      toStatus: SUPPORT_TICKET_STATUS.IN_PROGRESS,
++      now: new Date('2026-07-30T10:00:00.000Z'),
++    });
++    res = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.RESOLUTION
++    );
++    expect(res.state).toBe(SUPPORT_SLA_CLOCK_STATE.RUNNING);
++
++    await onTicketStatusChangeForSla(prisma, {
++      ticketId: 'st-1',
++      fromStatus: SUPPORT_TICKET_STATUS.IN_PROGRESS,
++      toStatus: SUPPORT_TICKET_STATUS.RESOLVED,
++      now: new Date('2026-07-30T11:00:00.000Z'),
++    });
++    res = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.RESOLUTION
++    );
++    expect(res.state).toBe(SUPPORT_SLA_CLOCK_STATE.STOPPED);
++  });
++
++  it('records immutable BREACHED event and never deletes breach facts', async () => {
++    const prisma = makeSlaPrisma();
++    const t0 = new Date('2026-07-01T06:00:00.000Z'); // Wed 08:00 CAT
++    await startClocksOnTicketCreate(prisma, { ticketId: 'st-1', now: t0 });
++
++    const fr = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE
++    );
++    // Force dueAt in the past
++    fr.dueAt = new Date('2026-07-01T07:00:00.000Z');
++    fr.targetBusinessMs = 60 * 60 * 1000;
++
++    const evalNow = new Date('2026-07-01T12:00:00.000Z');
++    const result = await evaluateClockBreach(prisma, { clockId: fr.id, now: evalNow });
++    expect(result.ok).toBe(true);
++    expect(result.breached).toBe(true);
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.BREACHED);
++
++    const breachEvents = prisma._eventStore.filter(
++      (e) => e.clockId === fr.id && e.eventType === 'BREACHED'
++    );
++    expect(breachEvents.length).toBe(1);
++
++    // Re-evaluate must not create duplicate breach or mutate prior breach event
++    const again = await evaluateClockBreach(prisma, { clockId: fr.id, now: evalNow });
++    expect(again.breached).toBe(true);
++    expect(
++      prisma._eventStore.filter((e) => e.clockId === fr.id && e.eventType === 'BREACHED')
++        .length
++    ).toBe(1);
++    expect(breachEvents[0].at).toEqual(prisma._eventStore.find((e) => e.id === breachEvents[0].id).at);
++
++    await expect(prisma.supportSlaEvent.delete({ where: { id: breachEvents[0].id } })).rejects.toThrow(
++      /immutable/i
++    );
++  });
++
++  it('returns NOT_AVAILABLE / UNAVAILABLE when SLA tables missing ΓÇö never fake 0% breach', async () => {
++    const prisma = { supportTicket: { findUnique: vi.fn(async () => ({ id: 'st-1' })) } };
++    expect(hasSupportSlaClockModel(prisma)).toBe(false);
++
++    const listed = await listClocksForTicket(prisma, {
++      admin: supportAgent,
++      ticketId: 'st-1',
++    });
++    expect(listed.ok).toBe(true);
++    expect(listed.status === 'UNAVAILABLE' || listed.status === 'NOT_AVAILABLE').toBe(true);
++    expect(listed.items).toEqual([]);
++    expect(listed.meta?.breachRate).toBeUndefined();
++    expect(listed.meta?.breachPercent).toBeUndefined();
++  });
++
++  it('listTickets supports assigneeAdminId for My Work and optional GENERAL_SUPPORT queue stub', async () => {
++    const prisma = makeSlaPrisma({
++      _ticketStore: [
++        {
++          id: 'mine',
++          ticketNumber: 'SUP-2026-000010',
++          tenantId: 'tenant-1',
++          status: 'ASSIGNED',
++          type: 'QUESTION',
++          title: 'Mine',
++          description: 'd',
++          assigneeAdminId: 'admin-agent',
++          queueCode: SUPPORT_QUEUE_CODE.GENERAL_SUPPORT,
++          createdAt: new Date('2026-07-30T12:00:00.000Z'),
++          updatedAt: new Date('2026-07-30T12:00:00.000Z'),
++        },
++        {
++          id: 'unassigned',
++          ticketNumber: 'SUP-2026-000011',
++          tenantId: 'tenant-1',
++          status: 'NEW',
++          type: 'QUESTION',
++          title: 'Queue',
++          description: 'd',
++          assigneeAdminId: null,
++          queueCode: SUPPORT_QUEUE_CODE.GENERAL_SUPPORT,
++          createdAt: new Date('2026-07-30T11:00:00.000Z'),
++          updatedAt: new Date('2026-07-30T11:00:00.000Z'),
++        },
++        {
++          id: 'other',
++          ticketNumber: 'SUP-2026-000012',
++          tenantId: 'tenant-1',
++          status: 'ASSIGNED',
++          type: 'QUESTION',
++          title: 'Other',
++          description: 'd',
++          assigneeAdminId: 'someone-else',
++          queueCode: SUPPORT_QUEUE_CODE.BILLING,
++          createdAt: new Date('2026-07-30T10:00:00.000Z'),
++          updatedAt: new Date('2026-07-30T10:00:00.000Z'),
++        },
++      ],
++    });
++
++    const mine = await listTickets(prisma, {
++      admin: supportAgent,
++      assigneeAdminId: 'admin-agent',
++    });
++    expect(mine.ok).toBe(true);
++    expect(mine.items.map((i) => i.id)).toEqual(['mine']);
++
++    const myWork = await listTickets(prisma, {
++      admin: supportAgent,
++      myWork: true,
++    });
++    expect(myWork.ok).toBe(true);
++    const ids = myWork.items.map((i) => i.id).sort();
++    expect(ids).toEqual(['mine', 'unassigned'].sort());
++    expect(ids).not.toContain('other');
++  });
++
++  it('listSlaPolicies is readable with viewTickets; nav map includes Support sections', () => {
++    expect(NAV_PERMISSION_MAP['/insightbooks/support']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.support.viewTickets
++    );
++    expect(NAV_PERMISSION_MAP['/insightbooks/support/tickets']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.support.viewTickets
++    );
++    expect(NAV_PERMISSION_MAP['/insightbooks/support/my-work']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.support.viewTickets
++    );
++
++    const hrefs = listSupportSectionHrefs();
++    expect(hrefs).toContain('/insightbooks/support');
++    expect(hrefs).toContain('/insightbooks/support/tickets');
++    expect(SUPPORT_SECTIONS.some((s) => s.id === 'my-work')).toBe(true);
++    expect(SUPPORT_SECTIONS.some((s) => s.id === 'tickets')).toBe(true);
++
++    const navHrefs = listAdminNavHrefs();
++    expect(navHrefs.some((h) => h.startsWith('/insightbooks/support'))).toBe(true);
++  });
++
++  it('listSlaPolicies returns default pinned catalogue when DB policy table absent', async () => {
++    const prisma = makeSlaPrisma();
++    const result = await listSlaPolicies(prisma, { admin: supportAgent });
++    expect(result.ok).toBe(true);
++    expect(result.items.length).toBeGreaterThanOrEqual(1);
++    expect(result.items[0].versionId).toBe(SUPPORT_DEFAULT_SLA_POLICY_VERSION_ID);
++  });
++
++  it('createTicket + addPublicReply integration starts and stops FIRST_RESPONSE', async () => {
++    const prisma = makeSlaPrisma({ _ticketStore: [] });
++    const created = await createTicket(prisma, {
++      admin: supportAgent,
++      tenantId: 'tenant-1',
++      title: 'Integration SLA',
++      description: 'desc',
++      now: new Date('2026-07-30T08:00:00.000Z'),
++    });
++    expect(created.ok).toBe(true);
++    expect(
++      prisma._clockStore.some((c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE)
++    ).toBe(true);
++
++    await addPublicReply(prisma, {
++      admin: supportAgent,
++      ticketId: created.ticket.id,
++      body: 'Human reply',
++    });
++
++    const fr = prisma._clockStore.find(
++      (c) =>
++        c.ticketId === created.ticket.id &&
++        c.clockType === SUPPORT_SLA_CLOCK_TYPE.FIRST_RESPONSE
++    );
++    expect(fr.state).toBe(SUPPORT_SLA_CLOCK_STATE.STOPPED);
++  });
++
++  it('transition to RESOLVED stops RESOLUTION clock via ticket hook', async () => {
++    const prisma = makeSlaPrisma();
++    prisma._ticketStore[0].status = SUPPORT_TICKET_STATUS.IN_PROGRESS;
++    await startClocksOnTicketCreate(prisma, {
++      ticketId: 'st-1',
++      now: new Date('2026-07-30T08:00:00.000Z'),
++    });
++
++    const result = await transitionTicketStatus(prisma, {
++      admin: supportAgent,
++      ticketId: 'st-1',
++      toStatus: SUPPORT_TICKET_STATUS.RESOLVED,
++      resolutionCategory: 'FIXED',
++      reason: 'done',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(result.ok).toBe(true);
++
++    const res = prisma._clockStore.find(
++      (c) => c.clockType === SUPPORT_SLA_CLOCK_TYPE.RESOLUTION
++    );
++    expect(res.state).toBe(SUPPORT_SLA_CLOCK_STATE.STOPPED);
++  });
++});
+diff --git a/lib/admin/supportNav.js b/lib/admin/supportNav.js
+new file mode 100644
+index 0000000..1727fd8
+--- /dev/null
++++ b/lib/admin/supportNav.js
+@@ -0,0 +1,65 @@
++/**
++ * Support Ops section nav (Phase 10 Wave 3 shell).
++ * Distinct from Customer Success ΓÇö Support Ticket Γëá CsCase.
++ */
++
++export const SUPPORT_BASE = '/insightbooks/support';
++
++/** Permission keys (mirrored from SYSTEM_ADMIN_PERMISSIONS.support). */
++export const SUPPORT_PERMISSIONS = Object.freeze({
++  viewTickets: 'systemAdmin.support.viewTickets',
++  manageSla: 'systemAdmin.support.manageSla',
++});
++
++/**
++ * @typedef {'live'|'stub'|'unavailable'} SupportReadiness
++ * @typedef {{
++ *   id: string,
++ *   label: string,
++ *   labelKey: string,
++ *   href: string,
++ *   exact?: boolean,
++ *   wave: number,
++ *   readiness: SupportReadiness,
++ *   permission: string,
++ * }} SupportSection
++ */
++
++/** @type {SupportSection[]} */
++export const SUPPORT_SECTIONS = [
++  {
++    id: 'my-work',
++    label: 'My Work',
++    labelKey: 'admin-pages.support.sections.myWork',
++    hintKey: 'admin-pages.support.sectionHints.myWork',
++    href: `${SUPPORT_BASE}`,
++    exact: true,
++    wave: 3,
++    readiness: 'live',
++    permission: SUPPORT_PERMISSIONS.viewTickets,
++  },
++  {
++    id: 'tickets',
++    label: 'Tickets',
++    labelKey: 'admin-pages.support.sections.tickets',
++    hintKey: 'admin-pages.support.sectionHints.tickets',
++    href: `${SUPPORT_BASE}/tickets`,
++    wave: 3,
++    readiness: 'live',
++    permission: SUPPORT_PERMISSIONS.viewTickets,
++  },
++];
++
++export function isSupportSectionActive(pathname, section) {
++  if (!pathname || !section?.href) return false;
++  if (section.exact) {
++    return pathname === section.href || pathname === `${section.href}/`;
++  }
++  return pathname === section.href || pathname.startsWith(`${section.href}/`);
++}
++
++export function listSupportSectionHrefs() {
++  return [SUPPORT_BASE, ...SUPPORT_SECTIONS.map((s) => s.href)].filter(
++    (href, idx, arr) => arr.indexOf(href) === idx
++  );
++}
+diff --git a/lib/admin/adminNav.js b/lib/admin/adminNav.js
+index fab595a..44ef234 100644
+--- a/lib/admin/adminNav.js
++++ b/lib/admin/adminNav.js
+@@ -7,28 +7,110 @@ export const ADMIN_NAV_SECTIONS = [
+   {
+     id: 'overview',
+     label: 'Overview',
++    labelKey: 'admin-shell.nav.sections.overview',
+     items: [
+-      { href: '/insightbooks/dashboard', text: 'Dashboard', icon: 'LayoutDashboard' },
+-      { href: '/insightbooks/reports', text: 'Reports', icon: 'BarChart3' },
+-      { href: '/insightbooks/imports', text: 'Imports (dry-run)', icon: 'Upload' },
++      {
++        href: '/insightbooks/dashboard',
++        text: 'Dashboard',
++        textKey: 'admin-shell.nav.items.dashboard',
++        icon: 'LayoutDashboard',
++      },
++      {
++        href: '/insightbooks/intelligence/executive',
++        text: 'Intelligence',
++        textKey: 'admin-shell.nav.items.intelligence',
++        icon: 'LineChart',
++      },
++      {
++        href: '/insightbooks/intelligence/revenue/overview',
++        text: 'Revenue',
++        textKey: 'admin-shell.nav.items.revenue',
++        icon: 'CircleDollarSign',
++      },
++      {
++        href: '/insightbooks/intelligence/customers/overview',
++        text: 'Customers',
++        textKey: 'admin-shell.nav.items.customers',
++        icon: 'ContactRound',
++      },
++      {
++        href: '/insightbooks/intelligence/customer-health/overview',
++        text: 'Customer Health',
++        textKey: 'admin-shell.nav.items.customerHealth',
++        icon: 'HeartPulse',
++      },
++      {
++        href: '/insightbooks/intelligence/product-analytics/overview',
++        text: 'Product Analytics',
++        textKey: 'admin-shell.nav.items.productAnalytics',
++        icon: 'Boxes',
++      },
++      {
++        href: '/insightbooks/customer-success/command-centre',
++        text: 'Customer Success',
++        textKey: 'admin-shell.nav.items.customerSuccess',
++        icon: 'Headset',
++      },
++      {
++        href: '/insightbooks/support',
++        text: 'Support',
++        textKey: 'admin-shell.nav.items.support',
++        icon: 'LifeBuoy',
++      },
++      {
++        href: '/insightbooks/reports',
++        text: 'Reports',
++        textKey: 'admin-shell.nav.items.reports',
++        icon: 'BarChart3',
++      },
++      {
++        href: '/insightbooks/imports',
++        text: 'Imports (dry-run)',
++        textKey: 'admin-shell.nav.items.imports',
++        icon: 'Upload',
++      },
+     ],
+   },
+   {
+     id: 'platform',
+     label: 'Platform Management',
++    labelKey: 'admin-shell.nav.sections.platform',
+     items: [
+-      { href: '/insightbooks/tenant-management', text: 'Tenant Management', icon: 'Building2' },
+-      { href: '/insightbooks/user-management', text: 'User Management', icon: 'Users' },
++      {
++        href: '/insightbooks/tenant-management',
++        text: 'Tenant Management',
++        textKey: 'admin-shell.nav.items.tenants',
++        icon: 'Building2',
++      },
++      {
++        href: '/insightbooks/tenant-identity-transfer',
++        text: 'Tenant Identity Transfer',
++        textKey: 'admin-shell.nav.items.tenantIdentity',
++        icon: 'Package',
++      },
++      {
++        href: '/insightbooks/user-management',
++        text: 'User Management',
++        textKey: 'admin-shell.nav.items.users',
++        icon: 'Users',
++      },
+     ],
+   },
+   {
+     id: 'configuration',
+     label: 'Configuration',
++    labelKey: 'admin-shell.nav.sections.configuration',
+     items: [
+-      { href: '/insightbooks/global-settings', text: 'Global Settings', icon: 'Settings' },
++      {
++        href: '/insightbooks/global-settings',
++        text: 'Global Settings',
++        textKey: 'admin-shell.nav.items.settings',
++        icon: 'Settings',
++      },
+       {
+         href: '/insightbooks/feature-entitlements',
+         text: 'Feature Entitlements',
++        textKey: 'admin-shell.nav.items.features',
+         icon: 'ToggleLeft',
+       },
+     ],
+@@ -36,17 +118,36 @@ export const ADMIN_NAV_SECTIONS = [
+   {
+     id: 'apps',
+     label: 'Applications and Partners',
++    labelKey: 'admin-shell.nav.sections.apps',
+     items: [
+-      { href: '/insightbooks/mobile-app', text: 'Android App', icon: 'Smartphone' },
++      {
++        href: '/insightbooks/mobile-app',
++        text: 'Android App',
++        textKey: 'admin-shell.nav.items.mobile',
++        icon: 'Smartphone',
++      },
+       {
+         href: '/insightbooks/affiliate',
+         text: 'Affiliate Management',
++        textKey: 'admin-shell.nav.items.affiliate',
+         icon: 'Handshake',
+         expandable: true,
+         subItems: [
+-          { href: '/insightbooks/affiliate', text: 'Affiliates' },
+-          { href: '/insightbooks/affiliate/commissions', text: 'Commissions' },
+-          { href: '/insightbooks/affiliate/payouts', text: 'Payouts' },
++          {
++            href: '/insightbooks/affiliate',
++            text: 'Affiliates',
++            textKey: 'admin-shell.nav.items.affiliateList',
++          },
++          {
++            href: '/insightbooks/affiliate/commissions',
++            text: 'Commissions',
++            textKey: 'admin-shell.nav.items.commissions',
++          },
++          {
++            href: '/insightbooks/affiliate/payouts',
++            text: 'Payouts',
++            textKey: 'admin-shell.nav.items.payouts',
++          },
+         ],
+       },
+     ],
+@@ -54,20 +155,55 @@ export const ADMIN_NAV_SECTIONS = [
+   {
+     id: 'billing',
+     label: 'Billing and Revenue',
++    labelKey: 'admin-shell.nav.sections.billing',
+     items: [
+       {
+         href: '/insightbooks/billing',
+         text: 'Billing',
++        textKey: 'admin-shell.nav.items.billing',
+         icon: 'CreditCard',
+         expandable: true,
+         subItems: [
+-          { href: '/insightbooks/billing/overview', text: 'Billing Overview' },
+-          { href: '/insightbooks/billing/plans', text: 'Plans' },
+-          { href: '/insightbooks/billing/subscriptions', text: 'Subscriptions' },
+-          { href: '/insightbooks/billing/invoices', text: 'Invoices' },
+-          { href: '/insightbooks/billing/payments', text: 'Payments' },
+-          { href: '/insightbooks/billing/credits', text: 'Credits & Refunds' },
+-          { href: '/insightbooks/billing/reconciliation', text: 'Reconciliation' },
++          {
++            href: '/insightbooks/billing/overview',
++            text: 'Billing Overview',
++            textKey: 'admin-shell.nav.items.billingOverview',
++          },
++          {
++            href: '/insightbooks/billing/plans',
++            text: 'Subscription Plans',
++            textKey: 'admin-shell.nav.items.plans',
++          },
++          {
++            href: '/insightbooks/billing/mra-eis-plans',
++            text: 'MRA EIS Plans',
++            textKey: 'admin-shell.nav.items.mraEisPlans',
++          },
++          {
++            href: '/insightbooks/billing/subscriptions',
++            text: 'Subscriptions',
++            textKey: 'admin-shell.nav.items.subscriptions',
++          },
++          {
++            href: '/insightbooks/billing/invoices',
++            text: 'Invoices',
++            textKey: 'admin-shell.nav.items.invoices',
++          },
++          {
++            href: '/insightbooks/billing/payments',
++            text: 'Payments',
++            textKey: 'admin-shell.nav.items.payments',
++          },
++          {
++            href: '/insightbooks/billing/credits',
++            text: 'Credits & Refunds',
++            textKey: 'admin-shell.nav.items.credits',
++          },
++          {
++            href: '/insightbooks/billing/reconciliation',
++            text: 'Reconciliation',
++            textKey: 'admin-shell.nav.items.reconciliation',
++          },
+         ],
+       },
+     ],
+@@ -75,16 +211,30 @@ export const ADMIN_NAV_SECTIONS = [
+   {
+     id: 'communication',
+     label: 'Communication',
++    labelKey: 'admin-shell.nav.sections.communication',
+     items: [
+       {
+         href: '/insightbooks/email-management',
+         text: 'Email Management',
++        textKey: 'admin-shell.nav.items.email',
+         icon: 'Mail',
+         expandable: true,
+         subItems: [
+-          { href: '/insightbooks/email-management', text: 'Send & history' },
+-          { href: '/insightbooks/email-management/templates', text: 'Templates' },
+-          { href: '/insightbooks/email-management/suppression', text: 'Suppression' },
++          {
++            href: '/insightbooks/email-management',
++            text: 'Send & history',
++            textKey: 'admin-shell.nav.items.emailHistory',
++          },
++          {
++            href: '/insightbooks/email-management/templates',
++            text: 'Templates',
++            textKey: 'admin-shell.nav.items.templates',
++          },
++          {
++            href: '/insightbooks/email-management/suppression',
++            text: 'Suppression',
++            textKey: 'admin-shell.nav.items.suppression',
++          },
+         ],
+       },
+     ],
+@@ -92,31 +242,108 @@ export const ADMIN_NAV_SECTIONS = [
+   {
+     id: 'compliance',
+     label: 'Compliance',
++    labelKey: 'admin-shell.nav.sections.compliance',
+     items: [
+-      { href: '/insightbooks/mra-eis', text: 'MRA EIS Entitlement', icon: 'FileCheck' },
++      {
++        href: '/insightbooks/mra-eis',
++        text: 'MRA EIS Entitlement',
++        textKey: 'admin-shell.nav.items.mraEis',
++        icon: 'FileCheck',
++        expandable: true,
++        subItems: [
++          {
++            href: '/insightbooks/mra-eis',
++            text: 'Entitlements',
++            textKey: 'admin-shell.nav.items.entitlements',
++            exact: true,
++          },
++          {
++            href: '/insightbooks/mra-eis/centre',
++            text: 'Platform Overview',
++            textKey: 'admin-shell.nav.items.mraCentre',
++          },
++          {
++            href: '/insightbooks/mra-eis/terminals',
++            text: 'Terminals',
++            textKey: 'admin-shell.nav.items.terminals',
++          },
++          {
++            href: '/insightbooks/mra-eis/configuration',
++            text: 'Configuration',
++            textKey: 'admin-shell.nav.items.configuration',
++          },
++          {
++            href: '/insightbooks/mra-eis/mappings',
++            text: 'Mappings',
++            textKey: 'admin-shell.nav.items.mappings',
++          },
++          {
++            href: '/insightbooks/mra-eis/catalogue',
++            text: 'Catalogue',
++            textKey: 'admin-shell.nav.items.catalogue',
++          },
++        ],
++      },
+     ],
+   },
+   {
+     id: 'security',
+     label: 'Security and Operations',
++    labelKey: 'admin-shell.nav.sections.security',
+     items: [
+       {
+         href: '/insightbooks/audit',
+         text: 'Audit & Security',
++        textKey: 'admin-shell.nav.items.auditSecurity',
+         icon: 'Shield',
+         expandable: true,
+         subItems: [
+-          { href: '/insightbooks/audit', text: 'Audit log' },
+-          { href: '/insightbooks/security', text: 'Security overview' },
+-          { href: '/insightbooks/security/monitoring', text: 'Monitoring' },
+-          { href: '/insightbooks/security/compliance', text: 'Compliance signals' },
++          {
++            href: '/insightbooks/audit',
++            text: 'Audit log',
++            textKey: 'admin-shell.nav.items.auditLog',
++          },
++          {
++            href: '/insightbooks/security',
++            text: 'Security overview',
++            textKey: 'admin-shell.nav.items.securityOverview',
++          },
++          {
++            href: '/insightbooks/security/monitoring',
++            text: 'Monitoring',
++            textKey: 'admin-shell.nav.items.monitoring',
++          },
++          {
++            href: '/insightbooks/security/compliance',
++            text: 'Compliance signals',
++            textKey: 'admin-shell.nav.items.complianceSignals',
++          },
+         ],
+       },
+-      { href: '/insightbooks/system-health', text: 'System Health', icon: 'Activity' },
++      {
++        href: '/insightbooks/system-health',
++        text: 'System Health',
++        textKey: 'admin-shell.nav.items.systemHealth',
++        icon: 'Activity',
++      },
++      {
++        href: '/insightbooks/analytics-pipeline',
++        text: 'Analytics pipeline',
++        textKey: 'admin-shell.nav.items.analyticsPipeline',
++        icon: 'Activity',
++      },
+     ],
+   },
+ ];
+ 
++/** Resolve display label; prefers i18n key when translator provided. */
++export function resolveAdminNavLabel(entry, t) {
++  if (!entry) return '';
++  if (typeof t === 'function' && entry.textKey) return t(entry.textKey);
++  if (typeof t === 'function' && entry.labelKey) return t(entry.labelKey);
++  return entry.text || entry.label || '';
++}
++
+ /** Paths that must never appear in admin navigation. */
+ export const REMOVED_ADMIN_ROUTES = ['/insightbooks/chart-of-accounts'];
+ 
+@@ -137,3 +364,17 @@ export function adminNavContainsCoa() {
+     )
+   );
+ }
++
++/** Flat unique hrefs from nav (parents + subItems). */
++export function listAdminNavHrefs() {
++  const hrefs = new Set();
++  for (const section of ADMIN_NAV_SECTIONS) {
++    for (const item of section.items || []) {
++      if (item.href) hrefs.add(item.href);
++      for (const sub of item.subItems || []) {
++        if (sub.href) hrefs.add(sub.href);
++      }
++    }
++  }
++  return [...hrefs].sort();
++}
+diff --git a/lib/admin/permissions.js b/lib/admin/permissions.js
+index a7c04b3..0ab1626 100644
+--- a/lib/admin/permissions.js
++++ b/lib/admin/permissions.js
+@@ -1,8 +1,10 @@
+ /**
+  * Granular systemAdmin.* permission catalog for the platform control plane.
+- * Stored on Admin.permissions as nested objects; Super Admin bypasses checks.
++ * Stored on Admin.permissions as nested objects; Super Admin is break-glass via decision service.
+  */
+ 
++import { authorizeAdminDecision } from './authorization/authorizeAdminDecision.js';
++
+ export const SYSTEM_ADMIN_PERMISSIONS = {
+   dashboard: {
+     view: 'systemAdmin.dashboard.view',
+@@ -71,6 +73,18 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     reconciliation: 'systemAdmin.billing.reconciliation',
+     reportsExport: 'systemAdmin.billing.reports.export',
+   },
++  mraPlans: {
++    view: 'systemAdmin.mraPlans.view',
++    create: 'systemAdmin.mraPlans.create',
++    editDraft: 'systemAdmin.mraPlans.editDraft',
++    approve: 'systemAdmin.mraPlans.approve',
++    publish: 'systemAdmin.mraPlans.publish',
++    suspend: 'systemAdmin.mraPlans.suspend',
++    retire: 'systemAdmin.mraPlans.retire',
++    version: 'systemAdmin.mraPlans.version',
++    preview: 'systemAdmin.mraPlans.preview',
++    export: 'systemAdmin.mraPlans.export',
++  },
+   email: {
+     view: 'systemAdmin.email.view',
+     configurationManage: 'systemAdmin.email.configuration.manage',
+@@ -103,6 +117,56 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     cancelJobs: 'systemAdmin.health.cancelJobs',
+     manageIncidents: 'systemAdmin.health.manageIncidents',
+   },
++  /** Intelligence ΓÇö Phase 5 executive summaries (routes gated; default deny until granted). */
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    /** Wave 3 ΓÇö create portfolios / assign ownership (view still customersRead). */
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    /** Phase 8 Wave 1 ΓÇö Customer Health */
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    /** Phase 9 Wave 1 ΓÇö Product Analytics */
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  /** Phase 8 Wave 2/3 ΓÇö Customer Success Ops. */
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  /**
++   * Phase 10 Wave 1 ΓÇö Support Ops (Γëá CsCase Γëá PlatformSupportAccess).
++   * Active: viewTickets / createTickets / transitionStatus.
++   * Remaining keys stubbed from SUPPORT_SECURITY_MATRIX for later waves.
++   */
++  support: {
++    view: 'systemAdmin.support.viewTickets',
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
+ };
+ 
+ export const ADMIN_ROLES = {
+@@ -118,6 +182,7 @@ export const ADMIN_ROLES = {
+ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/dashboard': SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+   '/insightbooks/tenant-management': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
++  '/insightbooks/tenant-identity-transfer': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
+   '/insightbooks/user-management': SYSTEM_ADMIN_PERMISSIONS.users.view,
+   '/insightbooks/global-settings': SYSTEM_ADMIN_PERMISSIONS.settings.view,
+   '/insightbooks/feature-entitlements': SYSTEM_ADMIN_PERMISSIONS.settings.features,
+@@ -126,17 +191,185 @@ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/affiliate/commissions': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/affiliate/payouts': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/billing': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/overview': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/mra-eis-plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/subscriptions': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/invoices': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/payments': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/credits': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/reconciliation': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/reports': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/imports': SYSTEM_ADMIN_PERMISSIONS.tenants.create,
+   '/insightbooks/email-management': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/templates': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/suppression': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/mra-eis': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/centre': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/terminals': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/configuration': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/mappings': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/catalogue': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
+   '/insightbooks/audit': SYSTEM_ADMIN_PERMISSIONS.audit.view,
+   '/insightbooks/security': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/monitoring': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/compliance': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/system-health': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/analytics-pipeline': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/intelligence': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/executive': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/revenue': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/overview': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/recurring': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mrr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/arr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/movements': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/billing': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/collections': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/receivables': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/payment-performance':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/credits-refunds':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/customers': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/segments': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/concentration': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/retention': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/cohorts': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/subscriptions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/plans': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/forecast': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reconciliation': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reports': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/settings': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/customers': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/overview': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/directory': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/lifecycle': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/engagement': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/commercial': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/renewals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/adoption': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/support': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/signals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/portfolios': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reports': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/settings': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customer-health':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/snapshots':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/product-analytics':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/modules':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/features':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/adoption':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/activation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/first-value':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/funnels':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/cohorts':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/signals':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsExport,
++  '/insightbooks/customer-success': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/command-centre':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/cases': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/tasks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/interventions':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.manageCases,
++  '/insightbooks/customer-success/renewals': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/playbooks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/success-plans':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/onboarding': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/training': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/surveys': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/handoffs': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/reports': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/support': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/tickets': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/my-work': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/queues': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/sla': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/reports': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++};
++
++/** Future Intelligence / CRM keys ΓÇö scaffold only; default deny until later phases. */
++export const INTEL_CRM_PERMISSION_SCAFFOLD = {
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  support: {
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
++  crm: {
++    leadsView: 'systemAdmin.crm.leads.view',
++    leadsManage: 'systemAdmin.crm.leads.manage',
++    pipelineView: 'systemAdmin.crm.pipeline.view',
++    pipelineManage: 'systemAdmin.crm.pipeline.manage',
++  },
+ };
+ 
+ /**
+@@ -160,28 +393,9 @@ export function permissionKeyParts(permission) {
+ 
+ /**
+  * Client-safe permission check (no Prisma / JWT imports).
+- * Super Admin always allowed. Supports systemAdmin.* and legacy category.action.
++ * Delegates to canonical authorizeAdminDecision (default deny; Super Admin break-glass).
++ * Supports systemAdmin.* and legacy category.action.
+  */
+ export function adminHasPermission(admin, permission) {
+-  if (!admin) return false;
+-  if (admin.role === 'Super Admin' || admin.role === ADMIN_ROLES.SUPER_ADMIN) {
+-    return true;
+-  }
+-  if (!admin.permissions || typeof admin.permissions !== 'object') {
+-    return false;
+-  }
+-  const parts = permissionKeyParts(permission);
+-  if (!parts) return false;
+-
+-  if (parts.root === 'systemAdmin') {
+-    const bucket = admin.permissions.systemAdmin?.[parts.category];
+-    if (bucket && typeof bucket === 'object') {
+-      return bucket[parts.action] === true;
+-    }
+-    // Flat key fallback: permissions['systemAdmin.tenants.view']
+-    if (admin.permissions[permission] === true) return true;
+-    return false;
+-  }
+-
+-  return admin.permissions[parts.category]?.[parts.action] === true;
++  return authorizeAdminDecision({ admin, permission }).allowed === true;
+ }
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 110ea53..f78673f 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -27,6 +27,21 @@ model Tenant {
+   AccountBalance               AccountBalance[]
+   accountSubscriptions         AccountSubscription[]
+   adminAccess                  AdminTenantAccess[]
++  customerOwnerships           CustomerOwnership[]
++  customerSegmentMemberships   CustomerSegmentMembership[]
++  customerSignals              CustomerSignal[]
++  customerHealthSnapshots      CustomerHealthSnapshot[]
++  csCases                      CsCase[]
++  csTasks                      CsTask[]
++  csInterventions              CsIntervention[]
++  csRenewalWorkspaces          CsRenewalWorkspace[]
++  csPlaybookExecutions         CsPlaybookExecution[]
++  csSuccessPlans               CsSuccessPlan[]
++  csExpansionHandoffs          CsExpansionHandoff[]
++  csOnboardingRecords          CsOnboardingRecord[]
++  csTrainingRecords            CsTrainingRecord[]
++  csSurveyResponses            CsSurveyResponse[]
++  supportTickets               SupportTicket[]
+   affiliateReferrals           AffiliateReferral[]
+   assets                       Asset[]
+   assetCategories              AssetCategory[]
+@@ -238,6 +253,8 @@ model TenantSettings {
+   businessEmail                    String?
+   businessPhone                    String?
+   receiptFooter                    String?
++  /// Preferred thermal receipt roll width in mm (58ΓÇô90). Used by web + Android POS print.
++  receiptPaperWidthMm              Int       @default(80)
+   defaultBankDetails               String? // Default bank account details for invoice/quotation/receipt footers
+   // NPS rates are tenant-configurable; null means "not configured".
+   // Calculation code should treat null as 0% unless explicitly set.
+@@ -531,9 +548,32 @@ model Admin {
+   phone          String?
+   department     String?
+   notes          String?
+-  adminAuditLogs AdminAuditLog[]
+-  managedTenants AdminTenantAccess[]
+-  emailLogs      EmailLog[]          @relation("EmailLogAdminSender")
++  adminAuditLogs              AdminAuditLog[]
++  managedTenants              AdminTenantAccess[]
++  emailLogs                   EmailLog[]               @relation("EmailLogAdminSender")
++  ownedCustomerPortfolios     CustomerPortfolio[]      @relation("PortfolioOwner")
++  customerOwnerships          CustomerOwnership[]      @relation("OwnershipOwner")
++  assignedCustomerOwnerships  CustomerOwnership[]      @relation("OwnershipAssignedBy")
++  csCasesOpened               CsCase[]                 @relation("CsCaseOpenedBy")
++  csCasesOwned                CsCase[]                 @relation("CsCaseOwner")
++  csTasksAssigned             CsTask[]                 @relation("CsTaskAssignee")
++  csTasksCreated              CsTask[]                 @relation("CsTaskCreatedBy")
++  csInterventionsPerformed    CsIntervention[]         @relation("CsInterventionPerformedBy")
++  csRenewalsOpened            CsRenewalWorkspace[]     @relation("CsRenewalOpenedBy")
++  csRenewalsOutcomeBy         CsRenewalWorkspace[]     @relation("CsRenewalOutcomeBy")
++  csPlaybookExecutionsStarted CsPlaybookExecution[]    @relation("CsPlaybookExecutionStartedBy")
++  csSuccessPlansOwned         CsSuccessPlan[]          @relation("CsSuccessPlanOwner")
++  csSuccessPlansCreated       CsSuccessPlan[]          @relation("CsSuccessPlanCreatedBy")
++  csExpansionHandoffsCreated  CsExpansionHandoff[]     @relation("CsExpansionHandoffCreatedBy")
++  supportTicketsCreated       SupportTicket[]          @relation("SupportTicketCreatedBy")
++  supportTicketsAssigned      SupportTicket[]          @relation("SupportTicketAssignee")
++  supportTicketStatusChanges  SupportTicketStatusHistory[] @relation("SupportTicketStatusChangedBy")
++  supportMessagesAuthored     SupportMessage[]         @relation("SupportMessageAuthor")
++  supportAttachmentsUploaded  SupportAttachment[]      @relation("SupportAttachmentUploadedBy")
++  supportAssignmentChanges    SupportAssignmentHistory[] @relation("SupportAssignmentChangedBy")
++  supportTeamMemberships      SupportTeamMembership[]
++  supportSlaPoliciesCreated   SupportSlaPolicy[]       @relation("SupportSlaPolicyCreatedBy")
++  supportSlaCalendarsCreated  SupportSlaCalendar[]     @relation("SupportSlaCalendarCreatedBy")
+ 
+   @@index([email])
+   @@index([role])
+@@ -1421,11 +1461,29 @@ model InvoiceItem {
+   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   product        Product? @relation(fields: [productId], references: [id])
+   account        Account? @relation(fields: [accountId], references: [id])
++  itemTaxes      InvoiceItemTax[]
+ 
+   @@index([invoiceId])
+   @@index([accountId])
+ }
+ 
++model InvoiceItemTax {
++  id               String      @id @default(cuid())
++  invoiceItemId    String
++  taxTypeId        String
++  taxName          String
++  taxCode          String      @default("")
++  taxRate          Float
++  calculationType  String      @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime    @default(now())
++  invoiceItem      InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType     @relation(fields: [taxTypeId], references: [id])
++
++  @@index([invoiceItemId])
++  @@index([taxTypeId])
++}
++
+ model InvoiceRefund {
+   id              String    @id @default(cuid())
+   invoiceId       String
+@@ -3141,6 +3199,8 @@ model TaxType {
+   updatedAt          DateTime            @updatedAt
+   productTaxes       ProductTax[]
+   saleItemTaxes      SaleItemTax[]
++  invoiceItemTaxes   InvoiceItemTax[]
++  quotationItemTaxes QuotationItemTax[]
+   purchaseOrderItems PurchaseOrderItem[]
+   expenses           Expense[]
+   account            Account             @relation("TaxTypeAccount", fields: [accountId], references: [id])
+@@ -3635,11 +3695,29 @@ model QuotationItem {
+   netAmount      Float     @default(0)
+   product        Product?  @relation(fields: [productId], references: [id])
+   quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
++  itemTaxes      QuotationItemTax[]
+ 
+   @@index([quotationId])
+   @@index([productId])
+ }
+ 
++model QuotationItemTax {
++  id               String        @id @default(cuid())
++  quotationItemId  String
++  taxTypeId        String
++  taxName          String
++  taxCode          String        @default("")
++  taxRate          Float
++  calculationType  String        @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime      @default(now())
++  quotationItem    QuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType       @relation(fields: [taxTypeId], references: [id])
++
++  @@index([quotationItemId])
++  @@index([taxTypeId])
++}
++
+ model AccountSubscription {
+   id              String       @id @default(cuid())
+   tenantId        String
+@@ -10314,19 +10392,35 @@ model PlatformPayment {
+ }
+ 
+ /// Versioned SaaS subscription plans ΓÇö price edits create a new version.
++/// planCategory: CORE | MRA_EIS (and future product families).
+ model PlatformPlanVersion {
+   id               String    @id @default(cuid())
+   planCode         String
+   version          Int
+   name             String
++  publicName       String?
+   description      String?
++  planCategory     String    @default("CORE")
++  productCode      String?
+   currency         String    @default("MWK")
+   basePrice        Decimal   @db.Decimal(18, 2)
+   billingFrequency String    @default("month")
+   userLimit        Int?
+   businessLimit    Int?
+   featuresJson     Json      @default("[]")
++  limitsJson       Json      @default("{}")
++  eligibilityJson  Json      @default("{}")
++  billingCyclesJson Json     @default("[]")
++  presentationJson Json      @default("{}")
++  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ACTIVE | SUSPENDED | RETIRED | SUPERSEDED
+   status           String    @default("ACTIVE")
++  isPublic         Boolean   @default(false)
++  isFeatured       Boolean   @default(false)
++  displayOrder     Int       @default(0)
++  trialEnabled     Boolean   @default(false)
++  trialDays        Int?
++  ctaText          String?
++  highlightText    String?
+   effectiveFrom    DateTime  @default(now())
+   effectiveTo      DateTime?
+   createdAt        DateTime  @default(now())
+@@ -10336,6 +10430,8 @@ model PlatformPlanVersion {
+   @@unique([planCode, version])
+   @@index([planCode])
+   @@index([status])
++  @@index([planCategory])
++  @@index([isPublic, planCategory, displayOrder])
+ }
+ 
+ /// Platform credits (e.g. overpayment) ΓÇö separate from tenant AR.
+@@ -10437,3 +10533,891 @@ model PlatformFeatureEntitlement {
+   @@index([featureCode])
+   @@index([status])
+ }
++
++/// Platform analytics transactional outbox (BI plane ΓÇö not AcctV2/MraEis).
++model AnalyticsOutbox {
++  id             String    @id @default(cuid())
++  tenantId       String?
++  aggregateType  String
++  aggregateId    String
++  eventType      String
++  schemaVersion  String    @default("1")
++  payload        Json
++  payloadChecksum String
++  idempotencyKey String    @unique
++  status         String    @default("PENDING")
++  availableAt    DateTime  @default(now())
++  claimedAt      DateTime?
++  claimExpiresAt DateTime?
++  claimedBy      String?
++  processedAt    DateTime?
++  attemptCount   Int       @default(0)
++  nextAttemptAt  DateTime?
++  lastError      String?
++  correlationId  String?
++  requestId      String?
++  privacyClass   String    @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  occurredAt     DateTime  @default(now())
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  @@index([status, availableAt])
++  @@index([tenantId, eventType])
++  @@index([aggregateType, aggregateId])
++}
++
++/// Append-only canonical analytics events (derived, rebuildable).
++model AnalyticsEvent {
++  id             String   @id @default(cuid())
++  eventType      String
++  schemaVersion  String   @default("1")
++  tenantId       String?
++  sourceType     String
++  sourceId       String
++  idempotencyKey String   @unique
++  occurredAt     DateTime
++  ingestedAt     DateTime @default(now())
++  privacyClass   String   @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  correlationId  String?
++  requestId      String?
++  payload        Json
++  outboxId       String?
++
++  @@index([eventType, occurredAt])
++  @@index([tenantId, occurredAt])
++  @@index([sourceType, sourceId])
++}
++
++model AnalyticsConsumerCheckpoint {
++  id           String   @id @default(cuid())
++  consumerName String   @unique
++  lastEventId  String?
++  lastOccurredAt DateTime?
++  cursor       Json?
++  updatedAt    DateTime @updatedAt
++}
++
++model AnalyticsDeadLetter {
++  id             String   @id @default(cuid())
++  outboxId       String?
++  eventId        String?
++  eventType      String?
++  errorCode      String?
++  errorMessage   String
++  payload        Json?
++  attemptCount   Int      @default(0)
++  createdAt      DateTime @default(now())
++  resolvedAt     DateTime?
++
++  @@index([createdAt])
++  @@index([eventType])
++}
++
++model AnalyticsFactPlatformBilling {
++  id              String   @id @default(cuid())
++  tenantId        String
++  sourceType      String
++  sourceId        String
++  eventType       String
++  amount          Decimal  @db.Decimal(18, 2)
++  currency        String   @default("MWK")
++  occurredAt      DateTime
++  idempotencyKey  String   @unique
++  createdAt       DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++model AnalyticsFactSubscription {
++  id             String   @id @default(cuid())
++  tenantId       String
++  subscriptionId String
++  eventType      String
++  planCode       String?
++  amount         Decimal? @db.Decimal(18, 2)
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([subscriptionId])
++}
++
++model AnalyticsFactTenantActivity {
++  id             String   @id @default(cuid())
++  tenantId       String
++  eventType      String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö product usage facts from instrumented commerce events.
++model AnalyticsFactProductUsage {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, featureCode, occurredAt])
++  @@index([tenantId, eventType, occurredAt])
++  @@index([featureCode, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö first-value uniqueness per tenant + feature + ruleVersion.
++model ProductFirstValueFact {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  ruleVersion    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  sourceEventId  String?
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@unique([tenantId, featureCode, ruleVersion])
++  @@index([tenantId, featureCode])
++}
++
++/// Phase 9 Wave 2 ΓÇö append-only adoption state history (never silent overwrite).
++model ProductAdoptionStateHistory {
++  id                String   @id @default(cuid())
++  tenantId          String
++  featureCode       String
++  state             String
++  previousState     String?
++  ruleVersion       String
++  definitionVersion String
++  reasonCode        String?
++  evidence          Json?
++  observedAt        DateTime @default(now())
++  createdAt         DateTime @default(now())
++
++  @@index([tenantId, featureCode, observedAt])
++  @@index([tenantId, featureCode, state])
++}
++
++model AnalyticsDailySnapshot {
++  id             String   @id @default(cuid())
++  snapshotDate   DateTime @db.Date
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([snapshotDate, metricKey, tenantId])
++  @@index([metricKey, snapshotDate])
++}
++
++model AnalyticsMonthlySnapshot {
++  id             String   @id @default(cuid())
++  yearMonth      String
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([yearMonth, metricKey, tenantId])
++  @@index([metricKey, yearMonth])
++}
++
++model AnalyticsDataFreshness {
++  id              String   @id @default(cuid())
++  sourceKey       String   @unique
++  lastSuccessAt   DateTime?
++  lastAttemptAt   DateTime?
++  lagSeconds      Int?
++  status          String   @default("UNKNOWN")
++  detail          Json?
++  updatedAt       DateTime @updatedAt
++}
++
++model AnalyticsReconciliationRun {
++  id           String   @id @default(cuid())
++  checkKey     String
++  periodStart  DateTime
++  periodEnd    DateTime
++  expected     Int
++  actual       Int
++  variance     Int
++  status       String
++  detail       Json?
++  createdAt    DateTime @default(now())
++
++  @@index([checkKey, createdAt])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS portfolio (not AdminTenantAccess / Tenant.ownerUserId)
++model CustomerPortfolio {
++  id           String              @id @default(cuid())
++  code         String              @unique
++  name         String
++  description  String?
++  type         String              @default("CUSTOMER_SUCCESS")
++  status       String              @default("ACTIVE")
++  ownerAdminId String?
++  ownerAdmin   Admin?              @relation("PortfolioOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdAt    DateTime            @default(now())
++  updatedAt    DateTime            @updatedAt
++  ownerships     CustomerOwnership[]
++  csCases        CsCase[]
++  supportTickets SupportTicket[]
++
++  @@index([status])
++  @@index([ownerAdminId])
++  @@index([type])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS ownership assignment (tenant ΓåÆ CS owner / portfolio)
++model CustomerOwnership {
++  id                String             @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  ownerAdminId      String
++  assignmentType    String             @default("CUSTOMER_SUCCESS_OWNER")
++  isPrimary         Boolean            @default(true)
++  startAt           DateTime           @default(now())
++  endAt             DateTime?
++  reason            String?
++  assignedByAdminId String?
++  status            String             @default("ACTIVE")
++  createdAt         DateTime           @default(now())
++  updatedAt         DateTime           @updatedAt
++  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin              @relation("OwnershipOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
++  assignedByAdmin   Admin?             @relation("OwnershipAssignedBy", fields: [assignedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId, status])
++  @@index([status, endAt])
++  @@index([isPrimary, status])
++}
++
++/// Optional segment foundation (Wave 3). Dynamic engine deferred; system filters in code.
++model CustomerSegment {
++  id          String                       @id @default(cuid())
++  code        String                       @unique
++  name        String
++  description String?
++  kind        String                       @default("SYSTEM")
++  status      String                       @default("ACTIVE")
++  createdAt   DateTime                     @default(now())
++  updatedAt   DateTime                     @updatedAt
++  memberships CustomerSegmentMembership[]
++
++  @@index([status])
++  @@index([kind])
++}
++
++model CustomerSegmentMembership {
++  id        String          @id @default(cuid())
++  segmentId String
++  tenantId  String
++  status    String          @default("ACTIVE")
++  startAt   DateTime        @default(now())
++  endAt     DateTime?
++  createdAt DateTime        @default(now())
++  updatedAt DateTime        @updatedAt
++  segment   CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
++  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([segmentId, tenantId])
++  @@index([tenantId, status])
++  @@index([segmentId, status])
++}
++
++/// Phase 7 Wave 4 ΓÇö deterministic customer signals (verified sources only).
++/// Status: NEW | ACKNOWLEDGED | RESOLVED_BY_SOURCE | DISMISSED
++/// Ephemeral evaluation is used when this table/client is unavailable.
++model CustomerSignal {
++  id              String   @id @default(cuid())
++  tenantId        String
++  code            String
++  severity        String
++  status          String   @default("NEW")
++  payload         Json?
++  firstDetectedAt DateTime @default(now())
++  lastDetectedAt  DateTime @default(now())
++  ruleVersion     String
++  createdAt       DateTime @default(now())
++  updatedAt       DateTime @updatedAt
++  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([tenantId, code])
++  @@index([tenantId, status])
++  @@index([status, severity])
++  @@index([code, status])
++  @@index([lastDetectedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö versioned health definition (optional DB override of builtin).
++model CustomerHealthDefinition {
++  id          String    @id @default(cuid())
++  version     String    @unique
++  name        String?
++  isActive    Boolean   @default(false)
++  payload     Json
++  activatedAt DateTime?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++
++  @@index([isActive, activatedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö immutable health snapshot (rebuild creates a new row).
++model CustomerHealthSnapshot {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  definitionVersion  String
++  score              Float?
++  band               String
++  confidence         String
++  asOf               DateTime
++  payload            Json?
++  createdAt          DateTime @default(now())
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, createdAt])
++  @@index([band, createdAt])
++  @@index([definitionVersion])
++  @@index([asOf])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS case (not a support ticket; not signal ACK substitute).
++/// Status: OPEN | IN_PROGRESS | RESOLVED | CLOSED
++/// triggerType: SIGNAL | HEALTH | MANUAL
++model CsCase {
++  id                String           @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  status            String           @default("OPEN")
++  priority          String           @default("MEDIUM")
++  severity          String?
++  title             String
++  summary           String?
++  triggerType       String
++  triggerCode       String?
++  definitionVersion String?
++  idempotencyKey    String
++  signalId          String?
++  snapshotId        String?
++  ownerAdminId      String?
++  openedByAdminId   String?
++  openedAt          DateTime         @default(now())
++  closedAt          DateTime?
++  resolvedAt        DateTime?
++  payload           Json?
++  createdAt         DateTime         @default(now())
++  updatedAt         DateTime         @updatedAt
++  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin?           @relation("CsCaseOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  openedByAdmin     Admin?           @relation("CsCaseOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  tasks             CsTask[]
++  interventions     CsIntervention[]
++  playbookExecutions CsPlaybookExecution[]
++
++  // Open-only uniqueness (OPEN/IN_PROGRESS) is enforced by partial unique index
++  // CsCase_open_idempotencyKey_key in scripts/sql/customer-success-phase08.sql ΓÇö
++  // closed/resolved cases may reuse the same key so re-triggers can open a new case.
++  @@index([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([status, openedAt])
++  @@index([triggerType, triggerCode])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS task (assignee = System Admin id).
++model CsTask {
++  id                String    @id @default(cuid())
++  caseId            String?
++  tenantId          String
++  title             String
++  status            String    @default("OPEN")
++  assigneeAdminId   String?
++  dueAt             DateTime?
++  stepId            String?
++  executionId       String?
++  idempotencyKey    String?
++  notes             String?
++  createdByAdminId  String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  assigneeAdmin     Admin?    @relation("CsTaskAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?    @relation("CsTaskCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([caseId, status])
++  @@index([assigneeAdminId, status])
++  @@index([executionId, stepId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS intervention log (not a support ticket).
++model CsIntervention {
++  id                  String   @id @default(cuid())
++  caseId              String?
++  tenantId            String
++  type                String
++  notes               String?
++  channel             String?
++  performedByAdminId  String?
++  performedAt         DateTime @default(now())
++  payload             Json?
++  createdAt           DateTime @default(now())
++  case                CsCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  performedByAdmin    Admin?   @relation("CsInterventionPerformedBy", fields: [performedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, performedAt])
++  @@index([caseId, performedAt])
++  @@index([type])
++}
++
++/// Phase 8 Wave 3 ΓÇö renewal workspace; outcome requires AccountSubscription evidence.
++model CsRenewalWorkspace {
++  id                String    @id @default(cuid())
++  tenantId          String
++  periodKey         String
++  status            String    @default("OPEN")
++  outcome           String?
++  outcomeAt         DateTime?
++  outcomeByAdminId  String?
++  subscriptionId    String?
++  evidenceNote      String?
++  notes             String?
++  openedByAdminId   String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  openedByAdmin     Admin?    @relation("CsRenewalOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  outcomeByAdmin    Admin?    @relation("CsRenewalOutcomeBy", fields: [outcomeByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([tenantId, periodKey])
++  @@index([tenantId, status])
++  @@index([outcome])
++  @@index([periodKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö versioned playbook definition (steps JSON ΓåÆ tasks on execute).
++model CsPlaybook {
++  id          String                @id @default(cuid())
++  key         String
++  name        String
++  version     String
++  description String?
++  status      String                @default("ACTIVE")
++  steps       Json
++  createdAt   DateTime              @default(now())
++  updatedAt   DateTime              @updatedAt
++  executions  CsPlaybookExecution[]
++
++  @@unique([key, version])
++  @@index([status, key])
++}
++
++/// Phase 8 Wave 4 ΓÇö playbook run; idempotent per key+version+tenant+case.
++model CsPlaybookExecution {
++  id                String    @id @default(cuid())
++  playbookId        String
++  tenantId          String
++  caseId            String?
++  status            String    @default("RUNNING")
++  playbookVersion   String
++  idempotencyKey    String?   @unique
++  startedByAdminId  String?
++  startedAt         DateTime  @default(now())
++  completedAt       DateTime?
++  payload           Json?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  playbook          CsPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  startedByAdmin    Admin?    @relation("CsPlaybookExecutionStartedBy", fields: [startedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([playbookId, startedAt])
++  @@index([caseId])
++}
++
++/// Phase 8 Wave 4 ΓÇö success plan (no invented progress %).
++model CsSuccessPlan {
++  id                String          @id @default(cuid())
++  tenantId          String
++  title             String
++  status            String          @default("ACTIVE")
++  summary           String?
++  ownerAdminId      String?
++  createdByAdminId  String?
++  startedAt         DateTime?
++  targetAt          DateTime?
++  createdAt         DateTime        @default(now())
++  updatedAt         DateTime        @updatedAt
++  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  ownerAdmin        Admin?          @relation("CsSuccessPlanOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?          @relation("CsSuccessPlanCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  goals             CsSuccessGoal[]
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++}
++
++/// Phase 8 Wave 4 ΓÇö success goal under a plan.
++model CsSuccessGoal {
++  id         String        @id @default(cuid())
++  planId     String
++  title      String
++  status     String        @default("OPEN")
++  targetNote String?
++  dueAt      DateTime?
++  sortOrder  Int           @default(0)
++  createdAt  DateTime      @default(now())
++  updatedAt  DateTime      @updatedAt
++  plan       CsSuccessPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
++
++  @@index([planId, status])
++  @@index([planId, sortOrder])
++}
++
++/// Phase 8 Wave 4 ΓÇö expansion handoff record-only (no CRM opportunity / auto upgrade).
++model CsExpansionHandoff {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  status             String   @default("OPEN")
++  reason             String?
++  notes              String?
++  recommendedAction  String   @default("OTHER")
++  createdByAdminId   String?
++  payload            Json?
++  createdAt          DateTime @default(now())
++  updatedAt          DateTime @updatedAt
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  createdByAdmin     Admin?   @relation("CsExpansionHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([recommendedAction])
++  @@index([createdAt])
++}
++
++/// Phase 8 Wave 4 ΓÇö onboarding foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsOnboardingRecord {
++  id           String    @id @default(cuid())
++  tenantId     String
++  checklistKey String?
++  status       String?
++  completedAt  DateTime?
++  sourceNote   String?
++  createdAt    DateTime  @default(now())
++  updatedAt    DateTime  @updatedAt
++  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([checklistKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö training foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsTrainingRecord {
++  id          String    @id @default(cuid())
++  tenantId    String
++  moduleKey   String?
++  status      String?
++  completedAt DateTime?
++  sourceNote  String?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([moduleKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö survey foundation rows only (empty ΓåÆ NOT_INSTRUMENTED; never invent NPS).
++model CsSurveyResponse {
++  id         String    @id @default(cuid())
++  tenantId   String
++  surveyKey  String?
++  status     String?
++  score      Int?
++  completedAt DateTime?
++  sourceNote String?
++  createdAt  DateTime  @default(now())
++  updatedAt  DateTime  @updatedAt
++  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([surveyKey])
++}
++
++/// Phase 10 Wave 1 ΓÇö per-UTC-year sequence for SUP-YYYY-###### (concurrency-safe CAS).
++model SupportTicketNumberSeq {
++  year       Int      @id
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++}
++
++/// Phase 10 Wave 1 ΓÇö Support ticket (Γëá CsCase Γëá PlatformSupportAccess).
++/// Never store Tenant GL lines, MRA credentials, or payment secrets.
++model SupportTicket {
++  id                 String    @id @default(cuid())
++  ticketNumber       String    @unique
++  tenantId           String
++  portfolioId        String?
++  status             String    @default("NEW")
++  type               String
++  impact             String?
++  urgency            String?
++  priority           String?
++  severity           String?
++  title              String
++  description        String    @db.Text
++  resolutionCategory String?
++  createdByAdminId   String?
++  assigneeAdminId    String?
++  queueCode          String?
++  sourceChannel      String    @default("ADMIN_MANUAL")
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  resolvedAt         DateTime?
++  closedAt           DateTime?
++  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio          CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  createdByAdmin     Admin?    @relation("SupportTicketCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  assigneeAdmin      Admin?    @relation("SupportTicketAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  statusHistory      SupportTicketStatusHistory[]
++  messages           SupportMessage[]
++  attachments        SupportAttachment[]
++  assignmentHistory  SupportAssignmentHistory[]
++  slaClocks          SupportSlaClock[]
++
++  @@index([tenantId, status])
++  @@index([status, createdAt])
++  @@index([assigneeAdminId, status])
++  @@index([queueCode, status])
++  @@index([portfolioId])
++  @@index([sourceChannel])
++}
++
++/// Phase 10 Wave 1 ΓÇö append-only status history (evidence preserved on terminal statuses).
++model SupportTicketStatusHistory {
++  id               String   @id @default(cuid())
++  ticketId         String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("SupportTicketStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 10 Wave 2 ΓÇö ticket messages (PUBLIC / INTERNAL / RESTRICTED). Never expose INTERNAL/RESTRICTED to customers.
++model SupportMessage {
++  id              String   @id @default(cuid())
++  ticketId        String
++  type            String
++  body            String   @db.Text
++  authorAdminId   String?
++  visibility      String?
++  systemEventCode String?
++  createdAt       DateTime @default(now())
++  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  authorAdmin     Admin?   @relation("SupportMessageAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([ticketId, type])
++  @@index([authorAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö attachment metadata; bytes in private storage/support-attachments/ (not public/uploads).
++model SupportAttachment {
++  id                 String    @id @default(cuid())
++  ticketId           String
++  fileName           String
++  mimeType           String
++  sizeBytes          Int
++  storageKey         String
++  scanState          String    @default("PENDING_SCAN")
++  uploadedByAdminId  String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  scannedAt          DateTime?
++  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  uploadedByAdmin    Admin?    @relation("SupportAttachmentUploadedBy", fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([storageKey])
++  @@index([ticketId, scanState])
++  @@index([scanState])
++  @@index([uploadedByAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö queue catalogue (QUEUE_TEAM_MATRIX). liveStatus stays NOT_FOUND until real owners exist.
++model SupportQueue {
++  id                String   @id @default(cuid())
++  code              String   @unique
++  name              String
++  typicalOwnership  String?
++  liveStatus        String   @default("NOT_FOUND")
++  active            Boolean  @default(true)
++  createdAt         DateTime @default(now())
++  updatedAt         DateTime @updatedAt
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö team stub definitions for assignment eligibility.
++model SupportTeam {
++  id         String   @id @default(cuid())
++  code       String   @unique
++  name       String
++  queueCodes String[] @default([])
++  active     Boolean  @default(true)
++  createdAt  DateTime @default(now())
++  updatedAt  DateTime @updatedAt
++  memberships SupportTeamMembership[]
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö optional team membership (stub; empty ΓçÆ eligibility not locked out).
++model SupportTeamMembership {
++  id        String   @id @default(cuid())
++  teamCode  String
++  adminId   String
++  createdAt DateTime @default(now())
++  team      SupportTeam @relation(fields: [teamCode], references: [code], onDelete: Cascade)
++  admin     Admin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
++
++  @@unique([teamCode, adminId])
++  @@index([adminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö append-only assignment / queue change history.
++model SupportAssignmentHistory {
++  id                   String   @id @default(cuid())
++  ticketId             String
++  fromAssigneeAdminId  String?
++  toAssigneeAdminId    String?
++  fromQueueCode        String?
++  toQueueCode          String?
++  changedByAdminId     String?
++  reason               String?
++  at                   DateTime @default(now())
++  ticket               SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin       Admin?   @relation("SupportAssignmentChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toAssigneeAdminId])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned SLA policy (pinned onto clock rows).
++model SupportSlaPolicy {
++  id                            String   @id @default(cuid())
++  versionId                     String   @unique
++  name                          String
++  ackCountsAsFirstResponse      Boolean  @default(false)
++  resolutionStartsOn            String   @default("CREATE")
++  stopResolutionOnClosed        Boolean  @default(true)
++  pauseOnWaitingForCustomer     Boolean  @default(true)
++  pauseOnWaitingForInternalTeam Boolean  @default(true)
++  pauseOnWaitingForVendor       Boolean  @default(true)
++  /// JSON targets map: { FIRST_RESPONSE: { businessMs }, RESOLUTION: { businessMs }, ... }
++  targetsJson                   String   @db.Text
++  active                        Boolean  @default(true)
++  createdByAdminId              String?
++  createdAt                     DateTime @default(now())
++  updatedAt                     DateTime @updatedAt
++  createdByAdmin                Admin?   @relation("SupportSlaPolicyCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned business calendar (pinned onto clock rows).
++model SupportSlaCalendar {
++  id               String   @id @default(cuid())
++  versionId        String   @unique
++  name             String
++  timezone         String
++  /// JSON: workdays[], workingHours {start,end}, holidays[]
++  definitionJson   String   @db.Text
++  active           Boolean  @default(true)
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  createdByAdmin   Admin?   @relation("SupportSlaCalendarCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö SLA clock instance; policyVersion + calendarVersion pinned at start.
++model SupportSlaClock {
++  id               String    @id @default(cuid())
++  ticketId         String
++  clockType        String
++  state            String    @default("RUNNING")
++  policyVersion    String
++  calendarVersion  String
++  targetBusinessMs Int
++  startedAt        DateTime  @default(now())
++  dueAt            DateTime?
++  pausedAt         DateTime?
++  pausedMs         Int       @default(0)
++  stoppedAt        DateTime?
++  breachedAt       DateTime?
++  createdAt        DateTime  @default(now())
++  updatedAt        DateTime  @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  events           SupportSlaEvent[]
++
++  @@index([ticketId, clockType])
++  @@index([ticketId, state])
++  @@index([state, dueAt])
++  @@index([policyVersion])
++  @@index([calendarVersion])
++}
++
++/// Phase 10 Wave 3 ΓÇö append-only SLA events (breach facts immutable).
++model SupportSlaEvent {
++  id        String   @id @default(cuid())
++  clockId   String
++  eventType String
++  at        DateTime @default(now())
++  metaJson  String?
++  clock     SupportSlaClock @relation(fields: [clockId], references: [id], onDelete: Cascade)
++
++  @@index([clockId, at])
++  @@index([clockId, eventType])
++  @@index([eventType, at])
++}

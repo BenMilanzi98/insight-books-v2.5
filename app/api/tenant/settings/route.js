@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { ensureDefaultTaxAccountsForTenant } from '@/lib/taxAccountsInitialization';
+import { MALAWI_STANDARD_VAT_RATE } from '@/lib/malawiTaxCatalog';
 
 // GET - Fetch tenant settings
 export async function GET(request) {
@@ -74,6 +75,7 @@ export async function GET(request) {
       businessEmail: settings?.businessEmail,
       buildingName: settings?.buildingName,
       receiptFooter: settings?.receiptFooter,
+      receiptPaperWidthMm: settings?.receiptPaperWidthMm ?? 80,
       defaultBankDetails: settings?.defaultBankDetails,
       taxInflowAccountId: settings?.taxInflowAccountId ?? null,
       taxOutflowAccountId: settings?.taxOutflowAccountId ?? null,
@@ -173,6 +175,14 @@ export async function PUT(request) {
       businessEmail: body.businessEmail,
       buildingName: body.buildingName,
       receiptFooter: body.receiptFooter,
+      receiptPaperWidthMm:
+        body.receiptPaperWidthMm !== undefined
+          ? (() => {
+              const n = Number(body.receiptPaperWidthMm);
+              if (!Number.isFinite(n)) return undefined;
+              return Math.min(90, Math.max(58, Math.round(n)));
+            })()
+          : undefined,
       defaultBankDetails: body.defaultBankDetails,
       taxInflowAccountId: body.taxInflowAccountId === '' ? null : body.taxInflowAccountId,
       taxOutflowAccountId: body.taxOutflowAccountId === '' ? null : body.taxOutflowAccountId,
@@ -204,7 +214,7 @@ export async function PUT(request) {
     const createPayload = {
       tenantId: user.tenantId,
       taxEnabled: true,
-      defaultTaxRate: 0,
+      defaultTaxRate: MALAWI_STANDARD_VAT_RATE,
       currencyCode: 'MWK',
       invoicePrefix: 'INV',
       invoiceTemplate: 'default',

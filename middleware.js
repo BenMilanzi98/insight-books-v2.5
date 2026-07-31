@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { parseSessionPayload } from '@/lib/sessionCookie';
+import { parseSessionPayloadEdge } from '@/lib/sessionCookieEdge';
 import { isApiPublicPath } from '@/lib/tenantApiAccess';
+import { evaluateCutoverAccess } from '@/lib/productionCutover/modes';
 
 async function finishTenantRouteAccess(request, sessionCookie, pathname, requestHeaders) {
   try {
@@ -70,6 +71,33 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
+  // Phase 18 — server-enforced cutover / maintenance / write freeze (CUTOVER_MODE)
+  {
+    const cutover = evaluateCutoverAccess({
+      pathname,
+      method: request.method,
+    });
+    if (!cutover.allow) {
+      if (pathname.startsWith('/api')) {
+        return NextResponse.json(
+          {
+            error: cutover.message,
+            code: cutover.code,
+            mode: cutover.mode,
+            retryable: true,
+          },
+          { status: cutover.status || 503 }
+        );
+      }
+      if (pathname !== '/maintenance') {
+        const url = request.nextUrl.clone();
+        url.pathname = '/maintenance';
+        url.search = '';
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   if (pathname.startsWith('/api')) {
     const sessionCookie = request.cookies.get('session')?.value;
     const requestHeaders = new Headers(request.headers);
@@ -89,13 +117,13 @@ export async function middleware(request) {
     return NextResponse.redirect(url);
   }
 
-  // --- /insightbooks: admin-only (not for tenants). Requires admin_token cookie. ---
+  // --- /insightbooks: admin-only. Requires valid admin JWT (not cookie presence alone). ---
   if (pathname.startsWith('/insightbooks')) {
+    const { verifyAdminJwtEdge } = await import('@/lib/admin/authorization/verifyAdminJwtEdge');
     const adminToken = request.cookies.get('admin_token')?.value;
     const isInsightBooksLogin = pathname === '/insightbooks/login';
 
     if (isInsightBooksLogin) {
-      // Allow access to admin login page without admin token
       return NextResponse.next();
     }
 
@@ -106,7 +134,16 @@ export async function middleware(request) {
       return NextResponse.redirect(url);
     }
 
-    // Admin token present: allow. No tenant subscription check for insightbooks.
+    const verified = await verifyAdminJwtEdge(adminToken);
+    if (!verified.ok) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/insightbooks/login';
+      url.search = `?redirect=${encodeURIComponent(pathname)}&reason=session`;
+      const res = NextResponse.redirect(url);
+      res.cookies.set('admin_token', '', { httpOnly: true, path: '/', maxAge: 0 });
+      return res;
+    }
+
     return NextResponse.next();
   }
 
@@ -118,6 +155,7 @@ export async function middleware(request) {
     pathname === '/auth/forgot-password' ||
     pathname === '/auth/reset-password' ||
     pathname === '/suspended' ||
+    pathname === '/maintenance' ||
     pathname === '/contact' ||
     pathname === '/terms' ||
     pathname === '/privacy' ||
@@ -141,7 +179,7 @@ export async function middleware(request) {
     }
     
     try {
-      const sessionData = parseSessionPayload(sessionCookie);
+      const sessionData = await parseSessionPayloadEdge(sessionCookie);
       if (!sessionData) {
         throw new Error('Invalid session');
       }

@@ -1,37 +1,16 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { requireAdminDecision } from '@/lib/admin/authorization/requireAdminDecision';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 
 const prisma = new PrismaClient();
 
 export async function GET(request) {
   try {
-    // Verify admin authentication
-    const token = request.cookies.get('admin_token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    let decoded;
-    try {
-      decoded = jwt.verify(token, getJwtSecret());
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid token' },
-        { status: 403 }
-      );
-    }
-
-    if (!decoded.isAdmin) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient privileges' },
-        { status: 403 }
-      );
-    }
+    const gate = await requireAdminDecision(request, {
+      permission: SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+    });
+    if (!gate.ok) return gate.response;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);

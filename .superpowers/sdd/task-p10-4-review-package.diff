@@ -1,0 +1,3720 @@
+﻿# Review package — Phase 10 Task 4 (WORKING_TREE)
+
+diff --git a/lib/admin/support/handoffs.js b/lib/admin/support/handoffs.js
+new file mode 100644
+index 0000000..0688e24
+--- /dev/null
++++ b/lib/admin/support/handoffs.js
+@@ -0,0 +1,272 @@
++/**
++ * Support handoffs ΓÇö link-only records.
++ * Never mutates AccountSubscription, Tenant GL, MRA fiscal, or CsCase status.
++ */
++
++import {
++  SUPPORT_HANDOFF_STATUS,
++  SUPPORT_HANDOFF_TARGET,
++  SUPPORT_HANDOFF_TARGETS,
++} from './catalogue.js';
++import { resolveSupportAccess } from './authz.js';
++import { findSupportTicket } from './ticketLookup.js';
++import { getProductFeature } from '@/lib/admin/productCatalogue/features.js';
++
++const FORBIDDEN_PAYLOAD_KEYS = Object.freeze([
++  'credentials',
++  'password',
++  'secret',
++  'apiKey',
++  'api_key',
++  'token',
++  'rawPayload',
++  'rawMraPayload',
++  'mraPayload',
++  'paymentSecret',
++  'cardNumber',
++  'glLines',
++  'tenantGl',
++]);
++
++export function hasSupportHandoffModel(prisma) {
++  return typeof prisma?.supportHandoff?.findMany === 'function';
++}
++
++function serializeHandoff(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    ticketId: row.ticketId,
++    tenantId: row.tenantId,
++    targetType: row.targetType,
++    status: row.status,
++    summary: row.summary || null,
++    targetRefId: row.targetRefId || null,
++    featureCode: row.featureCode || null,
++    payload: row.payload || null,
++    createdByAdminId: row.createdByAdminId || null,
++    recordOnly: true,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++/**
++ * Strip forbidden keys; keep id-only link fields per target.
++ * @param {string} targetType
++ * @param {object|null|undefined} payload
++ */
++export function sanitizeHandoffPayload(targetType, payload) {
++  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
++    return null;
++  }
++  const out = {};
++  for (const [key, value] of Object.entries(payload)) {
++    const k = String(key);
++    if (FORBIDDEN_PAYLOAD_KEYS.some((f) => k.toLowerCase().includes(f.toLowerCase()))) {
++      continue;
++    }
++    if (value != null && typeof value === 'object') continue;
++    out[k] = value;
++  }
++
++  const t = String(targetType || '').toUpperCase();
++  if (t === SUPPORT_HANDOFF_TARGET.CS) {
++    const allowed = ['ticketId', 'tenantId', 'csCaseId', 'summary'];
++    return pickKeys(out, allowed);
++  }
++  if (t === SUPPORT_HANDOFF_TARGET.PRODUCT) {
++    return pickKeys(out, ['ticketId', 'tenantId', 'featureCode', 'summary']);
++  }
++  if (t === SUPPORT_HANDOFF_TARGET.FINANCE || t === SUPPORT_HANDOFF_TARGET.BILLING) {
++    return pickKeys(out, [
++      'ticketId',
++      'tenantId',
++      'invoiceId',
++      'subscriptionId',
++      'summary',
++    ]);
++  }
++  if (t === SUPPORT_HANDOFF_TARGET.MRA) {
++    return pickKeys(out, [
++      'ticketId',
++      'tenantId',
++      'transmissionId',
++      'fiscalTransmissionId',
++      'fiscalDocumentId',
++      'summary',
++    ]);
++  }
++  return out;
++}
++
++function pickKeys(obj, keys) {
++  const out = {};
++  for (const k of keys) {
++    if (obj[k] != null && obj[k] !== '') out[k] = obj[k];
++  }
++  return Object.keys(out).length ? out : null;
++}
++
++/**
++ * Create a link-only handoff. Does not touch CsCase / billing / MRA / GL.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   ticketId: string,
++ *   targetType: string,
++ *   summary?: string,
++ *   targetRefId?: string,
++ *   featureCode?: string,
++ *   payload?: object,
++ *   status?: string,
++ * }} args
++ */
++export async function createSupportHandoff(prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canCreateHandoffs) {
++    return { ok: false, forbidden: true, reason: 'create_handoff_required' };
++  }
++
++  if (!hasSupportHandoffModel(prisma)) {
++    return { ok: false, error: 'support_handoff_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const ticket = await findSupportTicket(prisma, args.ticketId);
++  if (!ticket) {
++    return { ok: false, notFound: true, error: 'ticket_not_found' };
++  }
++
++  const targetType = String(args.targetType || '')
++    .trim()
++    .toUpperCase();
++  if (!SUPPORT_HANDOFF_TARGETS.includes(targetType)) {
++    return {
++      ok: false,
++      error: `targetType must be one of ${SUPPORT_HANDOFF_TARGETS.join('|')}`,
++    };
++  }
++
++  let featureCode = args.featureCode ? String(args.featureCode).trim() : null;
++  if (targetType === SUPPORT_HANDOFF_TARGET.PRODUCT && featureCode) {
++    const feature = getProductFeature(featureCode);
++    if (!feature) {
++      return {
++        ok: false,
++        error: 'unknown_feature_code',
++        hint: 'Use an optional Phase 9 catalogue featureCode or omit',
++      };
++    }
++  } else if (targetType !== SUPPORT_HANDOFF_TARGET.PRODUCT) {
++    featureCode = null;
++  }
++
++  const statusRaw = args.status
++    ? String(args.status).trim().toUpperCase()
++    : SUPPORT_HANDOFF_STATUS.OPEN;
++  const status = Object.values(SUPPORT_HANDOFF_STATUS).includes(statusRaw)
++    ? statusRaw
++    : SUPPORT_HANDOFF_STATUS.OPEN;
++
++  const basePayload = {
++    ticketId: ticket.id,
++    tenantId: ticket.tenantId,
++    ...(args.payload && typeof args.payload === 'object' ? args.payload : {}),
++  };
++  if (args.targetRefId) {
++    if (targetType === SUPPORT_HANDOFF_TARGET.CS) basePayload.csCaseId = String(args.targetRefId);
++    if (targetType === SUPPORT_HANDOFF_TARGET.FINANCE || targetType === SUPPORT_HANDOFF_TARGET.BILLING) {
++      basePayload.invoiceId = basePayload.invoiceId || String(args.targetRefId);
++    }
++    if (targetType === SUPPORT_HANDOFF_TARGET.MRA) {
++      basePayload.transmissionId = basePayload.transmissionId || String(args.targetRefId);
++    }
++  }
++  if (featureCode) basePayload.featureCode = featureCode;
++  if (args.summary) basePayload.summary = String(args.summary).trim();
++
++  const payload = sanitizeHandoffPayload(targetType, basePayload);
++
++  const row = await prisma.supportHandoff.create({
++    data: {
++      ticketId: ticket.id,
++      tenantId: ticket.tenantId,
++      targetType,
++      status,
++      summary: args.summary ? String(args.summary).trim() : null,
++      targetRefId: args.targetRefId ? String(args.targetRefId).trim() : null,
++      featureCode,
++      createdByAdminId: args.admin?.id || null,
++      payload,
++    },
++  });
++
++  return {
++    ok: true,
++    created: true,
++    handoff: serializeHandoff(row),
++    meta: {
++      recordOnly: true,
++      mutatesSubscription: false,
++      mutatesTenantGl: false,
++      mutatesMraFiscal: false,
++      mutatesCsCaseStatus: false,
++      opensCsCase: false,
++    },
++  };
++}
++
++/**
++ * List handoffs for a ticket (or all when ticketId omitted ΓÇö UI list page).
++ */
++export async function listSupportHandoffs(prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canViewTickets) {
++    return { ok: false, forbidden: true, reason: 'view_tickets_required', items: [] };
++  }
++
++  if (!hasSupportHandoffModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'support_handoff_model_unavailable', recordOnly: true },
++    };
++  }
++
++  const where = {};
++  if (args.ticketId) {
++    const ticket = await findSupportTicket(prisma, args.ticketId);
++    if (!ticket) {
++      return { ok: false, notFound: true, error: 'ticket_not_found', items: [] };
++    }
++    where.ticketId = ticket.id;
++  }
++  if (args.targetType) where.targetType = String(args.targetType).toUpperCase();
++  if (args.status) where.status = String(args.status).toUpperCase();
++
++  const take = Math.min(200, Math.max(1, Number(args.limit) || 50));
++  let rows = [];
++  try {
++    rows = await prisma.supportHandoff.findMany({
++      where,
++      orderBy: { createdAt: 'desc' },
++      take,
++    });
++  } catch {
++    rows = await prisma.supportHandoff.findMany({ where });
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeHandoff),
++    meta: {
++      count: (rows || []).length,
++      recordOnly: true,
++      mutatesSubscription: false,
++      mutatesCsCaseStatus: false,
++    },
++  };
++}
++
++export { serializeHandoff, FORBIDDEN_PAYLOAD_KEYS };
+diff --git a/lib/admin/support/reconciliation.js b/lib/admin/support/reconciliation.js
+new file mode 100644
+index 0000000..f0c833d
+--- /dev/null
++++ b/lib/admin/support/reconciliation.js
+@@ -0,0 +1,489 @@
++/**
++ * Support reconciliation ΓÇö ticket vs status history / messages / SLA clocks.
++ * Never invents false zeroes; failed counts ΓåÆ null + gate status.
++ */
++
++import {
++  SUPPORT_RECON_VERSION,
++  SUPPORT_RELIABILITY_STATUS,
++  SUPPORT_TICKET_STATUS,
++} from './catalogue.js';
++import { resolveSupportAccess } from './authz.js';
++
++export function hasSupportReconciliationRunModel(prisma) {
++  return typeof prisma?.supportReconciliationRun?.create === 'function';
++}
++
++async function safeCount(fn) {
++  try {
++    const value = await fn();
++    if (typeof value !== 'number' || Number.isNaN(value)) {
++      return { ok: false, value: null, error: 'non_numeric_count' };
++    }
++    return { ok: true, value };
++  } catch (e) {
++    return { ok: false, value: null, error: e?.message || 'count_failed' };
++  }
++}
++
++function card(id, label, value, status, detail) {
++  return {
++    id,
++    label,
++    value: value == null ? null : value,
++    status,
++    detail: detail || null,
++  };
++}
++
++/**
++ * Pure honesty: recon failure must not yield fabricated zero KPIs.
++ */
++export function applySupportReconHonesty(input = {}) {
++  const failed =
++    input.status === SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED ||
++    input.reconOk === false;
++  const unavailable =
++    input.status === SUPPORT_RELIABILITY_STATUS.UNAVAILABLE ||
++    input.status === SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED ||
++    input.status === SUPPORT_RELIABILITY_STATUS.PERMISSION_RESTRICTED;
++
++  if (!failed && !unavailable) {
++    return {
++      kpiSafe: true,
++      ticketCount: input.ticketCount,
++      status: input.status || SUPPORT_RELIABILITY_STATUS.AVAILABLE,
++    };
++  }
++
++  return {
++    kpiSafe: false,
++    ticketCount: null,
++    messageCount: null,
++    slaClockCount: null,
++    status: failed
++      ? SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED
++      : input.status || SUPPORT_RELIABILITY_STATUS.UNAVAILABLE,
++    reasonMessage:
++      'Failed or unavailable reconciliation blocks numeric KPIs ΓÇö never false zeroes',
++  };
++}
++
++/**
++ * Run light support reconciliation checks.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, persist?: boolean, ticketLimit?: number }} args
++ */
++export async function runSupportReconciliation(prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canViewTickets) {
++    return {
++      ok: false,
++      forbidden: true,
++      status: SUPPORT_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      reconVersion: SUPPORT_RECON_VERSION,
++    };
++  }
++  if (!access.canRunReconciliation) {
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'run_reconciliation_required',
++      status: SUPPORT_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      reconVersion: SUPPORT_RECON_VERSION,
++    };
++  }
++
++  const cards = [];
++  let overall = SUPPORT_RELIABILITY_STATUS.AVAILABLE;
++  let reconOk = true;
++
++  const hasTicket = typeof prisma?.supportTicket?.count === 'function';
++  const hasHistory = typeof prisma?.supportTicketStatusHistory?.count === 'function';
++  const hasMessages = typeof prisma?.supportMessage?.count === 'function';
++  const hasSla = typeof prisma?.supportSlaClock?.count === 'function';
++
++  if (!hasTicket) {
++    return {
++      ok: true,
++      status: SUPPORT_RELIABILITY_STATUS.UNAVAILABLE,
++      reconVersion: SUPPORT_RECON_VERSION,
++      cards: [
++        card(
++          'tickets.model',
++          'SupportTicket model',
++          null,
++          SUPPORT_RELIABILITY_STATUS.UNAVAILABLE,
++          'supportTicket.count unavailable'
++        ),
++      ],
++      summary: {
++        ticketCount: null,
++        statusHistoryCount: null,
++        messageCount: null,
++        slaClockCount: null,
++        mismatchedStatusSamples: null,
++      },
++      meta: {
++        inventZeroesForbidden: true,
++        honesty: applySupportReconHonesty({
++          status: SUPPORT_RELIABILITY_STATUS.UNAVAILABLE,
++          ticketCount: null,
++        }),
++      },
++    };
++  }
++
++  const ticketCount = await safeCount(() => prisma.supportTicket.count());
++  if (!ticketCount.ok) {
++    reconOk = false;
++    overall = SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++    cards.push(
++      card(
++        'tickets.count',
++        'Ticket count',
++        null,
++        SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++        ticketCount.error
++      )
++    );
++  } else {
++    cards.push(
++      card(
++        'tickets.count',
++        'Ticket count',
++        ticketCount.value,
++        SUPPORT_RELIABILITY_STATUS.AVAILABLE,
++        null
++      )
++    );
++  }
++
++  let statusHistoryCount = { ok: false, value: null };
++  if (!hasHistory) {
++    cards.push(
++      card(
++        'statusHistory.model',
++        'Status history model',
++        null,
++        SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED,
++        'supportTicketStatusHistory unavailable'
++      )
++    );
++    if (overall === SUPPORT_RELIABILITY_STATUS.AVAILABLE) {
++      overall = SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED;
++    }
++  } else {
++    statusHistoryCount = await safeCount(() => prisma.supportTicketStatusHistory.count());
++    if (!statusHistoryCount.ok) {
++      reconOk = false;
++      overall = SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++      cards.push(
++        card(
++          'statusHistory.count',
++          'Status history count',
++          null,
++          SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++          statusHistoryCount.error
++        )
++      );
++    } else {
++      cards.push(
++        card(
++          'statusHistory.count',
++          'Status history count',
++          statusHistoryCount.value,
++          SUPPORT_RELIABILITY_STATUS.AVAILABLE,
++          null
++        )
++      );
++    }
++  }
++
++  let messageCount = { ok: false, value: null };
++  if (!hasMessages) {
++    cards.push(
++      card(
++        'messages.model',
++        'Message model',
++        null,
++        SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED,
++        'supportMessage unavailable'
++      )
++    );
++  } else {
++    messageCount = await safeCount(() => prisma.supportMessage.count());
++    if (!messageCount.ok) {
++      reconOk = false;
++      overall = SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++      cards.push(
++        card(
++          'messages.count',
++          'Message count',
++          null,
++          SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++          messageCount.error
++        )
++      );
++    } else {
++      cards.push(
++        card(
++          'messages.count',
++          'Message count',
++          messageCount.value,
++          SUPPORT_RELIABILITY_STATUS.AVAILABLE,
++          null
++        )
++      );
++    }
++  }
++
++  let slaClockCount = { ok: false, value: null };
++  if (!hasSla) {
++    cards.push(
++      card(
++        'sla.model',
++        'SLA clock model',
++        null,
++        SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED,
++        'supportSlaClock unavailable'
++      )
++    );
++  } else {
++    slaClockCount = await safeCount(() => prisma.supportSlaClock.count());
++    if (!slaClockCount.ok) {
++      reconOk = false;
++      overall = SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++      cards.push(
++        card(
++          'sla.count',
++          'SLA clock count',
++          null,
++          SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++          slaClockCount.error
++        )
++      );
++    } else {
++      cards.push(
++        card(
++          'sla.count',
++          'SLA clock count',
++          slaClockCount.value,
++          SUPPORT_RELIABILITY_STATUS.AVAILABLE,
++          null
++        )
++      );
++    }
++  }
++
++  /** Sample tickets for status vs latest history consistency (capped). */
++  let mismatchedStatusSamples = [];
++  const sampleLimit = Math.min(50, Math.max(1, Number(args.ticketLimit) || 25));
++  if (
++    ticketCount.ok &&
++    hasHistory &&
++    typeof prisma.supportTicket.findMany === 'function' &&
++    typeof prisma.supportTicketStatusHistory.findFirst === 'function'
++  ) {
++    try {
++      const tickets = await prisma.supportTicket.findMany({
++        take: sampleLimit,
++        orderBy: { createdAt: 'desc' },
++        select: { id: true, ticketNumber: true, status: true },
++      });
++      for (const t of tickets || []) {
++        const latest = await prisma.supportTicketStatusHistory.findFirst({
++          where: { ticketId: t.id },
++          orderBy: { at: 'desc' },
++        });
++        if (!latest) {
++          if (t.status !== SUPPORT_TICKET_STATUS.NEW) {
++            mismatchedStatusSamples.push({
++              ticketId: t.id,
++              ticketNumber: t.ticketNumber,
++              ticketStatus: t.status,
++              historyToStatus: null,
++              reason: 'missing_history_for_non_new',
++            });
++          }
++          continue;
++        }
++        if (latest.toStatus && latest.toStatus !== t.status) {
++          mismatchedStatusSamples.push({
++            ticketId: t.id,
++            ticketNumber: t.ticketNumber,
++            ticketStatus: t.status,
++            historyToStatus: latest.toStatus,
++            reason: 'status_history_mismatch',
++          });
++        }
++      }
++      if (mismatchedStatusSamples.length > 0) {
++        overall = SUPPORT_RELIABILITY_STATUS.PARTIAL_HISTORY;
++        cards.push(
++          card(
++            'statusHistory.mismatch',
++            'Status vs history mismatches (sample)',
++            mismatchedStatusSamples.length,
++            SUPPORT_RELIABILITY_STATUS.PARTIAL_HISTORY,
++            'Sampled tickets where current status Γëá latest history (or missing history)'
++          )
++        );
++      } else {
++        cards.push(
++          card(
++            'statusHistory.mismatch',
++            'Status vs history mismatches (sample)',
++            0,
++            SUPPORT_RELIABILITY_STATUS.AVAILABLE,
++            `Sampled ${tickets?.length || 0} tickets`
++          )
++        );
++      }
++    } catch (e) {
++      reconOk = false;
++      overall = SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++      mismatchedStatusSamples = null;
++      cards.push(
++        card(
++          'statusHistory.sample',
++          'Status history sample',
++          null,
++          SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++          e?.message || 'sample_failed'
++        )
++      );
++    }
++  }
++
++  if (!reconOk && overall !== SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED) {
++    overall = SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++  }
++
++  const summary = {
++    ticketCount: ticketCount.ok ? ticketCount.value : null,
++    statusHistoryCount: statusHistoryCount.ok ? statusHistoryCount.value : null,
++    messageCount: messageCount.ok ? messageCount.value : null,
++    slaClockCount: slaClockCount.ok ? slaClockCount.value : null,
++    mismatchedStatusSamples:
++      mismatchedStatusSamples == null
++        ? null
++        : mismatchedStatusSamples.slice(0, 10),
++  };
++
++  const result = {
++    ok: true,
++    status: overall,
++    reconOk,
++    reconVersion: SUPPORT_RECON_VERSION,
++    cards,
++    summary,
++    meta: {
++      inventZeroesForbidden: true,
++      honesty: applySupportReconHonesty({
++        status: overall,
++        reconOk,
++        ticketCount: summary.ticketCount,
++      }),
++    },
++  };
++
++  if (args.persist && hasSupportReconciliationRunModel(prisma)) {
++    try {
++      const run = await prisma.supportReconciliationRun.create({
++        data: {
++          status: overall,
++          summaryJson: JSON.stringify({
++            reconVersion: SUPPORT_RECON_VERSION,
++            cards,
++            summary,
++          }),
++          runByAdminId: args.admin?.id || null,
++        },
++      });
++      result.runId = run.id;
++      result.persisted = true;
++    } catch {
++      result.persisted = false;
++      result.persistError = 'recon_run_persist_failed';
++    }
++  }
++
++  return result;
++}
++
++/**
++ * GET helper ΓÇö latest persisted run or live dry run (no persist).
++ */
++export async function getSupportReconciliation(prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canViewTickets) {
++    return {
++      ok: false,
++      forbidden: true,
++      status: SUPPORT_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      reconVersion: SUPPORT_RECON_VERSION,
++    };
++  }
++  if (!access.canRunReconciliation && !access.canViewTickets) {
++    return {
++      ok: false,
++      forbidden: true,
++      status: SUPPORT_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      reconVersion: SUPPORT_RECON_VERSION,
++    };
++  }
++
++  /** Viewers may see last run; running requires runReconciliation (POST). */
++  if (
++    hasSupportReconciliationRunModel(prisma) &&
++    typeof prisma.supportReconciliationRun.findFirst === 'function'
++  ) {
++    try {
++      const last = await prisma.supportReconciliationRun.findFirst({
++        orderBy: { createdAt: 'desc' },
++      });
++      if (last) {
++        let parsed = {};
++        try {
++          parsed = JSON.parse(last.summaryJson || '{}');
++        } catch {
++          parsed = {};
++        }
++        return {
++          ok: true,
++          status: last.status,
++          reconVersion: SUPPORT_RECON_VERSION,
++          fromPersist: true,
++          runId: last.id,
++          createdAt: last.createdAt ? new Date(last.createdAt).toISOString() : null,
++          cards: parsed.cards || [],
++          summary: parsed.summary || null,
++          meta: {
++            inventZeroesForbidden: true,
++            note: 'Latest persisted run ΓÇö POST to re-run',
++          },
++        };
++      }
++    } catch {
++      // fall through to dry run if permitted
++    }
++  }
++
++  if (!access.canRunReconciliation) {
++    return {
++      ok: true,
++      status: SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED,
++      reconVersion: SUPPORT_RECON_VERSION,
++      cards: [],
++      summary: null,
++      meta: {
++        inventZeroesForbidden: true,
++        reason: 'no_persisted_run_and_run_permission_missing',
++      },
++    };
++  }
++
++  return runSupportReconciliation(prisma, { ...args, persist: false });
++}
+diff --git a/lib/admin/support/export.js b/lib/admin/support/export.js
+new file mode 100644
+index 0000000..73bd189
+--- /dev/null
++++ b/lib/admin/support/export.js
+@@ -0,0 +1,178 @@
++/**
++ * Support export foundation ΓÇö JSON/CSV only.
++ * Requires systemAdmin.support.export; rechecked at download time.
++ * Empty result Γëá invent rows. No XLSX/PDF.
++ */
++
++import { preventFormulaInjection } from '@/lib/admin/exportSafety.js';
++import { SUPPORT_EXPORT_VERSION, SUPPORT_LIST_MAX_LIMIT } from './catalogue.js';
++import { resolveSupportAccess } from './authz.js';
++import { listTickets } from './tickets.js';
++
++export function hasSupportExportAuditModel(prisma) {
++  return typeof prisma?.supportExportAudit?.create === 'function';
++}
++
++function csvEscape(value) {
++  const safe = preventFormulaInjection(value == null ? '' : value);
++  if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
++  return safe;
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   dataset?: 'tickets',
++ *   format?: 'json'|'csv',
++ *   status?: string,
++ *   limit?: number,
++ *   now?: Date,
++ * }} opts
++ */
++export async function buildSupportExportPack(prisma, opts = {}) {
++  const access = resolveSupportAccess(opts.admin);
++  if (!access.canViewTickets) {
++    return {
++      ok: false,
++      forbidden: true,
++      exportVersion: SUPPORT_EXPORT_VERSION,
++      reasonCode: 'view_tickets_required',
++    };
++  }
++  /** Recheck export permission at download time. */
++  if (!access.canExport) {
++    return {
++      ok: false,
++      forbidden: true,
++      exportVersion: SUPPORT_EXPORT_VERSION,
++      reasonCode: 'export_permission_required',
++      status: 'PERMISSION_RESTRICTED',
++    };
++  }
++
++  const dataset = String(opts.dataset || 'tickets').toLowerCase();
++  const format = String(opts.format || 'json').toLowerCase();
++  if (format !== 'json' && format !== 'csv') {
++    return { ok: false, error: 'format must be json|csv', exportVersion: SUPPORT_EXPORT_VERSION };
++  }
++  if (dataset !== 'tickets') {
++    return {
++      ok: false,
++      error: 'dataset must be tickets (foundation)',
++      exportVersion: SUPPORT_EXPORT_VERSION,
++    };
++  }
++
++  const limit = Math.min(
++    SUPPORT_LIST_MAX_LIMIT,
++    Math.max(1, Number(opts.limit) || SUPPORT_LIST_MAX_LIMIT)
++  );
++
++  const listed = await listTickets(prisma, {
++    admin: opts.admin,
++    status: opts.status,
++    limit,
++    offset: 0,
++  });
++
++  if (listed.forbidden) {
++    return {
++      ok: false,
++      forbidden: true,
++      exportVersion: SUPPORT_EXPORT_VERSION,
++      reasonCode: 'view_tickets_required',
++    };
++  }
++  if (!listed.ok) {
++    return {
++      ok: false,
++      error: listed.error || 'export_list_failed',
++      status: listed.status || 'UNAVAILABLE',
++      exportVersion: SUPPORT_EXPORT_VERSION,
++      rows: [],
++    };
++  }
++
++  const rows = Array.isArray(listed.items) ? listed.items : [];
++
++  if (hasSupportExportAuditModel(prisma)) {
++    try {
++      await prisma.supportExportAudit.create({
++        data: {
++          adminId: opts.admin?.id || null,
++          dataset,
++          format,
++          rowCount: rows.length,
++        },
++      });
++    } catch {
++      // audit soft-fail ΓÇö still return export
++    }
++  }
++
++  const pack = {
++    ok: true,
++    dataset,
++    format,
++    exportVersion: SUPPORT_EXPORT_VERSION,
++    exportedAt: (opts.now || new Date()).toISOString(),
++    rowCount: rows.length,
++    rows,
++    limitations: [
++      'Support export foundation ΓÇö capped ticket list, not a full dump',
++      'Permission-checked (systemAdmin.support.export) at download time',
++      'Empty result returns zero rows ΓÇö never invents tickets',
++      'XLSX/PDF not offered',
++      'Never includes Tenant GL, MRA credentials, or payment secrets',
++    ],
++  };
++
++  if (format === 'csv') {
++    pack.csv = ticketsToCsv(rows);
++    pack.contentType = 'text/csv; charset=utf-8';
++  } else {
++    pack.contentType = 'application/json; charset=utf-8';
++  }
++
++  return pack;
++}
++
++function ticketsToCsv(rows) {
++  const headers = [
++    'id',
++    'ticketNumber',
++    'tenantId',
++    'status',
++    'type',
++    'priority',
++    'queueCode',
++    'sourceChannel',
++    'title',
++    'assigneeAdminId',
++    'createdAt',
++  ];
++  const lines = [headers.join(',')];
++  for (const row of rows) {
++    lines.push(
++      [
++        row.id,
++        row.ticketNumber,
++        row.tenantId,
++        row.status,
++        row.type,
++        row.priority,
++        row.queueCode,
++        row.sourceChannel,
++        row.title,
++        row.assigneeAdminId,
++        row.createdAt,
++      ]
++        .map(csvEscape)
++        .join(',')
++    );
++  }
++  return `${lines.join('\n')}\n`;
++}
++
++export { csvEscape };
+diff --git a/lib/admin/support/foundations.js b/lib/admin/support/foundations.js
+new file mode 100644
+index 0000000..80fcfc7
+--- /dev/null
++++ b/lib/admin/support/foundations.js
+@@ -0,0 +1,96 @@
++/**
++ * Support foundations ΓÇö KB / Problem Management / CSAT / Automation contracts.
++ * Status NOT_AVAILABLE or FOUNDATION only. Never invent CSAT scores.
++ */
++
++import {
++  SUPPORT_FOUNDATION_KIND,
++  SUPPORT_FOUNDATION_STATUS,
++  SUPPORT_WAVE4_DEFINITION_VERSION,
++} from './catalogue.js';
++import { resolveSupportAccess } from './authz.js';
++
++const FOUNDATION_CONTRACTS = Object.freeze({
++  [SUPPORT_FOUNDATION_KIND.KNOWLEDGE_BASE]: {
++    status: SUPPORT_FOUNDATION_STATUS.NOT_AVAILABLE,
++    contract:
++      'Knowledge Base articles, search, and ticket deflection are deferred. No invented article counts or deflection rates.',
++    deferredTo: 'Phase 11+',
++  },
++  [SUPPORT_FOUNDATION_KIND.PROBLEM_MANAGEMENT]: {
++    status: SUPPORT_FOUNDATION_STATUS.FOUNDATION,
++    contract:
++      'Problem Management records and major-incident linkage are foundation-only. SupportTicket remains the operational plane; no fake problem KPIs.',
++    deferredTo: 'Phase 11+',
++  },
++  [SUPPORT_FOUNDATION_KIND.CSAT]: {
++    status: SUPPORT_FOUNDATION_STATUS.NOT_AVAILABLE,
++    contract:
++      'CSAT / satisfaction surveys are not instrumented. score is always null ΓÇö never invent CSAT averages or sample scores.',
++    deferredTo: 'Phase 11+',
++    score: null,
++    inventScoresForbidden: true,
++  },
++  [SUPPORT_FOUNDATION_KIND.AUTOMATION]: {
++    status: SUPPORT_FOUNDATION_STATUS.NOT_AVAILABLE,
++    contract:
++      'Automation / AI replies / auto-routing are deferred. Email and WhatsApp ingest remain NOT_AVAILABLE channel contracts.',
++    deferredTo: 'Phase 11+',
++  },
++});
++
++/**
++ * @param {import('@prisma/client').PrismaClient} _prisma
++ * @param {{ admin: object, kind?: string }} args
++ */
++export async function getSupportFoundations(_prisma, args = {}) {
++  const access = resolveSupportAccess(args.admin);
++  if (!access.canViewTickets) {
++    return { ok: false, forbidden: true, reason: 'view_tickets_required' };
++  }
++
++  const kindFilter = args.kind
++    ? String(args.kind).trim().toUpperCase().replace(/-/g, '_')
++    : null;
++
++  const kinds = Object.values(SUPPORT_FOUNDATION_KIND);
++  const selected = kindFilter
++    ? kinds.filter((k) => k === kindFilter || k.replace(/_/g, '') === kindFilter.replace(/_/g, ''))
++    : kinds;
++
++  if (kindFilter && selected.length === 0) {
++    return {
++      ok: false,
++      error: `kind must be one of ${kinds.join('|')}`,
++    };
++  }
++
++  const items = selected.map((kind) => {
++    const c = FOUNDATION_CONTRACTS[kind];
++    return {
++      kind,
++      status: c.status,
++      contract: c.contract,
++      deferredTo: c.deferredTo,
++      score: c.score === undefined ? undefined : null,
++      inventScoresForbidden: Boolean(c.inventScoresForbidden),
++      items: [],
++    };
++  });
++
++  return {
++    ok: true,
++    definitionVersion: SUPPORT_WAVE4_DEFINITION_VERSION,
++    status: SUPPORT_FOUNDATION_STATUS.FOUNDATION,
++    items,
++    meta: {
++      inventCsatForbidden: true,
++      inventArticleCountsForbidden: true,
++      emailChannel: 'NOT_AVAILABLE',
++      whatsappChannel: 'NOT_AVAILABLE',
++      portalChannel: 'NOT_AVAILABLE',
++    },
++  };
++}
++
++export { FOUNDATION_CONTRACTS };
+diff --git a/scripts/sql/support-ops-phase10-wave4.sql b/scripts/sql/support-ops-phase10-wave4.sql
+new file mode 100644
+index 0000000..036c953
+--- /dev/null
++++ b/scripts/sql/support-ops-phase10-wave4.sql
+@@ -0,0 +1,121 @@
++-- Phase 10 Wave 4 ΓÇö SupportHandoff, SupportReconciliationRun, SupportExportAudit
++-- (PostgreSQL). Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine,
++-- or when applying schema without a full generate cycle.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Apply steps (EPERM fallback):
++--   1. Ensure Wave 1ΓÇô3 tables exist
++--   2. psql "$DATABASE_URL" -f scripts/sql/support-ops-phase10-wave4.sql
++--   3. App guards: hasSupportHandoffModel / hasSupportReconciliationRunModel
++--   4. Retry `npx prisma generate` when the query-engine file lock clears.
++--
++-- Support Ticket Γëá CsCase Γëá PlatformSupportAccess.
++-- Handoffs are link-only ΓÇö never mutate billing / MRA fiscal / Tenant GL / CsCase status.
++
++CREATE TABLE IF NOT EXISTS "SupportHandoff" (
++  "id" TEXT PRIMARY KEY,
++  "ticketId" TEXT NOT NULL,
++  "tenantId" TEXT NOT NULL,
++  "targetType" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'OPEN',
++  "summary" TEXT,
++  "targetRefId" TEXT,
++  "featureCode" TEXT,
++  "payload" JSONB,
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE INDEX IF NOT EXISTS "SupportHandoff_ticketId_createdAt_idx"
++  ON "SupportHandoff"("ticketId", "createdAt");
++CREATE INDEX IF NOT EXISTS "SupportHandoff_tenantId_targetType_idx"
++  ON "SupportHandoff"("tenantId", "targetType");
++CREATE INDEX IF NOT EXISTS "SupportHandoff_targetType_status_idx"
++  ON "SupportHandoff"("targetType", "status");
++CREATE INDEX IF NOT EXISTS "SupportHandoff_createdByAdminId_idx"
++  ON "SupportHandoff"("createdByAdminId");
++
++CREATE TABLE IF NOT EXISTS "SupportReconciliationRun" (
++  "id" TEXT PRIMARY KEY,
++  "status" TEXT NOT NULL,
++  "summaryJson" TEXT NOT NULL,
++  "runByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE INDEX IF NOT EXISTS "SupportReconciliationRun_status_createdAt_idx"
++  ON "SupportReconciliationRun"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "SupportReconciliationRun_runByAdminId_idx"
++  ON "SupportReconciliationRun"("runByAdminId");
++
++CREATE TABLE IF NOT EXISTS "SupportExportAudit" (
++  "id" TEXT PRIMARY KEY,
++  "adminId" TEXT,
++  "dataset" TEXT NOT NULL,
++  "format" TEXT NOT NULL,
++  "rowCount" INTEGER,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE INDEX IF NOT EXISTS "SupportExportAudit_adminId_createdAt_idx"
++  ON "SupportExportAudit"("adminId", "createdAt");
++CREATE INDEX IF NOT EXISTS "SupportExportAudit_dataset_createdAt_idx"
++  ON "SupportExportAudit"("dataset", "createdAt");
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportHandoff_ticketId_fkey'
++  ) THEN
++    ALTER TABLE "SupportHandoff"
++      ADD CONSTRAINT "SupportHandoff_ticketId_fkey"
++      FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportHandoff_createdByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportHandoff"
++      ADD CONSTRAINT "SupportHandoff_createdByAdminId_fkey"
++      FOREIGN KEY ("createdByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportReconciliationRun_runByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportReconciliationRun"
++      ADD CONSTRAINT "SupportReconciliationRun_runByAdminId_fkey"
++      FOREIGN KEY ("runByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportExportAudit_adminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportExportAudit"
++      ADD CONSTRAINT "SupportExportAudit_adminId_fkey"
++      FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
+diff --git a/test/systemAdmin.support.handoffs.test.js b/test/systemAdmin.support.handoffs.test.js
+new file mode 100644
+index 0000000..94ba928
+--- /dev/null
++++ b/test/systemAdmin.support.handoffs.test.js
+@@ -0,0 +1,259 @@
++/**
++ * Phase 10 Wave 4 ΓÇö Support handoffs (link-only) + foundations contracts.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  SUPPORT_HANDOFF_TARGET,
++  SUPPORT_FOUNDATION_STATUS,
++  createSupportHandoff,
++  listSupportHandoffs,
++  sanitizeHandoffPayload,
++  getSupportFoundations,
++  resolveSupportAccess,
++} from '@/lib/admin/support';
++import { SYSTEM_ADMIN_PERMISSIONS, NAV_PERMISSION_MAP } from '@/lib/admin/permissions';
++import { listSupportSectionHrefs } from '@/lib/admin/supportNav';
++import { PRODUCT_FEATURE_CODES } from '@/lib/admin/productCatalogue/features.js';
++
++function makePrisma(overrides = {}) {
++  const ticketStore = overrides._ticketStore || [
++    {
++      id: 'st-1',
++      ticketNumber: 'SUP-2026-000001',
++      tenantId: 'tenant-1',
++      status: 'TRIAGE',
++      type: 'QUESTION',
++      title: 'Help',
++      description: 'desc',
++    },
++  ];
++  const handoffStore = overrides._handoffStore || [];
++
++  const prisma = {
++    supportTicket: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return ticketStore.find((r) => r.id === where.id) || null;
++        if (where.ticketNumber) {
++          return ticketStore.find((r) => r.ticketNumber === where.ticketNumber) || null;
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where?.OR) {
++          return (
++            ticketStore.find((r) =>
++              where.OR.some(
++                (c) => (c.id && r.id === c.id) || (c.ticketNumber && r.ticketNumber === c.ticketNumber)
++              )
++            ) || null
++          );
++        }
++        return null;
++      }),
++      findMany: vi.fn(async () => [...ticketStore]),
++      update: vi.fn(async () => {
++        throw new Error('ticket_mutation_forbidden_in_handoff_test');
++      }),
++    },
++    supportHandoff: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: `sh-${handoffStore.length + 1}`,
++          createdAt: new Date(),
++          updatedAt: new Date(),
++          ...data,
++        };
++        handoffStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...handoffStore];
++        if (where.ticketId) rows = rows.filter((r) => r.ticketId === where.ticketId);
++        if (where.targetType) rows = rows.filter((r) => r.targetType === where.targetType);
++        return rows;
++      }),
++    },
++    /** Mutation spies ΓÇö must never be called on handoff create. */
++    csCase: {
++      create: vi.fn(),
++      update: vi.fn(),
++    },
++    accountSubscription: {
++      update: vi.fn(),
++    },
++    tenantGlLine: {
++      create: vi.fn(),
++    },
++  };
++
++  prisma._ticketStore = ticketStore;
++  prisma._handoffStore = handoffStore;
++  return prisma;
++}
++
++const agent = {
++  id: 'admin-1',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        createTickets: true,
++        transitionStatus: true,
++        assignTickets: true,
++      },
++    },
++  },
++};
++
++const viewer = {
++  id: 'admin-viewer',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++      },
++    },
++  },
++};
++
++describe('Support Wave 4 handoffs', () => {
++  it('creates link-only CS handoff without mutating CsCase / subscription / GL', async () => {
++    const prisma = makePrisma();
++    const result = await createSupportHandoff(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      targetType: SUPPORT_HANDOFF_TARGET.CS,
++      summary: 'Needs CS follow-up',
++      targetRefId: 'cs-case-99',
++      payload: {
++        csCaseId: 'cs-case-99',
++        credentials: 'SECRET',
++        rawMraPayload: { x: 1 },
++      },
++    });
++
++    expect(result.ok).toBe(true);
++    expect(result.meta.recordOnly).toBe(true);
++    expect(result.meta.mutatesCsCaseStatus).toBe(false);
++    expect(result.meta.mutatesSubscription).toBe(false);
++    expect(result.meta.opensCsCase).toBe(false);
++    expect(result.handoff.targetType).toBe('CS');
++    expect(result.handoff.payload?.credentials).toBeUndefined();
++    expect(result.handoff.payload?.rawMraPayload).toBeUndefined();
++    expect(result.handoff.payload?.csCaseId).toBe('cs-case-99');
++    expect(prisma.csCase.create).not.toHaveBeenCalled();
++    expect(prisma.csCase.update).not.toHaveBeenCalled();
++    expect(prisma.accountSubscription.update).not.toHaveBeenCalled();
++    expect(prisma.supportTicket.update).not.toHaveBeenCalled();
++  });
++
++  it('accepts optional Phase 9 featureCode on PRODUCT handoff', async () => {
++    const prisma = makePrisma();
++    const result = await createSupportHandoff(prisma, {
++      admin: agent,
++      ticketId: 'SUP-2026-000001',
++      targetType: 'PRODUCT',
++      featureCode: PRODUCT_FEATURE_CODES.INVOICES_POST,
++      summary: 'Adoption question',
++    });
++    expect(result.ok).toBe(true);
++    expect(result.handoff.featureCode).toBe(PRODUCT_FEATURE_CODES.INVOICES_POST);
++  });
++
++  it('rejects unknown product featureCode', async () => {
++    const prisma = makePrisma();
++    const result = await createSupportHandoff(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      targetType: 'PRODUCT',
++      featureCode: 'not.a.real.feature',
++    });
++    expect(result.ok).toBe(false);
++    expect(result.error).toBe('unknown_feature_code');
++  });
++
++  it('Finance/Billing payload keeps ids only; strips secrets', () => {
++    const sanitized = sanitizeHandoffPayload('BILLING', {
++      invoiceId: 'inv-1',
++      subscriptionId: 'sub-1',
++      paymentSecret: 'x',
++      cardNumber: '4111',
++    });
++    expect(sanitized.invoiceId).toBe('inv-1');
++    expect(sanitized.subscriptionId).toBe('sub-1');
++    expect(sanitized.paymentSecret).toBeUndefined();
++    expect(sanitized.cardNumber).toBeUndefined();
++  });
++
++  it('lists handoffs for ticket; forbids viewers without create perms from creating', async () => {
++    const prisma = makePrisma();
++    await createSupportHandoff(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      targetType: 'MRA',
++      targetRefId: 'tx-1',
++      summary: 'Fiscal id link',
++    });
++
++    const listed = await listSupportHandoffs(prisma, {
++      admin: viewer,
++      ticketId: 'st-1',
++    });
++    expect(listed.ok).toBe(true);
++    expect(listed.items.length).toBe(1);
++
++    const denied = await createSupportHandoff(prisma, {
++      admin: viewer,
++      ticketId: 'st-1',
++      targetType: 'CS',
++    });
++    expect(denied.forbidden).toBe(true);
++
++    const access = resolveSupportAccess(viewer);
++    expect(access.canCreateHandoffs).toBe(false);
++    expect(access.canViewTickets).toBe(true);
++  });
++
++  it('returns UNAVAILABLE when handoff model missing', async () => {
++    const result = await createSupportHandoff({}, {
++      admin: agent,
++      ticketId: 'st-1',
++      targetType: 'CS',
++    });
++    expect(result.ok).toBe(false);
++    expect(result.status).toBe('UNAVAILABLE');
++  });
++});
++
++describe('Support Wave 4 foundations', () => {
++  it('returns NOT_AVAILABLE / FOUNDATION contracts with null CSAT score', async () => {
++    const result = await getSupportFoundations({}, { admin: viewer });
++    expect(result.ok).toBe(true);
++    expect(result.meta.inventCsatForbidden).toBe(true);
++    const csat = result.items.find((i) => i.kind === 'CSAT');
++    expect(csat.status).toBe(SUPPORT_FOUNDATION_STATUS.NOT_AVAILABLE);
++    expect(csat.score).toBeNull();
++    const kb = result.items.find((i) => i.kind === 'KNOWLEDGE_BASE');
++    expect(kb.status).toBe(SUPPORT_FOUNDATION_STATUS.NOT_AVAILABLE);
++    const problem = result.items.find((i) => i.kind === 'PROBLEM_MANAGEMENT');
++    expect(problem.status).toBe(SUPPORT_FOUNDATION_STATUS.FOUNDATION);
++  });
++});
++
++describe('Support Wave 4 nav map', () => {
++  it('maps handoffs / reports / foundations in NAV_PERMISSION_MAP', () => {
++    for (const href of listSupportSectionHrefs()) {
++      expect(NAV_PERMISSION_MAP[href], href).toBe(
++        SYSTEM_ADMIN_PERMISSIONS.support.viewTickets
++      );
++    }
++    expect(NAV_PERMISSION_MAP['/insightbooks/support/handoffs']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.support.viewTickets
++    );
++    expect(NAV_PERMISSION_MAP['/insightbooks/support/foundations']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.support.viewTickets
++    );
++  });
++});
+diff --git a/test/systemAdmin.support.reconciliation.test.js b/test/systemAdmin.support.reconciliation.test.js
+new file mode 100644
+index 0000000..47f2601
+--- /dev/null
++++ b/test/systemAdmin.support.reconciliation.test.js
+@@ -0,0 +1,279 @@
++/**
++ * Phase 10 Wave 4 ΓÇö Support reconciliation + export foundation.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  SUPPORT_RELIABILITY_STATUS,
++  runSupportReconciliation,
++  applySupportReconHonesty,
++  buildSupportExportPack,
++  resolveSupportAccess,
++} from '@/lib/admin/support';
++
++function makePrisma(overrides = {}) {
++  const ticketStore = overrides._ticketStore || [
++    {
++      id: 'st-1',
++      ticketNumber: 'SUP-2026-000001',
++      tenantId: 'tenant-1',
++      status: 'NEW',
++      type: 'QUESTION',
++      title: 'A',
++      description: 'd',
++      createdAt: new Date(),
++      priority: 'P3',
++      queueCode: 'GENERAL_SUPPORT',
++      sourceChannel: 'ADMIN_MANUAL',
++      assigneeAdminId: null,
++    },
++    {
++      id: 'st-2',
++      ticketNumber: 'SUP-2026-000002',
++      tenantId: 'tenant-1',
++      status: 'IN_PROGRESS',
++      type: 'QUESTION',
++      title: 'B',
++      description: 'd',
++      createdAt: new Date(),
++      priority: 'P2',
++      queueCode: null,
++      sourceChannel: 'ADMIN_MANUAL',
++      assigneeAdminId: null,
++    },
++  ];
++  const historyStore = overrides._historyStore || [
++    {
++      id: 'h1',
++      ticketId: 'st-2',
++      toStatus: 'IN_PROGRESS',
++      at: new Date(),
++    },
++  ];
++  const messageStore = overrides._messageStore || [{ id: 'm1', ticketId: 'st-1' }];
++  const clockStore = overrides._clockStore || [
++    { id: 'c1', ticketId: 'st-1', clockType: 'FIRST_RESPONSE' },
++  ];
++  const reconRuns = overrides._reconRuns || [];
++  const exportAudits = overrides._exportAudits || [];
++
++  const failCount = overrides.failTicketCount === true;
++
++  const prisma = {
++    supportTicket: {
++      count: vi.fn(async () => {
++        if (failCount) throw new Error('db_down');
++        return ticketStore.length;
++      }),
++      findMany: vi.fn(async ({ take, select } = {}) => {
++        const rows = [...ticketStore].slice(0, take || 50);
++        if (select) {
++          return rows.map((r) => ({
++            id: r.id,
++            ticketNumber: r.ticketNumber,
++            status: r.status,
++          }));
++        }
++        return rows;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return ticketStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findFirst: vi.fn(async () => null),
++    },
++    supportTicketStatusHistory: {
++      count: vi.fn(async () => historyStore.length),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        const rows = historyStore
++          .filter((h) => h.ticketId === where.ticketId)
++          .sort((a, b) => b.at - a.at);
++        return rows[0] || null;
++      }),
++    },
++    supportMessage: {
++      count: vi.fn(async () => messageStore.length),
++    },
++    supportSlaClock: {
++      count: vi.fn(async () => clockStore.length),
++    },
++    supportReconciliationRun: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `rr-${reconRuns.length + 1}`, createdAt: new Date(), ...data };
++        reconRuns.push(row);
++        return row;
++      }),
++      findFirst: vi.fn(async () =>
++        reconRuns.length ? reconRuns[reconRuns.length - 1] : null
++      ),
++    },
++    supportExportAudit: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `ea-${exportAudits.length + 1}`, ...data };
++        exportAudits.push(row);
++        return row;
++      }),
++    },
++  };
++
++  if (overrides.omitMessages) delete prisma.supportMessage;
++  if (overrides.omitSla) delete prisma.supportSlaClock;
++
++  prisma._ticketStore = ticketStore;
++  prisma._historyStore = historyStore;
++  prisma._reconRuns = reconRuns;
++  prisma._exportAudits = exportAudits;
++  return prisma;
++}
++
++const reconAdmin = {
++  id: 'admin-recon',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        runReconciliation: true,
++        export: true,
++      },
++    },
++  },
++};
++
++const viewOnly = {
++  id: 'admin-view',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++      },
++    },
++  },
++};
++
++describe('Support Wave 4 reconciliation', () => {
++  it('runs AVAILABLE recon with honest counts (including zero mismatches)', async () => {
++    const prisma = makePrisma();
++    const result = await runSupportReconciliation(prisma, {
++      admin: reconAdmin,
++      persist: true,
++    });
++    expect(result.ok).toBe(true);
++    expect(result.summary.ticketCount).toBe(2);
++    expect(result.summary.messageCount).toBe(1);
++    expect(result.summary.slaClockCount).toBe(1);
++    expect(result.persisted).toBe(true);
++    expect(result.meta.inventZeroesForbidden).toBe(true);
++    // NEW ticket without history is OK; IN_PROGRESS matches latest history
++    expect(result.status).toBe(SUPPORT_RELIABILITY_STATUS.AVAILABLE);
++  });
++
++  it('flags PARTIAL_HISTORY when status Γëá latest history', async () => {
++    const prisma = makePrisma({
++      _historyStore: [
++        {
++          id: 'h1',
++          ticketId: 'st-2',
++          toStatus: 'TRIAGE',
++          at: new Date(),
++        },
++      ],
++    });
++    const result = await runSupportReconciliation(prisma, { admin: reconAdmin });
++    expect(result.status).toBe(SUPPORT_RELIABILITY_STATUS.PARTIAL_HISTORY);
++    expect(result.summary.mismatchedStatusSamples?.length).toBeGreaterThan(0);
++  });
++
++  it('never returns false zero ticketCount on count failure', async () => {
++    const prisma = makePrisma({ failTicketCount: true });
++    const result = await runSupportReconciliation(prisma, { admin: reconAdmin });
++    expect(result.status).toBe(SUPPORT_RELIABILITY_STATUS.RECONCILIATION_FAILED);
++    expect(result.summary.ticketCount).toBeNull();
++    const honesty = applySupportReconHonesty({
++      status: result.status,
++      reconOk: false,
++      ticketCount: 0,
++    });
++    expect(honesty.kpiSafe).toBe(false);
++    expect(honesty.ticketCount).toBeNull();
++  });
++
++  it('requires runReconciliation permission', async () => {
++    const prisma = makePrisma();
++    const result = await runSupportReconciliation(prisma, { admin: viewOnly });
++    expect(result.forbidden).toBe(true);
++    expect(result.status).toBe(SUPPORT_RELIABILITY_STATUS.PERMISSION_RESTRICTED);
++    expect(resolveSupportAccess(viewOnly).canRunReconciliation).toBe(false);
++  });
++
++  it('marks message plane NOT_INSTRUMENTED when model missing', async () => {
++    const prisma = makePrisma({ omitMessages: true, omitSla: true });
++    const result = await runSupportReconciliation(prisma, { admin: reconAdmin });
++    expect(result.ok).toBe(true);
++    const msgCard = result.cards.find((c) => c.id === 'messages.model');
++    expect(msgCard.status).toBe(SUPPORT_RELIABILITY_STATUS.NOT_INSTRUMENTED);
++    expect(result.summary.messageCount).toBeNull();
++  });
++});
++
++describe('Support Wave 4 export', () => {
++  it('requires export permission and returns empty rows honestly', async () => {
++    const denied = await buildSupportExportPack(makePrisma(), {
++      admin: viewOnly,
++      format: 'json',
++    });
++    expect(denied.forbidden).toBe(true);
++    expect(denied.reasonCode).toBe('export_permission_required');
++
++    const emptyPrisma = makePrisma({ _ticketStore: [] });
++    // listTickets needs findMany returning items ΓÇö wire list shape
++    emptyPrisma.supportTicket.findMany = vi.fn(async () => []);
++    emptyPrisma.supportTicket.count = vi.fn(async () => 0);
++
++    const pack = await buildSupportExportPack(emptyPrisma, {
++      admin: reconAdmin,
++      format: 'json',
++    });
++    expect(pack.ok).toBe(true);
++    expect(pack.rowCount).toBe(0);
++    expect(pack.rows).toEqual([]);
++    expect(pack.limitations.some((l) => /never invents/i.test(l))).toBe(true);
++  });
++
++  it('builds CSV with formula-injection safety', async () => {
++    const prisma = makePrisma();
++    prisma.supportTicket.findMany = vi.fn(async () => [
++      {
++        id: 'st-1',
++        ticketNumber: 'SUP-2026-000001',
++        tenantId: 'tenant-1',
++        status: 'NEW',
++        type: 'QUESTION',
++        title: '=CMD()',
++        description: 'd',
++        priority: 'P3',
++        queueCode: null,
++        sourceChannel: 'ADMIN_MANUAL',
++        assigneeAdminId: null,
++        createdAt: new Date(),
++        updatedAt: new Date(),
++        impact: null,
++        urgency: null,
++        severity: null,
++        resolutionCategory: null,
++        portfolioId: null,
++        createdByAdminId: null,
++        resolvedAt: null,
++        closedAt: null,
++      },
++    ]);
++
++    const pack = await buildSupportExportPack(prisma, {
++      admin: reconAdmin,
++      format: 'csv',
++    });
++    expect(pack.ok).toBe(true);
++    expect(pack.csv).toContain("'=CMD()");
++    expect(prisma.supportExportAudit.create).toHaveBeenCalled();
++  });
++});
+diff --git a/docs/admin-intelligence-crm/phase-10/FINAL_PHASE_10_REPORT.md b/docs/admin-intelligence-crm/phase-10/FINAL_PHASE_10_REPORT.md
+new file mode 100644
+index 0000000..c1bad27
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-10/FINAL_PHASE_10_REPORT.md
+@@ -0,0 +1,89 @@
++# Phase 10 Final Report ΓÇö Support & Service Operations
++
++**Decision:** **READY_FOR_PHASE_11_WITH_BLOCKERS**
++
++**Date:** 2026-07-30
++
++**Working tree:** Phase 10 Waves 0ΓÇô4 delivered in-place on branch `v2` (no git commit required for Wave 4 exit).
++
++Support Ops is shippable for authorised System Admin users as a **dedicated SupportTicket plane** (Γëá CsCase Γëá Platform Incident Γëá CRM Lead): ticket model + numbering + state machine, public/internal/restricted messages, private attachments with scan states, queues/assignment stubs, versioned SLA clocks, My Work / list / detail UI, link-only handoffs, light reconciliation, JSON/CSV export foundation, and explicit KB/Problem/CSAT/Automation contracts. Email / WhatsApp / portal inbound, full KB, live CSAT, AI replies, and Android remain deferred blockers ΓÇö never fabricated.
++
++## Delivered
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices + CONDITIONAL GO | Done |
++| 1 | Ticket model + SUP numbering + state machine + admin create | Done |
++| 2 | Messages + attachments + queues/assignment | Done |
++| 3 | SLA clocks + My Work / list / detail UI | Done |
++| 4 | Handoffs + recon/export + foundations + Phase 11 pack | Done |
++
++## Surfaces (Wave 4)
++
++### Libraries
++
++- `lib/admin/support/handoffs.js` ΓÇö link-only CS / Product / Finance / Billing / MRA handoffs; payload sanitisation; no CsCase / subscription / GL / MRA mutation
++- `lib/admin/support/reconciliation.js` ΓÇö ticket vs status history / messages / SLA clocks; gate states; never false zeroes
++- `lib/admin/support/export.js` ΓÇö JSON/CSV tickets; `systemAdmin.support.export` rechecked at download; empty Γëá invent rows
++- `lib/admin/support/foundations.js` ΓÇö KB / Problem / CSAT / Automation contracts (`NOT_AVAILABLE` / `FOUNDATION`); CSAT `score` always null
++
++### Prisma / SQL
++
++- `SupportHandoff`, `SupportReconciliationRun`, `SupportExportAudit`
++- Fallback: `scripts/sql/support-ops-phase10-wave4.sql`
++
++### APIs
++
++- `GET|POST /api/admin/support/tickets/[id]/handoffs`
++- `GET /api/admin/support/handoffs` (list UI)
++- `GET|POST /api/admin/support/reconciliation`
++- `GET /api/admin/support/export?dataset=tickets&format=json|csv`
++- `GET /api/admin/support/foundations`
++
++### UI
++
++- `/insightbooks/support/handoffs`, `/reports`, `/foundations` (thin stubs matching CS foundations pattern)
++- Section nav + i18n (en/ny)
++
++## Hard rules preserved
++
++- Support Ticket Γëá CsCase Γëá Platform Incident Γëá CRM Lead
++- Public / internal / restricted notes API-enforced
++- No billing / MRA fiscal / Tenant GL mutation from Support (handoffs are link-only)
++- SLA deterministic; acknowledgement Γëá human first response by default
++- No fabricated tickets / CSAT scores; no false zeroes; no AI replies
++- Email / WhatsApp / portal remain `NOT_AVAILABLE` channel contracts
++- System CoA admin route stays removed
++
++## Verification
++
++```bash
++npx vitest run \
++  test/systemAdmin.support.handoffs.test.js \
++  test/systemAdmin.support.reconciliation.test.js \
++  test/systemAdmin.support.sla.test.js \
++  test/systemAdmin.support.tickets.test.js \
++  test/systemAdmin.support.messages.test.js \
++  test/systemAdmin.support.assignment.test.js \
++  test/systemAdmin.supportAccess.test.js \
++  test/systemAdmin.navPermissionMap.test.js
++```
++
++**Result (2026-07-30):** Test Files 8 passed (8) ┬╖ Tests 66 passed (66)
++
++## Known blockers for Phase 11
++
++1. **Email-to-ticket ingest** ΓÇö channel contract `NOT_AVAILABLE` (no invented inbound volume)
++2. **WhatsApp channel** ΓÇö deferred; same honesty gate
++3. **Customer portal** ΓÇö deferred; `projectForCustomer` helper exists but portal UX not shipped
++4. **Full Knowledge Base** ΓÇö foundation contract only (`NOT_AVAILABLE`)
++5. **Live CSAT / satisfaction** ΓÇö `NOT_AVAILABLE`; score always null
++6. **Problem Management depth** ΓÇö `FOUNDATION` only; no fake problem KPIs
++7. **Automation / AI replies / auto-routing** ΓÇö deferred
++8. **Android support plane** ΓÇö not instrumented
++9. **Export** ΓÇö JSON/CSV foundation only; XLSX/PDF not offered
++10. **Queue live staffing metrics** ΓÇö catalogue `liveStatus: NOT_FOUND` until real org owners exist
++
++## Exit readiness
++
++**READY_FOR_PHASE_11_WITH_BLOCKERS** ΓÇö Support Ops Waves 1ΓÇô4 are honest and gated for admin-manual tickets, messaging, SLA, link-only handoffs, recon, and export foundations; portal/email/WhatsApp/full KB/CSAT/Android remain blockers for treating Support as omnichannel-complete.
+diff --git a/docs/admin-intelligence-crm/phase-10/PHASE_11_INPUTS.md b/docs/admin-intelligence-crm/phase-10/PHASE_11_INPUTS.md
+new file mode 100644
+index 0000000..ea3cad3
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-10/PHASE_11_INPUTS.md
+@@ -0,0 +1,35 @@
++# Phase 11 Inputs (from Phase 10)
++
++Handoff expectations for the next phase. This document does **not** invent Phase 11 scope beyond what Support Ops can safely consume.
++
++| Asset | Path / surface |
++|-------|----------------|
++| Support catalogue / state machine | `lib/admin/support/catalogue.js`, `stateMachine.js` |
++| Tickets / numbering | `tickets.js`, `numbering.js` ΓÇö `SUP-YYYY-######` |
++| Messages + customer projection helper | `messages.js` (`projectForCustomer` ΓÇö portal deferred) |
++| Attachments (private storage + scan states) | `attachments.js` ΓÇö not `public/uploads` |
++| Queues / teams / assignment | `queues.js`, `teams.js`, `assignment.js` |
++| SLA clocks (versioned policy + calendar) | `lib/admin/support/sla/*` ΓÇö ack Γëá first response by default |
++| Link-only handoffs | `handoffs.js` ΓÇö CS / Product / Finance / Billing / MRA |
++| Reconciliation / export foundations | `reconciliation.js`, `export.js` |
++| KB / Problem / CSAT / Automation contracts | `foundations.js` ΓÇö no fake CSAT |
++| Authz | `authz.js` ΓÇö view / create / transition / notes / assign / export / runReconciliation |
++| UI shell | `/insightbooks/support/*` (My Work, tickets, handoffs, reports, foundations) |
++| APIs | `/api/admin/support/*` |
++| Prisma models | `SupportTicket`, messages, attachments, queues/teams, SLA*, `SupportHandoff`, recon/export audit |
++| Matrices / audits | `docs/admin-intelligence-crm/phase-10/*` |
++| Final Phase 10 | `FINAL_PHASE_10_REPORT.md` ΓÇö **READY_FOR_PHASE_11_WITH_BLOCKERS** |
++
++**Reuse from earlier phases:** Phase 8 CS handoff pattern (record-only); Phase 9 product catalogue `featureCode` (optional PRODUCT handoff link); portfolio scope patterns; `exportSafety.preventFormulaInjection`; metric honesty / reliability gates.
++
++**Consumer expectations (likely Phase 11 themes ΓÇö not committed scope):**
++
++1. **Inbound channels** ΓÇö email-to-ticket / WhatsApp / portal only when producers + ACL + volume honesty exist; keep `NOT_AVAILABLE` until then
++2. **Portal customer surface** ΓÇö reuse `projectForCustomer`; never leak INTERNAL / RESTRICTED
++3. **KB / deflection** ΓÇö replace foundation contract with instrumented article plane; no invented deflection %
++4. **CSAT** ΓÇö survey capture with real responses only; never seed fake scores
++5. **Automation** ΓÇö rules/routing without AI hallucinated replies; preserve SLA clock semantics
++6. **Problem Management** ΓÇö deepen FOUNDATION into real problem records linked to tickets (still Γëá CsCase)
++7. **Handoff consumers** ΓÇö CS / Billing / MRA / Product may *read* SupportHandoff links; Support create remains link-only (no side-effect mutations)
++
++**Do not consume as truth:** CsCase counts as support volume; login proxies as CSAT; empty recon as 0% breach; missing channel volume as zero tickets; Tenant GL / MRA credentials / payment secrets on tickets; CoA admin revival.
+diff --git a/docs/admin-intelligence-crm/phase-10/README.md b/docs/admin-intelligence-crm/phase-10/README.md
+new file mode 100644
+index 0000000..02f9955
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-10/README.md
+@@ -0,0 +1,27 @@
++# Phase 10 ΓÇö Support & Service Operations
++
++**Surface:** `/insightbooks/support`  
++**Architecture:** Dedicated Support domain (Γëá CsCase)  
++**Design:** `docs/superpowers/specs/2026-07-30-support-ops-phase-10-design.md`  
++**Plan:** `docs/superpowers/plans/2026-07-30-support-ops-phase-10.md`  
++**Handoff in:** `docs/admin-intelligence-crm/phase-09/PHASE_10_INPUTS.md`
++
++## Wave status
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices | Complete (2026-07-30) |
++| 1 | Ticket model + numbering + state machine | Complete (2026-07-30) |
++| 2 | Messages + attachments + queues/assignment | Complete (2026-07-30) |
++| 3 | SLA + My Work / list / detail UI | Complete (2026-07-30) |
++| 4 | Handoffs + foundations + Phase 11 pack | Complete (2026-07-30) |
++
++**Exit:** see `FINAL_PHASE_10_REPORT.md` ΓÇö **READY_FOR_PHASE_11_WITH_BLOCKERS**  
++**Handoff out:** `PHASE_11_INPUTS.md`
++
++## Hard rules
++
++- Support Γëá CS Case Γëá Platform Incident Γëá CRM Lead  
++- Public / internal / restricted message visibility API-enforced  
++- No billing / MRA fiscal / Tenant GL mutation  
++- Email / WhatsApp / portal deferred with explicit contracts  
+diff --git "a/app\\api\\admin\\support\\export\\route.js" "b/app\\api\\admin\\support\\export\\route.js"
+new file mode 100644
+index 0000000..8d2a2e5
+--- /dev/null
++++ "b/app\\api\\admin\\support\\export\\route.js"
+@@ -0,0 +1,60 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { buildSupportExportPack } from '@/lib/admin/support';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const format = (searchParams.get('format') || 'json').toLowerCase();
++    const result = await buildSupportExportPack(prisma, {
++      admin,
++      dataset: searchParams.get('dataset') || 'tickets',
++      format,
++      status: searchParams.get('status') || undefined,
++      limit: searchParams.get('limit') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        {
++          success: false,
++          error: 'Insufficient admin privileges',
++          reasonCode: result.reasonCode,
++        },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Export failed', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    if (format === 'csv') {
++      return new NextResponse(result.csv || '', {
++        status: 200,
++        headers: {
++          'Content-Type': result.contentType || 'text/csv; charset=utf-8',
++          'Content-Disposition': 'attachment; filename="support-tickets-export.csv"',
++          'X-Support-Export-Version': result.exportVersion || '',
++          'X-Support-Export-Row-Count': String(result.rowCount ?? 0),
++        },
++      });
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support export error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to export support data' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\support\\foundations\\route.js" "b/app\\api\\admin\\support\\foundations\\route.js"
+new file mode 100644
+index 0000000..6d4959c
+--- /dev/null
++++ "b/app\\api\\admin\\support\\foundations\\route.js"
+@@ -0,0 +1,40 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { getSupportFoundations } from '@/lib/admin/support';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await getSupportFoundations(prisma, {
++      admin,
++      kind: searchParams.get('kind') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Invalid foundation request' },
++        { status: 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support foundations error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to load support foundations' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\support\\handoffs\\route.js" "b/app\\api\\admin\\support\\handoffs\\route.js"
+new file mode 100644
+index 0000000..5767701
+--- /dev/null
++++ "b/app\\api\\admin\\support\\handoffs\\route.js"
+@@ -0,0 +1,41 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { listSupportHandoffs } from '@/lib/admin/support';
++
++/** Global handoffs list for Support UI (ticket-scoped create remains under tickets/[id]/handoffs). */
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listSupportHandoffs(prisma, {
++      admin,
++      ticketId: searchParams.get('ticketId') || undefined,
++      targetType: searchParams.get('targetType') || undefined,
++      status: searchParams.get('status') || undefined,
++      limit: searchParams.get('limit') || '50',
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json({ success: false, error: 'Ticket not found' }, { status: 404 });
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support handoffs global list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list support handoffs' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\support\\reconciliation\\route.js" "b/app\\api\\admin\\support\\reconciliation\\route.js"
+new file mode 100644
+index 0000000..02de916
+--- /dev/null
++++ "b/app\\api\\admin\\support\\reconciliation\\route.js"
+@@ -0,0 +1,61 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { getSupportReconciliation, runSupportReconciliation } from '@/lib/admin/support';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const result = await getSupportReconciliation(prisma, { admin });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support reconciliation GET error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to load support reconciliation' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await runSupportReconciliation(prisma, {
++      admin,
++      persist: body.persist !== false,
++      ticketLimit: body.ticketLimit,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support reconciliation POST error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to run support reconciliation' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\support\\tickets\\[id]\\handoffs\\route.js" "b/app\\api\\admin\\support\\tickets\\[id]\\handoffs\\route.js"
+new file mode 100644
+index 0000000..9726556
+--- /dev/null
++++ "b/app\\api\\admin\\support\\tickets\\[id]\\handoffs\\route.js"
+@@ -0,0 +1,87 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { createSupportHandoff, listSupportHandoffs } from '@/lib/admin/support';
++
++export async function GET(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const { searchParams } = new URL(request.url);
++    const result = await listSupportHandoffs(prisma, {
++      admin,
++      ticketId: params?.id,
++      targetType: searchParams.get('targetType') || undefined,
++      status: searchParams.get('status') || undefined,
++      limit: searchParams.get('limit') || '50',
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json({ success: false, error: 'Ticket not found' }, { status: 404 });
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support handoffs list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list support handoffs' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const body = await request.json().catch(() => ({}));
++    const result = await createSupportHandoff(prisma, {
++      admin,
++      ticketId: params?.id,
++      targetType: body.targetType,
++      summary: body.summary,
++      targetRefId: body.targetRefId || body.csCaseId || body.invoiceId || body.subscriptionId,
++      featureCode: body.featureCode,
++      payload: body.payload,
++      status: body.status,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json({ success: false, error: 'Ticket not found' }, { status: 404 });
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to create handoff', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result }, { status: 201 });
++  } catch (error) {
++    console.error('Support handoff create error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to create support handoff' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\insightbooks\\support\\foundations\\page.js" "b/app\\insightbooks\\support\\foundations\\page.js"
+new file mode 100644
+index 0000000..21f63ed
+--- /dev/null
++++ "b/app\\insightbooks\\support\\foundations\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { SupportFoundationsView } from '@/components/admin';
++
++export default function SupportFoundationsPage() {
++  return <SupportFoundationsView />;
++}
+diff --git "a/app\\insightbooks\\support\\handoffs\\page.js" "b/app\\insightbooks\\support\\handoffs\\page.js"
+new file mode 100644
+index 0000000..f9d21a6
+--- /dev/null
++++ "b/app\\insightbooks\\support\\handoffs\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { SupportHandoffsView } from '@/components/admin';
++
++export default function SupportHandoffsPage() {
++  return <SupportHandoffsView />;
++}
+diff --git "a/app\\insightbooks\\support\\reports\\page.js" "b/app\\insightbooks\\support\\reports\\page.js"
+new file mode 100644
+index 0000000..c1fc805
+--- /dev/null
++++ "b/app\\insightbooks\\support\\reports\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { SupportReportsView } from '@/components/admin';
++
++export default function SupportReportsPage() {
++  return <SupportReportsView />;
++}
+diff --git a/lib/admin/permissions.js b/lib/admin/permissions.js
+index a7c04b3..08f0bd1 100644
+--- a/lib/admin/permissions.js
++++ b/lib/admin/permissions.js
+@@ -1,8 +1,10 @@
+ /**
+  * Granular systemAdmin.* permission catalog for the platform control plane.
+- * Stored on Admin.permissions as nested objects; Super Admin bypasses checks.
++ * Stored on Admin.permissions as nested objects; Super Admin is break-glass via decision service.
+  */
+ 
++import { authorizeAdminDecision } from './authorization/authorizeAdminDecision.js';
++
+ export const SYSTEM_ADMIN_PERMISSIONS = {
+   dashboard: {
+     view: 'systemAdmin.dashboard.view',
+@@ -71,6 +73,18 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     reconciliation: 'systemAdmin.billing.reconciliation',
+     reportsExport: 'systemAdmin.billing.reports.export',
+   },
++  mraPlans: {
++    view: 'systemAdmin.mraPlans.view',
++    create: 'systemAdmin.mraPlans.create',
++    editDraft: 'systemAdmin.mraPlans.editDraft',
++    approve: 'systemAdmin.mraPlans.approve',
++    publish: 'systemAdmin.mraPlans.publish',
++    suspend: 'systemAdmin.mraPlans.suspend',
++    retire: 'systemAdmin.mraPlans.retire',
++    version: 'systemAdmin.mraPlans.version',
++    preview: 'systemAdmin.mraPlans.preview',
++    export: 'systemAdmin.mraPlans.export',
++  },
+   email: {
+     view: 'systemAdmin.email.view',
+     configurationManage: 'systemAdmin.email.configuration.manage',
+@@ -103,6 +117,56 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     cancelJobs: 'systemAdmin.health.cancelJobs',
+     manageIncidents: 'systemAdmin.health.manageIncidents',
+   },
++  /** Intelligence ΓÇö Phase 5 executive summaries (routes gated; default deny until granted). */
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    /** Wave 3 ΓÇö create portfolios / assign ownership (view still customersRead). */
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    /** Phase 8 Wave 1 ΓÇö Customer Health */
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    /** Phase 9 Wave 1 ΓÇö Product Analytics */
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  /** Phase 8 Wave 2/3 ΓÇö Customer Success Ops. */
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  /**
++   * Phase 10 Wave 1 ΓÇö Support Ops (Γëá CsCase Γëá PlatformSupportAccess).
++   * Active: viewTickets / createTickets / transitionStatus.
++   * Remaining keys stubbed from SUPPORT_SECURITY_MATRIX for later waves.
++   */
++  support: {
++    view: 'systemAdmin.support.viewTickets',
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
+ };
+ 
+ export const ADMIN_ROLES = {
+@@ -118,6 +182,7 @@ export const ADMIN_ROLES = {
+ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/dashboard': SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+   '/insightbooks/tenant-management': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
++  '/insightbooks/tenant-identity-transfer': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
+   '/insightbooks/user-management': SYSTEM_ADMIN_PERMISSIONS.users.view,
+   '/insightbooks/global-settings': SYSTEM_ADMIN_PERMISSIONS.settings.view,
+   '/insightbooks/feature-entitlements': SYSTEM_ADMIN_PERMISSIONS.settings.features,
+@@ -126,17 +191,187 @@ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/affiliate/commissions': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/affiliate/payouts': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/billing': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/overview': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/mra-eis-plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/subscriptions': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/invoices': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/payments': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/credits': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/reconciliation': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/reports': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/imports': SYSTEM_ADMIN_PERMISSIONS.tenants.create,
+   '/insightbooks/email-management': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/templates': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/suppression': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/mra-eis': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/centre': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/terminals': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/configuration': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/mappings': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/catalogue': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
+   '/insightbooks/audit': SYSTEM_ADMIN_PERMISSIONS.audit.view,
+   '/insightbooks/security': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/monitoring': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/compliance': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/system-health': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/analytics-pipeline': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/intelligence': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/executive': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/revenue': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/overview': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/recurring': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mrr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/arr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/movements': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/billing': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/collections': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/receivables': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/payment-performance':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/credits-refunds':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/customers': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/segments': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/concentration': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/retention': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/cohorts': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/subscriptions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/plans': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/forecast': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reconciliation': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reports': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/settings': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/customers': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/overview': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/directory': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/lifecycle': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/engagement': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/commercial': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/renewals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/adoption': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/support': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/signals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/portfolios': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reports': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/settings': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customer-health':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/snapshots':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/product-analytics':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/modules':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/features':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/adoption':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/activation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/first-value':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/funnels':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/cohorts':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/signals':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsExport,
++  '/insightbooks/customer-success': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/command-centre':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/cases': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/tasks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/interventions':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.manageCases,
++  '/insightbooks/customer-success/renewals': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/playbooks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/success-plans':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/onboarding': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/training': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/surveys': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/handoffs': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/reports': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/support': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/tickets': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/my-work': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/queues': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/sla': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/handoffs': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/foundations': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/reports': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++};
++
++/** Future Intelligence / CRM keys ΓÇö scaffold only; default deny until later phases. */
++export const INTEL_CRM_PERMISSION_SCAFFOLD = {
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  support: {
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
++  crm: {
++    leadsView: 'systemAdmin.crm.leads.view',
++    leadsManage: 'systemAdmin.crm.leads.manage',
++    pipelineView: 'systemAdmin.crm.pipeline.view',
++    pipelineManage: 'systemAdmin.crm.pipeline.manage',
++  },
+ };
+ 
+ /**
+@@ -160,28 +395,9 @@ export function permissionKeyParts(permission) {
+ 
+ /**
+  * Client-safe permission check (no Prisma / JWT imports).
+- * Super Admin always allowed. Supports systemAdmin.* and legacy category.action.
++ * Delegates to canonical authorizeAdminDecision (default deny; Super Admin break-glass).
++ * Supports systemAdmin.* and legacy category.action.
+  */
+ export function adminHasPermission(admin, permission) {
+-  if (!admin) return false;
+-  if (admin.role === 'Super Admin' || admin.role === ADMIN_ROLES.SUPER_ADMIN) {
+-    return true;
+-  }
+-  if (!admin.permissions || typeof admin.permissions !== 'object') {
+-    return false;
+-  }
+-  const parts = permissionKeyParts(permission);
+-  if (!parts) return false;
+-
+-  if (parts.root === 'systemAdmin') {
+-    const bucket = admin.permissions.systemAdmin?.[parts.category];
+-    if (bucket && typeof bucket === 'object') {
+-      return bucket[parts.action] === true;
+-    }
+-    // Flat key fallback: permissions['systemAdmin.tenants.view']
+-    if (admin.permissions[permission] === true) return true;
+-    return false;
+-  }
+-
+-  return admin.permissions[parts.category]?.[parts.action] === true;
++  return authorizeAdminDecision({ admin, permission }).allowed === true;
+ }
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 110ea53..ea79e95 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -27,6 +27,21 @@ model Tenant {
+   AccountBalance               AccountBalance[]
+   accountSubscriptions         AccountSubscription[]
+   adminAccess                  AdminTenantAccess[]
++  customerOwnerships           CustomerOwnership[]
++  customerSegmentMemberships   CustomerSegmentMembership[]
++  customerSignals              CustomerSignal[]
++  customerHealthSnapshots      CustomerHealthSnapshot[]
++  csCases                      CsCase[]
++  csTasks                      CsTask[]
++  csInterventions              CsIntervention[]
++  csRenewalWorkspaces          CsRenewalWorkspace[]
++  csPlaybookExecutions         CsPlaybookExecution[]
++  csSuccessPlans               CsSuccessPlan[]
++  csExpansionHandoffs          CsExpansionHandoff[]
++  csOnboardingRecords          CsOnboardingRecord[]
++  csTrainingRecords            CsTrainingRecord[]
++  csSurveyResponses            CsSurveyResponse[]
++  supportTickets               SupportTicket[]
+   affiliateReferrals           AffiliateReferral[]
+   assets                       Asset[]
+   assetCategories              AssetCategory[]
+@@ -238,6 +253,8 @@ model TenantSettings {
+   businessEmail                    String?
+   businessPhone                    String?
+   receiptFooter                    String?
++  /// Preferred thermal receipt roll width in mm (58ΓÇô90). Used by web + Android POS print.
++  receiptPaperWidthMm              Int       @default(80)
+   defaultBankDetails               String? // Default bank account details for invoice/quotation/receipt footers
+   // NPS rates are tenant-configurable; null means "not configured".
+   // Calculation code should treat null as 0% unless explicitly set.
+@@ -531,9 +548,35 @@ model Admin {
+   phone          String?
+   department     String?
+   notes          String?
+-  adminAuditLogs AdminAuditLog[]
+-  managedTenants AdminTenantAccess[]
+-  emailLogs      EmailLog[]          @relation("EmailLogAdminSender")
++  adminAuditLogs              AdminAuditLog[]
++  managedTenants              AdminTenantAccess[]
++  emailLogs                   EmailLog[]               @relation("EmailLogAdminSender")
++  ownedCustomerPortfolios     CustomerPortfolio[]      @relation("PortfolioOwner")
++  customerOwnerships          CustomerOwnership[]      @relation("OwnershipOwner")
++  assignedCustomerOwnerships  CustomerOwnership[]      @relation("OwnershipAssignedBy")
++  csCasesOpened               CsCase[]                 @relation("CsCaseOpenedBy")
++  csCasesOwned                CsCase[]                 @relation("CsCaseOwner")
++  csTasksAssigned             CsTask[]                 @relation("CsTaskAssignee")
++  csTasksCreated              CsTask[]                 @relation("CsTaskCreatedBy")
++  csInterventionsPerformed    CsIntervention[]         @relation("CsInterventionPerformedBy")
++  csRenewalsOpened            CsRenewalWorkspace[]     @relation("CsRenewalOpenedBy")
++  csRenewalsOutcomeBy         CsRenewalWorkspace[]     @relation("CsRenewalOutcomeBy")
++  csPlaybookExecutionsStarted CsPlaybookExecution[]    @relation("CsPlaybookExecutionStartedBy")
++  csSuccessPlansOwned         CsSuccessPlan[]          @relation("CsSuccessPlanOwner")
++  csSuccessPlansCreated       CsSuccessPlan[]          @relation("CsSuccessPlanCreatedBy")
++  csExpansionHandoffsCreated  CsExpansionHandoff[]     @relation("CsExpansionHandoffCreatedBy")
++  supportTicketsCreated       SupportTicket[]          @relation("SupportTicketCreatedBy")
++  supportTicketsAssigned      SupportTicket[]          @relation("SupportTicketAssignee")
++  supportTicketStatusChanges  SupportTicketStatusHistory[] @relation("SupportTicketStatusChangedBy")
++  supportMessagesAuthored     SupportMessage[]         @relation("SupportMessageAuthor")
++  supportAttachmentsUploaded  SupportAttachment[]      @relation("SupportAttachmentUploadedBy")
++  supportAssignmentChanges    SupportAssignmentHistory[] @relation("SupportAssignmentChangedBy")
++  supportTeamMemberships      SupportTeamMembership[]
++  supportSlaPoliciesCreated   SupportSlaPolicy[]       @relation("SupportSlaPolicyCreatedBy")
++  supportSlaCalendarsCreated  SupportSlaCalendar[]     @relation("SupportSlaCalendarCreatedBy")
++  supportHandoffsCreated      SupportHandoff[]         @relation("SupportHandoffCreatedBy")
++  supportReconciliationRuns   SupportReconciliationRun[] @relation("SupportReconciliationRunBy")
++  supportExportAudits         SupportExportAudit[]     @relation("SupportExportAuditBy")
+ 
+   @@index([email])
+   @@index([role])
+@@ -1421,11 +1464,29 @@ model InvoiceItem {
+   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   product        Product? @relation(fields: [productId], references: [id])
+   account        Account? @relation(fields: [accountId], references: [id])
++  itemTaxes      InvoiceItemTax[]
+ 
+   @@index([invoiceId])
+   @@index([accountId])
+ }
+ 
++model InvoiceItemTax {
++  id               String      @id @default(cuid())
++  invoiceItemId    String
++  taxTypeId        String
++  taxName          String
++  taxCode          String      @default("")
++  taxRate          Float
++  calculationType  String      @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime    @default(now())
++  invoiceItem      InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType     @relation(fields: [taxTypeId], references: [id])
++
++  @@index([invoiceItemId])
++  @@index([taxTypeId])
++}
++
+ model InvoiceRefund {
+   id              String    @id @default(cuid())
+   invoiceId       String
+@@ -3141,6 +3202,8 @@ model TaxType {
+   updatedAt          DateTime            @updatedAt
+   productTaxes       ProductTax[]
+   saleItemTaxes      SaleItemTax[]
++  invoiceItemTaxes   InvoiceItemTax[]
++  quotationItemTaxes QuotationItemTax[]
+   purchaseOrderItems PurchaseOrderItem[]
+   expenses           Expense[]
+   account            Account             @relation("TaxTypeAccount", fields: [accountId], references: [id])
+@@ -3635,11 +3698,29 @@ model QuotationItem {
+   netAmount      Float     @default(0)
+   product        Product?  @relation(fields: [productId], references: [id])
+   quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
++  itemTaxes      QuotationItemTax[]
+ 
+   @@index([quotationId])
+   @@index([productId])
+ }
+ 
++model QuotationItemTax {
++  id               String        @id @default(cuid())
++  quotationItemId  String
++  taxTypeId        String
++  taxName          String
++  taxCode          String        @default("")
++  taxRate          Float
++  calculationType  String        @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime      @default(now())
++  quotationItem    QuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType       @relation(fields: [taxTypeId], references: [id])
++
++  @@index([quotationItemId])
++  @@index([taxTypeId])
++}
++
+ model AccountSubscription {
+   id              String       @id @default(cuid())
+   tenantId        String
+@@ -10314,19 +10395,35 @@ model PlatformPayment {
+ }
+ 
+ /// Versioned SaaS subscription plans ΓÇö price edits create a new version.
++/// planCategory: CORE | MRA_EIS (and future product families).
+ model PlatformPlanVersion {
+   id               String    @id @default(cuid())
+   planCode         String
+   version          Int
+   name             String
++  publicName       String?
+   description      String?
++  planCategory     String    @default("CORE")
++  productCode      String?
+   currency         String    @default("MWK")
+   basePrice        Decimal   @db.Decimal(18, 2)
+   billingFrequency String    @default("month")
+   userLimit        Int?
+   businessLimit    Int?
+   featuresJson     Json      @default("[]")
++  limitsJson       Json      @default("{}")
++  eligibilityJson  Json      @default("{}")
++  billingCyclesJson Json     @default("[]")
++  presentationJson Json      @default("{}")
++  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ACTIVE | SUSPENDED | RETIRED | SUPERSEDED
+   status           String    @default("ACTIVE")
++  isPublic         Boolean   @default(false)
++  isFeatured       Boolean   @default(false)
++  displayOrder     Int       @default(0)
++  trialEnabled     Boolean   @default(false)
++  trialDays        Int?
++  ctaText          String?
++  highlightText    String?
+   effectiveFrom    DateTime  @default(now())
+   effectiveTo      DateTime?
+   createdAt        DateTime  @default(now())
+@@ -10336,6 +10433,8 @@ model PlatformPlanVersion {
+   @@unique([planCode, version])
+   @@index([planCode])
+   @@index([status])
++  @@index([planCategory])
++  @@index([isPublic, planCategory, displayOrder])
+ }
+ 
+ /// Platform credits (e.g. overpayment) ΓÇö separate from tenant AR.
+@@ -10437,3 +10536,946 @@ model PlatformFeatureEntitlement {
+   @@index([featureCode])
+   @@index([status])
+ }
++
++/// Platform analytics transactional outbox (BI plane ΓÇö not AcctV2/MraEis).
++model AnalyticsOutbox {
++  id             String    @id @default(cuid())
++  tenantId       String?
++  aggregateType  String
++  aggregateId    String
++  eventType      String
++  schemaVersion  String    @default("1")
++  payload        Json
++  payloadChecksum String
++  idempotencyKey String    @unique
++  status         String    @default("PENDING")
++  availableAt    DateTime  @default(now())
++  claimedAt      DateTime?
++  claimExpiresAt DateTime?
++  claimedBy      String?
++  processedAt    DateTime?
++  attemptCount   Int       @default(0)
++  nextAttemptAt  DateTime?
++  lastError      String?
++  correlationId  String?
++  requestId      String?
++  privacyClass   String    @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  occurredAt     DateTime  @default(now())
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  @@index([status, availableAt])
++  @@index([tenantId, eventType])
++  @@index([aggregateType, aggregateId])
++}
++
++/// Append-only canonical analytics events (derived, rebuildable).
++model AnalyticsEvent {
++  id             String   @id @default(cuid())
++  eventType      String
++  schemaVersion  String   @default("1")
++  tenantId       String?
++  sourceType     String
++  sourceId       String
++  idempotencyKey String   @unique
++  occurredAt     DateTime
++  ingestedAt     DateTime @default(now())
++  privacyClass   String   @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  correlationId  String?
++  requestId      String?
++  payload        Json
++  outboxId       String?
++
++  @@index([eventType, occurredAt])
++  @@index([tenantId, occurredAt])
++  @@index([sourceType, sourceId])
++}
++
++model AnalyticsConsumerCheckpoint {
++  id           String   @id @default(cuid())
++  consumerName String   @unique
++  lastEventId  String?
++  lastOccurredAt DateTime?
++  cursor       Json?
++  updatedAt    DateTime @updatedAt
++}
++
++model AnalyticsDeadLetter {
++  id             String   @id @default(cuid())
++  outboxId       String?
++  eventId        String?
++  eventType      String?
++  errorCode      String?
++  errorMessage   String
++  payload        Json?
++  attemptCount   Int      @default(0)
++  createdAt      DateTime @default(now())
++  resolvedAt     DateTime?
++
++  @@index([createdAt])
++  @@index([eventType])
++}
++
++model AnalyticsFactPlatformBilling {
++  id              String   @id @default(cuid())
++  tenantId        String
++  sourceType      String
++  sourceId        String
++  eventType       String
++  amount          Decimal  @db.Decimal(18, 2)
++  currency        String   @default("MWK")
++  occurredAt      DateTime
++  idempotencyKey  String   @unique
++  createdAt       DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++model AnalyticsFactSubscription {
++  id             String   @id @default(cuid())
++  tenantId       String
++  subscriptionId String
++  eventType      String
++  planCode       String?
++  amount         Decimal? @db.Decimal(18, 2)
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([subscriptionId])
++}
++
++model AnalyticsFactTenantActivity {
++  id             String   @id @default(cuid())
++  tenantId       String
++  eventType      String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö product usage facts from instrumented commerce events.
++model AnalyticsFactProductUsage {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, featureCode, occurredAt])
++  @@index([tenantId, eventType, occurredAt])
++  @@index([featureCode, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö first-value uniqueness per tenant + feature + ruleVersion.
++model ProductFirstValueFact {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  ruleVersion    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  sourceEventId  String?
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@unique([tenantId, featureCode, ruleVersion])
++  @@index([tenantId, featureCode])
++}
++
++/// Phase 9 Wave 2 ΓÇö append-only adoption state history (never silent overwrite).
++model ProductAdoptionStateHistory {
++  id                String   @id @default(cuid())
++  tenantId          String
++  featureCode       String
++  state             String
++  previousState     String?
++  ruleVersion       String
++  definitionVersion String
++  reasonCode        String?
++  evidence          Json?
++  observedAt        DateTime @default(now())
++  createdAt         DateTime @default(now())
++
++  @@index([tenantId, featureCode, observedAt])
++  @@index([tenantId, featureCode, state])
++}
++
++model AnalyticsDailySnapshot {
++  id             String   @id @default(cuid())
++  snapshotDate   DateTime @db.Date
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([snapshotDate, metricKey, tenantId])
++  @@index([metricKey, snapshotDate])
++}
++
++model AnalyticsMonthlySnapshot {
++  id             String   @id @default(cuid())
++  yearMonth      String
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([yearMonth, metricKey, tenantId])
++  @@index([metricKey, yearMonth])
++}
++
++model AnalyticsDataFreshness {
++  id              String   @id @default(cuid())
++  sourceKey       String   @unique
++  lastSuccessAt   DateTime?
++  lastAttemptAt   DateTime?
++  lagSeconds      Int?
++  status          String   @default("UNKNOWN")
++  detail          Json?
++  updatedAt       DateTime @updatedAt
++}
++
++model AnalyticsReconciliationRun {
++  id           String   @id @default(cuid())
++  checkKey     String
++  periodStart  DateTime
++  periodEnd    DateTime
++  expected     Int
++  actual       Int
++  variance     Int
++  status       String
++  detail       Json?
++  createdAt    DateTime @default(now())
++
++  @@index([checkKey, createdAt])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS portfolio (not AdminTenantAccess / Tenant.ownerUserId)
++model CustomerPortfolio {
++  id           String              @id @default(cuid())
++  code         String              @unique
++  name         String
++  description  String?
++  type         String              @default("CUSTOMER_SUCCESS")
++  status       String              @default("ACTIVE")
++  ownerAdminId String?
++  ownerAdmin   Admin?              @relation("PortfolioOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdAt    DateTime            @default(now())
++  updatedAt    DateTime            @updatedAt
++  ownerships     CustomerOwnership[]
++  csCases        CsCase[]
++  supportTickets SupportTicket[]
++
++  @@index([status])
++  @@index([ownerAdminId])
++  @@index([type])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS ownership assignment (tenant ΓåÆ CS owner / portfolio)
++model CustomerOwnership {
++  id                String             @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  ownerAdminId      String
++  assignmentType    String             @default("CUSTOMER_SUCCESS_OWNER")
++  isPrimary         Boolean            @default(true)
++  startAt           DateTime           @default(now())
++  endAt             DateTime?
++  reason            String?
++  assignedByAdminId String?
++  status            String             @default("ACTIVE")
++  createdAt         DateTime           @default(now())
++  updatedAt         DateTime           @updatedAt
++  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin              @relation("OwnershipOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
++  assignedByAdmin   Admin?             @relation("OwnershipAssignedBy", fields: [assignedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId, status])
++  @@index([status, endAt])
++  @@index([isPrimary, status])
++}
++
++/// Optional segment foundation (Wave 3). Dynamic engine deferred; system filters in code.
++model CustomerSegment {
++  id          String                       @id @default(cuid())
++  code        String                       @unique
++  name        String
++  description String?
++  kind        String                       @default("SYSTEM")
++  status      String                       @default("ACTIVE")
++  createdAt   DateTime                     @default(now())
++  updatedAt   DateTime                     @updatedAt
++  memberships CustomerSegmentMembership[]
++
++  @@index([status])
++  @@index([kind])
++}
++
++model CustomerSegmentMembership {
++  id        String          @id @default(cuid())
++  segmentId String
++  tenantId  String
++  status    String          @default("ACTIVE")
++  startAt   DateTime        @default(now())
++  endAt     DateTime?
++  createdAt DateTime        @default(now())
++  updatedAt DateTime        @updatedAt
++  segment   CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
++  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([segmentId, tenantId])
++  @@index([tenantId, status])
++  @@index([segmentId, status])
++}
++
++/// Phase 7 Wave 4 ΓÇö deterministic customer signals (verified sources only).
++/// Status: NEW | ACKNOWLEDGED | RESOLVED_BY_SOURCE | DISMISSED
++/// Ephemeral evaluation is used when this table/client is unavailable.
++model CustomerSignal {
++  id              String   @id @default(cuid())
++  tenantId        String
++  code            String
++  severity        String
++  status          String   @default("NEW")
++  payload         Json?
++  firstDetectedAt DateTime @default(now())
++  lastDetectedAt  DateTime @default(now())
++  ruleVersion     String
++  createdAt       DateTime @default(now())
++  updatedAt       DateTime @updatedAt
++  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([tenantId, code])
++  @@index([tenantId, status])
++  @@index([status, severity])
++  @@index([code, status])
++  @@index([lastDetectedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö versioned health definition (optional DB override of builtin).
++model CustomerHealthDefinition {
++  id          String    @id @default(cuid())
++  version     String    @unique
++  name        String?
++  isActive    Boolean   @default(false)
++  payload     Json
++  activatedAt DateTime?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++
++  @@index([isActive, activatedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö immutable health snapshot (rebuild creates a new row).
++model CustomerHealthSnapshot {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  definitionVersion  String
++  score              Float?
++  band               String
++  confidence         String
++  asOf               DateTime
++  payload            Json?
++  createdAt          DateTime @default(now())
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, createdAt])
++  @@index([band, createdAt])
++  @@index([definitionVersion])
++  @@index([asOf])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS case (not a support ticket; not signal ACK substitute).
++/// Status: OPEN | IN_PROGRESS | RESOLVED | CLOSED
++/// triggerType: SIGNAL | HEALTH | MANUAL
++model CsCase {
++  id                String           @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  status            String           @default("OPEN")
++  priority          String           @default("MEDIUM")
++  severity          String?
++  title             String
++  summary           String?
++  triggerType       String
++  triggerCode       String?
++  definitionVersion String?
++  idempotencyKey    String
++  signalId          String?
++  snapshotId        String?
++  ownerAdminId      String?
++  openedByAdminId   String?
++  openedAt          DateTime         @default(now())
++  closedAt          DateTime?
++  resolvedAt        DateTime?
++  payload           Json?
++  createdAt         DateTime         @default(now())
++  updatedAt         DateTime         @updatedAt
++  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin?           @relation("CsCaseOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  openedByAdmin     Admin?           @relation("CsCaseOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  tasks             CsTask[]
++  interventions     CsIntervention[]
++  playbookExecutions CsPlaybookExecution[]
++
++  // Open-only uniqueness (OPEN/IN_PROGRESS) is enforced by partial unique index
++  // CsCase_open_idempotencyKey_key in scripts/sql/customer-success-phase08.sql ΓÇö
++  // closed/resolved cases may reuse the same key so re-triggers can open a new case.
++  @@index([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([status, openedAt])
++  @@index([triggerType, triggerCode])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS task (assignee = System Admin id).
++model CsTask {
++  id                String    @id @default(cuid())
++  caseId            String?
++  tenantId          String
++  title             String
++  status            String    @default("OPEN")
++  assigneeAdminId   String?
++  dueAt             DateTime?
++  stepId            String?
++  executionId       String?
++  idempotencyKey    String?
++  notes             String?
++  createdByAdminId  String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  assigneeAdmin     Admin?    @relation("CsTaskAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?    @relation("CsTaskCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([caseId, status])
++  @@index([assigneeAdminId, status])
++  @@index([executionId, stepId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS intervention log (not a support ticket).
++model CsIntervention {
++  id                  String   @id @default(cuid())
++  caseId              String?
++  tenantId            String
++  type                String
++  notes               String?
++  channel             String?
++  performedByAdminId  String?
++  performedAt         DateTime @default(now())
++  payload             Json?
++  createdAt           DateTime @default(now())
++  case                CsCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  performedByAdmin    Admin?   @relation("CsInterventionPerformedBy", fields: [performedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, performedAt])
++  @@index([caseId, performedAt])
++  @@index([type])
++}
++
++/// Phase 8 Wave 3 ΓÇö renewal workspace; outcome requires AccountSubscription evidence.
++model CsRenewalWorkspace {
++  id                String    @id @default(cuid())
++  tenantId          String
++  periodKey         String
++  status            String    @default("OPEN")
++  outcome           String?
++  outcomeAt         DateTime?
++  outcomeByAdminId  String?
++  subscriptionId    String?
++  evidenceNote      String?
++  notes             String?
++  openedByAdminId   String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  openedByAdmin     Admin?    @relation("CsRenewalOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  outcomeByAdmin    Admin?    @relation("CsRenewalOutcomeBy", fields: [outcomeByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([tenantId, periodKey])
++  @@index([tenantId, status])
++  @@index([outcome])
++  @@index([periodKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö versioned playbook definition (steps JSON ΓåÆ tasks on execute).
++model CsPlaybook {
++  id          String                @id @default(cuid())
++  key         String
++  name        String
++  version     String
++  description String?
++  status      String                @default("ACTIVE")
++  steps       Json
++  createdAt   DateTime              @default(now())
++  updatedAt   DateTime              @updatedAt
++  executions  CsPlaybookExecution[]
++
++  @@unique([key, version])
++  @@index([status, key])
++}
++
++/// Phase 8 Wave 4 ΓÇö playbook run; idempotent per key+version+tenant+case.
++model CsPlaybookExecution {
++  id                String    @id @default(cuid())
++  playbookId        String
++  tenantId          String
++  caseId            String?
++  status            String    @default("RUNNING")
++  playbookVersion   String
++  idempotencyKey    String?   @unique
++  startedByAdminId  String?
++  startedAt         DateTime  @default(now())
++  completedAt       DateTime?
++  payload           Json?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  playbook          CsPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  startedByAdmin    Admin?    @relation("CsPlaybookExecutionStartedBy", fields: [startedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([playbookId, startedAt])
++  @@index([caseId])
++}
++
++/// Phase 8 Wave 4 ΓÇö success plan (no invented progress %).
++model CsSuccessPlan {
++  id                String          @id @default(cuid())
++  tenantId          String
++  title             String
++  status            String          @default("ACTIVE")
++  summary           String?
++  ownerAdminId      String?
++  createdByAdminId  String?
++  startedAt         DateTime?
++  targetAt          DateTime?
++  createdAt         DateTime        @default(now())
++  updatedAt         DateTime        @updatedAt
++  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  ownerAdmin        Admin?          @relation("CsSuccessPlanOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?          @relation("CsSuccessPlanCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  goals             CsSuccessGoal[]
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++}
++
++/// Phase 8 Wave 4 ΓÇö success goal under a plan.
++model CsSuccessGoal {
++  id         String        @id @default(cuid())
++  planId     String
++  title      String
++  status     String        @default("OPEN")
++  targetNote String?
++  dueAt      DateTime?
++  sortOrder  Int           @default(0)
++  createdAt  DateTime      @default(now())
++  updatedAt  DateTime      @updatedAt
++  plan       CsSuccessPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
++
++  @@index([planId, status])
++  @@index([planId, sortOrder])
++}
++
++/// Phase 8 Wave 4 ΓÇö expansion handoff record-only (no CRM opportunity / auto upgrade).
++model CsExpansionHandoff {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  status             String   @default("OPEN")
++  reason             String?
++  notes              String?
++  recommendedAction  String   @default("OTHER")
++  createdByAdminId   String?
++  payload            Json?
++  createdAt          DateTime @default(now())
++  updatedAt          DateTime @updatedAt
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  createdByAdmin     Admin?   @relation("CsExpansionHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([recommendedAction])
++  @@index([createdAt])
++}
++
++/// Phase 8 Wave 4 ΓÇö onboarding foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsOnboardingRecord {
++  id           String    @id @default(cuid())
++  tenantId     String
++  checklistKey String?
++  status       String?
++  completedAt  DateTime?
++  sourceNote   String?
++  createdAt    DateTime  @default(now())
++  updatedAt    DateTime  @updatedAt
++  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([checklistKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö training foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsTrainingRecord {
++  id          String    @id @default(cuid())
++  tenantId    String
++  moduleKey   String?
++  status      String?
++  completedAt DateTime?
++  sourceNote  String?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([moduleKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö survey foundation rows only (empty ΓåÆ NOT_INSTRUMENTED; never invent NPS).
++model CsSurveyResponse {
++  id         String    @id @default(cuid())
++  tenantId   String
++  surveyKey  String?
++  status     String?
++  score      Int?
++  completedAt DateTime?
++  sourceNote String?
++  createdAt  DateTime  @default(now())
++  updatedAt  DateTime  @updatedAt
++  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([surveyKey])
++}
++
++/// Phase 10 Wave 1 ΓÇö per-UTC-year sequence for SUP-YYYY-###### (concurrency-safe CAS).
++model SupportTicketNumberSeq {
++  year       Int      @id
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++}
++
++/// Phase 10 Wave 1 ΓÇö Support ticket (Γëá CsCase Γëá PlatformSupportAccess).
++/// Never store Tenant GL lines, MRA credentials, or payment secrets.
++model SupportTicket {
++  id                 String    @id @default(cuid())
++  ticketNumber       String    @unique
++  tenantId           String
++  portfolioId        String?
++  status             String    @default("NEW")
++  type               String
++  impact             String?
++  urgency            String?
++  priority           String?
++  severity           String?
++  title              String
++  description        String    @db.Text
++  resolutionCategory String?
++  createdByAdminId   String?
++  assigneeAdminId    String?
++  queueCode          String?
++  sourceChannel      String    @default("ADMIN_MANUAL")
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  resolvedAt         DateTime?
++  closedAt           DateTime?
++  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio          CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  createdByAdmin     Admin?    @relation("SupportTicketCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  assigneeAdmin      Admin?    @relation("SupportTicketAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  statusHistory      SupportTicketStatusHistory[]
++  messages           SupportMessage[]
++  attachments        SupportAttachment[]
++  assignmentHistory  SupportAssignmentHistory[]
++  slaClocks          SupportSlaClock[]
++  handoffs           SupportHandoff[]
++
++  @@index([tenantId, status])
++  @@index([status, createdAt])
++  @@index([assigneeAdminId, status])
++  @@index([queueCode, status])
++  @@index([portfolioId])
++  @@index([sourceChannel])
++}
++
++/// Phase 10 Wave 1 ΓÇö append-only status history (evidence preserved on terminal statuses).
++model SupportTicketStatusHistory {
++  id               String   @id @default(cuid())
++  ticketId         String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("SupportTicketStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 10 Wave 2 ΓÇö ticket messages (PUBLIC / INTERNAL / RESTRICTED). Never expose INTERNAL/RESTRICTED to customers.
++model SupportMessage {
++  id              String   @id @default(cuid())
++  ticketId        String
++  type            String
++  body            String   @db.Text
++  authorAdminId   String?
++  visibility      String?
++  systemEventCode String?
++  createdAt       DateTime @default(now())
++  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  authorAdmin     Admin?   @relation("SupportMessageAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([ticketId, type])
++  @@index([authorAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö attachment metadata; bytes in private storage/support-attachments/ (not public/uploads).
++model SupportAttachment {
++  id                 String    @id @default(cuid())
++  ticketId           String
++  fileName           String
++  mimeType           String
++  sizeBytes          Int
++  storageKey         String
++  scanState          String    @default("PENDING_SCAN")
++  uploadedByAdminId  String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  scannedAt          DateTime?
++  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  uploadedByAdmin    Admin?    @relation("SupportAttachmentUploadedBy", fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([storageKey])
++  @@index([ticketId, scanState])
++  @@index([scanState])
++  @@index([uploadedByAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö queue catalogue (QUEUE_TEAM_MATRIX). liveStatus stays NOT_FOUND until real owners exist.
++model SupportQueue {
++  id                String   @id @default(cuid())
++  code              String   @unique
++  name              String
++  typicalOwnership  String?
++  liveStatus        String   @default("NOT_FOUND")
++  active            Boolean  @default(true)
++  createdAt         DateTime @default(now())
++  updatedAt         DateTime @updatedAt
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö team stub definitions for assignment eligibility.
++model SupportTeam {
++  id         String   @id @default(cuid())
++  code       String   @unique
++  name       String
++  queueCodes String[] @default([])
++  active     Boolean  @default(true)
++  createdAt  DateTime @default(now())
++  updatedAt  DateTime @updatedAt
++  memberships SupportTeamMembership[]
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö optional team membership (stub; empty ΓçÆ eligibility not locked out).
++model SupportTeamMembership {
++  id        String   @id @default(cuid())
++  teamCode  String
++  adminId   String
++  createdAt DateTime @default(now())
++  team      SupportTeam @relation(fields: [teamCode], references: [code], onDelete: Cascade)
++  admin     Admin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
++
++  @@unique([teamCode, adminId])
++  @@index([adminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö append-only assignment / queue change history.
++model SupportAssignmentHistory {
++  id                   String   @id @default(cuid())
++  ticketId             String
++  fromAssigneeAdminId  String?
++  toAssigneeAdminId    String?
++  fromQueueCode        String?
++  toQueueCode          String?
++  changedByAdminId     String?
++  reason               String?
++  at                   DateTime @default(now())
++  ticket               SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin       Admin?   @relation("SupportAssignmentChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toAssigneeAdminId])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned SLA policy (pinned onto clock rows).
++model SupportSlaPolicy {
++  id                            String   @id @default(cuid())
++  versionId                     String   @unique
++  name                          String
++  ackCountsAsFirstResponse      Boolean  @default(false)
++  resolutionStartsOn            String   @default("CREATE")
++  stopResolutionOnClosed        Boolean  @default(true)
++  pauseOnWaitingForCustomer     Boolean  @default(true)
++  pauseOnWaitingForInternalTeam Boolean  @default(true)
++  pauseOnWaitingForVendor       Boolean  @default(true)
++  /// JSON targets map: { FIRST_RESPONSE: { businessMs }, RESOLUTION: { businessMs }, ... }
++  targetsJson                   String   @db.Text
++  active                        Boolean  @default(true)
++  createdByAdminId              String?
++  createdAt                     DateTime @default(now())
++  updatedAt                     DateTime @updatedAt
++  createdByAdmin                Admin?   @relation("SupportSlaPolicyCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned business calendar (pinned onto clock rows).
++model SupportSlaCalendar {
++  id               String   @id @default(cuid())
++  versionId        String   @unique
++  name             String
++  timezone         String
++  /// JSON: workdays[], workingHours {start,end}, holidays[]
++  definitionJson   String   @db.Text
++  active           Boolean  @default(true)
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  createdByAdmin   Admin?   @relation("SupportSlaCalendarCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö SLA clock instance; policyVersion + calendarVersion pinned at start.
++model SupportSlaClock {
++  id               String    @id @default(cuid())
++  ticketId         String
++  clockType        String
++  state            String    @default("RUNNING")
++  policyVersion    String
++  calendarVersion  String
++  targetBusinessMs Int
++  startedAt        DateTime  @default(now())
++  dueAt            DateTime?
++  pausedAt         DateTime?
++  pausedMs         Int       @default(0)
++  stoppedAt        DateTime?
++  breachedAt       DateTime?
++  createdAt        DateTime  @default(now())
++  updatedAt        DateTime  @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  events           SupportSlaEvent[]
++
++  @@index([ticketId, clockType])
++  @@index([ticketId, state])
++  @@index([state, dueAt])
++  @@index([policyVersion])
++  @@index([calendarVersion])
++}
++
++/// Phase 10 Wave 3 ΓÇö append-only SLA events (breach facts immutable).
++model SupportSlaEvent {
++  id        String   @id @default(cuid())
++  clockId   String
++  eventType String
++  at        DateTime @default(now())
++  metaJson  String?
++  clock     SupportSlaClock @relation(fields: [clockId], references: [id], onDelete: Cascade)
++
++  @@index([clockId, at])
++  @@index([clockId, eventType])
++  @@index([eventType, at])
++}
++
++/// Phase 10 Wave 4 ΓÇö link-only handoff (Γëá open/close CsCase; Γëá billing/MRA/GL mutation).
++model SupportHandoff {
++  id               String   @id @default(cuid())
++  ticketId         String
++  tenantId         String
++  /// CS | PRODUCT | FINANCE | BILLING | MRA
++  targetType       String
++  status           String   @default("OPEN")
++  summary          String?
++  /// Optional link id only (csCaseId / invoiceId / subscriptionId / fiscalTransmissionId).
++  targetRefId      String?
++  /// Optional Phase 9 catalogue feature code (PRODUCT target).
++  featureCode      String?
++  /// Allowed link payload only ΓÇö never credentials, raw MRA, or payment secrets.
++  payload          Json?
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  createdByAdmin   Admin?   @relation("SupportHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([tenantId, targetType])
++  @@index([targetType, status])
++  @@index([createdByAdminId])
++}
++
++/// Phase 10 Wave 4 ΓÇö optional reconciliation run audit (never invents false zeroes).
++model SupportReconciliationRun {
++  id             String   @id @default(cuid())
++  status         String
++  summaryJson    String   @db.Text
++  runByAdminId   String?
++  createdAt      DateTime @default(now())
++  runByAdmin     Admin?   @relation("SupportReconciliationRunBy", fields: [runByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([status, createdAt])
++  @@index([runByAdminId])
++}
++
++/// Phase 10 Wave 4 ΓÇö export download audit (permission rechecked at download time).
++model SupportExportAudit {
++  id        String   @id @default(cuid())
++  adminId   String?
++  dataset   String
++  format    String
++  rowCount  Int?
++  createdAt DateTime @default(now())
++  admin     Admin?   @relation("SupportExportAuditBy", fields: [adminId], references: [id], onDelete: SetNull)
++
++  @@index([adminId, createdAt])
++  @@index([dataset, createdAt])
++}

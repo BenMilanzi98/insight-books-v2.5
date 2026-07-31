@@ -14,6 +14,7 @@ import {
   buildExpenseReconciliation,
   getGlPeriodTotals,
 } from '@/lib/reportingEngine/index.js';
+import { getExpenseGlAccountLines } from '@/lib/accountingReportService';
 import {
   bootstrapReportRoute,
   auditReportAccess,
@@ -305,26 +306,16 @@ export async function GET(request) {
       .sort((a, b) => (b.amount || 0) - (a.amount || 0));
 
     let glTotals = null;
+    let accountLines = [];
     try {
-      for (const tenantId of tenantIds) {
-        const t = await getGlPeriodTotals({
-          tenantId,
-          startDate,
-          endDate,
-          branchId: reportBranchId,
-          prisma,
-        });
-        if (!glTotals) {
-          glTotals = { ...t, accountLines: [...(t.accountLines || [])] };
-        } else {
-          glTotals.revenue = addMoney(glTotals.revenue, t.revenue);
-          glTotals.cogs = addMoney(glTotals.cogs, t.cogs);
-          glTotals.operatingExpenses = addMoney(glTotals.operatingExpenses, t.operatingExpenses);
-          glTotals.totalExpenses = addMoney(glTotals.totalExpenses, t.totalExpenses);
-          glTotals.hasGlActivity = glTotals.hasGlActivity || t.hasGlActivity;
-          if (t.accountLines?.length) glTotals.accountLines.push(...t.accountLines);
-        }
-      }
+      const glPack = await getExpenseGlAccountLines({
+        tenantIds,
+        startDate,
+        endDate,
+        branchId: reportBranchId,
+      });
+      glTotals = glPack.glTotals;
+      accountLines = glPack.accountLines;
     } catch (glErr) {
       console.warn('Expense report: GL reconciliation failed', glErr?.message || glErr);
     }
@@ -382,11 +373,14 @@ export async function GET(request) {
         reconciliation: glTotals
           ? buildExpenseReconciliation(totalExpenses, glTotals)
           : null,
-        glExpensesByAccount: (glTotals?.accountLines ?? []).filter((line) =>
-          line.accountCode.startsWith('5')
-        ),
+        glExpensesByAccount: accountLines.length
+          ? accountLines
+          : (glTotals?.accountLines ?? []).filter((line) =>
+              String(line.accountCode || '').startsWith('5')
+            ),
         sourcePolicy: glTotals?.sourcePolicy ?? null,
       },
+      accountLines,
       scope,
       ...(byTenant ? { byTenant } : {}),
     });

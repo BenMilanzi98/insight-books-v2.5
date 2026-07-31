@@ -1,14 +1,16 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AdminPageContainer, AdminPageHeader } from '@/components/admin';
 
 export default function SubscriptionGrowthPage() {
+  const { t } = useI18n();
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="Subscription growth"
+        title={t('admin-pages.stubs.subscriptionGrowth.title')}
         description="Standalone growth charts for this route are not maintained separately. Live billing and subscription metrics live on the main dashboard and Billing."
         actions={
           <div className="flex flex-wrap gap-2">

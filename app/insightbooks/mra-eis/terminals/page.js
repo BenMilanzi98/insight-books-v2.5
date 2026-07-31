@@ -1,5 +1,8 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -24,6 +27,7 @@ function statusTone(status) {
 }
 
 export default function SystemMraEisTerminalsPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ environment: '', status: '', tenantId: '' });
   const [error, setError] = useState('');
@@ -37,7 +41,7 @@ export default function SystemMraEisTerminalsPage() {
       if (filters.environment) qs.set('environment', filters.environment);
       if (filters.status) qs.set('status', filters.status);
       if (filters.tenantId) qs.set('tenantId', filters.tenantId);
-      const res = await fetch(`/api/admin/mra-eis/terminals?${qs.toString()}`);
+      const res = await adminFetch(`/api/admin/mra-eis/terminals?${qs.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Failed to load terminals');
       setRows(json.data || []);
@@ -97,8 +101,8 @@ export default function SystemMraEisTerminalsPage() {
             Terminals
           </>
         }
-        title="MRA EIS terminals"
-        description="Cross-tenant visibility. Credential plaintext is never returned. Support actions are audited."
+        title={t('admin-pages.mraEis.terminals.title')}
+        description={t('admin-pages.mraEis.terminals.description')}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">

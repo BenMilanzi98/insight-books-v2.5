@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
@@ -38,6 +41,7 @@ function statusTone(status) {
 }
 
 export default function AdminMraEisPage() {
+  const { t } = useI18n();
   const [platform, setPlatform] = useState(null);
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState('');
@@ -63,8 +67,8 @@ export default function AdminMraEisPage() {
       if (search) qs.set('search', search);
       if (statusFilter) qs.set('status', statusFilter);
       const [pRes, eRes] = await Promise.all([
-        fetch('/api/admin/mra-eis/platform'),
-        fetch(`/api/admin/mra-eis/entitlements?${qs.toString()}`),
+        adminFetch('/api/admin/mra-eis/platform'),
+        adminFetch(`/api/admin/mra-eis/entitlements?${qs.toString()}`),
       ]);
       const pJson = await pRes.json();
       const eJson = await eRes.json();
@@ -87,7 +91,7 @@ export default function AdminMraEisPage() {
   async function savePlatform() {
     setMessage('');
     setError('');
-    const res = await fetch('/api/admin/mra-eis/platform', {
+    const res = await adminFetch('/api/admin/mra-eis/platform', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({
@@ -113,7 +117,7 @@ export default function AdminMraEisPage() {
       setError('Tenant ID and reason are required.');
       return;
     }
-    const res = await fetch('/api/admin/mra-eis/entitlements', {
+    const res = await adminFetch('/api/admin/mra-eis/entitlements', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({
@@ -184,26 +188,12 @@ export default function AdminMraEisPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="MRA EIS entitlement"
+        title={t('admin-pages.mraEis.title')}
         description="Platform and tenant control plane. Terminal activation is under Terminals (metadata only — credentials are never displayed). This screen does not submit fiscal transactions."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Link href="/insightbooks/mra-eis/centre" className={btnPrimary}>
-              EIS Administration Centre
-            </Link>
-            <Link href="/insightbooks/mra-eis/terminals" className={btnGhost}>
-              Terminals
-            </Link>
-            <Link href="/insightbooks/mra-eis/configuration" className={btnGhost}>
-              Configuration
-            </Link>
-            <Link href="/insightbooks/mra-eis/mappings" className={btnGhost}>
-              Mappings
-            </Link>
-            <Link href="/insightbooks/mra-eis/catalogue" className={btnGhost}>
-              Catalogue
-            </Link>
-          </div>
+          <button type="button" onClick={load} className={btnGhost} disabled={loading}>
+            <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+          </button>
         }
       />
 

@@ -1,0 +1,17 @@
+{
+  "title": "InsightBooks Capacity Certification Pack (Phase 17)",
+  "certified": false,
+  "reason": "Unit/scaffolding only — production capacity not claimed without approved load/soak/restore evidence.",
+  "commit": "5b59a68",
+  "generatedAt": "2026-07-22T09:38:13.880Z",
+  "unitTestsPassed": true,
+  "loadSmoke": null,
+  "safeOperatingLimit": null,
+  "warningLimit": null,
+  "criticalLimit": null,
+  "accountingConsistencyPolicy": "Every load scenario MUST run Trial Balance / control-account checks — see DATA_CONSISTENCY_UNDER_LOAD.md",
+  "evidence": {
+    "docs": "docs/performance-reliability/",
+    "readinessCsv": "artifacts/performance-reliability/platform-performance-readiness.csv"
+  }
+}

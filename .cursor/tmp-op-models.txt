@@ -1,0 +1,377 @@
+﻿model Invoice {
+  id                        String              @id @default(cuid())
+  invoiceNumber             String
+  title                     String?
+  orderNumber               String?
+  clientId                  String
+  createdById               String
+  issueDate                 DateTime
+  dueDate                   DateTime
+  subtotal                  Decimal             @db.Decimal(18, 2)
+  taxAmount                 Decimal             @db.Decimal(18, 2)
+  total                     Decimal             @db.Decimal(18, 2)
+  status                    String              @default("draft")
+  notes                     String?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  tenantId                  String
+  discount                  Decimal             @default(0) @db.Decimal(18, 2)
+  lastPaymentDate           DateTime?
+  originalTotal             Decimal             @default(0) @db.Decimal(18, 2)
+  refundAmount              Decimal             @default(0) @db.Decimal(18, 2)
+  refundReason              String?
+  refundedAt                DateTime?
+  refundedById              String?
+  remainingBalance          Decimal             @default(0) @db.Decimal(18, 2)
+  totalDiscountAmount       Decimal             @default(0) @db.Decimal(18, 2)
+  totalPaid                 Decimal             @default(0) @db.Decimal(18, 2)
+  voidReason                String?
+  voidedAt                  DateTime?
+  voidedById                String?
+  deletionReason            String?
+  deletedAt                 DateTime?
+  deletedById               String?
+  isDeleted                 Boolean             @default(false)
+  branchId                  String?
+  footerPhoneOverride       String? // Override default phone in document footer
+  footerBankDetailsOverride String? // Override default bank details in document footer
+  // Reversal fields
+  isReversal                Boolean             @default(false)
+  reversedTransactionId     String?
+  reversalReason            String?
+  reversedAt                DateTime?
+  reversedById              String?
+  /// True when this invoice was created from Rental & Hiring (operational layer).
+  isRentalInvoice           Boolean             @default(false)
+  rentalTransaction         RentalTransaction?
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([branchId])
+  @@index([isDeleted])
+  @@index([deletedAt])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
+  @@index([isRentalInvoice])
+}
+
+model Payment {
+  id                    String              @id @default(cuid())
+  invoiceId             String?
+  amount                Decimal             @db.Decimal(18, 2)
+  paymentDate           DateTime
+  paymentMethod         String
+  reference             String?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  status                String              @default("Completed")
+  tenantId              String
+  destinationAccount    String?
+  sourceAccount         String?
+  type                  String?
+  expenseId             String?
+  refundedAmount        Float               @default(0)
+  saleId                String?
+  branchId              String?
+  // Reversal fields
+  isReversal            Boolean             @default(false)
+  reversedTransactionId String?
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+
+  @@index([tenantId])
+  @@index([invoiceId])
+  @@index([saleId])
+  @@index([expenseId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([paymentMethod])
+  @@index([type])
+  @@index([branchId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
+}
+
+model Sale {
+  id                         String                      @id @default(cuid())
+  saleNumber                 String
+  title                      String?
+  orderNumber                String?
+  clientId                   String?
+  createdById                String
+  saleDate                   DateTime                    @default(now())
+  subtotal                   Decimal                     @db.Decimal(18, 2)
+  taxRate                    Float                       @default(0)
+  taxAmount                  Decimal                     @default(0) @db.Decimal(18, 2)
+  total                      Decimal                     @db.Decimal(18, 2)
+  status                     String                      @default("completed")
+  notes                      String?
+  paymentMethod              String                      @default("cash")
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  tenantId                   String
+  discount                   Decimal                     @default(0) @db.Decimal(18, 2)
+  historicalDate             DateTime?
+  isHistorical               Boolean                     @default(false)
+  migrationBatch             String?
+  originalReference          String?
+  refundReason               String?
+  refundedAt                 DateTime?
+  refundedById               String?
+  totalDiscountAmount        Decimal                     @default(0) @db.Decimal(18, 2)
+  totalTaxAmount             Decimal                     @default(0) @db.Decimal(18, 2)
+  voidReason                 String?
+  voidedAt                   DateTime?
+  voidedById                 String?
+  branchId                   String?
+  footerPhoneOverride        String? // Override default phone in receipt footer
+  footerBankDetailsOverride  String? // Override default bank details in receipt footer
+  /// Cash / POS: amount customer handed over (optional; for change calculation on receipt)
+  posAmountTendered          Decimal?                    @db.Decimal(18, 2)
+  /// Cash / POS: change returned (optional)
+  posChangeGiven             Decimal?                    @db.Decimal(18, 2)
+  // Reversal fields
+  isReversal                 Boolean                     @default(false)
+  reversedTransactionId      String?
+  reversalReason             String?
+  reversedAt                 DateTime?
+  reversedById               String?
+
+  @@index([clientId])
+  @@index([tenantId])
+  @@index([createdById])
+  @@index([status])
+  @@index([saleDate])
+  @@index([branchId])
+  @@index([isHistorical])
+  @@index([historicalDate])
+  @@index([migrationBatch])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
+}
+
+model Expense {
+  id                      String                    @id @default(cuid())
+  description             String
+  amount                  Decimal                   @db.Decimal(18, 2) // Total (incl. tax)
+  taxAmount               Decimal?                  @default(0) @db.Decimal(18, 2) // Tax component for reporting
+  taxRate                 Float?                    @default(0) // Tax rate % when recorded
+  date                    DateTime
+  category                String
+  categoryId              String?
+  expenseAccountId        String?
+  receiptUrl              String?
+  submittedById           String
+  status                  String
+  notes                   String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  tenantId                String
+  merchant                String?
+  sourceAccountId         String?
+  paymentMethod           String?
+  deletedAt               DateTime?
+  deletedById             String?
+  deletionReason          String?
+  historicalDate          DateTime?
+  isDeleted               Boolean                   @default(false)
+  isHistorical            Boolean                   @default(false)
+  migrationBatch          String?
+  originalReference       String?
+  paidAmount              Decimal?                  @db.Decimal(18, 2)
+  paymentReference        String?
+  paymentStatus           String                    @default("Fully paid")
+  branchId                String?
+  employeeId              String?
+  supplierId              String?
+  purchaseOrderId         String?
+  purchaseOrderItemId     String?
+  taxTypeId               String?
+  // Reversal fields
+  isReversal              Boolean                   @default(false)
+  reversedTransactionId   String?
+  reversalReason          String?
+  reversedAt              DateTime?
+  reversedById            String?
+
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([paymentMethod])
+  @@index([isDeleted])
+  @@index([isHistorical])
+  @@index([tenantId, isDeleted])
+  @@index([tenantId, isHistorical])
+  @@index([paymentStatus])
+  @@index([branchId])
+  @@index([employeeId])
+  @@index([expenseAccountId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
+  @@index([taxTypeId])
+}
+
+model SupplierBill {
+  id                    String                      @id @default(cuid())
+  billNumber            String                      @unique
+  tenantId              String
+  supplierId            String
+  purchaseOrderId       String?
+  goodsReceiptId        String?
+  billDate              DateTime
+  dueDate               DateTime
+  billType              String                      @default("inventory")
+  supplierInvoiceNumber String?
+  subtotal              Decimal?                    @db.Decimal(18, 2)
+  taxAmount             Decimal?                    @db.Decimal(18, 2)
+  totalAmount           Decimal?                    @db.Decimal(18, 2)
+  amountPaid            Decimal?                    @default(0) @db.Decimal(18, 2)
+  status                String                      @default("Draft")
+  paymentTerms          Int?
+  currency              String?                     @default("MWK")
+  notes                 String?
+  journalEntryId        String?
+  createdById           String?
+  approvedById          String?
+  finalizedAt           DateTime?
+  finalizedById         String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([tenantId, supplierId])
+  @@index([tenantId, status])
+  @@index([tenantId, billType])
+  @@index([dueDate])
+}
+
+model SupplierPayment {
+  id                    String                      @id @default(cuid())
+  paymentNumber         String                      @unique
+  tenantId              String
+  supplierId            String
+  paymentDate           DateTime
+  paymentMethod         String
+  bankAccountId         String?
+  referenceNumber       String?
+  totalAmount           Float
+  currency              String?                     @default("MWK")
+  exchangeRate          Float?                      @default(1)
+  notes                 String?
+  journalEntryId        String?
+  createdById           String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  // Reversal fields
+  isReversal            Boolean                     @default(false)
+  reversedTransactionId String?
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+
+  @@index([tenantId, supplierId])
+  @@index([paymentDate])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
+}
+
+model Liability {
+  id                    String             @id @default(cuid())
+  name                  String
+  description           String?
+  categoryId            String
+  liabilityType         String
+  principalAmount       Float
+  interestRate          Float?             @default(0)
+  interestType          String             @default("reducing_balance")
+  oneTimeInterestAmount Float?             @default(0)
+  startDate             DateTime
+  maturityDate          DateTime?
+  termMonths            Int?
+  paymentFrequency      String?
+  status                String             @default("active")
+  lender                String?
+  accountNumber         String?
+  notes                 String?
+  currentBalance        Float              @default(0)
+  totalPaid             Float              @default(0)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  tenantId              String
+  createdById           String
+  glAccountId           String?
+
+  @@index([tenantId])
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([status])
+  @@index([startDate])
+  @@index([liabilityType])
+  @@index([glAccountId])
+}
+
+model PaymentAccount {
+  id                      String              @id @default(cuid())
+  tenantId                String
+  name                    String
+  accountType             String // Cash, Bank, Mobile Money, Wallet, POS Terminal
+  reference               String? // Account number, wallet ID, etc.
+  isActive                Boolean             @default(true)
+  isSystem                Boolean             @default(false) // System accounts (like Cash) cannot be deleted
+  /// Links this POS/payment method to a Chart of Accounts asset (cash/bank) so GL and A/L stay in sync
+  coaAccountId            String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([isSystem])
+  @@index([coaAccountId])
+}
+
+model Client {
+  id                 String              @id @default(cuid())
+  name               String
+  email              String?
+  phone              String?
+  address            String?
+  contactPerson      String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  tenantId           String
+}
+
+model Supplier {
+  id                String            @id @default(cuid())
+  tenantId          String
+  supplierCode      String            @unique
+  supplierName      String
+  contactPerson     String?
+  email             String?
+  phone             String?
+  mobile            String?
+  address           String?
+  city              String?
+  country           String?           @default("Malawi")
+  postalCode        String?
+  taxId             String?
+  paymentTerms      Int?              @default(30)
+  paymentPreference String? // Cash, Bank transfer, Card, Other
+  currency          String?           @default("MWK")
+  creditLimit       Float?
+  currentBalance    Float             @default(0)
+  bankName          String?
+  bankAccountNumber String?
+  bankBranch        String?
+  isActive          Boolean           @default(true)
+  notes             String?
+  createdById       String?
+  modifiedById      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([tenantId, supplierName])
+  @@index([tenantId, isActive])
+  @@index([tenantId, paymentPreference])
+}
+

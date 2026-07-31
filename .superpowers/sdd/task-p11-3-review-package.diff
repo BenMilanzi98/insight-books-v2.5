@@ -1,0 +1,3054 @@
+﻿# Review package — Phase 11 Task 3 (WORKING_TREE)
+
+diff --git "a/lib\\admin\\crm\\qualification\\catalogue.js" "b/lib\\admin\\crm\\qualification\\catalogue.js"
+new file mode 100644
+index 0000000..6aec2b9
+--- /dev/null
++++ "b/lib\\admin\\crm\\qualification\\catalogue.js"
+@@ -0,0 +1,56 @@
++/**
++ * Qualification catalogue ΓÇö Phase 11 Wave 3.
++ * Qualification Γëá scoring. UNKNOWN Γëá NO.
++ */
++
++export {
++  CRM_QUALIFICATION_RESPONSE,
++  CRM_QUALIFICATION_RESPONSES,
++  CRM_QUALIFICATION_DEFINITION_STATUS,
++  CRM_DEFAULT_QUALIFICATION_VERSION_ID,
++} from '../catalogue.js';
++
++/**
++ * Default ACTIVE definition (SMALL_BUSINESS_STANDARD / BANT-lite).
++ * Active definitions are not edited in place ΓÇö publish a new versionId.
++ */
++export function getDefaultQualificationDefinition() {
++  return Object.freeze({
++    key: 'SMALL_BUSINESS_STANDARD',
++    name: 'Small Business Standard (BANT-lite)',
++    versionId: 'qual-small-business-standard-v1',
++    status: 'ACTIVE',
++    criteria: Object.freeze([
++      Object.freeze({
++        key: 'BUDGET',
++        label: 'Budget identified',
++        required: true,
++        blockingNo: true,
++      }),
++      Object.freeze({
++        key: 'AUTHORITY',
++        label: 'Decision authority engaged',
++        required: true,
++        blockingNo: true,
++      }),
++      Object.freeze({
++        key: 'NEED',
++        label: 'Business need confirmed',
++        required: true,
++        blockingNo: true,
++      }),
++      Object.freeze({
++        key: 'TIMELINE',
++        label: 'Purchase timeline',
++        required: true,
++        blockingNo: false,
++      }),
++      Object.freeze({
++        key: 'FIT',
++        label: 'Product fit',
++        required: false,
++        blockingNo: false,
++      }),
++    ]),
++  });
++}
+diff --git "a/lib\\admin\\crm\\qualification\\definitions.js" "b/lib\\admin\\crm\\qualification\\definitions.js"
+new file mode 100644
+index 0000000..eef66fa
+--- /dev/null
++++ "b/lib\\admin\\crm\\qualification\\definitions.js"
+@@ -0,0 +1,99 @@
++/**
++ * Versioned qualification definitions ΓÇö catalogue default + optional DB rows.
++ * Never invent a newer default for an unknown versionId (SLA pattern).
++ */
++
++import {
++  CRM_DEFAULT_QUALIFICATION_VERSION_ID,
++  CRM_QUALIFICATION_DEFINITION_STATUS,
++} from './catalogue.js';
++import { getDefaultQualificationDefinition } from './catalogue.js';
++
++function mapVersionRow(row) {
++  if (!row) return null;
++  const criteria =
++    typeof row.criteriaJson === 'string'
++      ? JSON.parse(row.criteriaJson)
++      : row.criteriaJson || row.criteria || [];
++  return {
++    key: row.key || row.definitionKey || null,
++    name: row.name || null,
++    versionId: row.versionId,
++    status: row.status || CRM_QUALIFICATION_DEFINITION_STATUS.ACTIVE,
++    criteria: Array.isArray(criteria) ? criteria : [],
++    source: 'db',
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {string} versionId
++ */
++export async function getQualificationDefinitionByVersion(prisma, versionId) {
++  const id = String(versionId || '').trim();
++  if (!id) return null;
++
++  const catalogue = getDefaultQualificationDefinition();
++  if (id === catalogue.versionId || id === CRM_DEFAULT_QUALIFICATION_VERSION_ID) {
++    return { ...catalogue, source: 'catalogue' };
++  }
++
++  if (typeof prisma?.crmQualificationDefinitionVersion?.findUnique === 'function') {
++    try {
++      const row = await prisma.crmQualificationDefinitionVersion.findUnique({
++        where: { versionId: id },
++      });
++      if (row) return mapVersionRow(row);
++    } catch {
++      // fall through
++    }
++  }
++  return null;
++}
++
++/**
++ * Resolve active definition (catalogue default unless DB has ACTIVE row).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ */
++export async function getActiveQualificationDefinition(prisma) {
++  if (typeof prisma?.crmQualificationDefinitionVersion?.findFirst === 'function') {
++    try {
++      const row = await prisma.crmQualificationDefinitionVersion.findFirst({
++        where: { status: CRM_QUALIFICATION_DEFINITION_STATUS.ACTIVE },
++        orderBy: { createdAt: 'desc' },
++      });
++      if (row) return mapVersionRow(row);
++    } catch {
++      // fall through
++    }
++  }
++  const catalogue = getDefaultQualificationDefinition();
++  return { ...catalogue, source: 'catalogue' };
++}
++
++/**
++ * List definitions for admin UI.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ */
++export async function listQualificationDefinitions(prisma) {
++  const items = [];
++  const catalogue = getDefaultQualificationDefinition();
++  items.push({ ...catalogue, source: 'catalogue' });
++
++  if (typeof prisma?.crmQualificationDefinitionVersion?.findMany === 'function') {
++    try {
++      const rows = await prisma.crmQualificationDefinitionVersion.findMany({
++        orderBy: { versionId: 'asc' },
++      });
++      for (const row of rows || []) {
++        if (row.versionId === catalogue.versionId) continue;
++        items.push(mapVersionRow(row));
++      }
++    } catch {
++      // catalogue only
++    }
++  }
++  return { ok: true, items };
++}
+diff --git "a/lib\\admin\\crm\\qualification\\evaluate.js" "b/lib\\admin\\crm\\qualification\\evaluate.js"
+new file mode 100644
+index 0000000..e6171cb
+--- /dev/null
++++ "b/lib\\admin\\crm\\qualification\\evaluate.js"
+@@ -0,0 +1,395 @@
++/**
++ * Qualification evaluation ΓÇö Phase 11 Wave 3.
++ * Cannot mark QUALIFIED while required criterion is UNKNOWN or blocking NO.
++ * Override requires overrideQualification permission + reason.
++ */
++
++import {
++  CRM_LEAD_STATUS,
++  CRM_QUALIFICATION_RESPONSE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { hasCrmLeadModel, serializeLead } from '../leads.js';
++import { assertTransition } from '../stateMachine.js';
++import {
++  getActiveQualificationDefinition,
++  getQualificationDefinitionByVersion,
++} from './definitions.js';
++
++const RESPONSE_SET = new Set(Object.values(CRM_QUALIFICATION_RESPONSE));
++
++export function hasCrmQualificationResponseModel(prisma) {
++  return typeof prisma?.crmQualificationResponse?.create === 'function';
++}
++
++function normalizeResponses(raw) {
++  if (!Array.isArray(raw)) return [];
++  return raw
++    .map((r) => {
++      const criterionKey = r?.criterionKey ? String(r.criterionKey).trim().toUpperCase() : '';
++      const state = r?.state ? String(r.state).trim().toUpperCase() : '';
++      if (!criterionKey || !RESPONSE_SET.has(state)) return null;
++      return {
++        criterionKey,
++        state,
++        note: r?.note != null ? String(r.note) : null,
++      };
++    })
++    .filter(Boolean);
++}
++
++/**
++ * Pure evaluation of responses against a definition.
++ * UNKNOWN Γëá NO ΓÇö UNKNOWN blocks required criteria; NO blocks only when blockingNo.
++ *
++ * @param {object} definition
++ * @param {Array<{criterionKey:string,state:string}>} responses
++ */
++export function evaluateQualificationResponses(definition, responses) {
++  const criteria = Array.isArray(definition?.criteria) ? definition.criteria : [];
++  const byKey = new Map(
++    (responses || []).map((r) => [String(r.criterionKey).toUpperCase(), r])
++  );
++
++  const details = [];
++  const blockers = [];
++  let requiredUnknown = 0;
++  let blockingNo = 0;
++  let requiredAnswered = 0;
++  let requiredTotal = 0;
++
++  for (const c of criteria) {
++    const key = String(c.key).toUpperCase();
++    const resp = byKey.get(key);
++    const state = resp?.state || CRM_QUALIFICATION_RESPONSE.UNKNOWN;
++    const required = Boolean(c.required);
++    const isBlockingNo = Boolean(c.blockingNo);
++
++    if (required) {
++      requiredTotal += 1;
++      if (
++        state !== CRM_QUALIFICATION_RESPONSE.UNKNOWN &&
++        state !== CRM_QUALIFICATION_RESPONSE.PENDING_VERIFICATION
++      ) {
++        requiredAnswered += 1;
++      }
++    }
++
++    let blocks = false;
++    let reason = null;
++    if (required && state === CRM_QUALIFICATION_RESPONSE.UNKNOWN) {
++      blocks = true;
++      reason = 'required_unknown';
++      requiredUnknown += 1;
++      blockers.push({ criterionKey: key, state, reason });
++    } else if (required && state === CRM_QUALIFICATION_RESPONSE.PENDING_VERIFICATION) {
++      blocks = true;
++      reason = 'required_pending_verification';
++      requiredUnknown += 1;
++      blockers.push({ criterionKey: key, state, reason });
++    } else if (isBlockingNo && state === CRM_QUALIFICATION_RESPONSE.NO) {
++      blocks = true;
++      reason = 'blocking_no';
++      blockingNo += 1;
++      blockers.push({ criterionKey: key, state, reason });
++    }
++
++    details.push({
++      criterionKey: key,
++      label: c.label || key,
++      required,
++      blockingNo: isBlockingNo,
++      state,
++      blocks,
++      reason,
++    });
++  }
++
++  const qualified = blockers.length === 0 && requiredTotal > 0;
++  return {
++    qualified,
++    blockers,
++    details,
++    summary: {
++      requiredTotal,
++      requiredAnswered,
++      requiredUnknown,
++      blockingNo,
++      /** UNKNOWN is never counted as NO */
++      unknownIsNotNo: true,
++    },
++  };
++}
++
++async function findLead(prisma, leadId) {
++  const id = String(leadId || '').trim();
++  if (!id) return null;
++  try {
++    return await prisma.crmLead.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function persistResponses(prisma, {
++  leadId,
++  definitionVersionId,
++  responses,
++  adminId,
++  now,
++  overrideReason,
++}) {
++  if (!hasCrmQualificationResponseModel(prisma)) return [];
++
++  const saved = [];
++  for (const r of responses) {
++    const data = {
++      leadId,
++      definitionVersionId,
++      criterionKey: r.criterionKey,
++      state: r.state,
++      note: r.note,
++      answeredByAdminId: adminId || null,
++      answeredAt: now,
++      overrideReason: overrideReason || null,
++    };
++    try {
++      if (typeof prisma.crmQualificationResponse.upsert === 'function') {
++        const row = await prisma.crmQualificationResponse.upsert({
++          where: {
++            leadId_definitionVersionId_criterionKey: {
++              leadId,
++              definitionVersionId,
++              criterionKey: r.criterionKey,
++            },
++          },
++          create: data,
++          update: {
++            state: r.state,
++            note: r.note,
++            answeredByAdminId: adminId || null,
++            answeredAt: now,
++            overrideReason: overrideReason || null,
++          },
++        });
++        saved.push(row);
++      } else {
++        const row = await prisma.crmQualificationResponse.create({ data });
++        saved.push(row);
++      }
++    } catch {
++      try {
++        const row = await prisma.crmQualificationResponse.create({ data });
++        saved.push(row);
++      } catch {
++        // soft-fail persist
++      }
++    }
++  }
++  return saved;
++}
++
++/**
++ * Evaluate (and optionally qualify) a Lead against a versioned definition.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   leadId: string,
++ *   definitionVersionId?: string|null,
++ *   responses: Array<{criterionKey:string,state:string,note?:string}>,
++ *   applyQualifiedStatus?: boolean,
++ *   override?: boolean,
++ *   overrideReason?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function evaluateQualification(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canQualifyLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_qualify_forbidden' };
++  }
++
++  if (!hasCrmLeadModel(prisma)) {
++    return { ok: false, error: 'crm_lead_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const leadId = args.leadId ? String(args.leadId).trim() : '';
++  if (!leadId) return { ok: false, error: 'leadId_required' };
++
++  const responses = normalizeResponses(args.responses);
++  if (!responses.length) return { ok: false, error: 'responses_required' };
++
++  let definition = null;
++  if (args.definitionVersionId) {
++    definition = await getQualificationDefinitionByVersion(prisma, args.definitionVersionId);
++    if (!definition) {
++      return { ok: false, error: 'DEFINITION_MISSING', definitionVersionId: args.definitionVersionId };
++    }
++  } else {
++    definition = await getActiveQualificationDefinition(prisma);
++  }
++
++  const evaluation = evaluateQualificationResponses(definition, responses);
++  const now = args.now || new Date();
++  const override = args.override === true;
++  let overrideApplied = false;
++
++  if (override) {
++    if (!access.canOverrideQualification) {
++      return { ok: false, forbidden: true, reason: 'crm_override_qualification_forbidden' };
++    }
++    const reason = args.overrideReason != null ? String(args.overrideReason).trim() : '';
++    if (!reason) {
++      return { ok: false, error: 'overrideReason_required' };
++    }
++    overrideApplied = true;
++  }
++
++  await persistResponses(prisma, {
++    leadId,
++    definitionVersionId: definition.versionId,
++    responses,
++    adminId: args.admin?.id || null,
++    now,
++    overrideReason: overrideApplied ? String(args.overrideReason).trim() : null,
++  });
++
++  const canQualify = evaluation.qualified || overrideApplied;
++  let lead = await findLead(prisma, leadId);
++  if (!lead) return { ok: false, notFound: true, error: 'lead_not_found' };
++
++  let statusApplied = false;
++  const applyStatus = args.applyQualifiedStatus !== false;
++
++  if (applyStatus && canQualify) {
++    const toStatus = CRM_LEAD_STATUS.QUALIFIED;
++    if (lead.status !== toStatus) {
++      const gate = assertTransition(lead.status, toStatus, {});
++      if (gate.ok) {
++        lead = await prisma.crmLead.update({
++          where: { id: lead.id },
++          data: { status: toStatus, updatedAt: now },
++        });
++        if (typeof prisma.crmLeadStatusHistory?.create === 'function') {
++          await prisma.crmLeadStatusHistory.create({
++            data: {
++              leadId: lead.id,
++              fromStatus: gate.from,
++              toStatus,
++              changedByAdminId: args.admin?.id || null,
++              reason: overrideApplied
++                ? `qualification_override: ${String(args.overrideReason).trim()}`
++                : 'qualification_passed',
++              at: now,
++            },
++          });
++        }
++        statusApplied = true;
++      } else if (!overrideApplied) {
++        // evaluation ok but transition not allowed from current status
++        return {
++          ok: true,
++          qualified: evaluation.qualified,
++          canQualify,
++          statusApplied: false,
++          transitionBlocked: gate,
++          evaluation,
++          definitionVersionId: definition.versionId,
++          lead: serializeLead(lead),
++          label: 'qualification_result',
++        };
++      }
++    }
++  } else if (applyStatus && !canQualify) {
++    // Explicitly refuse QUALIFIED while blockers remain (unless override)
++    return {
++      ok: true,
++      qualified: false,
++      canQualify: false,
++      statusApplied: false,
++      blocked: true,
++      evaluation,
++      definitionVersionId: definition.versionId,
++      lead: serializeLead(lead),
++      label: 'qualification_result',
++      message: 'Cannot mark QUALIFIED while required criterion is UNKNOWN or blocking NO',
++    };
++  }
++
++  return {
++    ok: true,
++    qualified: evaluation.qualified,
++    canQualify,
++    overrideApplied,
++    statusApplied,
++    evaluation,
++    definitionVersionId: definition.versionId,
++    lead: serializeLead(lead),
++    /** API contract: never probability */
++    label: 'qualification_result',
++  };
++}
++
++/**
++ * Gate for transitionLeadStatus ΓåÆ QUALIFIED.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ leadId: string, definitionVersionId?: string, admin?: object, override?: boolean, overrideReason?: string }} args
++ */
++export async function assertLeadQualificationForQualifiedStatus(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (args.override === true) {
++    if (!access.canOverrideQualification) {
++      return { ok: false, error: 'crm_override_qualification_forbidden' };
++    }
++    const reason = args.overrideReason != null ? String(args.overrideReason).trim() : '';
++    if (!reason) return { ok: false, error: 'overrideReason_required' };
++    return { ok: true, overrideApplied: true };
++  }
++
++  let definition = null;
++  if (args.definitionVersionId) {
++    definition = await getQualificationDefinitionByVersion(prisma, args.definitionVersionId);
++  } else {
++    definition = await getActiveQualificationDefinition(prisma);
++  }
++  if (!definition) {
++    return { ok: false, error: 'DEFINITION_MISSING' };
++  }
++
++  // Soft-skip when response table / client model unavailable (EPERM / pre-migrate).
++  // When the model exists, empty responses ΓçÆ UNKNOWN ΓçÆ block QUALIFIED.
++  if (typeof prisma?.crmQualificationResponse?.findMany !== 'function') {
++    return {
++      ok: true,
++      skipped: true,
++      reason: 'qualification_response_model_unavailable',
++      definitionVersionId: definition.versionId,
++    };
++  }
++
++  let responses = [];
++  try {
++    responses = await prisma.crmQualificationResponse.findMany({
++      where: {
++        leadId: String(args.leadId),
++        definitionVersionId: definition.versionId,
++      },
++    });
++  } catch {
++    responses = [];
++  }
++
++  const evaluation = evaluateQualificationResponses(definition, responses);
++  if (!evaluation.qualified) {
++    return {
++      ok: false,
++      error: 'QUALIFICATION_INCOMPLETE',
++      evaluation,
++      definitionVersionId: definition.versionId,
++      message: 'Cannot mark QUALIFIED while required criterion is UNKNOWN or blocking NO',
++    };
++  }
++  return { ok: true, evaluation, definitionVersionId: definition.versionId };
++}
+diff --git "a/lib\\admin\\crm\\qualification\\index.js" "b/lib\\admin\\crm\\qualification\\index.js"
+new file mode 100644
+index 0000000..06bc59d
+--- /dev/null
++++ "b/lib\\admin\\crm\\qualification\\index.js"
+@@ -0,0 +1,24 @@
++/**
++ * CRM qualification ΓÇö Phase 11 Wave 3 public surface.
++ */
++
++export {
++  CRM_QUALIFICATION_RESPONSE,
++  CRM_QUALIFICATION_RESPONSES,
++  CRM_QUALIFICATION_DEFINITION_STATUS,
++  CRM_DEFAULT_QUALIFICATION_VERSION_ID,
++  getDefaultQualificationDefinition,
++} from './catalogue.js';
++
++export {
++  getQualificationDefinitionByVersion,
++  getActiveQualificationDefinition,
++  listQualificationDefinitions,
++} from './definitions.js';
++
++export {
++  hasCrmQualificationResponseModel,
++  evaluateQualificationResponses,
++  evaluateQualification,
++  assertLeadQualificationForQualifiedStatus,
++} from './evaluate.js';
+diff --git "a/lib\\admin\\crm\\scoring\\catalogue.js" "b/lib\\admin\\crm\\scoring\\catalogue.js"
+new file mode 100644
+index 0000000..90849be
+--- /dev/null
++++ "b/lib\\admin\\crm\\scoring\\catalogue.js"
+@@ -0,0 +1,64 @@
++/**
++ * Scoring catalogue ΓÇö Phase 11 Wave 3.
++ * Deterministic 0ΓÇô100. Never label as probability / conversion chance / expected revenue.
++ */
++
++export {
++  CRM_SCORE_CONFIDENCE,
++  CRM_SCORE_CONFIDENCES,
++  CRM_SCORE_BAND,
++  CRM_SCORE_BANDS,
++  CRM_DEFAULT_SCORE_VERSION_ID,
++  CRM_SCORE_FORBIDDEN_LABELS,
++} from '../catalogue.js';
++
++/**
++ * Default ACTIVE score definition with explicit weights.
++ * Historical evaluations pin this versionId and stay immutable when definition changes.
++ */
++export function getDefaultScoreDefinition() {
++  return Object.freeze({
++    key: 'LEAD_FIT_STANDARD',
++    name: 'Lead fit score (deterministic)',
++    versionId: 'score-lead-fit-v1',
++    status: 'ACTIVE',
++    /** API/UI label ΓÇö never probability */
++    displayLabel: 'Lead fit score',
++    dimensions: Object.freeze([
++      Object.freeze({
++        key: 'ENGAGEMENT',
++        label: 'Engagement signals',
++        weight: 30,
++        maxPoints: 30,
++      }),
++      Object.freeze({
++        key: 'FIT',
++        label: 'Segment / need fit',
++        weight: 30,
++        maxPoints: 30,
++      }),
++      Object.freeze({
++        key: 'AUTHORITY',
++        label: 'Authority proximity',
++        weight: 20,
++        maxPoints: 20,
++      }),
++      Object.freeze({
++        key: 'TIMELINE',
++        label: 'Timeline urgency',
++        weight: 20,
++        maxPoints: 20,
++      }),
++    ]),
++    bands: Object.freeze([
++      Object.freeze({ band: 'COLD', min: 0, max: 39 }),
++      Object.freeze({ band: 'WARM', min: 40, max: 69 }),
++      Object.freeze({ band: 'HOT', min: 70, max: 100 }),
++    ]),
++    criticalCaps: Object.freeze([
++      Object.freeze({ key: 'DO_NOT_CONTACT', capScore: 0, band: 'BLOCKED' }),
++      Object.freeze({ key: 'SPAM', capScore: 0, band: 'BLOCKED' }),
++      Object.freeze({ key: 'COMPLIANCE_BLOCK', capScore: 0, band: 'BLOCKED' }),
++    ]),
++  });
++}
+diff --git "a/lib\\admin\\crm\\scoring\\definitions.js" "b/lib\\admin\\crm\\scoring\\definitions.js"
+new file mode 100644
+index 0000000..bbb5d5b
+--- /dev/null
++++ "b/lib\\admin\\crm\\scoring\\definitions.js"
+@@ -0,0 +1,100 @@
++/**
++ * Versioned score definitions ΓÇö catalogue default + optional DB rows.
++ */
++
++import { CRM_DEFAULT_SCORE_VERSION_ID } from './catalogue.js';
++import { getDefaultScoreDefinition } from './catalogue.js';
++
++function mapVersionRow(row) {
++  if (!row) return null;
++  const parse = (v, fallback) => {
++    if (v == null) return fallback;
++    if (typeof v === 'string') {
++      try {
++        return JSON.parse(v);
++      } catch {
++        return fallback;
++      }
++    }
++    return v;
++  };
++  const catalogue = getDefaultScoreDefinition();
++  return {
++    key: row.key || null,
++    name: row.name || null,
++    versionId: row.versionId,
++    status: row.status || 'ACTIVE',
++    displayLabel: row.displayLabel || 'Lead fit score',
++    dimensions: parse(row.dimensionsJson ?? row.dimensions, catalogue.dimensions),
++    bands: parse(row.bandsJson ?? row.bands, catalogue.bands),
++    criticalCaps: parse(row.criticalCapsJson ?? row.criticalCaps, catalogue.criticalCaps),
++    source: 'db',
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {string} versionId
++ */
++export async function getScoreDefinitionByVersion(prisma, versionId) {
++  const id = String(versionId || '').trim();
++  if (!id) return null;
++
++  const catalogue = getDefaultScoreDefinition();
++  if (id === catalogue.versionId || id === CRM_DEFAULT_SCORE_VERSION_ID) {
++    return { ...catalogue, source: 'catalogue' };
++  }
++
++  if (typeof prisma?.crmScoreDefinitionVersion?.findUnique === 'function') {
++    try {
++      const row = await prisma.crmScoreDefinitionVersion.findUnique({
++        where: { versionId: id },
++      });
++      if (row) return mapVersionRow(row);
++    } catch {
++      // fall through
++    }
++  }
++  return null;
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ */
++export async function getActiveScoreDefinition(prisma) {
++  if (typeof prisma?.crmScoreDefinitionVersion?.findFirst === 'function') {
++    try {
++      const row = await prisma.crmScoreDefinitionVersion.findFirst({
++        where: { status: 'ACTIVE' },
++        orderBy: { createdAt: 'desc' },
++      });
++      if (row) return mapVersionRow(row);
++    } catch {
++      // fall through
++    }
++  }
++  const catalogue = getDefaultScoreDefinition();
++  return { ...catalogue, source: 'catalogue' };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ */
++export async function listScoreDefinitions(prisma) {
++  const catalogue = getDefaultScoreDefinition();
++  const items = [{ ...catalogue, source: 'catalogue' }];
++  if (typeof prisma?.crmScoreDefinitionVersion?.findMany === 'function') {
++    try {
++      const rows = await prisma.crmScoreDefinitionVersion.findMany({
++        orderBy: { versionId: 'asc' },
++      });
++      for (const row of rows || []) {
++        if (row.versionId === catalogue.versionId) continue;
++        items.push(mapVersionRow(row));
++      }
++    } catch {
++      // catalogue only
++    }
++  }
++  return { ok: true, items };
++}
+diff --git "a/lib\\admin\\crm\\scoring\\engine.js" "b/lib\\admin\\crm\\scoring\\engine.js"
+new file mode 100644
+index 0000000..adfa899
+--- /dev/null
++++ "b/lib\\admin\\crm\\scoring\\engine.js"
+@@ -0,0 +1,329 @@
++/**
++ * Deterministic CRM lead scoring engine ΓÇö Phase 11 Wave 3.
++ * Same inputs ΓåÆ same score. Missing data lowers confidence ΓÇö does not invent values.
++ * Critical caps (DNC / SPAM / compliance) override positive engagement.
++ * Historical evaluations are append-only / immutable.
++ */
++
++import {
++  CRM_SCORE_BAND,
++  CRM_SCORE_CONFIDENCE,
++  CRM_SCORE_FORBIDDEN_LABELS,
++} from './catalogue.js';
++import {
++  getActiveScoreDefinition,
++  getScoreDefinitionByVersion,
++} from './definitions.js';
++import { resolveCrmAccess } from '../authz.js';
++import { hasCrmLeadModel, serializeLead } from '../leads.js';
++import { CRM_LEAD_STATUS } from '../catalogue.js';
++
++export function hasCrmScoreEvaluationModel(prisma) {
++  return typeof prisma?.crmScoreEvaluation?.create === 'function';
++}
++
++export function hasCrmScoreContributionModel(prisma) {
++  return typeof prisma?.crmScoreContribution?.create === 'function';
++}
++
++/**
++ * Guard: reject forbidden probability/revenue wording in caller labels.
++ * @param {string|null|undefined} label
++ */
++export function assertScoreLabelSafe(label) {
++  if (label == null || label === '') return { ok: true };
++  const lower = String(label).toLowerCase();
++  for (const forbidden of CRM_SCORE_FORBIDDEN_LABELS) {
++    if (lower.includes(forbidden)) {
++      return { ok: false, error: 'forbidden_score_label', forbidden };
++    }
++  }
++  return { ok: true };
++}
++
++function clampScore(n) {
++  if (!Number.isFinite(n)) return 0;
++  return Math.max(0, Math.min(100, Math.round(n)));
++}
++
++function bandForScore(bands, score, forcedBand) {
++  if (forcedBand) return forcedBand;
++  const list = Array.isArray(bands) ? bands : [];
++  for (const b of list) {
++    if (score >= Number(b.min) && score <= Number(b.max)) return b.band;
++  }
++  if (score >= 70) return CRM_SCORE_BAND.HOT;
++  if (score >= 40) return CRM_SCORE_BAND.WARM;
++  return CRM_SCORE_BAND.COLD;
++}
++
++function confidenceFromMissing(missingCount, total) {
++  if (total <= 0) return CRM_SCORE_CONFIDENCE.INSUFFICIENT;
++  if (missingCount <= 0) return CRM_SCORE_CONFIDENCE.HIGH;
++  const ratio = missingCount / total;
++  if (ratio >= 0.75) return CRM_SCORE_CONFIDENCE.INSUFFICIENT;
++  if (ratio >= 0.4) return CRM_SCORE_CONFIDENCE.LOW;
++  return CRM_SCORE_CONFIDENCE.MEDIUM;
++}
++
++/**
++ * Pure deterministic evaluation.
++ *
++ * @param {object} definition
++ * @param {{
++ *   dimensionScores?: Record<string, number|null|undefined>,
++ *   flags?: string[],
++ * }} inputs
++ */
++export function computeScore(definition, inputs = {}) {
++  const dimensions = Array.isArray(definition?.dimensions) ? definition.dimensions : [];
++  const caps = Array.isArray(definition?.criticalCaps) ? definition.criticalCaps : [];
++  const flags = new Set((inputs.flags || []).map((f) => String(f).toUpperCase()));
++  const dimScores = inputs.dimensionScores || {};
++
++  const contributions = [];
++  let rawTotal = 0;
++  let missingCount = 0;
++
++  for (const dim of dimensions) {
++    const key = String(dim.key).toUpperCase();
++    const maxPoints = Number(dim.maxPoints ?? dim.weight) || 0;
++    const raw = dimScores[key] ?? dimScores[dim.key];
++    const missing = raw == null || raw === '' || Number.isNaN(Number(raw));
++    if (missing) {
++      missingCount += 1;
++      contributions.push({
++        dimensionKey: key,
++        label: dim.label || key,
++        weight: Number(dim.weight) || maxPoints,
++        maxPoints,
++        rawValue: null,
++        points: 0,
++        missing: true,
++      });
++      continue;
++    }
++    const value = Math.max(0, Math.min(maxPoints, Number(raw)));
++    rawTotal += value;
++    contributions.push({
++      dimensionKey: key,
++      label: dim.label || key,
++      weight: Number(dim.weight) || maxPoints,
++      maxPoints,
++      rawValue: value,
++      points: value,
++      missing: false,
++    });
++  }
++
++  let score = clampScore(rawTotal);
++  let capped = false;
++  let capKey = null;
++  let band = bandForScore(definition.bands, score, null);
++
++  for (const cap of caps) {
++    const key = String(cap.key).toUpperCase();
++    if (flags.has(key)) {
++      score = clampScore(Number(cap.capScore) || 0);
++      capped = true;
++      capKey = key;
++      band = cap.band || CRM_SCORE_BAND.BLOCKED;
++      break;
++    }
++  }
++
++  const confidence = capped
++    ? CRM_SCORE_CONFIDENCE.HIGH
++    : confidenceFromMissing(missingCount, dimensions.length);
++
++  return {
++    score,
++    band,
++    confidence,
++    capped,
++    capKey,
++    contributions,
++    missingCount,
++    dimensionCount: dimensions.length,
++    displayLabel: definition.displayLabel || 'Lead fit score',
++    /** Explicit contract fields ΓÇö never probability */
++    isProbability: false,
++    isExpectedRevenue: false,
++  };
++}
++
++function serializeEvaluation(row, contributions = []) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    leadId: row.leadId,
++    definitionVersionId: row.definitionVersionId,
++    score: row.score,
++    band: row.band,
++    confidence: row.confidence,
++    capped: Boolean(row.capped),
++    capKey: row.capKey || null,
++    displayLabel: row.displayLabel || 'Lead fit score',
++    isProbability: false,
++    isExpectedRevenue: false,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    contributions: (contributions || []).map((c) => ({
++      dimensionKey: c.dimensionKey,
++      label: c.label || null,
++      weight: c.weight,
++      maxPoints: c.maxPoints,
++      rawValue: c.rawValue,
++      points: c.points,
++      missing: Boolean(c.missing),
++    })),
++  };
++}
++
++async function resolveLeadFlags(prisma, lead) {
++  const flags = [];
++  if (!lead) return flags;
++  if (lead.status === CRM_LEAD_STATUS.SPAM) flags.push('SPAM');
++
++  if (lead.contactId && typeof prisma?.crmDoNotContact?.findMany === 'function') {
++    try {
++      const dnc = await prisma.crmDoNotContact.findMany({
++        where: { contactId: lead.contactId, active: true },
++      });
++      if ((dnc || []).some((r) => r.flag === 'DO_NOT_CONTACT_ALL')) {
++        flags.push('DO_NOT_CONTACT');
++      }
++    } catch {
++      // ignore
++    }
++  }
++  return flags;
++}
++
++/**
++ * Run score for a lead; persists immutable evaluation + contributions.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   leadId: string,
++ *   definitionVersionId?: string|null,
++ *   dimensionScores?: Record<string, number|null>,
++ *   flags?: string[],
++ *   label?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function runLeadScore(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canScoreLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_score_forbidden' };
++  }
++
++  const labelGate = assertScoreLabelSafe(args.label);
++  if (!labelGate.ok) return labelGate;
++
++  if (!hasCrmLeadModel(prisma)) {
++    return { ok: false, error: 'crm_lead_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const leadId = args.leadId ? String(args.leadId).trim() : '';
++  if (!leadId) return { ok: false, error: 'leadId_required' };
++
++  let lead = null;
++  try {
++    lead = await prisma.crmLead.findUnique({ where: { id: leadId } });
++  } catch {
++    lead = null;
++  }
++  if (!lead) return { ok: false, notFound: true, error: 'lead_not_found' };
++
++  let definition = null;
++  if (args.definitionVersionId) {
++    definition = await getScoreDefinitionByVersion(prisma, args.definitionVersionId);
++    if (!definition) {
++      return { ok: false, error: 'DEFINITION_MISSING', definitionVersionId: args.definitionVersionId };
++    }
++  } else {
++    definition = await getActiveScoreDefinition(prisma);
++  }
++
++  const autoFlags = await resolveLeadFlags(prisma, lead);
++  const flags = [...new Set([...(args.flags || []), ...autoFlags].map((f) => String(f).toUpperCase()))];
++
++  const result = computeScore(definition, {
++    dimensionScores: args.dimensionScores || {},
++    flags,
++  });
++
++  const now = args.now || new Date();
++  let evaluationRow = null;
++  let contributionRows = [];
++
++  if (hasCrmScoreEvaluationModel(prisma)) {
++    try {
++      evaluationRow = await prisma.crmScoreEvaluation.create({
++        data: {
++          leadId: lead.id,
++          definitionVersionId: definition.versionId,
++          score: result.score,
++          band: result.band,
++          confidence: result.confidence,
++          capped: result.capped,
++          capKey: result.capKey,
++          displayLabel: result.displayLabel,
++          createdByAdminId: args.admin?.id || null,
++          createdAt: now,
++        },
++      });
++
++      if (hasCrmScoreContributionModel(prisma)) {
++        for (const c of result.contributions) {
++          try {
++            const row = await prisma.crmScoreContribution.create({
++              data: {
++                evaluationId: evaluationRow.id,
++                dimensionKey: c.dimensionKey,
++                label: c.label,
++                weight: c.weight,
++                maxPoints: c.maxPoints,
++                rawValue: c.rawValue,
++                points: c.points,
++                missing: c.missing,
++              },
++            });
++            contributionRows.push(row);
++          } catch {
++            contributionRows.push(c);
++          }
++        }
++      } else {
++        contributionRows = result.contributions;
++      }
++    } catch {
++      // Persist soft-fail (e.g. catalogue version not yet seeded in DB)
++      contributionRows = result.contributions;
++    }
++  }
++
++  return {
++    ok: true,
++    evaluation: serializeEvaluation(
++      evaluationRow || {
++        id: null,
++        leadId: lead.id,
++        definitionVersionId: definition.versionId,
++        score: result.score,
++        band: result.band,
++        confidence: result.confidence,
++        capped: result.capped,
++        capKey: result.capKey,
++        displayLabel: result.displayLabel,
++        createdAt: now,
++      },
++      contributionRows.length ? contributionRows : result.contributions
++    ),
++    lead: serializeLead(lead),
++    definitionVersionId: definition.versionId,
++    immutable: true,
++  };
++}
+diff --git "a/lib\\admin\\crm\\scoring\\index.js" "b/lib\\admin\\crm\\scoring\\index.js"
+new file mode 100644
+index 0000000..0386e6d
+--- /dev/null
++++ "b/lib\\admin\\crm\\scoring\\index.js"
+@@ -0,0 +1,27 @@
++/**
++ * CRM scoring ΓÇö Phase 11 Wave 3 public surface.
++ */
++
++export {
++  CRM_SCORE_CONFIDENCE,
++  CRM_SCORE_CONFIDENCES,
++  CRM_SCORE_BAND,
++  CRM_SCORE_BANDS,
++  CRM_DEFAULT_SCORE_VERSION_ID,
++  CRM_SCORE_FORBIDDEN_LABELS,
++  getDefaultScoreDefinition,
++} from './catalogue.js';
++
++export {
++  getScoreDefinitionByVersion,
++  getActiveScoreDefinition,
++  listScoreDefinitions,
++} from './definitions.js';
++
++export {
++  hasCrmScoreEvaluationModel,
++  hasCrmScoreContributionModel,
++  assertScoreLabelSafe,
++  computeScore,
++  runLeadScore,
++} from './engine.js';
+diff --git a/lib/admin/crm/teams.js b/lib/admin/crm/teams.js
+new file mode 100644
+index 0000000..1f72a09
+--- /dev/null
++++ b/lib/admin/crm/teams.js
+@@ -0,0 +1,149 @@
++/**
++ * CRM sales teams ΓÇö membership stubs (Phase 11 Wave 3).
++ * Γëá SupportTeam / POS sales teams / CS portfolios.
++ */
++
++import { resolveCrmAccess } from './authz.js';
++
++export const CRM_SALES_TEAM_DEFINITIONS = Object.freeze([
++  Object.freeze({
++    code: 'SALES_CORE',
++    name: 'Core Sales',
++    memberAdminIds: Object.freeze([]),
++  }),
++  Object.freeze({
++    code: 'SALES_ENTERPRISE',
++    name: 'Enterprise Sales',
++    memberAdminIds: Object.freeze([]),
++  }),
++]);
++
++export function hasCrmSalesTeamModel(prisma) {
++  return typeof prisma?.crmSalesTeam?.findMany === 'function';
++}
++
++export function hasCrmSalesTeamMemberModel(prisma) {
++  return typeof prisma?.crmSalesTeamMember?.findMany === 'function';
++}
++
++function serializeTeam(row, members = []) {
++  if (!row) return null;
++  return {
++    id: row.id || null,
++    code: row.code,
++    name: row.name || row.code,
++    active: row.active !== false,
++    memberAdminIds: members.map((m) => m.adminId || m),
++    source: row.source || 'db',
++  };
++}
++
++/**
++ * List sales teams (catalogue stubs when DB empty / unavailable).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object }} args
++ */
++export async function listSalesTeams(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewTeams) {
++    return { ok: false, forbidden: true, reason: 'crm_view_teams_forbidden', items: [] };
++  }
++
++  if (!hasCrmSalesTeamModel(prisma)) {
++    return {
++      ok: true,
++      stub: true,
++      items: CRM_SALES_TEAM_DEFINITIONS.map((t) =>
++        serializeTeam({ ...t, source: 'catalogue' }, [...t.memberAdminIds])
++      ),
++      source: 'catalogue',
++    };
++  }
++
++  try {
++    const rows = await prisma.crmSalesTeam.findMany({
++      where: { active: true },
++      orderBy: { code: 'asc' },
++    });
++    if (!rows?.length) {
++      return {
++        ok: true,
++        stub: true,
++        items: CRM_SALES_TEAM_DEFINITIONS.map((t) =>
++          serializeTeam({ ...t, source: 'catalogue' }, [...t.memberAdminIds])
++        ),
++        source: 'catalogue',
++      };
++    }
++
++    const items = [];
++    for (const row of rows) {
++      let members = [];
++      if (hasCrmSalesTeamMemberModel(prisma)) {
++        try {
++          members = await prisma.crmSalesTeamMember.findMany({
++            where: { teamId: row.id, active: true },
++          });
++        } catch {
++          members = [];
++        }
++      }
++      items.push(serializeTeam(row, members));
++    }
++    return { ok: true, stub: false, items, source: 'db' };
++  } catch {
++    return {
++      ok: true,
++      stub: true,
++      items: CRM_SALES_TEAM_DEFINITIONS.map((t) =>
++        serializeTeam({ ...t, source: 'catalogue' }, [...t.memberAdminIds])
++      ),
++      source: 'catalogue',
++    };
++  }
++}
++
++/**
++ * Resolve member admin ids for a team (for ROUND_ROBIN).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {string} teamIdOrCode
++ * @param {string[]} [fallbackMemberIds]
++ */
++export async function resolveTeamMemberAdminIds(prisma, teamIdOrCode, fallbackMemberIds = []) {
++  const key = String(teamIdOrCode || '').trim();
++  if (!key) return { ok: false, memberAdminIds: [], reason: 'team_required' };
++
++  if (hasCrmSalesTeamModel(prisma)) {
++    try {
++      let team =
++        (await prisma.crmSalesTeam.findFirst({
++          where: { OR: [{ id: key }, { code: key }], active: true },
++        })) || null;
++      if (team && hasCrmSalesTeamMemberModel(prisma)) {
++        const members = await prisma.crmSalesTeamMember.findMany({
++          where: { teamId: team.id, active: true },
++          orderBy: { adminId: 'asc' },
++        });
++        const ids = (members || []).map((m) => m.adminId).filter(Boolean);
++        if (ids.length) return { ok: true, teamId: team.id, teamCode: team.code, memberAdminIds: ids };
++        return { ok: true, teamId: team.id, teamCode: team.code, memberAdminIds: [...fallbackMemberIds] };
++      }
++    } catch {
++      // fall through
++    }
++  }
++
++  const stub = CRM_SALES_TEAM_DEFINITIONS.find((t) => t.code === key);
++  if (stub) {
++    const ids = stub.memberAdminIds.length ? [...stub.memberAdminIds] : [...fallbackMemberIds];
++    return { ok: true, teamId: null, teamCode: stub.code, memberAdminIds: ids, stub: true };
++  }
++
++  if (fallbackMemberIds.length) {
++    return { ok: true, teamId: key, teamCode: null, memberAdminIds: [...fallbackMemberIds] };
++  }
++
++  return { ok: false, memberAdminIds: [], reason: 'team_not_found' };
++}
+diff --git a/lib/admin/crm/territories.js b/lib/admin/crm/territories.js
+new file mode 100644
+index 0000000..ec62fc9
+--- /dev/null
++++ b/lib/admin/crm/territories.js
+@@ -0,0 +1,226 @@
++/**
++ * CRM territories + rule evaluation ΓÇö Phase 11 Wave 3.
++ * Deterministic; ambiguous matches ΓåÆ visible failure (never silent pick).
++ * Γëá CS portfolio / Support queue / Tenant branch alone.
++ */
++
++import { CRM_TERRITORY_MATCH } from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++export const CRM_TERRITORY_DEFINITIONS = Object.freeze([
++  Object.freeze({
++    code: 'MW_CENTRAL',
++    name: 'Malawi Central',
++    rules: Object.freeze([
++      Object.freeze({
++        matchType: CRM_TERRITORY_MATCH.COUNTRY,
++        matchValue: 'MW',
++        precedence: 100,
++      }),
++      Object.freeze({
++        matchType: CRM_TERRITORY_MATCH.REGION,
++        matchValue: 'CENTRAL',
++        precedence: 200,
++      }),
++    ]),
++  }),
++  Object.freeze({
++    code: 'MW_SOUTH',
++    name: 'Malawi South',
++    rules: Object.freeze([
++      Object.freeze({
++        matchType: CRM_TERRITORY_MATCH.COUNTRY,
++        matchValue: 'MW',
++        precedence: 100,
++      }),
++      Object.freeze({
++        matchType: CRM_TERRITORY_MATCH.REGION,
++        matchValue: 'SOUTH',
++        precedence: 200,
++      }),
++    ]),
++  }),
++]);
++
++export function hasCrmTerritoryModel(prisma) {
++  return typeof prisma?.crmTerritory?.findMany === 'function';
++}
++
++export function hasCrmTerritoryRuleModel(prisma) {
++  return typeof prisma?.crmTerritoryRule?.findMany === 'function';
++}
++
++function serializeTerritory(row, rules = []) {
++  if (!row) return null;
++  return {
++    id: row.id || null,
++    code: row.code,
++    name: row.name || row.code,
++    active: row.active !== false,
++    defaultTeamId: row.defaultTeamId || null,
++    defaultOwnerAdminId: row.defaultOwnerAdminId || null,
++    rules: (rules || []).map((r) => ({
++      id: r.id || null,
++      matchType: r.matchType,
++      matchValue: r.matchValue,
++      precedence: Number(r.precedence) || 0,
++    })),
++    source: row.source || 'db',
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object }} args
++ */
++export async function listTerritories(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewTerritories) {
++    return { ok: false, forbidden: true, reason: 'crm_view_territories_forbidden', items: [] };
++  }
++
++  if (!hasCrmTerritoryModel(prisma)) {
++    return {
++      ok: true,
++      stub: true,
++      items: CRM_TERRITORY_DEFINITIONS.map((t) =>
++        serializeTerritory({ ...t, source: 'catalogue' }, [...t.rules])
++      ),
++      source: 'catalogue',
++    };
++  }
++
++  try {
++    const rows = await prisma.crmTerritory.findMany({
++      where: { active: true },
++      orderBy: { code: 'asc' },
++    });
++    if (!rows?.length) {
++      return {
++        ok: true,
++        stub: true,
++        items: CRM_TERRITORY_DEFINITIONS.map((t) =>
++          serializeTerritory({ ...t, source: 'catalogue' }, [...t.rules])
++        ),
++        source: 'catalogue',
++      };
++    }
++
++    const items = [];
++    for (const row of rows) {
++      let rules = [];
++      if (hasCrmTerritoryRuleModel(prisma)) {
++        try {
++          rules = await prisma.crmTerritoryRule.findMany({
++            where: { territoryId: row.id, active: true },
++            orderBy: { precedence: 'desc' },
++          });
++        } catch {
++          rules = [];
++        }
++      }
++      items.push(serializeTerritory(row, rules));
++    }
++    return { ok: true, stub: false, items, source: 'db' };
++  } catch {
++    return {
++      ok: true,
++      stub: true,
++      items: CRM_TERRITORY_DEFINITIONS.map((t) =>
++        serializeTerritory({ ...t, source: 'catalogue' }, [...t.rules])
++      ),
++      source: 'catalogue',
++    };
++  }
++}
++
++async function loadTerritoryUniverse(prisma) {
++  const listed = await listTerritories(prisma, {
++    admin: { role: 'Super Admin', isActive: true },
++  });
++  return listed.items || [];
++}
++
++/**
++ * Evaluate territory rules for a lead/account context.
++ * Highest matching precedence wins; ties across territories ΓåÆ AMBIGUOUS failure.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   country?: string|null,
++ *   region?: string|null,
++ *   accountType?: string|null,
++ *   leadType?: string|null,
++ * }} context
++ */
++export async function evaluateTerritory(prisma, context = {}) {
++  const territories = await loadTerritoryUniverse(prisma);
++  const ctx = {
++    [CRM_TERRITORY_MATCH.COUNTRY]: context.country
++      ? String(context.country).trim().toUpperCase()
++      : null,
++    [CRM_TERRITORY_MATCH.REGION]: context.region
++      ? String(context.region).trim().toUpperCase()
++      : null,
++    [CRM_TERRITORY_MATCH.ACCOUNT_TYPE]: context.accountType
++      ? String(context.accountType).trim().toUpperCase()
++      : null,
++    [CRM_TERRITORY_MATCH.LEAD_TYPE]: context.leadType
++      ? String(context.leadType).trim().toUpperCase()
++      : null,
++  };
++
++  /** @type {Array<{territory: object, precedence: number, matchedRules: object[]}>} */
++  const matches = [];
++
++  for (const t of territories) {
++    const matchedRules = [];
++    let bestPrecedence = null;
++    for (const rule of t.rules || []) {
++      const type = String(rule.matchType || '').toUpperCase();
++      const value = String(rule.matchValue || '').trim().toUpperCase();
++      const ctxVal = ctx[type];
++      if (!ctxVal || !value) continue;
++      if (ctxVal === value) {
++        matchedRules.push(rule);
++        const p = Number(rule.precedence) || 0;
++        if (bestPrecedence == null || p > bestPrecedence) bestPrecedence = p;
++      }
++    }
++    if (matchedRules.length && bestPrecedence != null) {
++      matches.push({ territory: t, precedence: bestPrecedence, matchedRules });
++    }
++  }
++
++  if (!matches.length) {
++    return {
++      ok: false,
++      error: 'TERRITORY_NO_MATCH',
++      message: 'No territory rules matched the lead context',
++      matches: [],
++    };
++  }
++
++  const maxPrec = Math.max(...matches.map((m) => m.precedence));
++  const top = matches.filter((m) => m.precedence === maxPrec);
++  if (top.length > 1) {
++    return {
++      ok: false,
++      error: 'TERRITORY_AMBIGUOUS',
++      message: 'Multiple territories matched with equal precedence',
++      matches: top.map((m) => ({
++        code: m.territory.code,
++        id: m.territory.id,
++        precedence: m.precedence,
++      })),
++    };
++  }
++
++  const winner = top[0];
++  return {
++    ok: true,
++    territory: winner.territory,
++    precedence: winner.precedence,
++    matchedRules: winner.matchedRules,
++  };
++}
+diff --git a/lib/admin/crm/assignment.js b/lib/admin/crm/assignment.js
+new file mode 100644
+index 0000000..bc259e7
+--- /dev/null
++++ b/lib/admin/crm/assignment.js
+@@ -0,0 +1,443 @@
++/**
++ * CRM lead assignment ΓÇö Phase 11 Wave 3.
++ * Strategies: MANUAL + ROUND_ROBIN + TERRITORY_BASED.
++ * Same owner+team ΓåÆ noop (no silent reassign loops / history spam).
++ * Every ownership change writes assignment history.
++ */
++
++import {
++  CRM_ASSIGNMENT_ACTION,
++  CRM_ASSIGNMENT_STRATEGY,
++  CRM_LEAD_STATUS,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++import { hasCrmLeadModel, serializeLead } from './leads.js';
++import { canTransition, assertTransition } from './stateMachine.js';
++import { resolveTeamMemberAdminIds } from './teams.js';
++import { evaluateTerritory } from './territories.js';
++
++export function hasCrmAssignmentHistoryModel(prisma) {
++  return typeof prisma?.crmAssignmentHistory?.create === 'function';
++}
++
++function serializeAssignmentHistory(row) {
++  if (!row) return null;
++  return {
++    id: row.id || null,
++    leadId: row.leadId,
++    action: row.action,
++    strategy: row.strategy || null,
++    fromOwnerAdminId: row.fromOwnerAdminId || null,
++    toOwnerAdminId: row.toOwnerAdminId || null,
++    fromTeamId: row.fromTeamId || null,
++    toTeamId: row.toTeamId || null,
++    territoryId: row.territoryId || null,
++    changedByAdminId: row.changedByAdminId || null,
++    reason: row.reason || null,
++    assignedAt: row.assignedAt ? new Date(row.assignedAt).toISOString() : null,
++    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++  };
++}
++
++async function appendHistory(prisma, data) {
++  if (!hasCrmAssignmentHistoryModel(prisma)) return null;
++  return prisma.crmAssignmentHistory.create({ data });
++}
++
++async function findLead(prisma, leadId) {
++  const id = String(leadId || '').trim();
++  if (!id) return null;
++  try {
++    return await prisma.crmLead.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Pick next ROUND_ROBIN owner from sorted member list using assignment history count.
++ */
++async function pickRoundRobinOwner(prisma, memberAdminIds, teamId) {
++  const members = [...new Set(memberAdminIds.filter(Boolean))].sort();
++  if (!members.length) return null;
++  if (!hasCrmAssignmentHistoryModel(prisma)) return members[0];
++
++  try {
++    const counts = await Promise.all(
++      members.map(async (adminId) => {
++        let n = 0;
++        try {
++          n = await prisma.crmAssignmentHistory.count({
++            where: {
++              toOwnerAdminId: adminId,
++              ...(teamId ? { toTeamId: teamId } : {}),
++              action: { in: [CRM_ASSIGNMENT_ACTION.ASSIGN, CRM_ASSIGNMENT_ACTION.REASSIGN] },
++            },
++          });
++        } catch {
++          n = 0;
++        }
++        return { adminId, n };
++      })
++    );
++    counts.sort((a, b) => a.n - b.n || a.adminId.localeCompare(b.adminId));
++    return counts[0].adminId;
++  } catch {
++    return members[0];
++  }
++}
++
++/**
++ * Assign / reassign a lead.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   leadId: string,
++ *   strategy?: string,
++ *   ownerAdminId?: string|null,
++ *   teamId?: string|null,
++ *   memberAdminIds?: string[],
++ *   territoryContext?: object,
++ *   reason?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function assignLead(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canAssignLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_assign_forbidden' };
++  }
++
++  if (!hasCrmLeadModel(prisma)) {
++    return { ok: false, error: 'crm_lead_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const lead = await findLead(prisma, args.leadId);
++  if (!lead) return { ok: false, notFound: true, error: 'lead_not_found' };
++
++  const strategy = String(args.strategy || CRM_ASSIGNMENT_STRATEGY.MANUAL)
++    .trim()
++    .toUpperCase();
++  if (!Object.values(CRM_ASSIGNMENT_STRATEGY).includes(strategy)) {
++    return { ok: false, error: 'invalid_strategy', strategy };
++  }
++
++  let ownerAdminId =
++    args.ownerAdminId != null && String(args.ownerAdminId).trim() !== ''
++      ? String(args.ownerAdminId).trim()
++      : null;
++  let teamId =
++    args.teamId != null && String(args.teamId).trim() !== ''
++      ? String(args.teamId).trim()
++      : lead.teamId || null;
++  let territoryId = lead.territoryId || null;
++
++  if (strategy === CRM_ASSIGNMENT_STRATEGY.MANUAL) {
++    if (!ownerAdminId) return { ok: false, error: 'ownerAdminId_required' };
++  } else if (strategy === CRM_ASSIGNMENT_STRATEGY.ROUND_ROBIN) {
++    if (!teamId) return { ok: false, error: 'teamId_required_for_round_robin' };
++    const team = await resolveTeamMemberAdminIds(
++      prisma,
++      teamId,
++      args.memberAdminIds || []
++    );
++    if (!team.ok || !team.memberAdminIds.length) {
++      return {
++        ok: false,
++        error: 'round_robin_no_members',
++        reason: team.reason || 'no_members',
++      };
++    }
++    teamId = team.teamId || teamId;
++    ownerAdminId = await pickRoundRobinOwner(prisma, team.memberAdminIds, teamId);
++    if (!ownerAdminId) return { ok: false, error: 'round_robin_pick_failed' };
++  } else if (strategy === CRM_ASSIGNMENT_STRATEGY.TERRITORY_BASED) {
++    const terr = await evaluateTerritory(prisma, args.territoryContext || {});
++    if (!terr.ok) {
++      return {
++        ok: false,
++        error: terr.error,
++        message: terr.message,
++        matches: terr.matches || [],
++      };
++    }
++    territoryId = terr.territory.id || terr.territory.code;
++    teamId = terr.territory.defaultTeamId || teamId;
++    ownerAdminId =
++      terr.territory.defaultOwnerAdminId ||
++      args.ownerAdminId ||
++      ownerAdminId;
++    if (!ownerAdminId && teamId) {
++      const team = await resolveTeamMemberAdminIds(
++        prisma,
++        teamId,
++        args.memberAdminIds || []
++      );
++      if (team.ok && team.memberAdminIds.length) {
++        ownerAdminId = await pickRoundRobinOwner(prisma, team.memberAdminIds, teamId);
++      }
++    }
++    if (!ownerAdminId) {
++      return {
++        ok: false,
++        error: 'territory_owner_unresolved',
++        territory: terr.territory,
++      };
++    }
++  }
++
++  const sameOwner = (lead.ownerAdminId || null) === ownerAdminId;
++  const sameTeam = (lead.teamId || null) === (teamId || null);
++  if (sameOwner && sameTeam) {
++    return {
++      ok: true,
++      noop: true,
++      lead: serializeLead(lead),
++      message: 'same_owner_and_team',
++    };
++  }
++
++  const now = args.now || new Date();
++  const fromOwner = lead.ownerAdminId || null;
++  const fromTeam = lead.teamId || null;
++  const action =
++    fromOwner && fromOwner !== ownerAdminId
++      ? CRM_ASSIGNMENT_ACTION.REASSIGN
++      : CRM_ASSIGNMENT_ACTION.ASSIGN;
++
++  const data = {
++    ownerAdminId,
++    teamId: teamId || null,
++    territoryId: territoryId || null,
++    assignedAt: now,
++    acceptedAt: null,
++    updatedAt: now,
++  };
++
++  let statusTransitioned = false;
++  if (
++    lead.status !== CRM_LEAD_STATUS.ASSIGNED &&
++    canTransition(lead.status, CRM_LEAD_STATUS.ASSIGNED)
++  ) {
++    const gate = assertTransition(lead.status, CRM_LEAD_STATUS.ASSIGNED, {
++      reason: args.reason,
++    });
++    if (gate.ok) {
++      data.status = CRM_LEAD_STATUS.ASSIGNED;
++      statusTransitioned = true;
++    }
++  }
++
++  const updated = await prisma.crmLead.update({
++    where: { id: lead.id },
++    data,
++  });
++
++  const history = await appendHistory(prisma, {
++    leadId: lead.id,
++    action,
++    strategy,
++    fromOwnerAdminId: fromOwner,
++    toOwnerAdminId: ownerAdminId,
++    fromTeamId: fromTeam,
++    toTeamId: teamId || null,
++    territoryId: territoryId || null,
++    changedByAdminId: args.admin?.id || null,
++    reason: args.reason != null ? String(args.reason) : null,
++    assignedAt: now,
++    acceptedAt: null,
++    at: now,
++  });
++
++  if (statusTransitioned && typeof prisma.crmLeadStatusHistory?.create === 'function') {
++    await prisma.crmLeadStatusHistory.create({
++      data: {
++        leadId: lead.id,
++        fromStatus: lead.status,
++        toStatus: CRM_LEAD_STATUS.ASSIGNED,
++        changedByAdminId: args.admin?.id || null,
++        reason: args.reason || 'assigned',
++        at: now,
++      },
++    });
++  }
++
++  return {
++    ok: true,
++    noop: false,
++    lead: serializeLead(updated),
++    assignmentHistory: serializeAssignmentHistory(history || {
++      leadId: lead.id,
++      action,
++      strategy,
++      fromOwnerAdminId: fromOwner,
++      toOwnerAdminId: ownerAdminId,
++      fromTeamId: fromTeam,
++      toTeamId: teamId || null,
++      territoryId: territoryId || null,
++      changedByAdminId: args.admin?.id || null,
++      reason: args.reason != null ? String(args.reason) : null,
++      assignedAt: now,
++      at: now,
++    }),
++  };
++}
++
++/**
++ * Accept an assigned lead (sets acceptedAt; status ΓåÆ ACCEPTED when allowed).
++ */
++export async function acceptLeadAssignment(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canAssignLeads && !access.canEditLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_assign_forbidden' };
++  }
++  if (!hasCrmLeadModel(prisma)) {
++    return { ok: false, error: 'crm_lead_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const lead = await findLead(prisma, args.leadId);
++  if (!lead) return { ok: false, notFound: true, error: 'lead_not_found' };
++  if (!lead.ownerAdminId) {
++    return { ok: false, error: 'lead_unassigned' };
++  }
++
++  const now = args.now || new Date();
++  const data = { acceptedAt: now, updatedAt: now };
++  let statusTransitioned = false;
++
++  if (
++    lead.status !== CRM_LEAD_STATUS.ACCEPTED &&
++    canTransition(lead.status, CRM_LEAD_STATUS.ACCEPTED)
++  ) {
++    const gate = assertTransition(lead.status, CRM_LEAD_STATUS.ACCEPTED, {
++      reason: args.reason,
++    });
++    if (gate.ok) {
++      data.status = CRM_LEAD_STATUS.ACCEPTED;
++      statusTransitioned = true;
++    }
++  }
++
++  const updated = await prisma.crmLead.update({
++    where: { id: lead.id },
++    data,
++  });
++
++  const history = await appendHistory(prisma, {
++    leadId: lead.id,
++    action: CRM_ASSIGNMENT_ACTION.ACCEPT,
++    strategy: CRM_ASSIGNMENT_STRATEGY.MANUAL,
++    fromOwnerAdminId: lead.ownerAdminId,
++    toOwnerAdminId: lead.ownerAdminId,
++    fromTeamId: lead.teamId || null,
++    toTeamId: lead.teamId || null,
++    territoryId: lead.territoryId || null,
++    changedByAdminId: args.admin?.id || null,
++    reason: args.reason != null ? String(args.reason) : null,
++    assignedAt: lead.assignedAt || null,
++    acceptedAt: now,
++    at: now,
++  });
++
++  if (statusTransitioned && typeof prisma.crmLeadStatusHistory?.create === 'function') {
++    await prisma.crmLeadStatusHistory.create({
++      data: {
++        leadId: lead.id,
++        fromStatus: lead.status,
++        toStatus: CRM_LEAD_STATUS.ACCEPTED,
++        changedByAdminId: args.admin?.id || null,
++        reason: args.reason || 'accepted',
++        at: now,
++      },
++    });
++  }
++
++  return {
++    ok: true,
++    lead: serializeLead(updated),
++    assignmentHistory: serializeAssignmentHistory(history),
++  };
++}
++
++/**
++ * Reject assignment or return to queue ΓÇö clears owner; history written; no silent loop.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, leadId: string, action?: 'REJECT'|'RETURN_TO_QUEUE', reason?: string, now?: Date }} args
++ */
++export async function returnLeadToQueue(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canAssignLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_assign_forbidden' };
++  }
++  if (!hasCrmLeadModel(prisma)) {
++    return { ok: false, error: 'crm_lead_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const lead = await findLead(prisma, args.leadId);
++  if (!lead) return { ok: false, notFound: true, error: 'lead_not_found' };
++
++  const action =
++    String(args.action || CRM_ASSIGNMENT_ACTION.RETURN_TO_QUEUE).toUpperCase() ===
++    CRM_ASSIGNMENT_ACTION.REJECT
++      ? CRM_ASSIGNMENT_ACTION.REJECT
++      : CRM_ASSIGNMENT_ACTION.RETURN_TO_QUEUE;
++
++  if (!lead.ownerAdminId && !lead.teamId) {
++    return { ok: true, noop: true, lead: serializeLead(lead), message: 'already_unassigned' };
++  }
++
++  const now = args.now || new Date();
++  const fromOwner = lead.ownerAdminId || null;
++  const fromTeam = lead.teamId || null;
++
++  const data = {
++    ownerAdminId: null,
++    teamId: null,
++    acceptedAt: null,
++    assignedAt: null,
++    updatedAt: now,
++  };
++
++  if (
++    lead.status !== CRM_LEAD_STATUS.UNASSIGNED &&
++    canTransition(lead.status, CRM_LEAD_STATUS.UNASSIGNED)
++  ) {
++    const gate = assertTransition(lead.status, CRM_LEAD_STATUS.UNASSIGNED, {
++      reason: args.reason,
++    });
++    if (gate.ok) data.status = CRM_LEAD_STATUS.UNASSIGNED;
++  }
++
++  const updated = await prisma.crmLead.update({
++    where: { id: lead.id },
++    data,
++  });
++
++  const history = await appendHistory(prisma, {
++    leadId: lead.id,
++    action,
++    strategy: CRM_ASSIGNMENT_STRATEGY.MANUAL,
++    fromOwnerAdminId: fromOwner,
++    toOwnerAdminId: null,
++    fromTeamId: fromTeam,
++    toTeamId: null,
++    territoryId: lead.territoryId || null,
++    changedByAdminId: args.admin?.id || null,
++    reason: args.reason != null ? String(args.reason) : null,
++    assignedAt: null,
++    acceptedAt: null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    noop: false,
++    lead: serializeLead(updated),
++    assignmentHistory: serializeAssignmentHistory(history),
++  };
++}
++
++export { serializeAssignmentHistory };
+diff --git a/lib/admin/crm/consent.js b/lib/admin/crm/consent.js
+new file mode 100644
+index 0000000..442c593
+--- /dev/null
++++ b/lib/admin/crm/consent.js
+@@ -0,0 +1,259 @@
++/**
++ * CRM consent records ΓÇö Phase 11 Wave 3.
++ * Source-traceable; never infer GRANTED from email/phone presence alone.
++ */
++
++import {
++  CRM_CONSENT_PURPOSE,
++  CRM_CONSENT_PURPOSES,
++  CRM_CONSENT_STATUS,
++  CRM_CONSENT_STATUSES,
++  CRM_DNC_FLAG,
++  CRM_DNC_FLAGS,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++const PURPOSE_SET = new Set(CRM_CONSENT_PURPOSES);
++const STATUS_SET = new Set(CRM_CONSENT_STATUSES);
++const DNC_SET = new Set(CRM_DNC_FLAGS);
++
++export function hasCrmConsentRecordModel(prisma) {
++  return typeof prisma?.crmConsentRecord?.create === 'function';
++}
++
++export function hasCrmDoNotContactModel(prisma) {
++  return typeof prisma?.crmDoNotContact?.create === 'function';
++}
++
++export function hasCrmCommunicationPreferenceModel(prisma) {
++  return typeof prisma?.crmCommunicationPreference?.create === 'function';
++}
++
++function serializeConsent(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    contactId: row.contactId,
++    purpose: row.purpose,
++    status: row.status,
++    source: row.source || null,
++    evidence: row.evidence || null,
++    channel: row.channel || null,
++    grantedAt: row.grantedAt ? new Date(row.grantedAt).toISOString() : null,
++    withdrawnAt: row.withdrawnAt ? new Date(row.withdrawnAt).toISOString() : null,
++    createdByAdminId: row.createdByAdminId || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++  };
++}
++
++function serializeDnc(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    contactId: row.contactId,
++    flag: row.flag,
++    reason: row.reason || null,
++    source: row.source || null,
++    active: row.active !== false,
++    setAt: row.setAt ? new Date(row.setAt).toISOString() : null,
++    setByAdminId: row.setByAdminId || null,
++  };
++}
++
++/**
++ * Record explicit consent (never inferred).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   contactId: string,
++ *   purpose: string,
++ *   status: string,
++ *   source: string,
++ *   evidence?: string|null,
++ *   channel?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function recordConsent(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canManageConsent) {
++    return { ok: false, forbidden: true, reason: 'crm_manage_consent_forbidden' };
++  }
++
++  if (!hasCrmConsentRecordModel(prisma)) {
++    return { ok: false, error: 'crm_consent_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const contactId = args.contactId ? String(args.contactId).trim() : '';
++  const purpose = args.purpose ? String(args.purpose).trim().toUpperCase() : '';
++  const status = args.status ? String(args.status).trim().toUpperCase() : '';
++  const source = args.source != null ? String(args.source).trim() : '';
++
++  if (!contactId) return { ok: false, error: 'contactId_required' };
++  if (!PURPOSE_SET.has(purpose)) return { ok: false, error: 'invalid_purpose', purpose };
++  if (!STATUS_SET.has(status)) return { ok: false, error: 'invalid_status', status };
++  if (!source) return { ok: false, error: 'source_required' };
++
++  // Never silently coerce UNKNOWN ΓåÆ GRANTED
++  if (status === CRM_CONSENT_STATUS.GRANTED && !source) {
++    return { ok: false, error: 'source_required_for_granted' };
++  }
++
++  const now = args.now || new Date();
++  const data = {
++    contactId,
++    purpose,
++    status,
++    source,
++    evidence: args.evidence != null ? String(args.evidence) : null,
++    channel: args.channel != null ? String(args.channel).toUpperCase() : null,
++    createdByAdminId: args.admin?.id || null,
++    grantedAt: status === CRM_CONSENT_STATUS.GRANTED ? now : null,
++    withdrawnAt:
++      status === CRM_CONSENT_STATUS.WITHDRAWN || status === CRM_CONSENT_STATUS.DENIED
++        ? now
++        : null,
++    createdAt: now,
++  };
++
++  try {
++    if (typeof prisma.crmConsentRecord.upsert === 'function') {
++      const row = await prisma.crmConsentRecord.upsert({
++        where: {
++          contactId_purpose: { contactId, purpose },
++        },
++        create: data,
++        update: {
++          status,
++          source,
++          evidence: data.evidence,
++          channel: data.channel,
++          grantedAt: data.grantedAt,
++          withdrawnAt: data.withdrawnAt,
++          createdByAdminId: data.createdByAdminId,
++        },
++      });
++      return { ok: true, consent: serializeConsent(row) };
++    }
++  } catch {
++    // fall through to create
++  }
++
++  const row = await prisma.crmConsentRecord.create({ data });
++  return { ok: true, consent: serializeConsent(row) };
++}
++
++/**
++ * Set / clear a DNC flag (source-traceable).
++ */
++export async function setDoNotContact(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canManageConsent) {
++    return { ok: false, forbidden: true, reason: 'crm_manage_consent_forbidden' };
++  }
++
++  if (!hasCrmDoNotContactModel(prisma)) {
++    return { ok: false, error: 'crm_dnc_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const contactId = args.contactId ? String(args.contactId).trim() : '';
++  const flag = args.flag ? String(args.flag).trim().toUpperCase() : '';
++  const source = args.source != null ? String(args.source).trim() : '';
++  const active = args.active !== false;
++
++  if (!contactId) return { ok: false, error: 'contactId_required' };
++  if (!DNC_SET.has(flag)) return { ok: false, error: 'invalid_dnc_flag', flag };
++  if (!source) return { ok: false, error: 'source_required' };
++
++  const now = args.now || new Date();
++  const data = {
++    contactId,
++    flag,
++    reason: args.reason != null ? String(args.reason) : null,
++    source,
++    active,
++    setAt: now,
++    setByAdminId: args.admin?.id || null,
++  };
++
++  try {
++    if (typeof prisma.crmDoNotContact.upsert === 'function') {
++      const row = await prisma.crmDoNotContact.upsert({
++        where: { contactId_flag: { contactId, flag } },
++        create: data,
++        update: {
++          reason: data.reason,
++          source,
++          active,
++          setAt: now,
++          setByAdminId: data.setByAdminId,
++        },
++      });
++      return { ok: true, dnc: serializeDnc(row) };
++    }
++  } catch {
++    // fall through
++  }
++
++  const row = await prisma.crmDoNotContact.create({ data });
++  return { ok: true, dnc: serializeDnc(row) };
++}
++
++/**
++ * Latest consent status for contact+purpose (UNKNOWN if none ΓÇö never inferred GRANTED).
++ */
++export async function getConsentStatus(prisma, contactId, purpose) {
++  const id = String(contactId || '').trim();
++  const p = String(purpose || '').trim().toUpperCase();
++  if (!id || !PURPOSE_SET.has(p)) {
++    return { status: CRM_CONSENT_STATUS.UNKNOWN, source: null, inferred: false };
++  }
++
++  if (!hasCrmConsentRecordModel(prisma)) {
++    return { status: CRM_CONSENT_STATUS.UNKNOWN, source: null, inferred: false };
++  }
++
++  try {
++    const row = await prisma.crmConsentRecord.findFirst({
++      where: { contactId: id, purpose: p },
++      orderBy: { createdAt: 'desc' },
++    });
++    if (!row) {
++      return { status: CRM_CONSENT_STATUS.UNKNOWN, source: null, inferred: false };
++    }
++    return {
++      status: row.status || CRM_CONSENT_STATUS.UNKNOWN,
++      source: row.source || null,
++      evidence: row.evidence || null,
++      inferred: false,
++      consent: serializeConsent(row),
++    };
++  } catch {
++    return { status: CRM_CONSENT_STATUS.UNKNOWN, source: null, inferred: false };
++  }
++}
++
++/**
++ * Active DNC flags for a contact.
++ */
++export async function listActiveDncFlags(prisma, contactId) {
++  const id = String(contactId || '').trim();
++  if (!id || !hasCrmDoNotContactModel(prisma)) return [];
++  try {
++    const rows = await prisma.crmDoNotContact.findMany({
++      where: { contactId: id, active: true },
++    });
++    return (rows || []).map(serializeDnc);
++  } catch {
++    return [];
++  }
++}
++
++export {
++  serializeConsent,
++  serializeDnc,
++  CRM_CONSENT_PURPOSE,
++  CRM_CONSENT_STATUS,
++  CRM_DNC_FLAG,
++};
+diff --git a/lib/admin/crm/eligibility.js b/lib/admin/crm/eligibility.js
+new file mode 100644
+index 0000000..ddcd0e3
+--- /dev/null
++++ b/lib/admin/crm/eligibility.js
+@@ -0,0 +1,114 @@
++/**
++ * Communication eligibility gate ΓÇö Phase 11 Wave 3.
++ * checkCommunicationEligibility({ contactId, purpose, channel })
++ * UNKNOWN / DENIED / WITHDRAWN / DNC ΓåÆ block. Never infer GRANTED.
++ * Service exists even when no auto-send outbound is wired.
++ */
++
++import {
++  CRM_COMMUNICATION_CHANNEL,
++  CRM_CONSENT_STATUS,
++  CRM_DNC_FLAG,
++} from './catalogue.js';
++import { getConsentStatus, listActiveDncFlags } from './consent.js';
++
++const CHANNEL_TO_DNC = Object.freeze({
++  [CRM_COMMUNICATION_CHANNEL.EMAIL]: CRM_DNC_FLAG.DO_NOT_EMAIL,
++  [CRM_COMMUNICATION_CHANNEL.CALL]: CRM_DNC_FLAG.DO_NOT_CALL,
++  [CRM_COMMUNICATION_CHANNEL.WHATSAPP]: CRM_DNC_FLAG.DO_NOT_WHATSAPP,
++  [CRM_COMMUNICATION_CHANNEL.SMS]: CRM_DNC_FLAG.DO_NOT_SMS,
++});
++
++const BLOCKING_CONSENT = new Set([
++  CRM_CONSENT_STATUS.UNKNOWN,
++  CRM_CONSENT_STATUS.DENIED,
++  CRM_CONSENT_STATUS.WITHDRAWN,
++  CRM_CONSENT_STATUS.EXPIRED,
++  CRM_CONSENT_STATUS.PENDING,
++]);
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   contactId: string,
++ *   purpose: string,
++ *   channel: string,
++ * }} args
++ * @returns {Promise<{
++ *   ok: boolean,
++ *   eligible: boolean,
++ *   reasons: string[],
++ *   consentStatus: string,
++ *   dncFlags: string[],
++ *   inferred: false,
++ * }>}
++ */
++export async function checkCommunicationEligibility(prisma, args = {}) {
++  const contactId = args.contactId ? String(args.contactId).trim() : '';
++  const purpose = args.purpose ? String(args.purpose).trim().toUpperCase() : '';
++  const channel = args.channel ? String(args.channel).trim().toUpperCase() : '';
++
++  const reasons = [];
++  if (!contactId) {
++    return {
++      ok: false,
++      eligible: false,
++      reasons: ['contactId_required'],
++      consentStatus: CRM_CONSENT_STATUS.UNKNOWN,
++      dncFlags: [],
++      inferred: false,
++    };
++  }
++  if (!purpose) reasons.push('purpose_required');
++  if (!channel) reasons.push('channel_required');
++  if (reasons.length) {
++    return {
++      ok: false,
++      eligible: false,
++      reasons,
++      consentStatus: CRM_CONSENT_STATUS.UNKNOWN,
++      dncFlags: [],
++      inferred: false,
++    };
++  }
++
++  const consent = await getConsentStatus(prisma, contactId, purpose);
++  const consentStatus = consent.status || CRM_CONSENT_STATUS.UNKNOWN;
++
++  // Never infer GRANTED
++  if (consent.inferred === true) {
++    reasons.push('consent_inferred_forbidden');
++  }
++
++  if (BLOCKING_CONSENT.has(consentStatus)) {
++    reasons.push(`consent_${consentStatus.toLowerCase()}`);
++  } else if (
++    consentStatus !== CRM_CONSENT_STATUS.GRANTED &&
++    consentStatus !== CRM_CONSENT_STATUS.NOT_REQUIRED
++  ) {
++    reasons.push(`consent_${String(consentStatus).toLowerCase()}`);
++  }
++
++  const dncRows = await listActiveDncFlags(prisma, contactId);
++  const dncFlags = dncRows.map((r) => r.flag);
++  if (dncFlags.includes(CRM_DNC_FLAG.DO_NOT_CONTACT_ALL)) {
++    reasons.push('dnc_do_not_contact_all');
++  }
++  const channelDnc = CHANNEL_TO_DNC[channel];
++  if (channelDnc && dncFlags.includes(channelDnc)) {
++    reasons.push(`dnc_${channelDnc.toLowerCase()}`);
++  }
++
++  const eligible = reasons.length === 0;
++  return {
++    ok: true,
++    eligible,
++    reasons,
++    consentStatus,
++    consentSource: consent.source || null,
++    dncFlags,
++    purpose,
++    channel,
++    inferred: false,
++  };
++}
+diff --git a/scripts/sql/crm-core-phase11-wave3.sql b/scripts/sql/crm-core-phase11-wave3.sql
+new file mode 100644
+index 0000000..c16f0a1
+--- /dev/null
++++ b/scripts/sql/crm-core-phase11-wave3.sql
+@@ -0,0 +1,363 @@
++-- Phase 11 Wave 3 ΓÇö qualification, scoring, teams/territories/assignment, consent/DNC (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Apply steps (EPERM fallback):
++--   1. Ensure Wave 1ΓÇô2 tables exist
++--   2. psql "$DATABASE_URL" -f scripts/sql/crm-core-phase11-wave3.sql
++--   3. App code uses hasCrm*Model guards
++--   4. Retry `npx prisma generate` when the query-engine file lock clears.
++--
++-- CrmLead Γëá Opportunity Γëá Customer Γëá SupportTicket Γëá CsCase.
++-- Score Γëá probability / conversion chance / expected revenue.
++-- Never store Tenant GL, payment secrets, or MRA credentials.
++
++-- Lead ownership / acceptance SLA foundation
++ALTER TABLE "CrmLead" ADD COLUMN IF NOT EXISTS "teamId" TEXT;
++ALTER TABLE "CrmLead" ADD COLUMN IF NOT EXISTS "territoryId" TEXT;
++ALTER TABLE "CrmLead" ADD COLUMN IF NOT EXISTS "assignedAt" TIMESTAMP(3);
++ALTER TABLE "CrmLead" ADD COLUMN IF NOT EXISTS "acceptedAt" TIMESTAMP(3);
++
++CREATE INDEX IF NOT EXISTS "CrmLead_teamId_status_idx" ON "CrmLead"("teamId", "status");
++CREATE INDEX IF NOT EXISTS "CrmLead_territoryId_idx" ON "CrmLead"("territoryId");
++
++CREATE TABLE IF NOT EXISTS "CrmQualificationDefinition" (
++  "id" TEXT PRIMARY KEY,
++  "key" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmQualificationDefinition_key_key"
++  ON "CrmQualificationDefinition"("key");
++CREATE INDEX IF NOT EXISTS "CrmQualificationDefinition_status_idx"
++  ON "CrmQualificationDefinition"("status");
++
++CREATE TABLE IF NOT EXISTS "CrmQualificationDefinitionVersion" (
++  "id" TEXT PRIMARY KEY,
++  "definitionId" TEXT,
++  "key" TEXT,
++  "name" TEXT,
++  "versionId" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "criteriaJson" JSONB NOT NULL,
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmQualificationDefinitionVersion_versionId_key"
++  ON "CrmQualificationDefinitionVersion"("versionId");
++CREATE INDEX IF NOT EXISTS "CrmQualificationDefinitionVersion_status_createdAt_idx"
++  ON "CrmQualificationDefinitionVersion"("status", "createdAt");
++
++CREATE TABLE IF NOT EXISTS "CrmQualificationResponse" (
++  "id" TEXT PRIMARY KEY,
++  "leadId" TEXT NOT NULL,
++  "definitionVersionId" TEXT NOT NULL,
++  "criterionKey" TEXT NOT NULL,
++  "state" TEXT NOT NULL,
++  "note" TEXT,
++  "answeredByAdminId" TEXT,
++  "answeredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "overrideReason" TEXT
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmQualificationResponse_lead_version_criterion_key"
++  ON "CrmQualificationResponse"("leadId", "definitionVersionId", "criterionKey");
++CREATE INDEX IF NOT EXISTS "CrmQualificationResponse_leadId_definitionVersionId_idx"
++  ON "CrmQualificationResponse"("leadId", "definitionVersionId");
++
++CREATE TABLE IF NOT EXISTS "CrmScoreDefinition" (
++  "id" TEXT PRIMARY KEY,
++  "key" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmScoreDefinition_key_key" ON "CrmScoreDefinition"("key");
++
++CREATE TABLE IF NOT EXISTS "CrmScoreDefinitionVersion" (
++  "id" TEXT PRIMARY KEY,
++  "definitionId" TEXT,
++  "key" TEXT,
++  "name" TEXT,
++  "versionId" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "displayLabel" TEXT NOT NULL DEFAULT 'Lead fit score',
++  "dimensionsJson" JSONB NOT NULL,
++  "bandsJson" JSONB NOT NULL,
++  "criticalCapsJson" JSONB NOT NULL,
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmScoreDefinitionVersion_versionId_key"
++  ON "CrmScoreDefinitionVersion"("versionId");
++
++CREATE TABLE IF NOT EXISTS "CrmScoreEvaluation" (
++  "id" TEXT PRIMARY KEY,
++  "leadId" TEXT NOT NULL,
++  "definitionVersionId" TEXT NOT NULL,
++  "score" INTEGER NOT NULL,
++  "band" TEXT NOT NULL,
++  "confidence" TEXT NOT NULL,
++  "capped" BOOLEAN NOT NULL DEFAULT false,
++  "capKey" TEXT,
++  "displayLabel" TEXT NOT NULL DEFAULT 'Lead fit score',
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmScoreEvaluation_leadId_createdAt_idx"
++  ON "CrmScoreEvaluation"("leadId", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmScoreEvaluation_definitionVersionId_idx"
++  ON "CrmScoreEvaluation"("definitionVersionId");
++
++CREATE TABLE IF NOT EXISTS "CrmScoreContribution" (
++  "id" TEXT PRIMARY KEY,
++  "evaluationId" TEXT NOT NULL,
++  "dimensionKey" TEXT NOT NULL,
++  "label" TEXT,
++  "weight" DOUBLE PRECISION NOT NULL,
++  "maxPoints" DOUBLE PRECISION NOT NULL,
++  "rawValue" DOUBLE PRECISION,
++  "points" DOUBLE PRECISION NOT NULL DEFAULT 0,
++  "missing" BOOLEAN NOT NULL DEFAULT false
++);
++CREATE INDEX IF NOT EXISTS "CrmScoreContribution_evaluationId_idx"
++  ON "CrmScoreContribution"("evaluationId");
++
++CREATE TABLE IF NOT EXISTS "CrmSalesTeam" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "active" BOOLEAN NOT NULL DEFAULT true,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmSalesTeam_code_key" ON "CrmSalesTeam"("code");
++
++CREATE TABLE IF NOT EXISTS "CrmSalesTeamMember" (
++  "id" TEXT PRIMARY KEY,
++  "teamId" TEXT NOT NULL,
++  "adminId" TEXT NOT NULL,
++  "active" BOOLEAN NOT NULL DEFAULT true,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmSalesTeamMember_teamId_adminId_key"
++  ON "CrmSalesTeamMember"("teamId", "adminId");
++
++CREATE TABLE IF NOT EXISTS "CrmTerritory" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "active" BOOLEAN NOT NULL DEFAULT true,
++  "defaultTeamId" TEXT,
++  "defaultOwnerAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmTerritory_code_key" ON "CrmTerritory"("code");
++
++CREATE TABLE IF NOT EXISTS "CrmTerritoryRule" (
++  "id" TEXT PRIMARY KEY,
++  "territoryId" TEXT NOT NULL,
++  "matchType" TEXT NOT NULL,
++  "matchValue" TEXT NOT NULL,
++  "precedence" INTEGER NOT NULL DEFAULT 0,
++  "active" BOOLEAN NOT NULL DEFAULT true,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmTerritoryRule_territoryId_precedence_idx"
++  ON "CrmTerritoryRule"("territoryId", "precedence");
++
++CREATE TABLE IF NOT EXISTS "CrmAssignmentHistory" (
++  "id" TEXT PRIMARY KEY,
++  "leadId" TEXT NOT NULL,
++  "action" TEXT NOT NULL,
++  "strategy" TEXT,
++  "fromOwnerAdminId" TEXT,
++  "toOwnerAdminId" TEXT,
++  "fromTeamId" TEXT,
++  "toTeamId" TEXT,
++  "territoryId" TEXT,
++  "changedByAdminId" TEXT,
++  "reason" TEXT,
++  "assignedAt" TIMESTAMP(3),
++  "acceptedAt" TIMESTAMP(3),
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmAssignmentHistory_leadId_at_idx"
++  ON "CrmAssignmentHistory"("leadId", "at");
++CREATE INDEX IF NOT EXISTS "CrmAssignmentHistory_toOwnerAdminId_at_idx"
++  ON "CrmAssignmentHistory"("toOwnerAdminId", "at");
++
++CREATE TABLE IF NOT EXISTS "CrmConsentRecord" (
++  "id" TEXT PRIMARY KEY,
++  "contactId" TEXT NOT NULL,
++  "purpose" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'UNKNOWN',
++  "source" TEXT NOT NULL,
++  "evidence" TEXT,
++  "channel" TEXT,
++  "grantedAt" TIMESTAMP(3),
++  "withdrawnAt" TIMESTAMP(3),
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmConsentRecord_contactId_purpose_key"
++  ON "CrmConsentRecord"("contactId", "purpose");
++CREATE INDEX IF NOT EXISTS "CrmConsentRecord_contactId_status_idx"
++  ON "CrmConsentRecord"("contactId", "status");
++
++CREATE TABLE IF NOT EXISTS "CrmCommunicationPreference" (
++  "id" TEXT PRIMARY KEY,
++  "contactId" TEXT NOT NULL,
++  "channel" TEXT NOT NULL,
++  "preference" TEXT NOT NULL DEFAULT 'UNKNOWN',
++  "source" TEXT,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmCommunicationPreference_contactId_channel_key"
++  ON "CrmCommunicationPreference"("contactId", "channel");
++
++CREATE TABLE IF NOT EXISTS "CrmDoNotContact" (
++  "id" TEXT PRIMARY KEY,
++  "contactId" TEXT NOT NULL,
++  "flag" TEXT NOT NULL,
++  "reason" TEXT,
++  "source" TEXT NOT NULL,
++  "active" BOOLEAN NOT NULL DEFAULT true,
++  "setAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "setByAdminId" TEXT
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDoNotContact_contactId_flag_key"
++  ON "CrmDoNotContact"("contactId", "flag");
++CREATE INDEX IF NOT EXISTS "CrmDoNotContact_contactId_active_idx"
++  ON "CrmDoNotContact"("contactId", "active");
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmQualificationResponse_leadId_fkey'
++  ) THEN
++    ALTER TABLE "CrmQualificationResponse"
++      ADD CONSTRAINT "CrmQualificationResponse_leadId_fkey"
++      FOREIGN KEY ("leadId") REFERENCES "CrmLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmScoreEvaluation_leadId_fkey'
++  ) THEN
++    ALTER TABLE "CrmScoreEvaluation"
++      ADD CONSTRAINT "CrmScoreEvaluation_leadId_fkey"
++      FOREIGN KEY ("leadId") REFERENCES "CrmLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmScoreContribution_evaluationId_fkey'
++  ) THEN
++    ALTER TABLE "CrmScoreContribution"
++      ADD CONSTRAINT "CrmScoreContribution_evaluationId_fkey"
++      FOREIGN KEY ("evaluationId") REFERENCES "CrmScoreEvaluation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmSalesTeamMember_teamId_fkey'
++  ) THEN
++    ALTER TABLE "CrmSalesTeamMember"
++      ADD CONSTRAINT "CrmSalesTeamMember_teamId_fkey"
++      FOREIGN KEY ("teamId") REFERENCES "CrmSalesTeam"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmTerritoryRule_territoryId_fkey'
++  ) THEN
++    ALTER TABLE "CrmTerritoryRule"
++      ADD CONSTRAINT "CrmTerritoryRule_territoryId_fkey"
++      FOREIGN KEY ("territoryId") REFERENCES "CrmTerritory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmAssignmentHistory_leadId_fkey'
++  ) THEN
++    ALTER TABLE "CrmAssignmentHistory"
++      ADD CONSTRAINT "CrmAssignmentHistory_leadId_fkey"
++      FOREIGN KEY ("leadId") REFERENCES "CrmLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmConsentRecord_contactId_fkey'
++  ) THEN
++    ALTER TABLE "CrmConsentRecord"
++      ADD CONSTRAINT "CrmConsentRecord_contactId_fkey"
++      FOREIGN KEY ("contactId") REFERENCES "CrmContact"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmCommunicationPreference_contactId_fkey'
++  ) THEN
++    ALTER TABLE "CrmCommunicationPreference"
++      ADD CONSTRAINT "CrmCommunicationPreference_contactId_fkey"
++      FOREIGN KEY ("contactId") REFERENCES "CrmContact"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDoNotContact_contactId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDoNotContact"
++      ADD CONSTRAINT "CrmDoNotContact_contactId_fkey"
++      FOREIGN KEY ("contactId") REFERENCES "CrmContact"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
+diff --git "a/app\\api\\admin\\crm\\assign\\route.js" "b/app\\api\\admin\\crm\\assign\\route.js"
+new file mode 100644
+index 0000000..28973ba
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\assign\\route.js"
+@@ -0,0 +1,73 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import {
++  assignLead,
++  acceptLeadAssignment,
++  returnLeadToQueue,
++} from '@/lib/admin/crm';
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const action = String(body.action || 'ASSIGN').trim().toUpperCase();
++
++    let result;
++    if (action === 'ACCEPT') {
++      result = await acceptLeadAssignment(prisma, {
++        admin,
++        leadId: body.leadId,
++        reason: body.reason || null,
++      });
++    } else if (action === 'REJECT' || action === 'RETURN_TO_QUEUE') {
++      result = await returnLeadToQueue(prisma, {
++        admin,
++        leadId: body.leadId,
++        action,
++        reason: body.reason || null,
++      });
++    } else {
++      result = await assignLead(prisma, {
++        admin,
++        leadId: body.leadId,
++        strategy: body.strategy || 'MANUAL',
++        ownerAdminId: body.ownerAdminId || null,
++        teamId: body.teamId || null,
++        memberAdminIds: body.memberAdminIds || [],
++        territoryContext: body.territoryContext || {},
++        reason: body.reason || null,
++      });
++    }
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json({ success: false, error: result.error }, { status: 404 });
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Assignment failed', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM assign error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to assign CRM lead' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\consent\\route.js" "b/app\\api\\admin\\crm\\consent\\route.js"
+new file mode 100644
+index 0000000..0576189
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\consent\\route.js"
+@@ -0,0 +1,60 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { recordConsent, setDoNotContact } from '@/lib/admin/crm';
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const kind = String(body.kind || 'CONSENT').trim().toUpperCase();
++
++    let result;
++    if (kind === 'DNC') {
++      result = await setDoNotContact(prisma, {
++        admin,
++        contactId: body.contactId,
++        flag: body.flag,
++        reason: body.reason || null,
++        source: body.source,
++        active: body.active !== false,
++      });
++    } else {
++      result = await recordConsent(prisma, {
++        admin,
++        contactId: body.contactId,
++        purpose: body.purpose,
++        status: body.status,
++        source: body.source,
++        evidence: body.evidence || null,
++        channel: body.channel || null,
++      });
++    }
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Consent update failed', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result }, { status: 201 });
++  } catch (error) {
++    console.error('CRM consent error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to update consent' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\eligibility\\route.js" "b/app\\api\\admin\\crm\\eligibility\\route.js"
+new file mode 100644
+index 0000000..8956b7d
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\eligibility\\route.js"
+@@ -0,0 +1,43 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { checkCommunicationEligibility, resolveCrmAccess } from '@/lib/admin/crm';
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const access = resolveCrmAccess(admin);
++    if (!access.canViewContacts && !access.canManageConsent && !access.canViewLeads) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await checkCommunicationEligibility(prisma, {
++      contactId: body.contactId,
++      purpose: body.purpose,
++      channel: body.channel,
++    });
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: 'Eligibility check failed', ...result },
++        { status: 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM eligibility error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to check eligibility' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\qualification\\evaluate\\route.js" "b/app\\api\\admin\\crm\\qualification\\evaluate\\route.js"
+new file mode 100644
+index 0000000..7029406
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\qualification\\evaluate\\route.js"
+@@ -0,0 +1,50 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { evaluateQualification } from '@/lib/admin/crm';
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await evaluateQualification(prisma, {
++      admin,
++      leadId: body.leadId,
++      definitionVersionId: body.definitionVersionId || null,
++      responses: body.responses || [],
++      applyQualifiedStatus: body.applyQualifiedStatus !== false,
++      override: body.override === true,
++      overrideReason: body.overrideReason || null,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json({ success: false, error: result.error }, { status: 404 });
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Qualification failed', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM qualification evaluate error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to evaluate qualification' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\teams\\route.js" "b/app\\api\\admin\\crm\\teams\\route.js"
+new file mode 100644
+index 0000000..0b31925
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\teams\\route.js"
+@@ -0,0 +1,29 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { listSalesTeams } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const result = await listSalesTeams(prisma, { admin });
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM teams list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM sales teams' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\territories\\route.js" "b/app\\api\\admin\\crm\\territories\\route.js"
+new file mode 100644
+index 0000000..e2705cd
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\territories\\route.js"
+@@ -0,0 +1,29 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { listTerritories } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const result = await listTerritories(prisma, { admin });
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM territories list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM territories' },
++      { status: 500 }
++    );
++  }
++}

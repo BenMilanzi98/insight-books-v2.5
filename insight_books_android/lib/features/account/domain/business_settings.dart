@@ -15,6 +15,7 @@ class BusinessSettings {
     this.businessPhone,
     this.businessEmail,
     this.receiptFooter,
+    this.receiptPaperWidthMm = 80,
     this.defaultBankDetails,
     this.taxOutflowAccountId,
     this.emailFooter,
@@ -48,6 +49,8 @@ class BusinessSettings {
   final String? businessPhone;
   final String? businessEmail;
   final String? receiptFooter;
+  /// Thermal roll width in mm (58–90). Default 80.
+  final int receiptPaperWidthMm;
   final String? defaultBankDetails;
   final String? taxOutflowAccountId;
   final String? emailFooter;
@@ -65,6 +68,19 @@ class BusinessSettings {
   final bool lowStockAlerts;
   final bool paymentReceipts;
 
+  /// Clamp preferred thermal width to the supported range.
+  static int normalizePaperWidthMm(dynamic value, {int fallback = 80}) {
+    final parsed = value is int
+        ? value
+        : value is num
+            ? value.round()
+            : int.tryParse('$value');
+    final base = parsed ?? fallback;
+    if (base < 58) return 58;
+    if (base > 90) return 90;
+    return base;
+  }
+
   BusinessSettings copyWith({
     String? name,
     String? subdomain,
@@ -81,6 +97,7 @@ class BusinessSettings {
     String? businessPhone,
     String? businessEmail,
     String? receiptFooter,
+    int? receiptPaperWidthMm,
     String? defaultBankDetails,
     String? taxOutflowAccountId,
     String? emailFooter,
@@ -114,6 +131,7 @@ class BusinessSettings {
       businessPhone: businessPhone ?? this.businessPhone,
       businessEmail: businessEmail ?? this.businessEmail,
       receiptFooter: receiptFooter ?? this.receiptFooter,
+      receiptPaperWidthMm: receiptPaperWidthMm ?? this.receiptPaperWidthMm,
       defaultBankDetails: defaultBankDetails ?? this.defaultBankDetails,
       taxOutflowAccountId: taxOutflowAccountId ?? this.taxOutflowAccountId,
       emailFooter: emailFooter ?? this.emailFooter,
@@ -150,6 +168,7 @@ class BusinessSettings {
       businessPhone: json['businessPhone']?.toString(),
       businessEmail: json['businessEmail']?.toString(),
       receiptFooter: json['receiptFooter']?.toString(),
+      receiptPaperWidthMm: normalizePaperWidthMm(json['receiptPaperWidthMm']),
       defaultBankDetails: json['defaultBankDetails']?.toString(),
       taxOutflowAccountId: json['taxOutflowAccountId']?.toString(),
       emailFooter: json['emailFooter']?.toString(),

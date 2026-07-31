@@ -37,6 +37,11 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
     email: company.email,
     footer: "Thank you for your business!"
   };
+  const paperWidthMm = (() => {
+    const n = Number(businessSettings?.receiptPaperWidthMm ?? 80);
+    if (!Number.isFinite(n)) return 80;
+    return Math.min(90, Math.max(58, Math.round(n)));
+  })();
   
   // Format currency
   const formatCurrency = (amount, currencyCode = 'MWK') => {
@@ -81,7 +86,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
     content: () => receiptRef.current,
     pageStyle: `
       @page {
-        size: 80mm auto;
+        size: ${paperWidthMm}mm auto;
         margin: 2mm;
       }
       @media print {
@@ -142,8 +147,8 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               lineHeight: '1.3',
               color: '#000',
               background: '#fff',
-              width: '80mm',
-              maxWidth: '80mm',
+              width: `${paperWidthMm}mm`,
+              maxWidth: `${paperWidthMm}mm`,
               margin: '0 auto',
               padding: '4mm',
               boxSizing: 'border-box',

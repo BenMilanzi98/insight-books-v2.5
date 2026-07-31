@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import {
@@ -19,6 +22,7 @@ const inputCls =
   'w-full rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
 
 export default function FeatureEntitlementsPage() {
+  const { t } = useI18n();
   const [tenants, setTenants] = useState([]);
   const [entitlements, setEntitlements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,8 +41,8 @@ export default function FeatureEntitlementsPage() {
     setError('');
     try {
       const [tRes, eRes] = await Promise.all([
-        fetch('/api/admin/tenants', { credentials: 'include' }),
-        fetch('/api/admin/feature-entitlements', { credentials: 'include' }),
+        adminFetch('/api/admin/tenants', { credentials: 'include' }),
+        adminFetch('/api/admin/feature-entitlements', { credentials: 'include' }),
       ]);
       const tBody = await tRes.json().catch(() => ({}));
       const eBody = await eRes.json().catch(() => ({}));
@@ -62,7 +66,7 @@ export default function FeatureEntitlementsPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/feature-entitlements', {
+      const res = await adminFetch('/api/admin/feature-entitlements', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -137,7 +141,7 @@ export default function FeatureEntitlementsPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Feature Entitlements"
+        title={t('admin-pages.features.title')}
         description="Grant or disable tenant feature overrides. Disabling a feature never deletes tenant historical data."
         actions={
           <button type="button" onClick={load} className={btnGhost}>

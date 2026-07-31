@@ -1,0 +1,1524 @@
+# Task 4 P20
+
+
+===== lib/admin/crm/conversions/metrics.js =====
+
+/**
+ * Conversion metrics — Phase 16 Wave 4 / Phase 20 Wave 4 harden.
+ * Reliability-gated; gate fail ≠ fabricated zero.
+ * Sales-team / territory / customer / tenant fail-closed for non–Super Admin.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { hasCrmConversionModel } from './model.js';
+import { getConversionDomainContract } from './catalogue.js';
+import {
+  applyConversionReportHonesty,
+  safeConversionCount,
+  CRM_CONVERSION_REPORT_STATUS,
+} from './reliabilityGate.js';
+import {
+  resolveConversionListScope,
+  whereFromConversionScope,
+} from './listScope.js';
+import { getConversionValueLabelHonesty } from './valueLabels.js';
+
+export const CRM_CONVERSION_METRIC_VERSION = 'crm-conversion-metric-v2-2026-07-31';
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{
+ *   admin?: object,
+ *   metric?: string,
+ *   tenantIds?: string[],
+ *   customerIds?: string[],
+ *   salesTeamIds?: string[],
+ *   teamIds?: string[],
+ *   territoryIds?: string[],
+ * }} args
+ */
+export async function getConversionMetric(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (
+    !access.canViewOpportunities &&
+    !access.canExport &&
+    !access.canView &&
+    !access.isSuperAdmin
+  ) {
+    const honesty = applyConversionReportHonesty({ permissionOk: false });
+    return {
+      ok: false,
+      forbidden: true,
+      status: honesty.status,
+      value: null,
+      honesty,
+      definitionVersion: CRM_CONVERSION_METRIC_VERSION,
+    };
+  }
+
+  if (!hasCrmConversionModel(prisma)) {
+    const honesty = applyConversionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      value: null,
+      honesty,
+      reason: 'crm_conversion_model_unavailable',
+      definitionVersion: CRM_CONVERSION_METRIC_VERSION,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const scopeResult = await resolveConversionListScope(prisma, args.admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      value: null,
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: CRM_CONVERSION_METRIC_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+      valueLabel: getConversionValueLabelHonesty(),
+    };
+  }
+
+  const metric = String(args.metric || 'conversion_count').trim().toLowerCase();
+  const where = whereFromConversionScope(scopeResult);
+  const counted = await safeConversionCount(() =>
+    prisma.crmConversion.count({ where })
+  );
+
+  if (!counted.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: honesty.status,
+      value: null,
+      honesty,
+      reason: 'crm_conversion_metric_query_failed',
+      definitionVersion: CRM_CONVERSION_METRIC_VERSION,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const honesty = applyConversionReportHonesty({
+    modelAvailable: true,
+    queryOk: true,
+    permissionOk: true,
+  });
+
+  return {
+    ok: true,
+    status: CRM_CONVERSION_REPORT_STATUS.READY,
+    metric,
+    value: counted.value,
+    honesty: {
+      ...honesty,
+      reliability: 'AVAILABLE',
+      portfolioScoped: scopeResult.portfolioScoped,
+    },
+    valueLabel: getConversionValueLabelHonesty(),
+    definitionVersion: CRM_CONVERSION_METRIC_VERSION,
+    domain: getConversionDomainContract(),
+  };
+}
+
+
+===== lib/admin/crm/conversions/reliabilityGate.js =====
+
+/**
+ * Conversion reliability gate — Phase 16 Wave 4.
+ * Gate fail → never fabricated zeroes (EMPTY/UNAVAILABLE honesty).
+ */
+
+export const CRM_CONVERSION_REPORT_STATUS = Object.freeze({
+  READY: 'READY',
+  EMPTY: 'EMPTY',
+  UNAVAILABLE: 'UNAVAILABLE',
+});
+
+/**
+ * Apply honesty envelope for conversion metrics/reports.
+ * @param {{ permissionOk?: boolean, modelAvailable?: boolean, queryOk?: boolean }} gate
+ */
+export function applyConversionReportHonesty(gate = {}) {
+  if (gate.permissionOk === false) {
+    return {
+      kpiSafe: false,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reliability: 'PERMISSION_RESTRICTED',
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+    };
+  }
+  if (gate.modelAvailable === false) {
+    return {
+      kpiSafe: false,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reliability: 'NOT_INSTRUMENTED',
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+    };
+  }
+  if (gate.queryOk === false) {
+    return {
+      kpiSafe: false,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reliability: 'RECONCILIATION_FAILED',
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+    };
+  }
+  return {
+    kpiSafe: true,
+    inventZeroesForbidden: true,
+    falseZeroes: false,
+  };
+}
+
+/**
+ * Shared safe count — failures return null, never invent 0.
+ */
+export async function safeConversionCount(fn) {
+  try {
+    const value = await fn();
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return { ok: false, value: null };
+    }
+    return { ok: true, value };
+  } catch {
+    return { ok: false, value: null };
+  }
+}
+
+
+===== lib/admin/crm/conversions/search.js =====
+
+/**
+ * Conversion search index — Phase 20 Wave 4.
+ * Conversion / request numbers. No secrets or tokens.
+ * Fail closed when sales-team / territory / customer / tenant scope omitted
+ * for non–Super Admin — never fail-open to all tenants.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import {
+  hasCrmConversionModel,
+  hasCrmConversionRequestModel,
+} from './model.js';
+import { getConversionDomainContract } from './catalogue.js';
+import {
+  resolveConversionListScope,
+  whereFromConversionScope,
+} from './listScope.js';
+
+function sanitizeHit(row, kind) {
+  return {
+    id: row.id,
+    kind,
+    number: row.conversionNumber || row.requestNumber || row.id || null,
+    status: row.status || null,
+    tenantId: row.tenantId || null,
+    customerId: row.customerId || null,
+    teamId: row.teamId || null,
+    territoryId: row.territoryId || null,
+  };
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{
+ *   admin?: object,
+ *   query?: string,
+ *   tenantIds?: string[],
+ *   customerIds?: string[],
+ *   salesTeamIds?: string[],
+ *   teamIds?: string[],
+ *   territoryIds?: string[],
+ * }} args
+ */
+export async function searchConversionIndex(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (
+    !access.canViewOpportunities &&
+    !access.canView &&
+    !access.isSuperAdmin
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      results: [],
+      reason: 'conversion_search_forbidden',
+    };
+  }
+
+  const q = String(args.query || '').trim();
+  if (!q) {
+    return { ok: true, results: [], reason: 'empty_query' };
+  }
+
+  const scopeResult = await resolveConversionListScope(prisma, args.admin, args);
+  if (!scopeResult.ok) {
+    return {
+      ok: true,
+      results: [],
+      reason: scopeResult.reason,
+      domain: getConversionDomainContract(),
+      meta: {
+        excludesSecrets: true,
+        excludesTokens: true,
+        portfolioScoped: true,
+        failClosed: true,
+      },
+    };
+  }
+
+  const scopeWhere = whereFromConversionScope(scopeResult);
+  const results = [];
+
+  if (hasCrmConversionModel(prisma)) {
+    const where = {
+      AND: [
+        scopeWhere,
+        { OR: [{ conversionNumber: { contains: q } }, { id: { contains: q } }] },
+      ].filter((w) => w && Object.keys(w).length),
+    };
+    try {
+      const rows = await prisma.crmConversion.findMany({ where });
+      for (const r of rows || []) {
+        results.push(sanitizeHit(r, 'CONVERSION'));
+      }
+    } catch {
+      // fail closed — omit conversions
+    }
+  }
+
+  if (hasCrmConversionRequestModel(prisma)) {
+    const where = {
+      AND: [
+        scopeWhere,
+        { OR: [{ requestNumber: { contains: q } }, { id: { contains: q } }] },
+      ].filter((w) => w && Object.keys(w).length),
+    };
+    try {
+      const rows = await prisma.crmConversionRequest.findMany({ where });
+      for (const r of rows || []) {
+        results.push(sanitizeHit(r, 'REQUEST'));
+      }
+    } catch {
+      // fail closed
+    }
+  }
+
+  return {
+    ok: true,
+    results,
+    domain: getConversionDomainContract(),
+    meta: {
+      excludesSecrets: true,
+      excludesTokens: true,
+      portfolioScoped: Boolean(scopeResult.portfolioScoped),
+    },
+  };
+}
+
+
+===== lib/admin/crm/conversions/exports.js =====
+
+/**
+ * Conversion report exports — Phase 20 Wave 4.
+ * Permission recheck; strip secrets / tokens; formula-injection neutralised.
+ * Sales-team / territory / customer / tenant fail-closed.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { hasCrmConversionModel } from './model.js';
+import { getConversionDomainContract } from './catalogue.js';
+import {
+  resolveConversionListScope,
+  whereFromConversionScope,
+} from './listScope.js';
+import { CRM_CONVERSION_REPORT_STATUS } from './reliabilityGate.js';
+import { getConversionValueLabelHonesty } from './valueLabels.js';
+
+const STRIP_KEYS = new Set([
+  'accessToken',
+  'token',
+  'secret',
+  'secretNote',
+  'password',
+  'apiKey',
+  'credentials',
+]);
+
+const EXPORT_REPORT_KEYS = new Set(['overview', 'conversions', 'requests']);
+
+function stripSensitive(row) {
+  if (!row || typeof row !== 'object') return row;
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (STRIP_KEYS.has(k) || /password|credential|secret|token/i.test(k)) {
+      continue;
+    }
+    if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
+      out[k] = stripSensitive(v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/** Neutralise CSV formula injection (=, +, -, @ prefixes). */
+function csvCell(value) {
+  const raw = value == null ? '' : String(value);
+  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return JSON.stringify(safe);
+}
+
+function toCsv(rows) {
+  const keys = [
+    'id',
+    'conversionNumber',
+    'status',
+    'tenantId',
+    'customerId',
+    'teamId',
+    'territoryId',
+  ];
+  if (!rows.length) return `${keys.join(',')}\n`;
+  const header = keys.join(',');
+  const lines = rows.map((r) => keys.map((k) => csvCell(r[k])).join(','));
+  return [header, ...lines].join('\n');
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{
+ *   admin?: object,
+ *   reportKey?: string,
+ *   format?: string,
+ *   tenantIds?: string[],
+ *   customerIds?: string[],
+ *   salesTeamIds?: string[],
+ *   teamIds?: string[],
+ *   territoryIds?: string[],
+ * }} args
+ */
+export async function exportConversionReport(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (
+    !access.canExport &&
+    !access.canViewOpportunities &&
+    !access.isSuperAdmin
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      error: 'conversion_export_forbidden',
+    };
+  }
+
+  const reportKey = String(args.reportKey || 'overview').trim().toLowerCase();
+  if (!EXPORT_REPORT_KEYS.has(reportKey)) {
+    return { ok: false, error: 'unknown_report_key', reportKey };
+  }
+
+  if (!hasCrmConversionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_model_unavailable',
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+    };
+  }
+
+  const scopeResult = await resolveConversionListScope(prisma, args.admin, args);
+  if (!scopeResult.ok) {
+    return {
+      ok: true,
+      reportKey,
+      format: String(args.format || 'csv').toLowerCase(),
+      rows: [],
+      body: toCsv([]),
+      reason: scopeResult.reason,
+      strippedSecrets: true,
+      strippedTokens: true,
+      valueLabel: getConversionValueLabelHonesty(),
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const where = whereFromConversionScope(scopeResult);
+  const format = String(args.format || 'csv').toLowerCase();
+  let rows;
+  try {
+    rows = await prisma.crmConversion.findMany({ where });
+  } catch {
+    return {
+      ok: false,
+      error: 'export_query_failed',
+      reason: 'conversion_export_query_failed',
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reportKey,
+      format,
+      rows: null,
+      body: null,
+      strippedSecrets: true,
+      strippedTokens: true,
+      domain: getConversionDomainContract(),
+      meta: {
+        portfolioScoped: scopeResult.portfolioScoped,
+        queryFailed: true,
+      },
+    };
+  }
+
+  const sanitized = (rows || []).map((r) =>
+    stripSensitive({
+      id: r.id,
+      conversionNumber: r.conversionNumber,
+      status: r.status,
+      tenantId: r.tenantId || null,
+      customerId: r.customerId || null,
+      teamId: r.teamId || null,
+      territoryId: r.territoryId || null,
+    })
+  );
+
+  return {
+    ok: true,
+    reportKey,
+    format,
+    rows: sanitized,
+    body: format === 'json' ? JSON.stringify(sanitized) : toCsv(sanitized),
+    strippedSecrets: true,
+    strippedTokens: true,
+    formulaInjectionNeutralised: true,
+    valueLabel: getConversionValueLabelHonesty(),
+    domain: getConversionDomainContract(),
+    meta: { portfolioScoped: scopeResult.portfolioScoped },
+  };
+}
+
+
+===== lib/admin/crm/conversions/dataQuality.js =====
+
+/**
+ * Conversion data-quality foundations — Phase 16 Wave 4 / Phase 20 Wave 4 harden.
+ * Never invent DQ scores or false zeroes on gate failure.
+ * Sales-team / territory / customer / tenant fail-closed.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import {
+  hasCrmConversionModel,
+  hasCrmConversionRequestModel,
+} from './model.js';
+import { safeConversionCount, CRM_CONVERSION_REPORT_STATUS } from './reliabilityGate.js';
+import { applyConversionReportHonesty } from './reliabilityGate.js';
+import { getConversionDomainContract } from './catalogue.js';
+import {
+  resolveConversionListScope,
+  whereFromConversionScope,
+} from './listScope.js';
+
+export const CRM_CONVERSION_DQ_VERSION = 'crm-conversion-dq-v2-2026-07-31';
+
+export function hasCrmConversionDqIncidentModel(prisma) {
+  return typeof prisma?.crmConversionDqIncident?.create === 'function';
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{
+ *   admin?: object,
+ *   persist?: boolean,
+ *   now?: Date,
+ *   tenantIds?: string[],
+ *   customerIds?: string[],
+ *   salesTeamIds?: string[],
+ *   teamIds?: string[],
+ *   territoryIds?: string[],
+ * }} args
+ */
+export async function runConversionDataQuality(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (
+    !access.canViewOpportunities &&
+    !access.canRunReconciliation &&
+    !access.canView &&
+    !access.isSuperAdmin
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reason: 'crm_conversion_dq_forbidden',
+      checks: null,
+    };
+  }
+
+  if (!hasCrmConversionModel(prisma)) {
+    const honesty = applyConversionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      reason: 'crm_conversion_model_unavailable',
+      checks: null,
+      honesty: { inventZeroesForbidden: true, falseZeroes: false },
+      definitionVersion: CRM_CONVERSION_DQ_VERSION,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const scopeResult = await resolveConversionListScope(prisma, args.admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      checks: null,
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: CRM_CONVERSION_DQ_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const scopeWhere = whereFromConversionScope(scopeResult);
+  const total = await safeConversionCount(() =>
+    prisma.crmConversion.count({ where: scopeWhere })
+  );
+  if (!total.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reason: 'conversion_dq_gate_failed',
+      checks: null,
+      honesty: { inventZeroesForbidden: true, falseZeroes: false, ...honesty },
+      definitionVersion: CRM_CONVERSION_DQ_VERSION,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  if (total.value === 0) {
+    return {
+      ok: true,
+      status: CRM_CONVERSION_REPORT_STATUS.EMPTY,
+      checks: { totalConversions: null, totalRequests: null, blockingDq: null },
+      honesty: {
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+        emptyEnvelope: true,
+      },
+      definitionVersion: CRM_CONVERSION_DQ_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped },
+    };
+  }
+
+  // Request model missing → UNAVAILABLE / totalRequests null — never invent 0.
+  if (!hasCrmConversionRequestModel(prisma)) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: false,
+      queryOk: true,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      checks: {
+        totalConversions: total.value,
+        totalRequests: null,
+        missingAcceptanceChecksum: null,
+        blockingDq: null,
+        blockingDqStatus: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      },
+      honesty: {
+        ...honesty,
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+      },
+      reason: 'crm_conversion_request_model_unavailable',
+      definitionVersion: CRM_CONVERSION_DQ_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped },
+    };
+  }
+
+  const requests = await safeConversionCount(() =>
+    prisma.crmConversionRequest.count({ where: scopeWhere })
+  );
+  if (!requests.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      checks: {
+        totalConversions: total.value,
+        totalRequests: null,
+        missingAcceptanceChecksum: null,
+        blockingDq: null,
+        blockingDqStatus: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      },
+      honesty: {
+        ...honesty,
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+      },
+      reason: 'conversion_dq_request_query_failed',
+      definitionVersion: CRM_CONVERSION_DQ_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped },
+    };
+  }
+
+  const checks = {
+    totalConversions: total.value,
+    totalRequests: requests.value,
+    missingAcceptanceChecksum: null,
+    blockingDq: null,
+    blockingDqStatus: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+  };
+
+  if (typeof prisma.crmConversion.findMany === 'function') {
+    try {
+      const rows = await prisma.crmConversion.findMany({ where: scopeWhere });
+      checks.missingAcceptanceChecksum = rows.filter(
+        (r) => !r.checksumSha256 || !r.acceptanceId
+      ).length;
+    } catch {
+      checks.missingAcceptanceChecksum = null;
+    }
+  }
+
+  if (
+    args.persist &&
+    hasCrmConversionDqIncidentModel(prisma) &&
+    typeof checks.missingAcceptanceChecksum === 'number' &&
+    checks.missingAcceptanceChecksum > 0
+  ) {
+    await prisma.crmConversionDqIncident.create({
+      data: {
+        code: 'ACCEPTANCE_CHECKSUM_MISSING',
+        severity: 'HIGH',
+        count: checks.missingAcceptanceChecksum,
+        detailJson: checks,
+        createdAt: args.now || new Date(),
+        updatedAt: args.now || new Date(),
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    status: CRM_CONVERSION_REPORT_STATUS.READY,
+    checks,
+    honesty: { inventZeroesForbidden: true, falseZeroes: false },
+    definitionVersion: CRM_CONVERSION_DQ_VERSION,
+    domain: getConversionDomainContract(),
+    meta: { portfolioScoped: scopeResult.portfolioScoped },
+  };
+}
+
+
+===== lib/admin/crm/conversions/reconciliation.js =====
+
+/**
+ * Conversion reconciliation foundations — Phase 16 Wave 4 / Phase 20 Wave 4 harden.
+ * Lineage: acceptance → conversion → tenant/subscription → handoffs.
+ * Never invent zeroes or lineageIntact:true on gate failure / thin instrumentation.
+ * Sales-team / territory / customer / tenant fail-closed.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { hasCrmConversionModel } from './model.js';
+import {
+  safeConversionCount,
+  applyConversionReportHonesty,
+  CRM_CONVERSION_REPORT_STATUS,
+} from './reliabilityGate.js';
+import { getConversionDomainContract } from './catalogue.js';
+import {
+  resolveConversionListScope,
+  whereFromConversionScope,
+} from './listScope.js';
+
+export const CRM_CONVERSION_RECON_VERSION = 'crm-conversion-recon-v2-2026-07-31';
+
+export function hasCrmConversionReconRunModel(prisma) {
+  return typeof prisma?.crmConversionReconRun?.create === 'function';
+}
+
+export function hasCrmConversionDomainHandoffModel(prisma) {
+  return typeof prisma?.crmConversionDomainHandoff?.create === 'function';
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{
+ *   admin?: object,
+ *   persist?: boolean,
+ *   now?: Date,
+ *   tenantIds?: string[],
+ *   customerIds?: string[],
+ *   salesTeamIds?: string[],
+ *   teamIds?: string[],
+ *   territoryIds?: string[],
+ * }} args
+ */
+export async function runConversionReconciliation(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (
+    !access.canRunReconciliation &&
+    !access.canViewOpportunities &&
+    !access.isSuperAdmin
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      reason: 'crm_conversion_recon_forbidden',
+      cards: null,
+    };
+  }
+
+  if (!hasCrmConversionModel(prisma)) {
+    const honesty = applyConversionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      cards: null,
+      honesty: {
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+        conversionPlane: true,
+      },
+      definitionVersion: CRM_CONVERSION_RECON_VERSION,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const scopeResult = await resolveConversionListScope(prisma, args.admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      cards: null,
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: CRM_CONVERSION_RECON_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const scopeWhere = whereFromConversionScope(scopeResult);
+  const conversions = await safeConversionCount(() =>
+    prisma.crmConversion.count({ where: scopeWhere })
+  );
+  if (!conversions.ok) {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+      cards: null,
+      honesty: {
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+        conversionPlane: true,
+        ...honesty,
+      },
+      definitionVersion: CRM_CONVERSION_RECON_VERSION,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  if (conversions.value === 0) {
+    return {
+      ok: true,
+      status: CRM_CONVERSION_REPORT_STATUS.EMPTY,
+      cards: null,
+      honesty: {
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+        emptyEnvelope: true,
+        conversionPlane: true,
+        kpiSafe: false,
+      },
+      definitionVersion: CRM_CONVERSION_RECON_VERSION,
+      domain: getConversionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped },
+    };
+  }
+
+  const handoffs = hasCrmConversionDomainHandoffModel(prisma)
+    ? await safeConversionCount(() =>
+        prisma.crmConversionDomainHandoff.count({ where: scopeWhere })
+      )
+    : { ok: true, value: null };
+
+  // Thin stub: conversions count is real; lineage integrity is not instrumented —
+  // never invent lineageIntact: true. Null + UNAVAILABLE for that check.
+  const cards = {
+    conversions: conversions.value,
+    domainHandoffs: handoffs.ok ? handoffs.value : null,
+    lineageIntact: null,
+    lineageIntactStatus: CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE,
+  };
+
+  if (args.persist && hasCrmConversionReconRunModel(prisma)) {
+    await prisma.crmConversionReconRun.create({
+      data: {
+        status: CRM_CONVERSION_REPORT_STATUS.READY,
+        cardsJson: cards,
+        createdByAdminId: args.admin?.id || null,
+        createdAt: args.now || new Date(),
+        updatedAt: args.now || new Date(),
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    status: CRM_CONVERSION_REPORT_STATUS.READY,
+    cards,
+    honesty: {
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+      conversionPlane: true,
+      portfolioScoped: scopeResult.portfolioScoped,
+      thinInstrumentation: true,
+    },
+    definitionVersion: CRM_CONVERSION_RECON_VERSION,
+    domain: getConversionDomainContract(),
+    meta: { portfolioScoped: scopeResult.portfolioScoped },
+  };
+}
+
+
+===== test/systemAdmin.crm.conversionPhase20Wave4.test.js =====
+
+/**
+ * Phase 20 Wave 4 — UI queues / metrics / reliability / DQ / recon / exports /
+ * search / Phase 21 pack / exit.
+ *
+ * Mirror Training/Adoption Wave 4 fail-closed:
+ * - Gate fail → UNAVAILABLE / value null (never false zero)
+ * - Search/export/DQ/recon fail-closed for sales-team/territory/customer/tenant
+ * - Never invent lineageIntact:true
+ * - Closed-Won / accepted value ≠ collected/recognised Revenue
+ * - Exit READY_FOR_PHASE_21_WITH_BLOCKERS + Phase 21 pack
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  applyConversionReportHonesty,
+  getConversionMetric,
+  getConversionReport,
+  getConversionOverview,
+  runConversionDataQuality,
+  runConversionReconciliation,
+  exportConversionReport,
+  searchConversionIndex,
+  getConversionValueLabelHonesty,
+  getConversionDomainContract,
+  CRM_CONVERSION_REPORT_STATUS,
+  CRM_CONVERSION_HUB_ROUTES,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-p20-w4') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.export': true,
+      'systemAdmin.crm.reconciliation.run': true,
+    },
+  };
+}
+
+function salesRep(id = 'sales-rep-p20-w4') {
+  return {
+    id,
+    role: 'Sales Rep',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.export': true,
+    },
+  };
+}
+
+function matchesWhere(row, where = {}) {
+  if (!where || typeof where !== 'object') return true;
+  if (where.AND) return where.AND.every((w) => matchesWhere(row, w));
+  if (where.OR) return where.OR.some((w) => matchesWhere(row, w));
+  for (const [key, cond] of Object.entries(where)) {
+    if (key === 'AND' || key === 'OR') continue;
+    const val = row[key];
+    if (cond && typeof cond === 'object' && !Array.isArray(cond)) {
+      if (Array.isArray(cond.in)) {
+        if (!cond.in.map(String).includes(String(val))) return false;
+      } else if (typeof cond.contains === 'string') {
+        if (!String(val || '').includes(cond.contains)) return false;
+      }
+    } else if (cond !== undefined && String(val) !== String(cond)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function simpleCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {} } = {}) => {
+      return store.find((r) => matchesWhere(r, where)) || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      return store.filter((r) => matchesWhere(r, where));
+    }),
+    count: vi.fn(async ({ where = {} } = {}) => {
+      return store.filter((r) => matchesWhere(r, where)).length;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+  };
+}
+
+function makePrisma() {
+  const conversionStore = [];
+  const requestStore = [];
+  const handoffStore = [];
+  const prisma = {
+    _conversionStore: conversionStore,
+    _requestStore: requestStore,
+    _handoffStore: handoffStore,
+    crmConversion: simpleCrud(conversionStore, 'cvn'),
+    crmConversionRequest: simpleCrud(requestStore, 'cvr'),
+    crmConversionDomainHandoff: simpleCrud(handoffStore, 'hd'),
+  };
+  return prisma;
+}
+
+describe('Phase 20 Wave 4 — metrics / reliability / scope / Phase 21 exit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reliability gate fail → UNAVAILABLE / value null — never false zero', async () => {
+    const honesty = applyConversionReportHonesty({
+      modelAvailable: false,
+      permissionOk: true,
+      queryOk: true,
+    });
+    expect(honesty.kpiSafe).toBe(false);
+    expect(honesty.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(honesty.inventZeroesForbidden).toBe(true);
+    expect(honesty.falseZeroes).toBe(false);
+
+    const broken = makePrisma();
+    broken.crmConversion.count = vi.fn(async () => {
+      throw new Error('db down');
+    });
+
+    const metric = await getConversionMetric(broken, {
+      admin: superAdmin(),
+      metric: 'conversion_count',
+    });
+    expect(metric.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(metric.value).toBeNull();
+    expect(metric.value).not.toBe(0);
+
+    const report = await getConversionReport(broken, { admin: superAdmin() });
+    expect(report.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(report.report).toBeNull();
+
+    const overview = await getConversionOverview(broken, { admin: superAdmin() });
+    expect(overview.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(overview.overview).toBeNull();
+  });
+
+  it('metrics fail-closed without sales-team/territory/customer/tenant scope', async () => {
+    const prisma = makePrisma();
+    const rep = salesRep();
+
+    await prisma.crmConversion.create({
+      data: {
+        id: 'cvn-owned',
+        conversionNumber: 'CVN-2026-000101',
+        status: 'IN_PROGRESS',
+        conversionRequestId: 'cvr-1',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+        teamId: 'team-a',
+        territoryId: 'terr-a',
+      },
+    });
+    await prisma.crmConversion.create({
+      data: {
+        id: 'cvn-other',
+        conversionNumber: 'CVN-2026-000102',
+        status: 'IN_PROGRESS',
+        conversionRequestId: 'cvr-2',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+        teamId: 'team-b',
+        territoryId: 'terr-b',
+      },
+    });
+
+    const unscoped = await getConversionMetric(prisma, {
+      admin: rep,
+      metric: 'conversion_count',
+    });
+    expect(unscoped.value).toBeNull();
+    expect(unscoped.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(unscoped.meta?.failClosed || unscoped.reason).toBeTruthy();
+
+    const emptyTeam = await getConversionMetric(prisma, {
+      admin: rep,
+      metric: 'conversion_count',
+      salesTeamIds: [],
+    });
+    expect(emptyTeam.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(emptyTeam.value).toBeNull();
+    expect(emptyTeam.meta?.failClosed).toBe(true);
+
+    const scopedTeam = await getConversionMetric(prisma, {
+      admin: rep,
+      metric: 'conversion_count',
+      salesTeamIds: ['team-a'],
+    });
+    expect(scopedTeam.ok).toBe(true);
+    expect(scopedTeam.value).toBe(1);
+
+    const scopedTerr = await getConversionMetric(prisma, {
+      admin: rep,
+      metric: 'conversion_count',
+      territoryIds: ['terr-a'],
+    });
+    expect(scopedTerr.value).toBe(1);
+
+    const scopedCust = await getConversionMetric(prisma, {
+      admin: rep,
+      metric: 'conversion_count',
+      customerIds: ['cust-a'],
+    });
+    expect(scopedCust.value).toBe(1);
+
+    const scopedTenant = await getConversionMetric(prisma, {
+      admin: rep,
+      metric: 'conversion_count',
+      tenantIds: ['tenant-owned'],
+    });
+    expect(scopedTenant.value).toBe(1);
+  });
+
+  it('search / export / DQ / recon apply scope; never invent zeroes or lineageIntact:true', async () => {
+    const prisma = makePrisma();
+    const rep = salesRep('sales-export-dq');
+
+    await prisma.crmConversion.create({
+      data: {
+        id: 'cvn-exp-owned',
+        conversionNumber: 'CVN-2026-000160',
+        status: 'IN_PROGRESS',
+        conversionRequestId: 'cvr-owned',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+        teamId: 'team-a',
+        territoryId: 'terr-a',
+        accessToken: 'tok-export-secret',
+        secretNote: 'SECRET_ANSWER_EXPORT',
+      },
+    });
+    await prisma.crmConversion.create({
+      data: {
+        id: 'cvn-exp-other',
+        conversionNumber: 'CVN-2026-000161',
+        status: 'IN_PROGRESS',
+        conversionRequestId: 'cvr-other',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+        teamId: 'team-b',
+        territoryId: 'terr-b',
+      },
+    });
+    await prisma.crmConversionRequest.create({
+      data: {
+        id: 'cvr-owned',
+        requestNumber: 'CVR-2026-000160',
+        status: 'IN_PROGRESS',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+      },
+    });
+    await prisma.crmConversionRequest.create({
+      data: {
+        id: 'cvr-other',
+        requestNumber: 'CVR-2026-000161',
+        status: 'IN_PROGRESS',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+      },
+    });
+
+    const searchClosed = await searchConversionIndex(prisma, {
+      admin: rep,
+      query: 'CVN-2026',
+    });
+    expect(searchClosed.ok).toBe(true);
+    expect(searchClosed.results).toEqual([]);
+    expect(searchClosed.meta?.failClosed || searchClosed.reason).toBeTruthy();
+
+    const searchScoped = await searchConversionIndex(prisma, {
+      admin: rep,
+      query: 'CVN-2026',
+      tenantIds: ['tenant-owned'],
+    });
+    expect(searchScoped.ok).toBe(true);
+    const ids = (searchScoped.results || []).map((r) => r.id);
+    expect(ids).toContain('cvn-exp-owned');
+    expect(ids).not.toContain('cvn-exp-other');
+    const payload = JSON.stringify(searchScoped.results);
+    expect(payload).not.toMatch(/tok-secret|SECRET_ANSWER|accessToken|secretNote/i);
+
+    const exportClosed = await exportConversionReport(prisma, {
+      admin: rep,
+      reportKey: 'overview',
+      format: 'csv',
+    });
+    expect(exportClosed.ok).toBe(true);
+    expect(exportClosed.rows).toEqual([]);
+    expect(exportClosed.meta?.failClosed || exportClosed.reason).toBeTruthy();
+
+    const exportScoped = await exportConversionReport(prisma, {
+      admin: rep,
+      reportKey: 'overview',
+      format: 'csv',
+      salesTeamIds: ['team-a'],
+    });
+    expect(exportScoped.ok).toBe(true);
+    expect(exportScoped.rows).toHaveLength(1);
+    expect(exportScoped.rows[0].id).toBe('cvn-exp-owned');
+    const exportBody =
+      typeof exportScoped.body === 'string'
+        ? exportScoped.body
+        : JSON.stringify(exportScoped.rows);
+    expect(exportBody).not.toMatch(
+      /SECRET_ANSWER|tok-export|accessToken|secretNote/i
+    );
+    expect(exportBody).not.toMatch(/^=|^\+|^\-|@/m);
+
+    prisma.crmConversion.findMany.mockRejectedValueOnce(
+      new Error('conversion_export_db_down')
+    );
+    const exportQueryFail = await exportConversionReport(prisma, {
+      admin: rep,
+      reportKey: 'overview',
+      format: 'csv',
+      tenantIds: ['tenant-owned'],
+    });
+    expect(exportQueryFail.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(exportQueryFail.ok).toBe(false);
+    expect(exportQueryFail.rows).toBeNull();
+    expect(exportQueryFail.body).toBeNull();
+    expect(exportQueryFail.rows).not.toEqual([]);
+
+    const dqClosed = await runConversionDataQuality(prisma, { admin: rep });
+    expect(dqClosed.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(dqClosed.checks).toBeNull();
+    expect(dqClosed.meta?.failClosed || dqClosed.reason).toBeTruthy();
+
+    const dqScoped = await runConversionDataQuality(prisma, {
+      admin: rep,
+      tenantIds: ['tenant-owned'],
+    });
+    expect(dqScoped.ok).toBe(true);
+    expect(dqScoped.status).toBe(CRM_CONVERSION_REPORT_STATUS.READY);
+    expect(dqScoped.checks.totalConversions).toBe(1);
+    expect(dqScoped.checks.blockingDq).toBeNull();
+    expect(dqScoped.checks.blockingDq).not.toBe(false);
+
+    const reconClosed = await runConversionReconciliation(prisma, { admin: rep });
+    expect(reconClosed.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(reconClosed.cards).toBeNull();
+    expect(reconClosed.meta?.failClosed || reconClosed.reason).toBeTruthy();
+
+    const reconScoped = await runConversionReconciliation(prisma, {
+      admin: rep,
+      customerIds: ['cust-a'],
+    });
+    expect(reconScoped.ok).toBe(true);
+    expect(reconScoped.status).toBe(CRM_CONVERSION_REPORT_STATUS.READY);
+    expect(reconScoped.cards.conversions).toBe(1);
+    expect(reconScoped.cards.lineageIntact).toBeNull();
+    expect(reconScoped.cards.lineageIntact).not.toBe(true);
+
+    // Missing request model → UNAVAILABLE / totalRequests null — never invent 0.
+    const noRequestPrisma = makePrisma();
+    delete noRequestPrisma.crmConversionRequest;
+    await noRequestPrisma.crmConversion.create({
+      data: {
+        id: 'cvn-dq-only',
+        conversionNumber: 'CVN-2026-000170',
+        status: 'IN_PROGRESS',
+        conversionRequestId: 'cvr-x',
+        tenantId: 'tenant-owned',
+      },
+    });
+    const dqNoRequest = await runConversionDataQuality(noRequestPrisma, {
+      admin: superAdmin(),
+    });
+    expect(dqNoRequest.status).toBe(CRM_CONVERSION_REPORT_STATUS.UNAVAILABLE);
+    expect(dqNoRequest.checks?.totalRequests).toBeNull();
+    expect(dqNoRequest.checks?.totalRequests).not.toBe(0);
+    expect(dqNoRequest.honesty?.falseZeroes).toBe(false);
+  });
+
+  it('Closed-Won / accepted value is never labelled collected/recognised Revenue', () => {
+    const label = getConversionValueLabelHonesty({
+      acceptedValue: 125000,
+      closedWonValue: 125000,
+      currency: 'MWK',
+    });
+    expect(label.isRevenue).toBe(false);
+    expect(label.isCollectedRevenue).toBe(false);
+    expect(label.isRecognisedRevenue).toBe(false);
+    expect(label.isRecognizedRevenue).toBe(false);
+    expect(label.label).toMatch(/not_.*revenue|accepted_value|closed_won/i);
+    // Honesty slug may mention "not_collected_*" — must not claim positive Revenue.
+    expect(label.label).not.toMatch(/^(collected|recognised|recognized)_revenue$/i);
+    expect(getConversionDomainContract().phase).toBe(20);
+    expect(CRM_CONVERSION_HUB_ROUTES.closedWonAlias).toMatch(/closed-won/);
+  });
+
+  it('EN + NY i18n keys for conversion hub resolve (smoke)', () => {
+    const en = JSON.parse(
+      readFileSync(join(process.cwd(), 'locales/en/admin-pages.json'), 'utf8')
+    );
+    const ny = JSON.parse(
+      readFileSync(join(process.cwd(), 'locales/ny/admin-pages.json'), 'utf8')
+    );
+    const keys = [
+      'crm.conversionHub.title',
+      'crm.conversionHub.overview',
+      'crm.conversionHub.myWork',
+      'crm.conversionHub.queues',
+      'crm.conversionHub.reports',
+      'crm.conversionHub.acceptedValueNotRevenue',
+      'crm.conversionHub.closedWonNotCollectedRevenue',
+    ];
+    for (const path of keys) {
+      const parts = path.split('.');
+      let nodeEn = en;
+      let nodeNy = ny;
+      for (const p of parts) {
+        nodeEn = nodeEn?.[p];
+        nodeNy = nodeNy?.[p];
+      }
+      expect(typeof nodeEn).toBe('string');
+      expect(nodeEn.length).toBeGreaterThan(0);
+      expect(typeof nodeNy).toBe('string');
+      expect(nodeNy.length).toBeGreaterThan(0);
+    }
+    // Must deny collected/recognised Revenue labelling (negation OK).
+    expect(en.crm.conversionHub.acceptedValueNotRevenue.toLowerCase()).toMatch(
+      /not .*revenue/
+    );
+    expect(en.crm.conversionHub.closedWonNotCollectedRevenue.toLowerCase()).toMatch(
+      /not .*revenue/
+    );
+  });
+
+  it('Phase 21 pack present with READY_FOR_PHASE_21_WITH_BLOCKERS', () => {
+    const base = join(process.cwd(), 'docs/admin-intelligence-crm/phase-20');
+    const inputs = join(base, 'PHASE_21_INPUTS.md');
+    const checklist = join(base, 'PHASE_21_READINESS_CHECKLIST.md');
+    const finalReport = join(base, 'FINAL_PHASE_20_REPORT.md');
+    const decision = join(base, 'FINAL_READINESS_DECISION.md');
+    for (const p of [inputs, checklist, finalReport, decision]) {
+      expect(existsSync(p)).toBe(true);
+    }
+    const decisionBody = readFileSync(decision, 'utf8');
+    expect(decisionBody).toMatch(/READY_FOR_PHASE_21_WITH_BLOCKERS/);
+    const inputsBody = readFileSync(inputs, 'utf8');
+    expect(inputsBody).toMatch(/blocker|carry/i);
+    expect(inputsBody).toMatch(/handoff/i);
+    expect(inputsBody).toMatch(/tree-17|phase-17|FUTURE/i);
+    expect(inputsBody).toMatch(/MISLABELLED_PHASE_ARTIFACT_AUDIT|mislabel/i);
+    const reportBody = readFileSync(finalReport, 'utf8');
+    expect(reportBody).toMatch(/READY_FOR_PHASE_21_WITH_BLOCKERS/);
+    const checklistBody = readFileSync(checklist, 'utf8');
+    expect(checklistBody).toMatch(/READY_FOR_PHASE_21_WITH_BLOCKERS/);
+  });
+
+  it('thin closed-won alias route is documented on hub keys', () => {
+    expect(CRM_CONVERSION_HUB_ROUTES.overview).toMatch(/conversions\/overview/);
+    expect(CRM_CONVERSION_HUB_ROUTES.closedWonAlias).toMatch(
+      /\/insightbooks\/crm\/closed-won/
+    );
+    const aliasPage = join(
+      process.cwd(),
+      'app/insightbooks/crm/closed-won/page.js'
+    );
+    expect(existsSync(aliasPage)).toBe(true);
+  });
+});
+
+
+===== docs/admin-intelligence-crm/phase-20/FINAL_READINESS_DECISION.md =====
+
+# Final Readiness Decision — Exit Phase 20 / Enter Phase 21
+
+**Decision:** **READY_FOR_PHASE_21_WITH_BLOCKERS**
+
+**Date:** 2026-07-31
+
+## Rationale
+
+Phase 20 Waves 0–4 deliver a trustworthy Lead Conversion / Closed-Won plane on the existing `CrmConversion*` spine:
+
+1. Wave 0 forensic pack mapped PRD ↔ tree numbering; CS tree 17–19 quarantined (not deleted); CONDITIONAL GO recorded.
+2. Waves 1–3 hardened Closed-Won readiness/acceptance/approvals, saga idempotency, snapshot immutability, duplicates, request honesty, and one-active onboarding handoff.
+3. Wave 4 delivers UI queues/thin Closed-Won aliases, reliability-gated metrics/reports, scoped search/export/DQ/recon (fail-closed; never false zero / never invent `lineageIntact: true`), accepted/Closed-Won ≠ Revenue labels, EN+NY hub keys, and Phase 21 input pack.
+4. Vitest Waves 1–4 green (WORKING_TREE). Exit docs written.
+
+## Conditions for Phase 21
+
+1. Consume the canonical onboarding handoff into CS tree-17 / PRD 21 execution without fabricating completion.
+2. Never invent PAID/ACTIVE/ACTIVATED/PROVISIONED from conversion initiation alone.
+3. Never invent KPI zeroes or `lineageIntact: true` on gate / thin instrumentation failure.
+4. Never label accepted / Closed-Won value as collected or recognised Revenue.
+5. Treat payment/e-sign + full onboarding/MRA execution as explicit blockers until configured.
+6. Honour mislabel map — do not delete CS folders; Adoption `PHASE_20_INPUTS` remains NON_AUTHORITATIVE for conversion.
+
+## Wave / pack completion
+
+- [x] Phase input validation PASS (Wave 0)
+- [x] CURRENT_* + MISLABEL + compatibility map
+- [x] Gap register + IMPLEMENTATION_PLAN Waves 1–4
+- [x] Wave 1 application code
+- [x] Wave 2 application code
+- [x] Wave 3 application code
+- [x] Wave 4 application code + Phase 21 pack
+- [x] **READY_FOR_PHASE_21_WITH_BLOCKERS** recorded
+
+**Next:** Phase 21 may consume conversion handoffs/certificates/reports under documented blockers. See `PHASE_21_INPUTS.md`.
+
+**Stop:** Do not fabricate onboarding complete from handoff emission; do not invent PAID; do not claim Closed-Won totals as Revenue; do not invent KPI zeroes on gate fail.
+
+===== docs/admin-intelligence-crm/phase-20/PHASE_21_INPUTS.md =====
+
+# Phase 21 Inputs — from Lead Conversion / Closed-Won Phase 20
+
+**Source exit:** `READY_FOR_PHASE_21_WITH_BLOCKERS` (see `FINAL_PHASE_20_REPORT.md`)  
+**Date:** 2026-07-31
+
+## Authoritative handoff contract
+
+Phase 21 consumes the **canonical onboarding handoff** emitted by conversion (`createOnboardingHandoff` / `sendOnboardingHandoff` in `lib/admin/crm/conversions/onboardingHandoff.js`):
+
+| Field group | Contract notes |
+|-------------|----------------|
+| Identity | Conversion id / number, acceptance id, opportunity id, customer / tenant pins when provisioned |
+| Commercial snapshot | Immutable checksummed accepted snapshot — never mutate from Phase 21 |
+| Contacts / scopes | Linked contacts + ownership; no auto-merge |
+| Ownership / dates / success criteria | CS owner assignment when present; planned dates; criteria as recorded |
+| Reliability checksum | `computeOnboardingHandoffChecksum` — verify before execute |
+| Package status | Pending-provisioning labels honest; handoff ≠ Project execution |
+
+**CS tree-17** (`docs/admin-intelligence-crm/phase-17/`, `lib/admin/customerSuccess/onboarding/**`) is the **FUTURE consumer** of this handoff under PRD Phase 21. Phase 20 does **not** create Onboarding Projects.
+
+**Mislabel map pointer:** see `MISLABELLED_PHASE_ARTIFACT_AUDIT.md` and `PHASE_CONTENT_COMPATIBILITY_MAP.md` — tree phase-16 = PRD 20 conversion; tree phase-17 = FUTURE PRD 21 onboarding (quarantined, not deleted).
+
+**Non-authoritative:** Adoption `phase-19/PHASE_20_INPUTS.md` describes CS renewals — do **not** treat as conversion → Phase 21 inputs.
+
+## What Phase 21 may consume
+
+| Input | Location / contract | Notes |
+|-------|---------------------|-------|
+| CrmConversionRequest / CrmConversion spine | `lib/admin/crm/conversions/*` | CVR + CVN durable saga; Closed Won early lock |
+| Acceptance + Closed-Won readiness | commercial readiness + conversion readiness | UNKNOWN ≠ READY |
+| Commercial snapshot | `commercialSnapshot.js` | Immutable + checksum |
+| Customer / Contact duplicate gates | `customerMatch.js`, `businessBranch.js` | No auto-merge |
+| Provision / entitlement / activation **requests** | Wave 3 honesty | Never fabricate ACTIVATED/PROVISIONED/PAID |
+| Onboarding handoff (one active + supersession) | `onboardingHandoff.js` | Handoff ≠ execute |
+| Completion certificate | `completion.js` | Stable checksum; ≠ PAID/ACTIVE/onboarding complete |
+| Metrics / reliability / DQ / recon / exports / search | Wave 4 modules | Gate fail → UNAVAILABLE / `value: null`; scope fail-closed |
+| Value labels | `valueLabels.js` | Accepted / Closed-Won ≠ collected/recognised Revenue |
+| EN + NY hub keys | `locales/*/admin-pages.json` `crm.conversionHub.*` | Smoke-covered |
+
+## What Phase 21 must not assume
+
+- Onboarding Project already exists from Phase 20 emission
+- Payment provider / e-sign configured or invoices PAID
+- ACTIVATED / PROVISIONED / ACTIVE without authoritative provider result
+- Reliability gate failures may be rendered as zero KPIs
+- `lineageIntact: true` without instrumented lineage
+- Accepted / Closed-Won value is collected or recognised Revenue
+- Adoption renewals inputs authorise conversion scope
+- Rich scheduled-report polish / full Closed-Won UI surface beyond thin aliases
+

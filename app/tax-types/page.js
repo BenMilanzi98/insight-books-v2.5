@@ -50,8 +50,14 @@ export default function TaxTypesPage() {
     taxRate: "",
     calculationType: "Percentage",
     accountId: "",
-    status: "Active"
+    status: "Active",
+    effectiveFrom: "",
+    effectiveTo: "",
   });
+  const [supersedingId, setSupersedingId] = useState(null);
+  const [supersedeRate, setSupersedeRate] = useState("");
+  const [supersedeBusy, setSupersedeBusy] = useState(false);
+
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [selectedTaxType, setSelectedTaxType] = useState(null);
   const [taxReports, setTaxReports] = useState(null);
@@ -225,9 +231,12 @@ export default function TaxTypesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          taxRate: parseFloat(formData.taxRate)
+          taxRate: parseFloat(formData.taxRate),
+          effectiveFrom: formData.effectiveFrom || null,
+          effectiveTo: formData.effectiveTo || null,
         })
       });
+
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -326,8 +335,15 @@ export default function TaxTypesPage() {
       calculationType: taxType.calculationType || "Percentage",
       accountId: taxType.accountId ?? "",
       status: taxType.status || "Active",
+      effectiveFrom: taxType.effectiveFrom
+        ? String(taxType.effectiveFrom).slice(0, 10)
+        : "",
+      effectiveTo: taxType.effectiveTo
+        ? String(taxType.effectiveTo).slice(0, 10)
+        : "",
     });
     setEditingId(taxType.id);
+
     setEditingIsSystem(Boolean(taxType.isSystem));
     setCatalogDefaultRate(
       taxType.catalogEntry?.taxRate != null ? Number(taxType.catalogEntry.taxRate) : null
@@ -345,9 +361,46 @@ export default function TaxTypesPage() {
       taxRate: "",
       calculationType: "Percentage",
       accountId: defaultTaxInflowAccountId || defaultTaxOutflowAccountId || "",
-      status: "Active"
+      status: "Active",
+      effectiveFrom: "",
+      effectiveTo: "",
     });
   };
+
+  const handleSupersede = async (taxType) => {
+    if (!canUpdateTax) {
+      setError("You do not have permission to supersede tax types.");
+      return;
+    }
+    const rate = supersedeRate || taxType.taxRate;
+    if (rate === "" || rate == null) {
+      setError("Enter a new rate to supersede this tax type.");
+      return;
+    }
+    setSupersedeBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tax-types/${taxType.id}/supersede`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taxRate: rate }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Supersede failed");
+      setSuccess(
+        `Superseded ${taxType.taxName}. New active version: ${data.successor?.taxId || "created"}.`
+      );
+      setSupersedingId(null);
+      setSupersedeRate("");
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSupersedeBusy(false);
+    }
+  };
+
+
 
   const saveDefaultTaxAccounts = async () => {
     setSavingDefaults(true);
@@ -493,8 +546,21 @@ export default function TaxTypesPage() {
                 }`}>
                   {tax.status}
                 </span>
+                {tax.supersededById ? (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
+                    Superseded
+                  </span>
+                ) : null}
               </div>
               <p className="text-sm text-gray-500">{tax.taxCode || tax.taxId}</p>
+              {(tax.effectiveFrom || tax.effectiveTo) && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Effective{" "}
+                  {tax.effectiveFrom ? String(tax.effectiveFrom).slice(0, 10) : "…"} →{" "}
+                  {tax.effectiveTo ? String(tax.effectiveTo).slice(0, 10) : "open"}
+                </p>
+              )}
+
               {tax.account?.accountCode && (
                 <a
                   href={`/chart-of-accounts?search=${encodeURIComponent(tax.account.accountCode)}`}
@@ -547,6 +613,18 @@ export default function TaxTypesPage() {
             <button onClick={() => handleViewReports(tax)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="View Reports">
               <FileText size={18} />
             </button>
+            {canUpdateTax && tax.status === "Active" && !tax.supersededById && (
+              <button
+                onClick={() => {
+                  setSupersedingId(tax.id);
+                  setSupersedeRate(String(tax.taxRate ?? ""));
+                }}
+                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Supersede with new rate version"
+              >
+                <RotateCcw size={18} />
+              </button>
+            )}
             {canUpdateTax && (
               <button onClick={() => handleEdit(tax)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit rate or value">
                 <Edit size={18} />
@@ -562,6 +640,7 @@ export default function TaxTypesPage() {
       </div>
     );
   };
+
 
   const activeTaxCount = taxTypes.filter(t => t.status === "Active").length;
   const totalTaxRate = taxTypes.reduce((sum, t) => sum + (t.taxRate || 0), 0);
@@ -605,7 +684,8 @@ export default function TaxTypesPage() {
               </button>
             )}
             <a
-              href="/tax-accounts"
+              href="/tax-management/accounts"
+
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-sm"
             >
               <TrendingUp size={18} />
@@ -990,8 +1070,56 @@ export default function TaxTypesPage() {
         )}
       </div>
 
+      {/* Supersede Modal */}
+      {supersedingId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Supersede tax type</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Creates a new active version with the rate below and marks the current type
+              inactive. Historical sale/invoice tax snapshots are unchanged.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              New rate
+            </label>
+            <input
+              type="number"
+              step="0.0001"
+              min="0"
+              className="w-full mb-4 px-4 py-2.5 border border-gray-200 rounded-lg"
+              value={supersedeRate}
+              onChange={(e) => setSupersedeRate(e.target.value)}
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSupersedingId(null);
+                  setSupersedeRate("");
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={supersedeBusy}
+                onClick={() => {
+                  const tax = taxTypes.find((t) => t.id === supersedingId);
+                  if (tax) handleSupersede(tax);
+                }}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {supersedeBusy ? "Saving…" : "Supersede"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit Modal */}
       {showAddModal && (
+
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-2xl">
@@ -1125,7 +1253,37 @@ export default function TaxTypesPage() {
                 </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Effective from
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg"
+                    value={formData.effectiveFrom || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, effectiveFrom: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Effective to
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg"
+                    value={formData.effectiveTo || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, effectiveTo: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-4">
+
                 <button
                   type="button"
                   onClick={() => {

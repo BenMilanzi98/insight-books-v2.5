@@ -1,0 +1,2 @@
+paymentAccountName,accountType,hasCoaLink,coaCode,reconEnabled,notes
+(sample-row-do-not-use),Bank,yes,1131,pending,Replace with tenant inventory; never include full account numbers

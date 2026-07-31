@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, CheckCircle, Clock, Lock, Plus, RefreshCw, Save,
@@ -60,6 +63,7 @@ function Section({ title, icon: Icon, children }) {
 }
 
 export default function SecurityPage() {
+  const { t } = useI18n();
   const [securitySettings, setSecuritySettings] = useState(DEFAULT_SETTINGS);
   const [activeSessions, setActiveSessions] = useState([]);
   const [sessionsError, setSessionsError] = useState('');
@@ -75,8 +79,8 @@ export default function SecurityPage() {
     setSessionsError('');
     try {
       const [settingsRes, sessionsRes] = await Promise.all([
-        fetch('/api/admin/security/settings', { credentials: 'include' }),
-        fetch('/api/admin/security/sessions', { credentials: 'include' }),
+        adminFetch('/api/admin/security/settings', { credentials: 'include' }),
+        adminFetch('/api/admin/security/sessions', { credentials: 'include' }),
       ]);
 
       if (settingsRes.ok) {
@@ -116,7 +120,7 @@ export default function SecurityPage() {
     setSaving(true);
     setSaveStatus('');
     try {
-      const res = await fetch('/api/admin/security/settings', {
+      const res = await adminFetch('/api/admin/security/settings', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -150,7 +154,7 @@ export default function SecurityPage() {
 
   const handleTerminateSession = async (sessionId) => {
     try {
-      const res = await fetch(`/api/admin/security/sessions/${sessionId}`, {
+      const res = await adminFetch(`/api/admin/security/sessions/${sessionId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -181,7 +185,7 @@ export default function SecurityPage() {
     return (
       <AdminPageContainer>
         <AdminPageHeader
-          title="Security settings"
+          title={t('admin-pages.security.title')}
           description="Configure password policy, MFA, sessions, and platform security features."
         />
         <AdminLoadingState label="Loading security settings" />
@@ -192,7 +196,7 @@ export default function SecurityPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Security settings"
+        title={t('admin-pages.security.title')}
         description="Configure password policy, MFA, sessions, and platform security features."
         actions={
           <>

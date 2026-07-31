@@ -65,6 +65,8 @@ import { ReportDateRangeModals } from "@/components/ReportDateRangeModals";
 import { useReportTimeframe } from "@/hooks/useReportTimeframe";
 import { formatCurrency } from "@/lib/invoiceCalculations";
 import { addMoney, multiplyMoney, parseMoney, roundMoney } from "@/lib/money";
+import PageHeader from "@/components/shell/PageHeader";
+
 
 /** Line stock value = qty × unit cost, 2 dp. */
 function stockLineValue(quantity, unitCost) {
@@ -464,6 +466,7 @@ const StockManagement = () => {
           queryParams.append('usageCounts', '1');
         }
         // Tenant-wide stock: entire business, not scoped to a single location
+        // Tenant-wide catalog (internal flag; no branch UI)
         queryParams.append('allBranches', 'true');
         queryParams.append('productUnits', '1');
 
@@ -688,6 +691,7 @@ const StockManagement = () => {
         if (category && category !== 'All') queryParams.append('category', category);
         if (status && status !== 'All') queryParams.append('status', status);
         if (location && location !== 'All') queryParams.append('location', location);
+        // Tenant-wide catalog (internal flag; no branch UI)
         queryParams.append('allBranches', 'true');
         const response = await fetch(`/api/stock/export?${queryParams.toString()}`);
         
@@ -1102,10 +1106,10 @@ const StockManagement = () => {
   const fetchStockByBusiness = async (opts = {}) => {
     try {
       const query = new URLSearchParams(opts).toString();
-      const res = await fetch(`/api/stock-by-branch${query ? `?${query}` : ''}`);
+      const res = await fetch(`/api/stock-by-business${query ? `?${query}` : ''}`);
       if (!res.ok) return setStockByBusiness([]);
       const data = await res.json();
-      setStockByBusiness(data.businesses || data.branches || []);
+      setStockByBusiness(data.businesses || []);
     } catch (err) {
       console.error('Error fetching stock by business:', err);
       setStockByBusiness([]);
@@ -1146,9 +1150,15 @@ const StockManagement = () => {
       await fetchStockByBusiness();
       await loadInventory(); // Refresh product list to show updated stock
       const fromLabel =
-        result.transfer?.fromBranch?.tenant?.name || result.transfer?.fromBranch?.name || "source";
+        result.transfer?.fromTenant?.name ||
+        result.transfer?.fromBusiness?.name ||
+        result.transfer?.fromBranch?.tenant?.name ||
+        "source business";
       const toLabel =
-        result.transfer?.toBranch?.tenant?.name || result.transfer?.toBranch?.name || "destination";
+        result.transfer?.toTenant?.name ||
+        result.transfer?.toBusiness?.name ||
+        result.transfer?.toBranch?.tenant?.name ||
+        "destination business";
       showToast("success", formData.directTransfer === false
         ? "Transfer submitted for approval"
         : `Stock transferred successfully from ${fromLabel} to ${toLabel}`);
@@ -2441,15 +2451,18 @@ const StockManagement = () => {
         </div>
       ) : null}
 
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 lg:mb-8">
-        <div className="w-full lg:w-auto min-w-0">
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Stock Management</h1>
-          <p className="text-gray-500 mt-1 max-w-2xl">
-            {stockCatalog === "services"
-              ? "Billable services — pricing and tax only; no inventory or stock movements."
-              : "Manage physical products, track stock levels, and monitor stock activity for this business."}
-          </p>
-          <div className="mt-4 inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 lg:mb-8 lg:flex-row lg:items-center">
+        <div className="w-full min-w-0 lg:w-auto">
+          <PageHeader
+            className="mb-0 border-b-0 pb-0"
+            title="Stock Management"
+            description={
+              stockCatalog === "services"
+                ? "Billable services — pricing and tax only; no inventory or stock movements."
+                : "Manage physical products, track stock levels, and monitor stock activity for this business."
+            }
+          />
+          <div className="mt-4 inline-flex rounded-xl border border-[var(--border-default)] bg-[var(--surface-primary)] p-1 shadow-sm">
             <button
               type="button"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -2938,7 +2951,7 @@ const StockManagement = () => {
           </button>
 
           <Link
-            href="/reports?report=inventory-loss-report"
+            href="/reports-v2?type=INVENTORY_LOSS"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:shadow-sm"
           >
             <AlertTriangle size={16} />
@@ -6227,7 +6240,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   <div className="text-sm text-gray-500">Loading taxes...</div>
                 ) : !Array.isArray(taxTypes) || taxTypes.length === 0 ? (
                   <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-md">
-                    No active tax types available. <a href="/tax-types" className="text-blue-600 hover:underline">Create tax types</a> first.
+                    No active tax types available. <a href="/tax-management/tax-codes" className="text-blue-600 hover:underline">Create tax types</a> first.
+
                   </div>
                 ) : (
                   <div className="space-y-2 p-3 border border-gray-300 rounded-md bg-gray-50 max-h-48 overflow-y-auto">

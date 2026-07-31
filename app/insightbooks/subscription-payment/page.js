@@ -1,4 +1,6 @@
-"use client";
+'use client';
+
+import { adminFetch } from '@/lib/admin/adminApi';
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -47,7 +49,7 @@ export default function SubscriptionPaymentPage() {
   const fetchSubscriptions = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/subscriptions');
+      const response = await adminFetch('/api/admin/subscriptions');
       
       if (response.ok) {
         const data = await response.json();

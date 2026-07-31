@@ -102,7 +102,7 @@ export async function GET(request) {
         const status = searchParams.get('status');
         const periodType = searchParams.get('periodType');
 
-        const budgets = await prisma.budget.findMany({
+        const budgets = await prisma.legacyBudget.findMany({
           where: {
             tenantId: user.tenantId,
             ...(status && { status }),

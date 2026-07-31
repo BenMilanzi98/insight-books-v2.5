@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain, Sparkles, MapPin, Mail, Phone, Smartphone, Download } from 'lucide-react';
-import { PUBLIC_SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
+import {
+  PUBLIC_SUBSCRIPTION_PLANS,
+  getStorefrontFeatures,
+} from '@/lib/subscriptionConfig';
 
 const WHATSAPP_DEMO_URL = `https://wa.me/265894092494?text=${encodeURIComponent("I'm interested in InsightBooks, Can you please tell me more")}`;
 const ANDROID_APP_DOWNLOAD_URL = 'https://app.insightinnovationsltd.com/';
@@ -882,22 +885,99 @@ function TestimonialsSection() {
 
 // Pricing Section
 function PricingSection() {
-  const plans = PUBLIC_SUBSCRIPTION_PLANS;
+  const [plans, setPlans] = useState(PUBLIC_SUBSCRIPTION_PLANS);
 
-  const allFeatures = [
-    'POS (Point of Sale)',
-    'Stock management',
-    'Expense tracking',
-    'Invoices',
-    'Quotations',
-    'Customer database',
-    'Financial reporting',
-    'AI assistant',
-    'HR & payroll',
-    'Supplier management',
-    'Tax management',
-    'Accounting & bookkeeping',
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/subscription/plans');
+        const data = await res.json();
+        if (!cancelled && res.ok && Array.isArray(data.plans) && data.plans.length) {
+          setPlans(data.plans);
+        }
+      } catch {
+        /* keep catalog fallback */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const corePlans = plans.filter((p) => !p.requiresEIS);
+  const eisPlans = plans.filter((p) => p.requiresEIS);
+
+  const renderPlanCard = (plan, index) => {
+    const featureList = getStorefrontFeatures(plan);
+    const title = plan.displayName || plan.name;
+
+    return (
+      <div
+        key={plan.id || index}
+        className={`relative flex flex-col rounded-2xl border bg-white/85 p-8 shadow-lg backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 ${
+          plan.highlight || plan.popular
+            ? 'border-blue-400/80 ring-2 ring-blue-200/70 md:scale-[1.02]'
+            : 'border-slate-200/90 hover:border-blue-200'
+        }`}
+      >
+        {(plan.highlight || plan.popular || plan.badge) && (
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-lg shadow-blue-600/30">
+            {plan.badge || (plan.highlight || plan.popular ? 'Best value' : 'Plan')}
+          </div>
+        )}
+        <h3 className="text-2xl font-bold text-slate-900">{title}</h3>
+        <div className="mt-4 flex flex-wrap items-baseline gap-2">
+          <span className="text-4xl font-bold tracking-tight text-blue-950 tabular-nums">
+            {plan.priceFormatted}
+          </span>
+          {plan.periodDisplay && (
+            <span className="text-lg text-slate-600">{plan.periodDisplay}</span>
+          )}
+        </div>
+        {plan.savings && (
+          <div className="mt-4 inline-flex rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-3 py-1.5 text-sm font-semibold text-emerald-800">
+            {plan.savings}
+          </div>
+        )}
+
+        <div className="mt-8 flex-1">
+          <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-blue-900/70">
+            {plan.requiresEIS ? 'MRA EIS includes' : 'Everything included'}
+          </h4>
+          <ul className="max-h-[340px] space-y-2.5 overflow-y-auto pr-1 text-sm [scrollbar-width:thin]">
+            {featureList.map((feature, fIndex) => (
+              <li key={fIndex} className="flex items-start gap-3 rounded-lg py-0.5">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm">
+                  <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                </span>
+                <span className="text-slate-700 leading-snug">{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <Link
+            href={plan.requiresEIS ? '/auth/signup?plan=eis' : '/auth/signup'}
+            className={`flex-1 rounded-xl py-3 text-center text-sm font-semibold transition-colors ${
+              plan.highlight || plan.popular
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700'
+                : 'border border-blue-200 bg-blue-50/80 text-blue-900 hover:bg-blue-100'
+            }`}
+          >
+            {plan.requiresEIS ? plan.ctaText || 'Get MRA EIS' : 'Try for Free'}
+          </Link>
+          <Link
+            href="/contact"
+            className="flex-1 rounded-xl border border-slate-200 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50/50"
+          >
+            Talk to us
+          </Link>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <section
@@ -925,81 +1005,40 @@ function PricingSection() {
           <h2 className="mb-5 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
             Our pricing —{' '}
             <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 bg-clip-text text-transparent">
-              full platform access
+              platform + MRA EIS
             </span>
           </h2>
           <p className="text-lg leading-relaxed text-slate-600">
-            Every plan includes the same capabilities. Choose monthly flexibility or lock in annual savings.
+            Choose InsightBooks core access, then add MRA Electronic Invoicing when you need fiscal
+            compliance.
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
-          {plans.map((plan, index) => (
-            <div
-              key={plan.id || index}
-              className={`relative flex flex-col rounded-2xl border bg-white/85 p-8 shadow-lg backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 ${
-                plan.highlight
-                  ? 'border-blue-400/80 ring-2 ring-blue-200/70 md:scale-[1.02]'
-                  : 'border-slate-200/90 hover:border-blue-200'
-              }`}
-            >
-              {plan.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-lg shadow-blue-600/30">
-                  Best value
-                </div>
-              )}
-              <h3 className="text-2xl font-bold text-slate-900">{plan.name}</h3>
-              <div className="mt-4 flex flex-wrap items-baseline gap-2">
-                <span className="text-4xl font-bold tracking-tight text-blue-950 tabular-nums">
-                  {plan.priceFormatted}
-                </span>
-                {plan.periodDisplay && (
-                  <span className="text-lg text-slate-600">{plan.periodDisplay}</span>
-                )}
-              </div>
-              {plan.savings && (
-                <div className="mt-4 inline-flex rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-3 py-1.5 text-sm font-semibold text-emerald-800">
-                  {plan.savings}
-                </div>
-              )}
-
-              <div className="mt-8 flex-1">
-                <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-blue-900/70">
-                  Everything included
-                </h4>
-                <ul className="max-h-[340px] space-y-2.5 overflow-y-auto pr-1 text-sm [scrollbar-width:thin]">
-                  {allFeatures.map((feature, fIndex) => (
-                    <li key={fIndex} className="flex items-start gap-3 rounded-lg py-0.5">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm">
-                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                      </span>
-                      <span className="text-slate-700 leading-snug">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/auth/signup"
-                  className={`flex-1 rounded-xl py-3 text-center text-sm font-semibold transition-colors ${
-                    plan.highlight
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700'
-                      : 'border border-blue-200 bg-blue-50/80 text-blue-900 hover:bg-blue-100'
-                  }`}
-                >
-                  Try for Free
-                </Link>
-                <Link
-                  href="/contact"
-                  className="flex-1 rounded-xl border border-slate-200 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50/50"
-                >
-                  Talk to us
-                </Link>
-              </div>
+        {corePlans.length > 0 ? (
+          <div className="mb-16">
+            <h3 className="mb-6 text-center text-lg font-semibold text-slate-800">
+              InsightBooks subscriptions
+            </h3>
+            <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
+              {corePlans.map(renderPlanCard)}
             </div>
-          ))}
-        </div>
+          </div>
+        ) : null}
+
+        {eisPlans.length > 0 ? (
+          <div>
+            <h3 className="mb-2 text-center text-lg font-semibold text-slate-800">
+              MRA EIS plans
+            </h3>
+            <p className="mx-auto mb-6 max-w-2xl text-center text-sm text-slate-600">
+              Commercial MRA EIS subscription. Operational setup still requires InsightBooks entitlement
+              review after payment.
+            </p>
+            <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
+              {eisPlans.map(renderPlanCard)}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

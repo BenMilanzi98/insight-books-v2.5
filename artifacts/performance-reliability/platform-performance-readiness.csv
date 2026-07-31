@@ -1,0 +1,9 @@
+component,status,notes
+docs,READY,docs/performance-reliability
+health_probes,READY,/api/system/health
+tenant_fairness,READY_WITH_WARNINGS,in-memory single-node
+connection_pool_calc,READY,lib/performanceReliability/connectionPool.js
+load_certification,REQUIRES_LOAD_EVIDENCE,run scripts/perf-load-smoke.cjs against staging
+soak_certification,REQUIRES_SOAK_EVIDENCE,pending
+backup_restore_timed,REQUIRES_RECOVERY_VALIDATION,pending
+outbox_dispatcher,REQUIRES_QUEUE_TUNING,enqueue without worker

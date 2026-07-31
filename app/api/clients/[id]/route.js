@@ -2,24 +2,25 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addMoney, subtractMoney } from '@/lib/money';
+import { parseClientIsActive } from '@/lib/clientStatus';
+import { buildClientMetrics } from '@/lib/clientMetrics';
 
 // Helper function to get client by ID with validation
 async function getClientWithValidation(id, tenantId) {
   const client = await prisma.client.findUnique({
     where: { id },
-      select: {
-        id: true,
-        name: true,
-        contactPerson: true,
-        email: true,
-        additionalEmails: true,
-        phone: true,
-        address: true,
-        createdAt: true,
-        updatedAt: true,
-        tenantId: true,
-      // Get aggregate data for invoices
+    select: {
+      id: true,
+      name: true,
+      contactPerson: true,
+      email: true,
+      additionalEmails: true,
+      phone: true,
+      address: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      tenantId: true,
       invoices: {
         select: {
           id: true,
@@ -34,7 +35,6 @@ async function getClientWithValidation(id, tenantId) {
           }
         }
       },
-      // Get aggregate data for sales (POS transactions)
       sales: {
         select: {
           id: true,
@@ -55,48 +55,8 @@ async function getClientWithValidation(id, tenantId) {
     return { error: 'Access denied', status: 403 };
   }
   
-  // Calculate financial metrics (invoices + sales)
-  const totalBilledFromInvoices = client.invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0);
-  const totalBilledFromSales = client.sales.reduce((sum, sale) => addMoney(sum, sale.total), 0);
-  const totalBilled = addMoney(totalBilledFromInvoices, totalBilledFromSales);
-  
-  const totalPaid = client.invoices.reduce((sum, invoice) => {
-    return addMoney(sum, invoice.payments.reduce((paymentSum, payment) => addMoney(paymentSum, payment.amount), 0));
-  }, 0);
-  
-  // Outstanding amount (only from invoices, as sales are typically paid immediately)
-  const outstandingAmount = subtractMoney(totalBilledFromInvoices, totalPaid);
-  
-  // Determine client status based on activity (invoices OR sales)
-  const hasActiveInvoices = client.invoices.some(invoice => 
-    invoice.status !== 'cancelled' && invoice.status !== 'draft'
-  );
-  
-  const hasActiveSales = client.sales.some(sale => 
-    sale.status !== 'cancelled' && sale.status !== 'void'
-  );
-  
-  const clientStatus = (hasActiveInvoices || hasActiveSales) ? 'Active' : 'Inactive';
-  
-  // Find the latest invoice date
-  let lastInvoice = null;
-  if (client.invoices.length > 0) {
-    const sortedInvoices = [...client.invoices].sort((a, b) => 
-      new Date(b.issueDate) - new Date(a.issueDate)
-    );
-    lastInvoice = sortedInvoices[0].issueDate;
-  }
-  
-  // Return client with financial metrics
   return {
-    client: {
-      ...client,
-      totalBilled,
-      outstandingAmount,
-      lastInvoice,
-      status: clientStatus,
-      invoices: undefined // Remove the full invoices array to reduce payload size
-    }
+    client: buildClientMetrics(client)
   };
 }
 
@@ -195,6 +155,9 @@ export async function PUT(request, { params }) {
     }
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.address !== undefined) updateData.address = body.address;
+    if (body.status !== undefined || body.isActive !== undefined) {
+      updateData.isActive = parseClientIsActive(body.status ?? body.isActive, true);
+    }
     
     // Update the client
     const updatedClient = await prisma.client.update({

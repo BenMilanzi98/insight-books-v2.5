@@ -1,0 +1,2 @@
+businessId,financialYearCode,status,blockingCount,warningCount,notes
+EXAMPLE,FY-TEMPLATE,REQUIRES_CONFIGURATION,0,0,Enable accountingCloseV2Enabled; approve CloseV2Configuration; run readiness API — do not commit sensitive amounts

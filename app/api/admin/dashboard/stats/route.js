@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import { calculateMRR } from '@/lib/subscriptionConfig';
+import { computeSaasBillingKpis } from '@/lib/admin/saasBillingKpis';
+import { projectDashboardStats } from '@/lib/admin/authorization/projectDashboardStats';
+import { authorizeAdminDecision } from '@/lib/admin/authorization/authorizeAdminDecision';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 
 export async function GET(request) {
   try {
@@ -11,6 +15,17 @@ export async function GET(request) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    const viewDecision = authorizeAdminDecision({
+      admin,
+      permission: SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+    });
+    if (!viewDecision.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient admin privileges' },
+        { status: 403 }
       );
     }
 
@@ -700,25 +715,44 @@ export async function GET(request) {
       _sum: { commissionAmount: true }
     });
 
+    // SaaS financial truth — never expose Tenant Sale totals as platform revenue/MRR
+    const saasKpis = await computeSaasBillingKpis(prisma, { periodStart: thisMonth });
+    const saasMrr = saasKpis.estimatedMrr || 0;
+    const saasCollectedPeriod = saasKpis.paymentsCollectedThisPeriod || 0;
+    const saasCollectedAll = saasKpis.paymentsCollectedAllTime || 0;
+
     const stats = {
       totalUsers,
       totalTenants: totalCompanies,
       totalInvoices,
-      totalRevenue: totalRevenueValue,
-      monthlyRevenue: thisMonthRevenueValue,
-      activeTenants: realPaidTenants,
+      // Platform SaaS (control plane)
+      totalRevenue: saasCollectedAll,
+      monthlyRevenue: saasCollectedPeriod,
+      monthlyRecurringRevenue: saasMrr,
+      revenueSource: 'saas_billing_kpis',
+      saasKpis,
+      // Tenant marketplace activity (NOT InsightBooks SaaS revenue)
+      tenantActivity: {
+        saleCount: totalSales,
+        saleTotalAllTime: totalRevenueValue,
+        saleTotalThisMonth: thisMonthRevenueValue,
+        expenseTotalAllTime: totalExpensesValue,
+        note: 'Tenant POS/AR activity — do not use as InsightBooks MRR/ARR',
+      },
+      activeTenants: saasKpis.distinctActivePaidTenants || realPaidTenants,
       // CORRECTED: Include subscription details
       totalSubscriptions: totalSubscriptions || 0,
-      activeSubscriptions: realActiveUsers,
-      trialSubscriptions: realTrialUsers,
-      paidSubscriptions: realPaidTenants,
+      activeSubscriptions: saasKpis.activeSubscriptionRows || realActiveUsers,
+      trialSubscriptions: saasKpis.trialSubscriptions ?? realTrialUsers,
+      paidSubscriptions: saasKpis.distinctActivePaidTenants || realPaidTenants,
       pendingSubscriptions: pendingSubscriptions,
       // NEW: Actual subscription amounts from database
       subscriptionAmounts: subscriptionAmounts,
       totalActiveSubscriptionRevenue: totalActiveSubscriptionRevenue,
       averageSubscriptionAmount: averageSubscriptionAmount,
       userGrowth: typeof userGrowth === 'string' ? userGrowth : (userGrowth || 0).toFixed(1),
-      revenueGrowth: typeof revenueGrowth === 'string' ? revenueGrowth : (revenueGrowth || 0).toFixed(1),
+      // Growth vs prior period for SaaS cash (platform payments), not tenant sales
+      revenueGrowth: null,
       salesGrowth: typeof salesGrowth === 'string' ? salesGrowth : (salesGrowth || 0).toFixed(1),
       tenantGrowth: typeof tenantGrowth === 'string' ? tenantGrowth : (tenantGrowth || 0).toFixed(1),
       // Add missing fields that frontend expects
@@ -726,7 +760,6 @@ export async function GET(request) {
       weeklyActiveUsers: weeklyActiveUsers || 0,
       monthlyActiveUsers: monthlyActiveUsers || 0,
       conversionRate: conversionRate || 0,
-      monthlyRecurringRevenue: mrrValue || 0,
       recentActivity: recentActivity || [],
       systemHealth: {
         database: 'online',
@@ -755,21 +788,35 @@ export async function GET(request) {
         source: 'process_and_counts',
       },
       financialMetrics: {
-        outstandingInvoices: totalOutstandingInvoices._sum.total || 0,
-        totalExpenses: totalExpensesValue,
-        netProfit: totalRevenueValue - totalExpensesValue,
-        profitMargin: totalRevenueValue > 0 ? ((totalRevenueValue - totalExpensesValue) / totalRevenueValue) * 100 : 0,
-        averageInvoiceValue: (totalInvoices || 0) > 0 ? totalRevenueValue / totalInvoices : 0,
-        monthlyGrowth: typeof revenueGrowth === 'string' ? revenueGrowth : (revenueGrowth || 0).toFixed(1),
-        dailyGrowth: typeof salesGrowth === 'string' ? salesGrowth : (salesGrowth || 0).toFixed(1)
+        // Platform SaaS only — tenant AR profit removed from control-plane stats
+        estimatedMrr: saasMrr,
+        paymentsCollectedThisPeriod: saasCollectedPeriod,
+        paymentsCollectedAllTime: saasCollectedAll,
+        outstandingInvoices: null,
+        totalExpenses: null,
+        netProfit: null,
+        profitMargin: null,
+        averageInvoiceValue: null,
+        monthlyGrowth: null,
+        dailyGrowth: null,
+        source: 'saas_billing_kpis',
       },
       notificationCount,
       affiliateCommissions: (affiliateCommissions._sum.commissionAmount || 0)
     };
 
+    const projected = projectDashboardStats(admin, stats);
+    if (projected.denied) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient admin privileges' },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      stats: stats
+      stats: projected.stats,
+      authz: projected.decisions,
     });
 
   } catch (error) {

@@ -1,17 +1,14 @@
 // app/api/purchases/bills/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { generateReferenceNumber } from '@/lib/journalService';
-import { createFifoBatch } from '@/lib/fifoCosting';
-import { assertPeriodOpen } from '@/lib/accountingPeriodService';
-import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { finalizeExpenseBill } from '@/lib/supplierBillExpenseFinalize';
+import { finalizeInventoryBill } from '@/lib/purchases/finalizeInventoryBill';
 import { addMoney, multiplyMoney, roundMoney } from '@/lib/money';
 import { resolvePostableExpenseAccount } from '@/lib/accountingMappingRules';
-import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
+import { isPurchasesGrniEnabled } from '@/lib/purchases/grniPolicy';
+import { clearHireAccrualsForSupplierBill } from '@/lib/hiringV2/billAccrualClear';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense', 'stock'];
@@ -213,6 +210,57 @@ export async function POST(request) {
     const status = body.status && BILL_STATUSES.includes(body.status) ? body.status : 'Draft';
     const isFinalized = status !== 'Draft';
 
+    const grniEnabled = await isPurchasesGrniEnabled(prisma, user.tenantId);
+    if (billType === 'inventory' && grniEnabled && isFinalized && !body.goodsReceiptId) {
+      return NextResponse.json(
+        {
+          error:
+            'Inventory bills require a Goods Receipt when GRNI is enabled. Receive goods first, then create the bill from the receipt.',
+          code: 'RECEIPT_REQUIRED',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (body.goodsReceiptId) {
+      const gr = await prisma.goodsReceipt.findFirst({
+        where: { id: body.goodsReceiptId, tenantId: user.tenantId },
+        select: { id: true, supplierId: true, purchaseOrderId: true },
+      });
+      if (!gr) {
+        return NextResponse.json({ error: 'Goods Receipt not found' }, { status: 404 });
+      }
+      if (gr.supplierId !== supplier.id) {
+        return NextResponse.json(
+          { error: 'Goods Receipt supplier does not match bill supplier' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const invoiceNo = body.supplierInvoiceNumber?.trim() || null;
+    if (invoiceNo) {
+      const dup = await prisma.supplierBill.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          supplierId: supplier.id,
+          supplierInvoiceNumber: invoiceNo,
+          status: { not: 'Cancelled' },
+        },
+        select: { id: true, billNumber: true },
+      });
+      if (dup) {
+        return NextResponse.json(
+          {
+            error: `Duplicate supplier invoice number. Existing bill ${dup.billNumber}.`,
+            code: 'DUPLICATE_SUPPLIER_INVOICE',
+            existingBillId: dup.id,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // Calculate totals
     let subtotal = 0;
     if (billType === 'inventory') {
@@ -234,13 +282,14 @@ export async function POST(request) {
 
     // Create bill with line items in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create bill
       const bill = await tx.supplierBill.create({
         data: {
           tenantId: user.tenantId,
           supplierId: supplier.id,
+          purchaseOrderId: body.purchaseOrderId || null,
+          goodsReceiptId: body.goodsReceiptId || null,
           billNumber,
-          supplierInvoiceNumber: body.supplierInvoiceNumber || null,
+          supplierInvoiceNumber: invoiceNo,
           billDate: new Date(body.billDate),
           dueDate: new Date(body.dueDate),
           billType,
@@ -252,6 +301,7 @@ export async function POST(request) {
           paymentTerms: body.paymentTerms ?? supplier.paymentTerms ?? 30,
           currency: body.currency || supplier.currency || 'MWK',
           notes: body.notes || null,
+          idempotencyKey: body.idempotencyKey || null,
           createdById: user.id,
           finalizedAt: isFinalized ? new Date() : null,
           finalizedById: isFinalized ? user.id : null,
@@ -261,6 +311,8 @@ export async function POST(request) {
                 return {
                   lineNumber: index + 1,
                   productId: item.productId,
+                  purchaseOrderItemId: item.purchaseOrderItemId || null,
+                  goodsReceiptItemId: item.goodsReceiptItemId || null,
                   description: item.description || '',
                   quantity: Number(item.quantity),
                   unitCost: Number(item.unitCost),
@@ -268,18 +320,17 @@ export async function POST(request) {
                   taxRate: item.taxRate || 0,
                   taxAmount: item.taxAmount || 0
                 };
-              } else {
-                return {
-                  lineNumber: index + 1,
-                  expenseAccountId: item.expenseAccountId,
-                  description: item.description || '',
-                  quantity: null,
-                  unitCost: Number(item.amount),
-                  lineTotal: Number(item.amount),
-                  taxRate: item.taxRate || 0,
-                  taxAmount: item.taxAmount || 0
-                };
               }
+              return {
+                lineNumber: index + 1,
+                expenseAccountId: item.expenseAccountId,
+                description: item.description || '',
+                quantity: null,
+                unitCost: Number(item.amount),
+                lineTotal: Number(item.amount),
+                taxRate: item.taxRate || 0,
+                taxAmount: item.taxAmount || 0
+              };
             })
           }
         },
@@ -293,14 +344,15 @@ export async function POST(request) {
         }
       });
 
-      // If finalized, update inventory and create journal entries
+      // Inventory bills never increase stock — only post AP / clear GRNI
       if (isFinalized && billType === 'inventory') {
-        await finalizeInventoryPurchaseBill(tx, bill, user.tenantId, user.id);
+        await finalizeInventoryBill(tx, bill, user.tenantId, user.id, {
+          allowVarianceApproval: Boolean(body.allowVarianceApproval),
+        });
       } else if (isFinalized && billType === 'expense') {
         await finalizeExpenseBill(tx, bill, user.tenantId, user.id);
       }
 
-      // Fetch items separately since include might not work
       const billItems = await tx.supplierBillItem.findMany({
         where: { billId: bill.id },
         include: {
@@ -315,162 +367,30 @@ export async function POST(request) {
       };
     });
 
-    return NextResponse.json({ bill: result }, { status: 201 });
-  } catch (error) {
-    console.error('Error creating supplier bill:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to create supplier bill.' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * Finalize inventory purchase bill - update inventory and create journal entries
- */
-async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
-  // Fetch bill with goodsReceiptId to check if it's from a goods receipt
-  const billWithReceipt = await tx.supplierBill.findUnique({
-    where: { id: bill.id },
-    select: { id: true, goodsReceiptId: true, billNumber: true }
-  });
-  
-  const { resolveOrEnsureInventoryGlAccount } = await import('@/lib/inventoryGlAccount');
-  const inventoryAccount = await resolveOrEnsureInventoryGlAccount(tenantId, tx);
-  if (!inventoryAccount) {
-    throw new Error('Inventory account not found. Please set up your chart of accounts.');
-  }
-
-  const { findAccountsPayableGlAccount } = await import('@/lib/coaPostingCodes');
-  const apAccount = await findAccountsPayableGlAccount(tenantId, tx);
-
-  if (!apAccount) {
-    throw new Error('Accounts Payable account not found. Please set up your chart of accounts.');
-  }
-
-  // Update inventory for each line item
-  // IMPORTANT: If this bill was created from a goods receipt, FIFO batches were already created
-  // when the goods receipt was created, so we skip FIFO batch creation here to avoid double counting
-  const isFromGoodsReceipt = !!billWithReceipt?.goodsReceiptId;
-  
-  for (const item of bill.items) {
-    if (!item.productId) continue;
-
-    const product = await tx.product.findUnique({
-      where: { id: item.productId },
-      select: { id: true, tenantId: true, branchId: true }
-    });
-
-    if (!product) continue;
-
-    const quantity = Number(item.quantity || 0);
-    const unitCost = Number(item.unitCost || 0);
-
-    // Only create FIFO batch if this bill is NOT from a goods receipt
-    // (goods receipts already created the FIFO batches)
-    if (!isFromGoodsReceipt) {
-      // FIFO batch creation is the source of truth for cost (system-generated)
-      await createFifoBatch({
-        tenantId,
-        branchId: product.branchId || null,
-        productId: product.id,
-        quantityPurchased: quantity,
-        unitCost,
-        purchaseDate: bill.billDate,
-        sourceType: 'SupplierBill',
-        sourceId: bill.id,
-        tx,
-      });
-    } else {
-      console.log(`Skipping FIFO batch creation for bill ${bill.billNumber} - already created from goods receipt ${bill.goodsReceiptId}`);
-    }
-
-    // Receipt-linked bills already logged goods_receipt transactions when the receipt was posted.
-    if (!isFromGoodsReceipt) {
-      await tx.inventoryTransaction.create({
-        data: {
-          productId: product.id,
-          type: 'purchase',
-          quantity: quantity,
-          notes: `Purchase Bill ${bill.billNumber}`,
-          userId: userId,
-          tenantId: tenantId,
-          branchId: product.branchId || null
-        }
-      });
-    }
-  }
-
-  // Skip inventory/AP GL when goods receipt already posted Dr Inventory / Cr AP
-  let existingGrTransaction = null;
-  if (isFromGoodsReceipt && billWithReceipt.goodsReceiptId) {
-    existingGrTransaction = await tx.transaction.findFirst({
-      where: {
-        tenantId,
-        sourceType: 'GoodsReceipt',
-        sourceId: billWithReceipt.goodsReceiptId,
-        status: 'posted',
-      },
-      select: { id: true },
-    });
-  }
-
-  if (existingGrTransaction) {
-    console.log(
-      `Skipping inventory/AP posting for bill ${bill.billNumber} - GoodsReceipt GL already posted (${billWithReceipt.goodsReceiptId})`
-    );
-    await tx.supplierBill.update({
-      where: { id: bill.id },
-      data: { journalEntryId: existingGrTransaction.id },
-    });
-    return;
-  }
-
-  // Create journal entry
-  const entryDate = bill.billDate instanceof Date ? bill.billDate : new Date(bill.billDate);
-  await assertPeriodOpen(tenantId, entryDate, tx);
-  const referenceNumber = await generateReferenceNumber(tx, tenantId, entryDate);
-
-  const transaction = await postGlEntry({
-    tenantId,
-    userId,
-    entryDate,
-    description: `Purchase Bill ${bill.billNumber} - ${bill.supplier.supplierName}`,
-    reference: referenceNumber,
-    sourceType: 'SupplierBill',
-    sourceId: bill.id,
-    lines: [
-      {
-        lineNumber: 1,
-        accountId: inventoryAccount.id,
-        debitAmount: bill.totalAmount,
-        creditAmount: 0,
-        description: `Inventory purchase - ${bill.billNumber}`,
-      },
-      {
-        lineNumber: 2,
-        accountId: apAccount.id,
-        debitAmount: 0,
-        creditAmount: bill.totalAmount,
-        description: `Accounts Payable - ${bill.supplier.supplierName}`,
-      },
-    ],
-    tx,
-  });
-
-  // Link journal entry to bill
-  await tx.supplierBill.update({
-    where: { id: bill.id },
-    data: { journalEntryId: transaction.id }
-  });
-
-  // Update supplier current balance
-  await tx.supplier.update({
-    where: { id: bill.supplierId },
-    data: {
-      currentBalance: {
-        increment: bill.totalAmount
+    let hireAccrualClear = null;
+    if (isFinalized && billType === 'expense') {
+      try {
+        hireAccrualClear = await clearHireAccrualsForSupplierBill({
+          tenantId: user.tenantId,
+          userId: user.id,
+          billId: result.id,
+          hireAccrualIds: body.hireAccrualIds,
+        });
+      } catch (clearErr) {
+        console.warn('hire accrual clear after bill failed', clearErr?.message || clearErr);
+        hireAccrualClear = { error: clearErr.message };
       }
     }
-  });
+
+    return NextResponse.json({ bill: result, hireAccrualClear }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating supplier bill:', error);
+    const status =
+      error.code === 'MATCH_BLOCKED' || error.code === 'RECEIPT_REQUIRED' ? 400 :
+      error.code === 'DUPLICATE_SUPPLIER_INVOICE' ? 409 : 500;
+    return NextResponse.json(
+      { error: error.message || 'Failed to create supplier bill.', code: error.code || undefined },
+      { status }
+    );
+  }
 }

@@ -69,6 +69,29 @@ export async function POST(request) {
       );
     }
 
+    {
+      const { assertPaymentAccountHasFunds } = await import(
+        '@/lib/paymentAccountBalanceResolver'
+      );
+      const funds = await assertPaymentAccountHasFunds(
+        user.tenantId,
+        paymentMethod,
+        paymentAmount
+      );
+      if (!funds.ok) {
+        return NextResponse.json(
+          {
+            error: funds.message,
+            code: funds.code,
+            available: funds.available,
+            required: funds.required,
+            shortfall: funds.shortfall,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Determine new payment status
     let newPaymentStatus;
     if (moneyGreaterOrEqual(newPaidAmount, totalDue)) {
@@ -104,63 +127,29 @@ export async function POST(request) {
       }
     });
 
-    // Create journal entry for payment if expense has a supplier
-    if (expense.supplierId) {
+    // V2 GL: settle liability only (AP / employee / credit card). Never re-debit expense.
+    {
+      const { postExpensePaymentAccounting } = await import(
+        '@/lib/accountingV2/adapters/expensePaymentAdapter.js'
+      );
       try {
-        const { createExpensePaymentJournalEntry } = await import('@/lib/transactionJournalHelpers');
-        await createExpensePaymentJournalEntry({
+        await postExpensePaymentAccounting({
+          db: prisma,
           tenantId: user.tenantId,
           userId: user.id,
-          expenseId: expense.id,
           paymentId: payment.id,
-          paymentAmount: paymentAmount,
-          paymentMethod: paymentMethod,
+          expense,
+          paymentAmount,
           paymentDate: new Date(paymentDate),
-          supplierId: expense.supplierId,
-          tx: prisma,
+          paymentMethod,
         });
-        console.log('✅ Journal entry created for supplier expense payment:', payment.id);
-      } catch (journalError) {
-        console.error('❌ Error creating journal entry for supplier expense payment:', journalError);
-        // Don't fail the payment if journal entry creation fails
-      }
-    } else {
-      try {
-        const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry');
-        const { resolvePostableExpenseAccount } = await import('@/lib/accountingMappingRules');
-        const { getPaymentAccount } = await import('@/lib/transactionJournalHelpers');
-        const expenseAccount = expense.expenseAccountId
-          ? await resolvePostableExpenseAccount(user.tenantId, expense.expenseAccountId, prisma)
-          : null;
-        const paymentAccount = await getPaymentAccount(user.tenantId, paymentMethod, prisma);
-        if (expenseAccount && paymentAccount) {
-          await postGlEntry({
-            tenantId: user.tenantId,
-            userId: user.id,
-            entryDate: new Date(paymentDate),
-            description: `Expense payment - ${expense.description || expense.id}`,
-            sourceType: 'ExpensePayment',
-            sourceId: payment.id,
-            lines: [
-              {
-                lineNumber: 1,
-                accountId: expenseAccount.id,
-                debitAmount: paymentAmount,
-                creditAmount: 0,
-                description: 'Expense payment',
-              },
-              {
-                lineNumber: 2,
-                accountId: paymentAccount.id,
-                debitAmount: 0,
-                creditAmount: paymentAmount,
-                description: `Payment via ${paymentMethod}`,
-              },
-            ],
-          });
+      } catch (glErr) {
+        if (glErr?.code === 'EXPENSE_PAYMENT_NO_ADDITIONAL_GL') {
+          // Cash/bank expense already credited cash at recognition — payment is operational only.
+          console.info('[ExpensePayment]', glErr.message);
+        } else {
+          throw glErr;
         }
-      } catch (journalError) {
-        console.error('Error creating GL for direct expense payment:', journalError);
       }
     }
 

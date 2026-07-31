@@ -1,0 +1,2 @@
+tenantHint,legalStructure,equityModel,hasOwnerCapitalMapping,hasDrawingsMapping,hasRetainedEarningsMapping,ownersIdentified,ownershipPercentValid,status,notes
+(sample),SOLE_PROPRIETORSHIP,OWNER_CAPITAL,pending,pending,pending,pending,n/a,REQUIRES_CONFIGURATION,Replace per tenant; no sensitive IDs

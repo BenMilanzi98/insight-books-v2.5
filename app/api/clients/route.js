@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requireAnyPermission, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { addMoney, subtractMoney } from '@/lib/money';
+import { parseClientIsActive } from '@/lib/clientStatus';
+import { buildClientMetrics } from '@/lib/clientMetrics';
 
 // GET - Fetch clients with optional filtering, sorting, and pagination
 export async function GET(request) {
@@ -39,6 +40,7 @@ export async function GET(request) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     const search = searchParams.get('search');
+    const statusFilter = searchParams.get('status');
     
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -47,6 +49,11 @@ export async function GET(request) {
     const where = {
       tenantId: user.tenantId, // Filter by tenant ID for multi-tenancy
     };
+
+    // Filter by persisted Active/Inactive (not invoice activity)
+    if (statusFilter && statusFilter !== 'All') {
+      where.isActive = parseClientIsActive(statusFilter, true);
+    }
     
     // Add search filter if provided
     if (search) {
@@ -78,6 +85,7 @@ export async function GET(request) {
         additionalEmails: true,
         phone: true,
         address: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
         // Get aggregate data for invoices
@@ -107,52 +115,8 @@ export async function GET(request) {
       }
     });
     
-    // Calculate financial metrics for each client
-    const clientsWithMetrics = clients.map(client => {
-      // Total billed amount (invoices + sales)
-      const totalBilledFromInvoices = client.invoices.reduce((sum, invoice) => addMoney(sum, invoice.total), 0);
-      const totalBilledFromSales = client.sales.reduce((sum, sale) => addMoney(sum, sale.total), 0);
-      const totalBilled = addMoney(totalBilledFromInvoices, totalBilledFromSales);
-      
-      // Total payments received (only from invoices for now)
-      const totalPaid = client.invoices.reduce((sum, invoice) => {
-        return addMoney(sum, invoice.payments.reduce((paymentSum, payment) => addMoney(paymentSum, payment.amount), 0));
-      }, 0);
-      
-      // Outstanding amount (only from invoices, as sales are typically paid immediately)
-      const outstandingAmount = subtractMoney(totalBilledFromInvoices, totalPaid);
-      
-      // Determine client status based on activity (invoices OR sales)
-      const hasActiveInvoices = client.invoices.some(invoice => 
-        invoice.status !== 'cancelled' && invoice.status !== 'draft'
-      );
-      
-      const hasActiveSales = client.sales.some(sale => 
-        sale.status !== 'cancelled' && sale.status !== 'void'
-      );
-      
-      const clientStatus = (hasActiveInvoices || hasActiveSales) ? 'Active' : 'Inactive';
-      
-      // Find the latest invoice date
-      let lastInvoice = null;
-      if (client.invoices.length > 0) {
-        const sortedInvoices = [...client.invoices].sort((a, b) => 
-          new Date(b.issueDate) - new Date(a.issueDate)
-        );
-        lastInvoice = sortedInvoices[0].issueDate;
-      }
-      
-      // Return client with financial metrics and without the full arrays
-      return {
-        ...client,
-        totalBilled,
-        outstandingAmount,
-        lastInvoice,
-        status: clientStatus,
-        invoices: undefined, // Remove the full invoices array to reduce payload size
-        sales: undefined // Remove the full sales array to reduce payload size
-      };
-    });
+    // Financial metrics + persisted status (Active/Inactive from isActive)
+    const clientsWithMetrics = clients.map((client) => buildClientMetrics(client));
     
     // Return clients with pagination metadata (matching inventory structure)
     return NextResponse.json({
@@ -167,7 +131,12 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching clients:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch clients. Please try again.' },
+      {
+        error: 'Failed to fetch clients. Please try again.',
+        ...(process.env.NODE_ENV === 'development'
+          ? { detail: error?.message || String(error) }
+          : {}),
+      },
       { status: 500 }
     );
   }
@@ -232,6 +201,8 @@ export async function POST(request) {
       return String(v).split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean);
     };
 
+    const isActive = parseClientIsActive(body.status ?? body.isActive, true);
+
     // Create the client
     const client = await prisma.client.create({
       data: {
@@ -241,6 +212,7 @@ export async function POST(request) {
         additionalEmails: parseAdditionalEmails(body.additionalEmails),
         phone: body.phone && body.phone.trim() ? body.phone : null,
         address: body.address || null,
+        isActive,
         tenant: { connect: { id: user.tenantId } }
       }
     });
@@ -255,7 +227,8 @@ export async function POST(request) {
         tenantId: user.tenantId,
         details: JSON.stringify({
           name: client.name,
-          email: client.email
+          email: client.email,
+          isActive: client.isActive
         })
       }
     });
@@ -267,8 +240,11 @@ export async function POST(request) {
         client: {
           ...client,
           totalBilled: 0,
+          totalPaid: 0,
           outstandingAmount: 0,
-          status: 'Active'
+          invoiceCount: 0,
+          salesCount: 0,
+          status: isActive ? 'Active' : 'Inactive'
         }
       },
       { status: 201 }

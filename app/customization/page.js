@@ -101,6 +101,7 @@ const defaultBusinessSettings = {
   businessEmail: "",
   buildingName: "",
   receiptFooter: "Thank you for your business!",
+  receiptPaperWidthMm: 80,
   defaultBankDetails: "", // Shown in invoice, quotation and receipt footers
   taxOutflowAccountId: "", // Account where tax from expenses/supplier bills accumulates (for offset vs collected tax)
 };
@@ -313,6 +314,8 @@ function CustomizationContent() {
         businessEmail: tenantData.businessEmail || defaultBusinessSettings.businessEmail,
         buildingName: tenantData.buildingName || defaultBusinessSettings.buildingName,
         receiptFooter: tenantData.receiptFooter || defaultBusinessSettings.receiptFooter,
+        receiptPaperWidthMm:
+          tenantData.receiptPaperWidthMm ?? defaultBusinessSettings.receiptPaperWidthMm,
         defaultBankDetails: tenantData.defaultBankDetails ?? defaultBusinessSettings.defaultBankDetails,
         taxOutflowAccountId: tenantData.taxOutflowAccountId ?? defaultBusinessSettings.taxOutflowAccountId,
       };
@@ -628,6 +631,7 @@ function CustomizationContent() {
         businessEmail: businessSettings.businessEmail,
         buildingName: businessSettings.buildingName,
         receiptFooter: businessSettings.receiptFooter,
+        receiptPaperWidthMm: businessSettings.receiptPaperWidthMm ?? 80,
         defaultBankDetails: businessSettings.defaultBankDetails,
         taxOutflowAccountId: businessSettings.taxOutflowAccountId || undefined,
       };
@@ -1554,20 +1558,44 @@ function CustomizationContent() {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900">Document defaults</h3>
-                    <p className="text-xs text-gray-500">Footer text for receipts</p>
+                    <p className="text-xs text-gray-500">Thermal paper size and footer text for receipts</p>
                   </div>
                 </div>
               </div>
-              <div className="p-4 sm:p-6">
-                <label htmlFor="receiptFooter" className="block text-sm font-medium text-gray-700 mb-1.5">Receipt footer text</label>
-                <textarea
-                  id="receiptFooter"
-                  rows={3}
-                  placeholder="Thank you for your business!"
-                  className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[80px]"
-                  value={businessSettings.receiptFooter}
-                  onChange={(e) => handleBusinessChange('receiptFooter', e.target.value)}
-                />
+              <div className="p-4 sm:p-6 space-y-4">
+                <div>
+                  <label htmlFor="receiptPaperWidthMm" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Thermal paper width
+                  </label>
+                  <select
+                    id="receiptPaperWidthMm"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    value={businessSettings.receiptPaperWidthMm ?? 80}
+                    onChange={(e) =>
+                      handleBusinessChange('receiptPaperWidthMm', Number(e.target.value))
+                    }
+                  >
+                    {[58, 70, 72, 76, 80, 88, 90].map((mm) => (
+                      <option key={mm} value={mm}>
+                        {mm} mm{mm === 80 ? ' (most common)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Default for POS thermal printing on web and Android (58–90 mm).
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="receiptFooter" className="block text-sm font-medium text-gray-700 mb-1.5">Receipt footer text</label>
+                  <textarea
+                    id="receiptFooter"
+                    rows={3}
+                    placeholder="Thank you for your business!"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[80px]"
+                    value={businessSettings.receiptFooter}
+                    onChange={(e) => handleBusinessChange('receiptFooter', e.target.value)}
+                  />
+                </div>
               </div>
             </section>
 

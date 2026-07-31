@@ -497,11 +497,11 @@ export default function RentalsClient({ mode }) {
     }
   };
 
-  const title = kind === "rental" ? "Rentals" : "Hiring";
+  const title = kind === "rental" ? "Rentals" : "Quantity rentals";
   const subtitle =
     kind === "rental"
       ? "Rooms, lodges, and time-based spaces — tied to invoices and availability."
-      : "Equipment and quantity-based hires — capacity-aware booking with invoicing.";
+      : "Outbound equipment pools (legacy kind=hiring). Supplier hire is under Supplier hiring.";
 
   return (
     <PermissionGuard permissions={["rentals.view", "invoices.view", "invoices.create"]}>
@@ -540,7 +540,13 @@ export default function RentalsClient({ mode }) {
                       : "bg-white text-slate-700 ring-1 ring-slate-200"
                   }`}
                 >
-                  Hiring
+                  Quantity rentals
+                </Link>
+                <Link
+                  href="/rentals/inbound-hiring"
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200 hover:bg-amber-50"
+                >
+                  Supplier hiring
                 </Link>
                 <Link
                   href="/invoice"
@@ -605,7 +611,7 @@ export default function RentalsClient({ mode }) {
               <section className="mb-8 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {kind === "rental" ? "Rental assets" : "Hiring pool items"}
+                    {kind === "rental" ? "Rental assets" : "Pool items"}
                   </p>
                   <p className="mt-2 text-3xl font-bold text-slate-900">
                     {kind === "rental" ? stats?.totalRentalAssets ?? 0 : stats?.totalHiringAssets ?? 0}

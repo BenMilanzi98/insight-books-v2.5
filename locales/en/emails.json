@@ -1,0 +1,6 @@
+{
+  "welcomeSubject": "Welcome to InsightBooks",
+  "passwordResetSubject": "Reset your InsightBooks password",
+  "invoiceSubject": "Invoice {{number}} from {{business}}",
+  "payslipSubject": "Your payslip is ready"
+}

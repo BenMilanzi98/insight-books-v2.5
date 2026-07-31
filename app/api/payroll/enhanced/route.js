@@ -8,7 +8,7 @@ import { deductionMatchesNps, deductionMatchesPaye } from '@/lib/payrollDeductio
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { generateReferenceNumber } from '@/lib/journalService';
-import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
+import { getTaxType } from '@/lib/taxCalculationService';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
@@ -19,6 +19,7 @@ import {
   CANONICAL_SALARY_ACCOUNT_NAME,
   resolveCanonicalSalaryExpenseAccount
 } from '@/lib/accountingMappingRules';
+import { resolveEmployeeCompensation } from '@/lib/resolveEmployeeCompensation';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -86,7 +87,13 @@ export async function POST(request) {
             date: {
               gte: periodStart,
               lte: periodEnd
-            }
+            },
+            // Phase 3: only approved attendance enters payroll (legacy finalize may leave PENDING)
+            OR: [
+              { approvalStatus: 'APPROVED' },
+              // Back-compat: registers finalized historically without approvalStatus column default
+              { approvalStatus: 'PENDING', status: { in: ['Present', 'Late', 'present', 'late'] } },
+            ],
           }
         },
         gratuityAccount: {
@@ -465,7 +472,16 @@ export async function POST(request) {
     }
 
     for (const employee of employees) {
-      const baseSalary = Number(employee.grossSalary || employee.salary || 0);
+      const compensation = await resolveEmployeeCompensation({
+        db: prisma,
+        tenantId: user.tenantId,
+        employeeId: employee.id,
+        asOf: periodEnd,
+      });
+      const baseSalary = Number(
+        compensation?.basicSalary ?? employee.grossSalary ?? employee.salary ?? 0
+      );
+      employee._payrollCompensation = compensation;
       if (!baseSalary || Number.isNaN(baseSalary)) {
         console.warn(`No valid base salary for employee ${employee.name}`);
       }
@@ -1111,17 +1127,34 @@ export async function POST(request) {
           const referenceNumber = await generateReferenceNumber(tx, user.tenantId, paymentDate);
 
           // Salaries are recorded on the date they are processed (paymentDate)
-          const createdTransaction = await postGlEntry({
-            tenantId: user.tenantId,
-            userId: user.id,
-            entryDate: paymentDate,
-            description: `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
-            reference: referenceNumber,
-            sourceType: 'Payroll',
-            sourceId: payrollEntry.id,
-            lines: transactionLines,
-            tx,
-          });
+          const { postPayrollAccounting } = await import(
+            '@/lib/accountingV2/adapters/remainingAdapters.js'
+          );
+          const payrollDesc = `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`;
+          const createdTransaction = (
+            await postPayrollAccounting({
+              db: tx,
+              tenantId: user.tenantId,
+              userId: user.id,
+              payrollId: payrollEntry.id,
+              amount: payrollEntry.grossPay ?? payrollEntry.netPay,
+              date: paymentDate,
+              description: payrollDesc,
+              lines: transactionLines,
+              legacyPost: () =>
+                postGlEntry({
+                  tenantId: user.tenantId,
+                  userId: user.id,
+                  entryDate: paymentDate,
+                  description: payrollDesc,
+                  reference: referenceNumber,
+                  sourceType: 'Payroll',
+                  sourceId: payrollEntry.id,
+                  lines: transactionLines,
+                  tx,
+                }),
+            })
+          ).result;
 
           // PAYE is already included in the main transaction lines above for proper balance
           // We still track it via tax service for reconciliation, but it's part of the main balanced transaction

@@ -1,0 +1,10 @@
+{
+  "invoice": "Invoice",
+  "receipt": "Risiti",
+  "quotation": "Quotation",
+  "total": "Zonse",
+  "subtotal": "Pang'ono",
+  "tax": "Msonkho",
+  "date": "Tsiku",
+  "preparedBy": "Zopangidwa ndi"
+}

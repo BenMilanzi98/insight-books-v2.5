@@ -1,5 +1,8 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -18,6 +21,7 @@ const inputCls =
   'rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
 
 export default function AdminMraEisMappingsPage() {
+  const { t } = useI18n();
   const [kind, setKind] = useState('SITE');
   const [environment, setEnvironment] = useState('');
   const [tenantId, setTenantId] = useState('');
@@ -32,7 +36,7 @@ export default function AdminMraEisMappingsPage() {
       const qs = new URLSearchParams({ kind });
       if (environment) qs.set('environment', environment);
       if (tenantId) qs.set('tenantId', tenantId);
-      const res = await fetch(`/api/admin/mra-eis/mappings?${qs}`);
+      const res = await adminFetch(`/api/admin/mra-eis/mappings?${qs}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Failed to load mapping health');
       setData(json.data);
@@ -89,8 +93,8 @@ export default function AdminMraEisMappingsPage() {
             Mappings
           </>
         }
-        title="Mapping health"
-        description="Cross-tenant diagnostics. Cannot force ACTIVE, delete history, edit external IDs, or view credentials."
+        title={t('admin-pages.mraEis.mappings.title')}
+        description={t('admin-pages.mraEis.mappings.description')}
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">

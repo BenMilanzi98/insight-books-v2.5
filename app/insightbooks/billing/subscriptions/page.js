@@ -1,4 +1,7 @@
-"use client";
+'use client';
+
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
 import { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
@@ -41,6 +44,7 @@ function statusTone(status) {
 }
 
 export default function AdminSubscriptions() {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState('subscriptions');
   const [subscriptions, setSubscriptions] = useState([]);
   const [eisSubscriptions, setEisSubscriptions] = useState([]);
@@ -105,7 +109,7 @@ export default function AdminSubscriptions() {
   const fetchSubscriptions = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/subscriptions');
+      const response = await adminFetch('/api/admin/subscriptions');
       
       if (response.ok) {
         const data = await response.json();
@@ -123,7 +127,7 @@ export default function AdminSubscriptions() {
 
   const fetchTenants = async () => {
     try {
-      const response = await fetch('/api/admin/tenants');
+      const response = await adminFetch('/api/admin/tenants');
       
       if (response.ok) {
         const data = await response.json();
@@ -149,7 +153,7 @@ export default function AdminSubscriptions() {
         params.append('search', searchTerm);
       }
 
-      const response = await fetch(`/api/admin/eis-subscriptions?${params}`, {
+      const response = await adminFetch(`/api/admin/eis-subscriptions?${params}`, {
         cache: 'no-store'
       });
 
@@ -178,7 +182,7 @@ export default function AdminSubscriptions() {
     e.preventDefault();
     
     try {
-      const response = await fetch('/api/admin/subscriptions', {
+      const response = await adminFetch('/api/admin/subscriptions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -206,7 +210,7 @@ export default function AdminSubscriptions() {
     e.preventDefault();
     
     try {
-      const response = await fetch(`/api/admin/subscriptions/update`, {
+      const response = await adminFetch(`/api/admin/subscriptions/update`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +241,7 @@ export default function AdminSubscriptions() {
     try {
       console.log('Attempting to delete subscription:', selectedSubscription.id);
       
-      const response = await fetch(`/api/admin/subscriptions/delete`, {
+      const response = await adminFetch(`/api/admin/subscriptions/delete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,7 +335,7 @@ export default function AdminSubscriptions() {
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/admin/eis-subscriptions', {
+      const response = await adminFetch('/api/admin/eis-subscriptions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -357,7 +361,7 @@ export default function AdminSubscriptions() {
 
   const handleDeactivateEISSubscription = async () => {
     try {
-      const response = await fetch('/api/admin/eis-subscriptions/deactivate', {
+      const response = await adminFetch('/api/admin/eis-subscriptions/deactivate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -520,7 +524,7 @@ export default function AdminSubscriptions() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Subscription Management"
+        title={t('admin-pages.billing.subscriptions.title')}
         description="Manage all system subscriptions, create new ones, and monitor subscription status"
         actions={
           <>

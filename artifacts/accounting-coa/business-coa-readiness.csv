@@ -1,0 +1,6 @@
+tenantId,tenantName,status,blockers,warnings,totalAccounts,duplicateCodeGroups,duplicateNameCandidates,accountsWithoutCategory,accountsWithoutNormalBalance,unclassifiedForV2,parentsWithDirectPostings,postingAccountsWithChildren,hierarchyCycles,missingCorePurposes,conflictingSystemMappings,salaryConflicts,hasCanonicalSalary,hasArControl,hasApControl,hasEquityCore,inactiveStillReferenced
+cmqhgd27r00088s9so9tzjh7s,QA-Accounting,READY,,,111,0,0,0,0,0,0,0,0,,0,0,true,true,true,true,0
+cmqkqxir900028s4c34dy6nzm,Tech Transformation,READY,,,107,0,0,0,0,0,0,0,0,,0,0,true,true,true,true,0
+cmrsy80d100038s0c1jvnp6j3,Test Biz,READY,,,107,0,0,0,0,0,0,0,0,,0,0,true,true,true,true,0
+cmqkrntib007v8s4c5m1bh8e7,Debug Signup Co,READY,,,107,0,0,0,0,0,0,0,0,,0,0,true,true,true,true,0
+cmqh9u3ku00048sdoxrglkgev,Insight Books,REQUIRES_CLEANUP,conflicting salary accounts; conflicting system purposes,,108,0,0,0,0,0,0,0,0,,1,1,true,true,true,true,0

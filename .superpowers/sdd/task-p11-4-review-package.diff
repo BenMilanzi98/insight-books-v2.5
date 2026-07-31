@@ -1,0 +1,3127 @@
+﻿# Review package — Phase 11 Task 4 (WORKING_TREE)
+
+diff --git a/lib/admin/crm/timeline.js b/lib/admin/crm/timeline.js
+new file mode 100644
+index 0000000..388c6aa
+--- /dev/null
++++ b/lib/admin/crm/timeline.js
+@@ -0,0 +1,159 @@
++/**
++ * CRM timeline ΓÇö Phase 11 Wave 4 foundations.
++ * Paginated activity for Lead / Account / Contact. Never projects Support/CS threads.
++ */
++
++import {
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_SUBJECT_TYPE,
++  CRM_SUBJECT_TYPES,
++  CRM_TIMELINE_EVENT_TYPE,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++const SUBJECT_SET = new Set(CRM_SUBJECT_TYPES);
++
++export function hasCrmTimelineEventModel(prisma) {
++  return typeof prisma?.crmTimelineEvent?.findMany === 'function';
++}
++
++function serializeTimelineEvent(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    subjectType: row.subjectType,
++    subjectId: row.subjectId,
++    eventType: row.eventType,
++    summary: row.summary || null,
++    payload: row.payload ?? null,
++    actorAdminId: row.actorAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++  };
++}
++
++/**
++ * Append a timeline event (best-effort when model unavailable).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   subjectType: string,
++ *   subjectId: string,
++ *   eventType: string,
++ *   summary?: string|null,
++ *   payload?: object|null,
++ *   actorAdminId?: string|null,
++ *   at?: Date,
++ * }} args
++ */
++export async function appendTimelineEvent(prisma, args = {}) {
++  if (!hasCrmTimelineEventModel(prisma)) {
++    return { ok: true, skipped: true, reason: 'crm_timeline_model_unavailable' };
++  }
++
++  const subjectType = String(args.subjectType || '').trim().toUpperCase();
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : '';
++  const eventType = String(args.eventType || CRM_TIMELINE_EVENT_TYPE.SYSTEM)
++    .trim()
++    .toUpperCase();
++
++  if (!SUBJECT_SET.has(subjectType) || !subjectId) {
++    return { ok: false, error: 'subjectType_and_subjectId_required' };
++  }
++
++  const now = args.at || new Date();
++  const row = await prisma.crmTimelineEvent.create({
++    data: {
++      subjectType,
++      subjectId,
++      eventType,
++      summary: args.summary != null ? String(args.summary).slice(0, 2000) : null,
++      payload: args.payload ?? undefined,
++      actorAdminId: args.actorAdminId || null,
++      at: now,
++      createdAt: now,
++    },
++  });
++
++  return { ok: true, event: serializeTimelineEvent(row) };
++}
++
++/**
++ * Paginated timeline for a subject.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   subjectType: string,
++ *   subjectId: string,
++ *   limit?: number|string,
++ *   offset?: number|string,
++ *   cursor?: string,
++ * }} args
++ */
++export async function listTimeline(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewLeads && !access.canViewAccounts && !access.canViewContacts) {
++    return { ok: false, forbidden: true, reason: 'crm_view_forbidden', items: [] };
++  }
++
++  const subjectType = String(args.subjectType || CRM_SUBJECT_TYPE.LEAD)
++    .trim()
++    .toUpperCase();
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : '';
++  if (!SUBJECT_SET.has(subjectType) || !subjectId) {
++    return { ok: false, error: 'subjectType_and_subjectId_required', items: [] };
++  }
++
++  if (!hasCrmTimelineEventModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_timeline_model_unavailable', count: 0 },
++    };
++  }
++
++  const rawLimit = Number(args.limit);
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : CRM_LIST_DEFAULT_LIMIT)
++  );
++  const rawOffset = Number(args.offset);
++  const offset =
++    Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
++
++  const query = {
++    where: { subjectType, subjectId },
++    orderBy: { at: 'desc' },
++    take: limit,
++  };
++  if (args.cursor) {
++    query.cursor = { id: String(args.cursor) };
++    query.skip = 1;
++  } else if (offset > 0) {
++    query.skip = offset;
++  }
++
++  let rows = [];
++  try {
++    rows = await prisma.crmTimelineEvent.findMany(query);
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeTimelineEvent),
++    meta: {
++      count: (rows || []).length,
++      limit,
++      offset,
++      cursor: args.cursor || null,
++      subjectType,
++      subjectId,
++    },
++  };
++}
++
++export { serializeTimelineEvent, CRM_TIMELINE_EVENT_TYPE };
+diff --git a/lib/admin/crm/notes.js b/lib/admin/crm/notes.js
+new file mode 100644
+index 0000000..d3def93
+--- /dev/null
++++ b/lib/admin/crm/notes.js
+@@ -0,0 +1,219 @@
++/**
++ * CRM notes ΓÇö Phase 11 Wave 4 foundations.
++ * INTERNAL / RESTRICTED visibility enforced in service layer (never CSS-only).
++ * Restricted projection omits RESTRICTED bodies for viewers without permission.
++ */
++
++import {
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_NOTE_VISIBILITY,
++  CRM_NOTE_VISIBILITIES,
++  CRM_SUBJECT_TYPE,
++  CRM_SUBJECT_TYPES,
++  CRM_TIMELINE_EVENT_TYPE,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++import { appendTimelineEvent } from './timeline.js';
++
++const SUBJECT_SET = new Set(CRM_SUBJECT_TYPES);
++const VIS_SET = new Set(CRM_NOTE_VISIBILITIES);
++
++export function hasCrmNoteModel(prisma) {
++  return typeof prisma?.crmNote?.findMany === 'function';
++}
++
++function serializeNote(row, { redactRestricted = false } = {}) {
++  if (!row) return null;
++  const restricted = row.visibility === CRM_NOTE_VISIBILITY.RESTRICTED;
++  if (redactRestricted && restricted) {
++    return {
++      id: row.id,
++      subjectType: row.subjectType,
++      subjectId: row.subjectId,
++      visibility: row.visibility,
++      body: null,
++      redacted: true,
++      authorAdminId: row.authorAdminId || null,
++      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    };
++  }
++  return {
++    id: row.id,
++    subjectType: row.subjectType,
++    subjectId: row.subjectId,
++    visibility: row.visibility,
++    body: row.body,
++    redacted: false,
++    authorAdminId: row.authorAdminId || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++/**
++ * Fail-closed projection: drop or redact RESTRICTED notes for unprivileged viewers.
++ *
++ * @param {Array<object>} notes
++ * @param {{ canViewRestricted?: boolean, mode?: 'omit'|'redact' }} opts
++ */
++export function projectNotesForViewer(notes, opts = {}) {
++  const list = Array.isArray(notes) ? notes : [];
++  const canView = Boolean(opts.canViewRestricted);
++  const mode = opts.mode === 'redact' ? 'redact' : 'omit';
++  return list
++    .filter((n) => {
++      if (String(n?.visibility) !== CRM_NOTE_VISIBILITY.RESTRICTED) return true;
++      return canView || mode === 'redact';
++    })
++    .map((n) => {
++      if (
++        String(n?.visibility) === CRM_NOTE_VISIBILITY.RESTRICTED &&
++        !canView
++      ) {
++        return serializeNote(n, { redactRestricted: true });
++      }
++      return serializeNote(n);
++    });
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   subjectType?: string,
++ *   subjectId: string,
++ *   body: string,
++ *   visibility?: string,
++ *   now?: Date,
++ * }} args
++ */
++export async function createNote(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  const visibility = String(args.visibility || CRM_NOTE_VISIBILITY.INTERNAL)
++    .trim()
++    .toUpperCase();
++
++  if (!VIS_SET.has(visibility)) {
++    return { ok: false, error: 'invalid_visibility' };
++  }
++  if (visibility === CRM_NOTE_VISIBILITY.RESTRICTED) {
++    if (!access.canAddRestrictedNotes) {
++      return { ok: false, forbidden: true, reason: 'crm_restricted_note_forbidden' };
++    }
++  } else if (!access.canAddInternalNotes) {
++    return { ok: false, forbidden: true, reason: 'crm_internal_note_forbidden' };
++  }
++
++  const subjectType = String(args.subjectType || CRM_SUBJECT_TYPE.LEAD)
++    .trim()
++    .toUpperCase();
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : '';
++  const body = args.body != null ? String(args.body).trim() : '';
++  if (!SUBJECT_SET.has(subjectType) || !subjectId) {
++    return { ok: false, error: 'subjectType_and_subjectId_required' };
++  }
++  if (!body) return { ok: false, error: 'body_required' };
++
++  if (!hasCrmNoteModel(prisma)) {
++    return { ok: false, error: 'crm_note_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const now = args.now || new Date();
++  const row = await prisma.crmNote.create({
++    data: {
++      subjectType,
++      subjectId,
++      body,
++      visibility,
++      authorAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType,
++    subjectId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.NOTE_ADDED,
++    summary: `Note added (${visibility})`,
++    payload: { noteId: row.id, visibility },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, note: serializeNote(row) };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   subjectType?: string,
++ *   subjectId: string,
++ *   limit?: number|string,
++ *   offset?: number|string,
++ * }} args
++ */
++export async function listNotes(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewLeads && !access.canViewAccounts && !access.canViewContacts) {
++    return { ok: false, forbidden: true, reason: 'crm_view_forbidden', items: [] };
++  }
++
++  const subjectType = String(args.subjectType || CRM_SUBJECT_TYPE.LEAD)
++    .trim()
++    .toUpperCase();
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : '';
++  if (!SUBJECT_SET.has(subjectType) || !subjectId) {
++    return { ok: false, error: 'subjectType_and_subjectId_required', items: [] };
++  }
++
++  if (!hasCrmNoteModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_note_model_unavailable', count: 0 },
++    };
++  }
++
++  const rawLimit = Number(args.limit);
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : CRM_LIST_DEFAULT_LIMIT)
++  );
++  const rawOffset = Number(args.offset);
++  const offset =
++    Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
++
++  let rows = [];
++  try {
++    rows = await prisma.crmNote.findMany({
++      where: { subjectType, subjectId },
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++      skip: offset > 0 ? offset : undefined,
++    });
++  } catch {
++    rows = [];
++  }
++
++  const projected = projectNotesForViewer(rows, {
++    canViewRestricted: access.canViewRestrictedNotes,
++    mode: 'omit',
++  });
++
++  return {
++    ok: true,
++    items: projected,
++    meta: {
++      count: projected.length,
++      limit,
++      offset,
++      restrictedOmitted: !access.canViewRestrictedNotes,
++    },
++  };
++}
++
++export { serializeNote, CRM_NOTE_VISIBILITY };
+diff --git a/lib/admin/crm/tasks.js b/lib/admin/crm/tasks.js
+new file mode 100644
+index 0000000..d6e3357
+--- /dev/null
++++ b/lib/admin/crm/tasks.js
+@@ -0,0 +1,232 @@
++/**
++ * CRM tasks ΓÇö Phase 11 Wave 4 foundations.
++ * TODO ΓåÆ COMPLETED only. No full sales sequences / cadences.
++ */
++
++import {
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_SUBJECT_TYPE,
++  CRM_SUBJECT_TYPES,
++  CRM_TASK_STATUS,
++  CRM_TASK_STATUSES,
++  CRM_TIMELINE_EVENT_TYPE,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++import { appendTimelineEvent } from './timeline.js';
++
++const SUBJECT_SET = new Set(CRM_SUBJECT_TYPES);
++const STATUS_SET = new Set(CRM_TASK_STATUSES);
++
++export function hasCrmTaskModel(prisma) {
++  return typeof prisma?.crmTask?.findMany === 'function';
++}
++
++function serializeTask(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    subjectType: row.subjectType,
++    subjectId: row.subjectId,
++    title: row.title,
++    status: row.status,
++    dueAt: row.dueAt ? new Date(row.dueAt).toISOString() : null,
++    assigneeAdminId: row.assigneeAdminId || null,
++    createdByAdminId: row.createdByAdminId || null,
++    completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   subjectType?: string,
++ *   subjectId: string,
++ *   title: string,
++ *   dueAt?: Date|string|null,
++ *   assigneeAdminId?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function createTask(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditLeads && !access.canCreateLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_task_create_forbidden' };
++  }
++
++  const subjectType = String(args.subjectType || CRM_SUBJECT_TYPE.LEAD)
++    .trim()
++    .toUpperCase();
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : '';
++  const title = args.title != null ? String(args.title).trim() : '';
++  if (!SUBJECT_SET.has(subjectType) || !subjectId) {
++    return { ok: false, error: 'subjectType_and_subjectId_required' };
++  }
++  if (!title) return { ok: false, error: 'title_required' };
++
++  if (!hasCrmTaskModel(prisma)) {
++    return { ok: false, error: 'crm_task_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const now = args.now || new Date();
++  const dueAt = args.dueAt ? new Date(args.dueAt) : null;
++  const row = await prisma.crmTask.create({
++    data: {
++      subjectType,
++      subjectId,
++      title,
++      status: CRM_TASK_STATUS.TODO,
++      dueAt: dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt : null,
++      assigneeAdminId: args.assigneeAdminId || args.admin?.id || null,
++      createdByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType,
++    subjectId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.TASK_CREATED,
++    summary: `Task created: ${title.slice(0, 120)}`,
++    payload: { taskId: row.id, status: CRM_TASK_STATUS.TODO },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, task: serializeTask(row) };
++}
++
++/**
++ * Complete a TODO task (TODO ΓåÆ COMPLETED only).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, taskId: string, now?: Date }} args
++ */
++export async function completeTask(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_task_complete_forbidden' };
++  }
++
++  const taskId = args.taskId ? String(args.taskId).trim() : '';
++  if (!taskId) return { ok: false, error: 'taskId_required' };
++  if (!hasCrmTaskModel(prisma)) {
++    return { ok: false, error: 'crm_task_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  let row = null;
++  try {
++    row = await prisma.crmTask.findUnique({ where: { id: taskId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'task_not_found' };
++
++  if (row.status === CRM_TASK_STATUS.COMPLETED) {
++    return { ok: true, task: serializeTask(row), alreadyCompleted: true };
++  }
++  if (row.status !== CRM_TASK_STATUS.TODO) {
++    return { ok: false, error: 'invalid_task_status', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmTask.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_TASK_STATUS.COMPLETED,
++      completedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: row.subjectType,
++    subjectId: row.subjectId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.TASK_COMPLETED,
++    summary: `Task completed: ${String(row.title || '').slice(0, 120)}`,
++    payload: { taskId: row.id, status: CRM_TASK_STATUS.COMPLETED },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, task: serializeTask(updated) };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   subjectType?: string,
++ *   subjectId?: string,
++ *   assigneeAdminId?: string|null,
++ *   status?: string,
++ *   myWork?: boolean,
++ *   limit?: number|string,
++ *   offset?: number|string,
++ * }} args
++ */
++export async function listTasks(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewLeads && !access.canViewAccounts && !access.canViewContacts) {
++    return { ok: false, forbidden: true, reason: 'crm_view_forbidden', items: [] };
++  }
++
++  if (!hasCrmTaskModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_task_model_unavailable', count: 0 },
++    };
++  }
++
++  const where = {};
++  if (args.subjectType) {
++    where.subjectType = String(args.subjectType).trim().toUpperCase();
++  }
++  if (args.subjectId) where.subjectId = String(args.subjectId).trim();
++  if (args.status) {
++    const status = String(args.status).trim().toUpperCase();
++    if (!STATUS_SET.has(status)) {
++      return { ok: false, error: 'invalid_task_status', items: [] };
++    }
++    where.status = status;
++  }
++  if (args.myWork === true && args.admin?.id) {
++    where.assigneeAdminId = String(args.admin.id);
++  } else if (args.assigneeAdminId) {
++    where.assigneeAdminId = String(args.assigneeAdminId);
++  }
++
++  const rawLimit = Number(args.limit);
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : CRM_LIST_DEFAULT_LIMIT)
++  );
++  const rawOffset = Number(args.offset);
++  const offset =
++    Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
++
++  let rows = [];
++  try {
++    rows = await prisma.crmTask.findMany({
++      where,
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++      skip: offset > 0 ? offset : undefined,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeTask),
++    meta: { count: (rows || []).length, limit, offset },
++  };
++}
++
++export { serializeTask, CRM_TASK_STATUS };
+diff --git a/lib/admin/crm/merge.js b/lib/admin/crm/merge.js
+new file mode 100644
+index 0000000..2aabf2f
+--- /dev/null
++++ b/lib/admin/crm/merge.js
+@@ -0,0 +1,494 @@
++/**
++ * CRM controlled merge ΓÇö Phase 11 Wave 4.
++ * Request ΓåÆ Approve ΓåÆ Execute. SoD: requester Γëá approver. No silent merge.
++ * Preserves evidence (source IDs, status/score/consent history refs). Never auto-merge.
++ */
++
++import {
++  CRM_DUPLICATE_STATUS,
++  CRM_LEAD_STATUS,
++  CRM_MERGE_ENTITY,
++  CRM_MERGE_ENTITIES,
++  CRM_MERGE_STATUS,
++  CRM_TIMELINE_EVENT_TYPE,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++import { appendTimelineEvent } from './timeline.js';
++
++const ENTITY_SET = new Set(CRM_MERGE_ENTITIES);
++
++export function hasCrmMergeRequestModel(prisma) {
++  return typeof prisma?.crmMergeRequest?.create === 'function';
++}
++
++function serializeMergeRequest(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    entityType: row.entityType,
++    survivorId: row.survivorId,
++    loserId: row.loserId,
++    status: row.status,
++    requestedByAdminId: row.requestedByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    executedByAdminId: row.executedByAdminId || null,
++    duplicateCandidateId: row.duplicateCandidateId || null,
++    reason: row.reason || null,
++    evidence: row.evidenceJson ?? row.evidence ?? null,
++    requestedAt: row.requestedAt ? new Date(row.requestedAt).toISOString() : null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    executedAt: row.executedAt ? new Date(row.executedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++async function loadLead(prisma, id) {
++  if (!id || typeof prisma?.crmLead?.findUnique !== 'function') return null;
++  try {
++    return await prisma.crmLead.findUnique({ where: { id: String(id) } });
++  } catch {
++    return null;
++  }
++}
++
++async function buildLeadEvidence(prisma, survivor, loser) {
++  const evidence = {
++    survivor: {
++      id: survivor.id,
++      leadNumber: survivor.leadNumber,
++      status: survivor.status,
++      source: survivor.source,
++      sourceIdempotencyKey: survivor.sourceIdempotencyKey || null,
++      accountId: survivor.accountId || null,
++      contactId: survivor.contactId || null,
++    },
++    loser: {
++      id: loser.id,
++      leadNumber: loser.leadNumber,
++      status: loser.status,
++      source: loser.source,
++      sourceIdempotencyKey: loser.sourceIdempotencyKey || null,
++      accountId: loser.accountId || null,
++      contactId: loser.contactId || null,
++    },
++    historyRefs: {
++      survivorStatusHistoryPreserved: true,
++      loserStatusHistoryPreserved: true,
++      scoreEvaluationsPreserved: true,
++      consentOnContactsPreserved: true,
++    },
++    preservedIds: {
++      survivorLeadId: survivor.id,
++      loserLeadId: loser.id,
++      survivorLeadNumber: survivor.leadNumber,
++      loserLeadNumber: loser.leadNumber,
++    },
++  };
++
++  if (typeof prisma.crmLeadStatusHistory?.count === 'function') {
++    try {
++      evidence.historyRefs.survivorStatusHistoryCount =
++        await prisma.crmLeadStatusHistory.count({ where: { leadId: survivor.id } });
++      evidence.historyRefs.loserStatusHistoryCount =
++        await prisma.crmLeadStatusHistory.count({ where: { leadId: loser.id } });
++    } catch {
++      // leave counts unset ΓÇö never invent 0 on failure
++    }
++  }
++  if (typeof prisma.crmScoreEvaluation?.count === 'function') {
++    try {
++      evidence.historyRefs.survivorScoreCount = await prisma.crmScoreEvaluation.count({
++        where: { leadId: survivor.id },
++      });
++      evidence.historyRefs.loserScoreCount = await prisma.crmScoreEvaluation.count({
++        where: { leadId: loser.id },
++      });
++    } catch {
++      // omit
++    }
++  }
++
++  return evidence;
++}
++
++/**
++ * Request a Lead merge (Contact/Account if models present ΓÇö Lead is primary).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   entityType?: string,
++ *   survivorId: string,
++ *   loserId: string,
++ *   reason?: string,
++ *   duplicateCandidateId?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function requestMerge(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canRequestMerge) {
++    return { ok: false, forbidden: true, reason: 'crm_merge_request_forbidden' };
++  }
++
++  const entityType = String(args.entityType || CRM_MERGE_ENTITY.LEAD)
++    .trim()
++    .toUpperCase();
++  if (!ENTITY_SET.has(entityType)) {
++    return { ok: false, error: 'invalid_entity_type' };
++  }
++
++  const survivorId = args.survivorId ? String(args.survivorId).trim() : '';
++  const loserId = args.loserId ? String(args.loserId).trim() : '';
++  if (!survivorId || !loserId) {
++    return { ok: false, error: 'survivorId_and_loserId_required' };
++  }
++  if (survivorId === loserId) {
++    return { ok: false, error: 'survivor_and_loser_must_differ' };
++  }
++
++  if (!hasCrmMergeRequestModel(prisma)) {
++    return { ok: false, error: 'crm_merge_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  if (entityType !== CRM_MERGE_ENTITY.LEAD) {
++    return {
++      ok: false,
++      error: 'entity_merge_not_implemented',
++      reason: 'account_contact_merge_deferred_use_lead',
++      status: 'NOT_AVAILABLE',
++    };
++  }
++
++  const survivor = await loadLead(prisma, survivorId);
++  const loser = await loadLead(prisma, loserId);
++  if (!survivor || !loser) {
++    return { ok: false, notFound: true, error: 'lead_not_found' };
++  }
++  if (
++    survivor.status === CRM_LEAD_STATUS.MERGED ||
++    loser.status === CRM_LEAD_STATUS.MERGED
++  ) {
++    return { ok: false, error: 'already_merged' };
++  }
++
++  const now = args.now || new Date();
++  const evidence = await buildLeadEvidence(prisma, survivor, loser);
++
++  const row = await prisma.crmMergeRequest.create({
++    data: {
++      entityType,
++      survivorId,
++      loserId,
++      status: CRM_MERGE_STATUS.PENDING,
++      requestedByAdminId: args.admin?.id || null,
++      duplicateCandidateId: args.duplicateCandidateId || null,
++      reason: args.reason != null ? String(args.reason).trim() : null,
++      evidenceJson: evidence,
++      requestedAt: now,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: 'LEAD',
++    subjectId: survivorId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.MERGE_REQUESTED,
++    summary: `Merge requested: loser ${loser.leadNumber} ΓåÆ survivor ${survivor.leadNumber}`,
++    payload: { mergeRequestId: row.id, loserId, survivorId },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, mergeRequest: serializeMergeRequest(row) };
++}
++
++/**
++ * Approve a pending merge. SoD: approver must differ from requester.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, mergeRequestId: string, now?: Date }} args
++ */
++export async function approveMerge(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canApproveMerge) {
++    return { ok: false, forbidden: true, reason: 'crm_merge_approve_forbidden' };
++  }
++
++  const mergeRequestId = args.mergeRequestId
++    ? String(args.mergeRequestId).trim()
++    : '';
++  if (!mergeRequestId) return { ok: false, error: 'mergeRequestId_required' };
++  if (!hasCrmMergeRequestModel(prisma)) {
++    return { ok: false, error: 'crm_merge_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  let row = null;
++  try {
++    row = await prisma.crmMergeRequest.findUnique({ where: { id: mergeRequestId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'merge_request_not_found' };
++  if (row.status !== CRM_MERGE_STATUS.PENDING) {
++    return { ok: false, error: 'merge_not_pending', status: row.status };
++  }
++
++  const approverId = args.admin?.id ? String(args.admin.id) : '';
++  const requesterId = row.requestedByAdminId ? String(row.requestedByAdminId) : '';
++  if (!approverId) {
++    return { ok: false, error: 'approver_id_required' };
++  }
++  if (requesterId && approverId === requesterId) {
++    return {
++      ok: false,
++      error: 'SOD_VIOLATION',
++      reason: 'requester_cannot_approve',
++      forbidden: true,
++    };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmMergeRequest.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_MERGE_STATUS.APPROVED,
++      approvedByAdminId: approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: 'LEAD',
++    subjectId: row.survivorId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.MERGE_APPROVED,
++    summary: `Merge approved (${row.id})`,
++    payload: { mergeRequestId: row.id, approvedByAdminId: approverId },
++    actorAdminId: approverId,
++    at: now,
++  });
++
++  return { ok: true, mergeRequest: serializeMergeRequest(updated) };
++}
++
++/**
++ * Execute an approved merge. Marks loser MERGED; updates duplicate candidates;
++ * preserves loser history rows (no delete). Does not invent Opportunity.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, mergeRequestId: string, now?: Date }} args
++ */
++export async function executeMerge(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canApproveMerge && !access.canRequestMerge) {
++    return { ok: false, forbidden: true, reason: 'crm_merge_execute_forbidden' };
++  }
++
++  const mergeRequestId = args.mergeRequestId
++    ? String(args.mergeRequestId).trim()
++    : '';
++  if (!mergeRequestId) return { ok: false, error: 'mergeRequestId_required' };
++  if (!hasCrmMergeRequestModel(prisma)) {
++    return { ok: false, error: 'crm_merge_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  let row = null;
++  try {
++    row = await prisma.crmMergeRequest.findUnique({ where: { id: mergeRequestId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'merge_request_not_found' };
++  if (row.status !== CRM_MERGE_STATUS.APPROVED) {
++    return { ok: false, error: 'merge_not_approved', status: row.status };
++  }
++
++  const executorId = args.admin?.id ? String(args.admin.id) : '';
++  const requesterId = row.requestedByAdminId ? String(row.requestedByAdminId) : '';
++  if (requesterId && executorId && executorId === requesterId && !row.approvedByAdminId) {
++    return {
++      ok: false,
++      error: 'SOD_VIOLATION',
++      reason: 'requester_cannot_self_execute_without_approver',
++      forbidden: true,
++    };
++  }
++  if (
++    requesterId &&
++    executorId &&
++    executorId === requesterId &&
++    row.approvedByAdminId &&
++    String(row.approvedByAdminId) === requesterId
++  ) {
++    return {
++      ok: false,
++      error: 'SOD_VIOLATION',
++      reason: 'requester_cannot_be_sole_approver',
++      forbidden: true,
++    };
++  }
++
++  const survivor = await loadLead(prisma, row.survivorId);
++  const loser = await loadLead(prisma, row.loserId);
++  if (!survivor || !loser) {
++    return { ok: false, notFound: true, error: 'lead_not_found' };
++  }
++  if (loser.status === CRM_LEAD_STATUS.MERGED) {
++    return { ok: false, error: 'already_merged' };
++  }
++
++  const now = args.now || new Date();
++  const evidence =
++    row.evidenceJson ||
++    (await buildLeadEvidence(prisma, survivor, loser));
++
++  const updatedLoser = await prisma.crmLead.update({
++    where: { id: loser.id },
++    data: {
++      status: CRM_LEAD_STATUS.MERGED,
++      mergedIntoLeadId: survivor.id,
++      updatedAt: now,
++    },
++  });
++
++  if (typeof prisma.crmLeadStatusHistory?.create === 'function') {
++    await prisma.crmLeadStatusHistory.create({
++      data: {
++        leadId: loser.id,
++        fromStatus: loser.status,
++        toStatus: CRM_LEAD_STATUS.MERGED,
++        changedByAdminId: executorId || null,
++        reason: `merged_into:${survivor.id}`,
++        at: now,
++      },
++    });
++  }
++
++  /** Update duplicate candidates involving either lead. */
++  if (typeof prisma.crmDuplicateCandidate?.findMany === 'function') {
++    try {
++      const candidates = await prisma.crmDuplicateCandidate.findMany({
++        where: {
++          OR: [
++            { leadId: survivor.id },
++            { leadId: loser.id },
++            { candidateLeadId: survivor.id },
++            { candidateLeadId: loser.id },
++          ],
++        },
++        take: 100,
++      });
++      for (const c of candidates || []) {
++        if (typeof prisma.crmDuplicateCandidate.update !== 'function') break;
++        await prisma.crmDuplicateCandidate.update({
++          where: { id: c.id },
++          data: {
++            status: CRM_DUPLICATE_STATUS.CONFIRMED_DUPLICATE,
++            reviewedByAdminId: executorId || null,
++            reviewedAt: now,
++            decisionReason: `merge_executed:${mergeRequestId}`,
++            updatedAt: now,
++          },
++        });
++      }
++    } catch {
++      // candidate update best-effort; merge still succeeds with evidence
++    }
++  }
++
++  const mergedEvidence = {
++    ...(typeof evidence === 'object' && evidence ? evidence : {}),
++    executedAt: now.toISOString(),
++    executedByAdminId: executorId || null,
++    loserFinalStatus: CRM_LEAD_STATUS.MERGED,
++    survivorId: survivor.id,
++    loserId: loser.id,
++  };
++
++  const updated = await prisma.crmMergeRequest.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_MERGE_STATUS.EXECUTED,
++      executedByAdminId: executorId || null,
++      executedAt: now,
++      evidenceJson: mergedEvidence,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: 'LEAD',
++    subjectId: survivor.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.MERGE_EXECUTED,
++    summary: `Merge executed: ${loser.leadNumber} ΓåÆ ${survivor.leadNumber}`,
++    payload: {
++      mergeRequestId: row.id,
++      loserId: loser.id,
++      survivorId: survivor.id,
++      preservedIds: mergedEvidence.preservedIds || null,
++    },
++    actorAdminId: executorId || null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    mergeRequest: serializeMergeRequest(updated),
++    survivor: {
++      id: survivor.id,
++      leadNumber: survivor.leadNumber,
++      status: survivor.status,
++    },
++    loser: {
++      id: updatedLoser.id,
++      leadNumber: updatedLoser.leadNumber,
++      status: updatedLoser.status,
++    },
++    evidencePreserved: true,
++    opportunityCreated: false,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, status?: string, limit?: number|string }} args
++ */
++export async function listMergeRequests(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_view_forbidden', items: [] };
++  }
++  if (!hasCrmMergeRequestModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_merge_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
++
++  let rows = [];
++  try {
++    rows = await prisma.crmMergeRequest.findMany({
++      where,
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeMergeRequest),
++    meta: { count: (rows || []).length, limit },
++  };
++}
++
++export { serializeMergeRequest, CRM_MERGE_STATUS };
+diff --git a/lib/admin/crm/opportunityReadiness.js b/lib/admin/crm/opportunityReadiness.js
+new file mode 100644
+index 0000000..dda6635
+--- /dev/null
++++ b/lib/admin/crm/opportunityReadiness.js
+@@ -0,0 +1,373 @@
++/**
++ * Opportunity readiness ΓÇö Phase 11 Wave 4.
++ * Checklist ΓåÆ NOT_READY | PARTIALLY_READY | READY | BLOCKED.
++ * Builds typed handoff payload. NEVER creates Opportunity / Pipeline / Revenue.
++ * Lead status OPPORTUNITY_READY only when checklist READY.
++ */
++
++import {
++  CRM_CONSENT_PURPOSE,
++  CRM_CONSENT_STATUS,
++  CRM_DEFAULT_QUALIFICATION_VERSION_ID,
++  CRM_DEFAULT_SCORE_VERSION_ID,
++  CRM_DUPLICATE_STATUS,
++  CRM_LEAD_STATUS,
++  CRM_QUALIFICATION_RESPONSE,
++  CRM_READINESS_STATUS,
++  CRM_TIMELINE_EVENT_TYPE,
++  CRM_WAVE4_DEFINITION_VERSION,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++import { appendTimelineEvent } from './timeline.js';
++import { transitionLeadStatus } from './leads.js';
++import { getDefaultQualificationDefinition } from './qualification/catalogue.js';
++import { checkCommunicationEligibility } from './eligibility.js';
++
++const OPEN_DUP_STATUSES = new Set([
++  CRM_DUPLICATE_STATUS.NEW,
++  CRM_DUPLICATE_STATUS.UNDER_REVIEW,
++  CRM_DUPLICATE_STATUS.LIKELY_DUPLICATE,
++]);
++
++function item(key, ok, severity, detail, blocker = false) {
++  return {
++    key,
++    ok: Boolean(ok),
++    severity: severity || (ok ? 'INFO' : 'WARN'),
++    detail: detail || null,
++    blocker: Boolean(blocker),
++  };
++}
++
++function deriveStatus(items) {
++  const blockers = items.filter((i) => i.blocker && !i.ok);
++  if (blockers.some((b) => b.severity === 'CRITICAL')) {
++    return CRM_READINESS_STATUS.BLOCKED;
++  }
++  if (blockers.length > 0) {
++    return CRM_READINESS_STATUS.BLOCKED;
++  }
++  const failed = items.filter((i) => !i.ok);
++  if (failed.length === 0) return CRM_READINESS_STATUS.READY;
++  const requiredFailed = failed.filter((i) => i.severity !== 'INFO');
++  if (requiredFailed.length === 0) return CRM_READINESS_STATUS.PARTIALLY_READY;
++  const allSoft = requiredFailed.every((i) => i.severity === 'WARN');
++  if (allSoft && requiredFailed.length < items.length) {
++    return CRM_READINESS_STATUS.PARTIALLY_READY;
++  }
++  return CRM_READINESS_STATUS.NOT_READY;
++}
++
++async function loadLead(prisma, leadId) {
++  if (typeof prisma?.crmLead?.findUnique !== 'function') return null;
++  try {
++    return await prisma.crmLead.findUnique({ where: { id: String(leadId) } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Evaluate opportunity readiness for a Lead. Never creates Opportunity.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   leadId: string,
++ *   allowUnknownProductInterest?: boolean,
++ *   accountContactExceptionReason?: string|null,
++ *   markReady?: boolean,
++ *   now?: Date,
++ * }} args
++ */
++export async function evaluateOpportunityReadiness(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_view_forbidden' };
++  }
++
++  const leadId = args.leadId ? String(args.leadId).trim() : '';
++  if (!leadId) return { ok: false, error: 'leadId_required' };
++
++  const lead = await loadLead(prisma, leadId);
++  if (!lead) return { ok: false, notFound: true, error: 'lead_not_found' };
++
++  const items = [];
++
++  /** 1. Qualified status */
++  const isQualified =
++    lead.status === CRM_LEAD_STATUS.QUALIFIED ||
++    lead.status === CRM_LEAD_STATUS.OPPORTUNITY_READY;
++  items.push(
++    item(
++      'qualified',
++      isQualified,
++      isQualified ? 'INFO' : 'CRITICAL',
++      isQualified
++        ? `Lead status is ${lead.status}`
++        : `Lead must be QUALIFIED (current: ${lead.status})`,
++      !isQualified
++    )
++  );
++
++  /** 2. Account + primary contact (or documented exception) */
++  const hasAccount = Boolean(lead.accountId);
++  const hasContact = Boolean(lead.contactId);
++  const exceptionReason =
++    args.accountContactExceptionReason != null
++      ? String(args.accountContactExceptionReason).trim()
++      : '';
++  const linkOk = (hasAccount && hasContact) || Boolean(exceptionReason);
++  items.push(
++    item(
++      'account_primary_contact',
++      linkOk,
++      linkOk ? 'INFO' : 'CRITICAL',
++      linkOk
++        ? exceptionReason
++          ? `Exception documented: ${exceptionReason}`
++          : 'Account and primary contact linked'
++        : 'Account + primary contact required (or documented exception)',
++      !linkOk
++    )
++  );
++
++  /** 3. Product interest (FIT / NEED) ΓÇö UNKNOWN blocks READY unless explicit allow */
++  let productInterestState = CRM_QUALIFICATION_RESPONSE.UNKNOWN;
++  let qualificationVersionId = CRM_DEFAULT_QUALIFICATION_VERSION_ID;
++  if (typeof prisma?.crmQualificationResponse?.findMany === 'function') {
++    try {
++      const def = getDefaultQualificationDefinition();
++      qualificationVersionId = def.versionId || qualificationVersionId;
++      const responses = await prisma.crmQualificationResponse.findMany({
++        where: { leadId: lead.id, definitionVersionId: qualificationVersionId },
++        take: 50,
++      });
++      const byKey = new Map((responses || []).map((r) => [r.criterionKey, r.state]));
++      productInterestState =
++        byKey.get('FIT') || byKey.get('NEED') || CRM_QUALIFICATION_RESPONSE.UNKNOWN;
++    } catch {
++      productInterestState = CRM_QUALIFICATION_RESPONSE.UNKNOWN;
++    }
++  }
++
++  const allowUnknown = args.allowUnknownProductInterest === true;
++  const productOk =
++    productInterestState !== CRM_QUALIFICATION_RESPONSE.UNKNOWN || allowUnknown;
++  items.push(
++    item(
++      'product_interest',
++      productOk,
++      productOk ? 'INFO' : 'WARN',
++      productOk
++        ? allowUnknown && productInterestState === CRM_QUALIFICATION_RESPONSE.UNKNOWN
++          ? 'Product interest UNKNOWN allowed by checklist exception'
++          : `Product interest: ${productInterestState}`
++        : 'Product interest UNKNOWN ΓÇö blocker for READY unless exception allowed',
++      !productOk
++    )
++  );
++
++  /** 4. Duplicate review ΓÇö CRITICAL open blocks */
++  let criticalDupOpen = false;
++  let openDupCount = null;
++  if (typeof prisma?.crmDuplicateCandidate?.findMany === 'function') {
++    try {
++      const dups = await prisma.crmDuplicateCandidate.findMany({
++        where: {
++          OR: [{ leadId: lead.id }, { candidateLeadId: lead.id }],
++          status: { in: [...OPEN_DUP_STATUSES] },
++        },
++        take: 50,
++      });
++      openDupCount = (dups || []).length;
++      criticalDupOpen = (dups || []).some(
++        (d) =>
++          String(d.confidence || '').toUpperCase() === 'HIGH' ||
++          d.status === CRM_DUPLICATE_STATUS.LIKELY_DUPLICATE
++      );
++    } catch {
++      openDupCount = null;
++    }
++  }
++  items.push(
++    item(
++      'duplicate_review',
++      !criticalDupOpen,
++      criticalDupOpen ? 'CRITICAL' : 'INFO',
++      criticalDupOpen
++        ? `CRITICAL open duplicate candidates (${openDupCount ?? '?'})`
++        : openDupCount == null
++          ? 'Duplicate model unavailable ΓÇö not treated as CRITICAL open'
++          : `No CRITICAL open duplicates (${openDupCount} open non-critical)`,
++      criticalDupOpen
++    )
++  );
++
++  /** 5. Consent / eligibility ΓÇö UNKNOWN is visible blocker for READY */
++  let consentStatus = CRM_CONSENT_STATUS.UNKNOWN;
++  let eligibilityOk = false;
++  let eligibilityDetail = 'No contact linked ΓÇö consent UNKNOWN';
++  if (lead.contactId && typeof prisma?.crmConsentRecord?.findUnique === 'function') {
++    try {
++      const consent = await prisma.crmConsentRecord.findUnique({
++        where: {
++          contactId_purpose: {
++            contactId: lead.contactId,
++            purpose: CRM_CONSENT_PURPOSE.SALES_CONTACT,
++          },
++        },
++      });
++      consentStatus = consent?.status || CRM_CONSENT_STATUS.UNKNOWN;
++    } catch {
++      consentStatus = CRM_CONSENT_STATUS.UNKNOWN;
++    }
++  }
++  if (lead.contactId) {
++    try {
++      const elig = await checkCommunicationEligibility(prisma, {
++        admin: args.admin,
++        contactId: lead.contactId,
++        channel: 'EMAIL',
++        purpose: CRM_CONSENT_PURPOSE.SALES_CONTACT,
++      });
++      eligibilityOk = Boolean(elig?.eligible);
++      eligibilityDetail = Array.isArray(elig?.reasons)
++        ? elig.reasons.join(',') || (eligibilityOk ? 'eligible' : 'not_eligible')
++        : elig?.reason || (eligibilityOk ? 'eligible' : 'not_eligible');
++      if (elig?.consentStatus) consentStatus = elig.consentStatus;
++    } catch {
++      eligibilityOk = false;
++      eligibilityDetail = 'eligibility_check_failed';
++    }
++  }
++  const consentKnown = consentStatus !== CRM_CONSENT_STATUS.UNKNOWN;
++  const consentReady =
++    consentKnown &&
++    consentStatus !== CRM_CONSENT_STATUS.DENIED &&
++    consentStatus !== CRM_CONSENT_STATUS.WITHDRAWN;
++  items.push(
++    item(
++      'consent_eligibility',
++      consentReady,
++      consentReady ? 'INFO' : 'CRITICAL',
++      `Consent ${consentStatus}; eligibility: ${eligibilityDetail}`,
++      !consentReady
++    )
++  );
++
++  const readinessStatus = deriveStatus(items);
++
++  /** Latest score version pin (never invent score) */
++  let scoreVersionId = null;
++  let scoreEvaluationId = null;
++  if (typeof prisma?.crmScoreEvaluation?.findFirst === 'function') {
++    try {
++      const latest = await prisma.crmScoreEvaluation.findFirst({
++        where: { leadId: lead.id },
++        orderBy: { createdAt: 'desc' },
++      });
++      if (latest) {
++        scoreVersionId = latest.definitionVersionId;
++        scoreEvaluationId = latest.id;
++      }
++    } catch {
++      scoreVersionId = null;
++    }
++  }
++
++  const idempotencyKey = `opp-ready:${lead.id}:${qualificationVersionId}:${scoreVersionId || 'none'}`;
++
++  const handoffPayload = {
++    type: 'CRM_OPPORTUNITY_HANDOFF',
++    version: CRM_WAVE4_DEFINITION_VERSION,
++    readinessStatus,
++    leadId: lead.id,
++    leadNumber: lead.leadNumber,
++    accountId: lead.accountId || null,
++    contactId: lead.contactId || null,
++    source: lead.source || null,
++    channel: lead.channel || null,
++    scoreVersionId: scoreVersionId || CRM_DEFAULT_SCORE_VERSION_ID,
++    scoreEvaluationId,
++    qualificationVersionId,
++    idempotencyKey,
++    accountContactExceptionReason: exceptionReason || null,
++    allowUnknownProductInterest: allowUnknown,
++    /** Explicit honesty ΓÇö Phase 12 consumes; Phase 11 never creates these */
++    opportunityId: null,
++    opportunityCreated: false,
++    pipelineCreated: false,
++    revenueInvented: false,
++    isProbability: false,
++    isExpectedRevenue: false,
++  };
++
++  const now = args.now || new Date();
++  await appendTimelineEvent(prisma, {
++    subjectType: 'LEAD',
++    subjectId: lead.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.READINESS_EVALUATED,
++    summary: `Opportunity readiness: ${readinessStatus}`,
++    payload: {
++      readinessStatus,
++      checklistKeys: items.map((i) => i.key),
++      opportunityCreated: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  let transition = null;
++  if (
++    args.markReady === true &&
++    readinessStatus === CRM_READINESS_STATUS.READY &&
++    lead.status === CRM_LEAD_STATUS.QUALIFIED
++  ) {
++    if (!access.canTransitionStatus) {
++      transition = { ok: false, forbidden: true, reason: 'crm_transition_forbidden' };
++    } else {
++      transition = await transitionLeadStatus(prisma, {
++        admin: args.admin,
++        leadId: lead.id,
++        toStatus: CRM_LEAD_STATUS.OPPORTUNITY_READY,
++        reason: 'opportunity_readiness_ready',
++        now,
++      });
++    }
++  } else if (args.markReady === true && readinessStatus !== CRM_READINESS_STATUS.READY) {
++    transition = {
++      ok: false,
++      error: 'not_ready_for_opportunity_ready_status',
++      readinessStatus,
++    };
++  }
++
++  return {
++    ok: true,
++    readinessStatus,
++    checklist: items,
++    handoffPayload,
++    opportunityCreated: false,
++    leadStatus: transition?.lead?.status || lead.status,
++    transition,
++    meta: {
++      definitionVersion: CRM_WAVE4_DEFINITION_VERSION,
++      inventOpportunityForbidden: true,
++      inventRevenueForbidden: true,
++    },
++  };
++}
++
++/**
++ * Pure helper for tests ΓÇö never creates Opportunity.
++ */
++export function assertNoOpportunityCreate(result) {
++  return (
++    result?.opportunityCreated === false &&
++    result?.handoffPayload?.opportunityId == null &&
++    result?.handoffPayload?.opportunityCreated === false
++  );
++}
++
++export { CRM_READINESS_STATUS };
+diff --git a/lib/admin/crm/reconciliation.js b/lib/admin/crm/reconciliation.js
+new file mode 100644
+index 0000000..b07dcb0
+--- /dev/null
++++ b/lib/admin/crm/reconciliation.js
+@@ -0,0 +1,221 @@
++/**
++ * CRM reconciliation foundations ΓÇö Phase 11 Wave 4.
++ * Light checks only. Never invent false zeroes on gate failure.
++ */
++
++import {
++  CRM_RECON_VERSION,
++  CRM_RELIABILITY_STATUS,
++  CRM_WAVE4_DEFINITION_VERSION,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++export function hasCrmReconciliationRunModel(prisma) {
++  return typeof prisma?.crmReconciliationRun?.create === 'function';
++}
++
++async function safeCount(fn) {
++  try {
++    const value = await fn();
++    if (typeof value !== 'number' || Number.isNaN(value)) {
++      return { ok: false, value: null, error: 'non_numeric_count' };
++    }
++    return { ok: true, value };
++  } catch (e) {
++    return { ok: false, value: null, error: e?.message || 'count_failed' };
++  }
++}
++
++function card(id, label, value, status, detail) {
++  return {
++    id,
++    label,
++    value: value == null ? null : value,
++    status,
++    detail: detail || null,
++  };
++}
++
++/**
++ * Pure honesty: recon failure must not yield fabricated zero KPIs.
++ */
++export function applyCrmReconHonesty(input = {}) {
++  const failed =
++    input.status === CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED ||
++    input.reconOk === false;
++  const unavailable =
++    input.status === CRM_RELIABILITY_STATUS.UNAVAILABLE ||
++    input.status === CRM_RELIABILITY_STATUS.NOT_INSTRUMENTED ||
++    input.status === CRM_RELIABILITY_STATUS.PERMISSION_RESTRICTED;
++
++  if (!failed && !unavailable) {
++    return {
++      kpiSafe: true,
++      leadCount: input.leadCount,
++      status: input.status || CRM_RELIABILITY_STATUS.AVAILABLE,
++    };
++  }
++
++  return {
++    kpiSafe: false,
++    leadCount: null,
++    captureCount: null,
++    statusHistoryCount: null,
++    status: failed
++      ? CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED
++      : input.status || CRM_RELIABILITY_STATUS.UNAVAILABLE,
++    reasonMessage:
++      'Failed or unavailable reconciliation blocks numeric KPIs ΓÇö never false zeroes',
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, persist?: boolean }} args
++ */
++export async function runCrmReconciliation(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewLeads) {
++    return {
++      ok: false,
++      forbidden: true,
++      status: CRM_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      reason: 'crm_view_forbidden',
++    };
++  }
++  if (!access.canRunReconciliation) {
++    return {
++      ok: false,
++      forbidden: true,
++      status: CRM_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      reason: 'crm_recon_forbidden',
++    };
++  }
++
++  const cards = [];
++  let reconOk = true;
++
++  if (typeof prisma?.crmLead?.count !== 'function') {
++    return {
++      ok: true,
++      status: CRM_RELIABILITY_STATUS.UNAVAILABLE,
++      definitionVersion: CRM_WAVE4_DEFINITION_VERSION,
++      reconVersion: CRM_RECON_VERSION,
++      cards: [
++        card(
++          'leads',
++          'CrmLead count',
++          null,
++          CRM_RELIABILITY_STATUS.UNAVAILABLE,
++          'crm_lead_model_unavailable'
++        ),
++      ],
++      honesty: applyCrmReconHonesty({
++        status: CRM_RELIABILITY_STATUS.UNAVAILABLE,
++        reconOk: false,
++      }),
++    };
++  }
++
++  const leadCount = await safeCount(() => prisma.crmLead.count());
++  if (!leadCount.ok) reconOk = false;
++  cards.push(
++    card(
++      'leads',
++      'CrmLead count',
++      leadCount.ok ? leadCount.value : null,
++      leadCount.ok
++        ? CRM_RELIABILITY_STATUS.AVAILABLE
++        : CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++      leadCount.error || null
++    )
++  );
++
++  if (typeof prisma.crmCaptureRecord?.count === 'function') {
++    const captureCount = await safeCount(() => prisma.crmCaptureRecord.count());
++    if (!captureCount.ok) reconOk = false;
++    cards.push(
++      card(
++        'captures',
++        'CrmCaptureRecord count',
++        captureCount.ok ? captureCount.value : null,
++        captureCount.ok
++          ? CRM_RELIABILITY_STATUS.AVAILABLE
++          : CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++        captureCount.error || null
++      )
++    );
++  } else {
++    cards.push(
++      card(
++        'captures',
++        'CrmCaptureRecord count',
++        null,
++        CRM_RELIABILITY_STATUS.NOT_INSTRUMENTED,
++        'capture_model_unavailable'
++      )
++    );
++  }
++
++  if (typeof prisma.crmLeadStatusHistory?.count === 'function') {
++    const hist = await safeCount(() => prisma.crmLeadStatusHistory.count());
++    if (!hist.ok) reconOk = false;
++    cards.push(
++      card(
++        'status_history',
++        'CrmLeadStatusHistory count',
++        hist.ok ? hist.value : null,
++        hist.ok
++          ? CRM_RELIABILITY_STATUS.AVAILABLE
++          : CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++        hist.error || null
++      )
++    );
++  }
++
++  const status = reconOk
++    ? CRM_RELIABILITY_STATUS.AVAILABLE
++    : CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED;
++
++  const honesty = applyCrmReconHonesty({
++    status,
++    reconOk,
++    leadCount: leadCount.ok ? leadCount.value : null,
++  });
++
++  const result = {
++    ok: true,
++    status,
++    reconOk,
++    definitionVersion: CRM_WAVE4_DEFINITION_VERSION,
++    reconVersion: CRM_RECON_VERSION,
++    cards,
++    honesty,
++    meta: {
++      inventZeroesForbidden: true,
++      emailChannel: 'NOT_AVAILABLE',
++      whatsappChannel: 'NOT_AVAILABLE',
++    },
++  };
++
++  if (args.persist !== false && hasCrmReconciliationRunModel(prisma)) {
++    try {
++      await prisma.crmReconciliationRun.create({
++        data: {
++          status,
++          summaryJson: {
++            cards,
++            honesty,
++            reconVersion: CRM_RECON_VERSION,
++          },
++          runByAdminId: args.admin?.id || null,
++          at: new Date(),
++        },
++      });
++    } catch {
++      // persist optional
++    }
++  }
++
++  return result;
++}
+diff --git a/lib/admin/crm/export.js b/lib/admin/crm/export.js
+new file mode 100644
+index 0000000..2ba9c78
+--- /dev/null
++++ b/lib/admin/crm/export.js
+@@ -0,0 +1,172 @@
++/**
++ * CRM export foundation ΓÇö Phase 11 Wave 4.
++ * JSON/CSV leads only. Requires systemAdmin.crm.export; rechecked at download.
++ * Empty Γëá invent rows. No XLSX/PDF. Never export Tenant GL / payment secrets.
++ */
++
++import { preventFormulaInjection } from '@/lib/admin/exportSafety.js';
++import { CRM_EXPORT_VERSION, CRM_LIST_MAX_LIMIT } from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++import { listLeads } from './leads.js';
++
++export function hasCrmExportAuditModel(prisma) {
++  return typeof prisma?.crmExportAudit?.create === 'function';
++}
++
++function csvEscape(value) {
++  const safe = preventFormulaInjection(value == null ? '' : value);
++  if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
++  return safe;
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   dataset?: 'leads',
++ *   format?: 'json'|'csv',
++ *   status?: string,
++ *   limit?: number,
++ * }} opts
++ */
++export async function buildCrmExportPack(prisma, opts = {}) {
++  const access = resolveCrmAccess(opts.admin);
++  if (!access.canViewLeads) {
++    return {
++      ok: false,
++      forbidden: true,
++      exportVersion: CRM_EXPORT_VERSION,
++      reasonCode: 'view_leads_required',
++    };
++  }
++  if (!access.canExport) {
++    return {
++      ok: false,
++      forbidden: true,
++      exportVersion: CRM_EXPORT_VERSION,
++      reasonCode: 'export_permission_required',
++      status: 'PERMISSION_RESTRICTED',
++    };
++  }
++
++  const dataset = String(opts.dataset || 'leads').toLowerCase();
++  const format = String(opts.format || 'json').toLowerCase();
++  if (format !== 'json' && format !== 'csv') {
++    return { ok: false, error: 'format must be json|csv', exportVersion: CRM_EXPORT_VERSION };
++  }
++  if (dataset !== 'leads') {
++    return {
++      ok: false,
++      error: 'dataset must be leads (foundation)',
++      exportVersion: CRM_EXPORT_VERSION,
++    };
++  }
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(opts.limit) || CRM_LIST_MAX_LIMIT)
++  );
++
++  const listed = await listLeads(prisma, {
++    admin: opts.admin,
++    status: opts.status,
++    limit,
++    offset: 0,
++  });
++
++  if (listed.forbidden) {
++    return {
++      ok: false,
++      forbidden: true,
++      exportVersion: CRM_EXPORT_VERSION,
++      reasonCode: 'view_leads_required',
++    };
++  }
++  if (!listed.ok) {
++    return {
++      ok: false,
++      error: listed.error || 'export_list_failed',
++      status: listed.status || 'UNAVAILABLE',
++      exportVersion: CRM_EXPORT_VERSION,
++      rows: [],
++    };
++  }
++
++  const rows = Array.isArray(listed.items) ? listed.items : [];
++
++  if (hasCrmExportAuditModel(prisma)) {
++    try {
++      await prisma.crmExportAudit.create({
++        data: {
++          dataset,
++          format,
++          rowCount: rows.length,
++          exportedByAdminId: opts.admin?.id || null,
++          at: new Date(),
++        },
++      });
++    } catch {
++      // audit optional
++    }
++  }
++
++  if (format === 'json') {
++    return {
++      ok: true,
++      exportVersion: CRM_EXPORT_VERSION,
++      dataset,
++      format,
++      rowCount: rows.length,
++      rows,
++      contentType: 'application/json',
++      body: JSON.stringify(
++        {
++          exportVersion: CRM_EXPORT_VERSION,
++          dataset,
++          rowCount: rows.length,
++          rows,
++          meta: {
++            inventRowsForbidden: true,
++            tenantGlExcluded: true,
++            paymentSecretsExcluded: true,
++          },
++        },
++        null,
++        2
++      ),
++    };
++  }
++
++  const headers = [
++    'id',
++    'leadNumber',
++    'status',
++    'type',
++    'title',
++    'source',
++    'channel',
++    'ownerAdminId',
++    'accountId',
++    'contactId',
++    'createdAt',
++  ];
++  const lines = [headers.join(',')];
++  for (const r of rows) {
++    lines.push(
++      headers
++        .map((h) => csvEscape(r[h] == null ? '' : r[h]))
++        .join(',')
++    );
++  }
++
++  return {
++    ok: true,
++    exportVersion: CRM_EXPORT_VERSION,
++    dataset,
++    format,
++    rowCount: rows.length,
++    rows,
++    contentType: 'text/csv; charset=utf-8',
++    body: lines.join('\n'),
++  };
++}
+diff --git a/lib/admin/crm/foundations.js b/lib/admin/crm/foundations.js
+new file mode 100644
+index 0000000..a09a1fd
+--- /dev/null
++++ b/lib/admin/crm/foundations.js
+@@ -0,0 +1,106 @@
++/**
++ * CRM foundations ΓÇö import / reporting / Email / WhatsApp / Opportunity pipeline contracts.
++ * Status FOUNDATION or NOT_AVAILABLE only. Never invent import success or channel volume.
++ */
++
++import {
++  CRM_FOUNDATION_KIND,
++  CRM_FOUNDATION_STATUS,
++  CRM_WAVE4_DEFINITION_VERSION,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++const FOUNDATION_CONTRACTS = Object.freeze({
++  [CRM_FOUNDATION_KIND.IMPORT]: {
++    status: CRM_FOUNDATION_STATUS.FOUNDATION,
++    contract:
++      'CRM bulk import is foundation-only. No fake import success rates or invented Lead volumes.',
++    deferredTo: 'Phase 12+',
++  },
++  [CRM_FOUNDATION_KIND.REPORTING]: {
++    status: CRM_FOUNDATION_STATUS.FOUNDATION,
++    contract:
++      'Full CRM reporting / dashboards deferred. Export JSON/CSV foundation only; never invent funnel conversion %.',
++    deferredTo: 'Phase 12+',
++  },
++  [CRM_FOUNDATION_KIND.EMAIL_INGEST]: {
++    status: CRM_FOUNDATION_STATUS.NOT_AVAILABLE,
++    contract:
++      'Email ΓåÆ Lead ingest remains NOT_AVAILABLE. Never invent inbound email Lead volume.',
++    deferredTo: 'Later',
++  },
++  [CRM_FOUNDATION_KIND.WHATSAPP_INGEST]: {
++    status: CRM_FOUNDATION_STATUS.NOT_AVAILABLE,
++    contract:
++      'WhatsApp ΓåÆ Lead ingest remains NOT_AVAILABLE. wa.me CTA is not capture volume.',
++    deferredTo: 'Later',
++  },
++  [CRM_FOUNDATION_KIND.OPPORTUNITY_PIPELINE]: {
++    status: CRM_FOUNDATION_STATUS.NOT_AVAILABLE,
++    contract:
++      'Opportunity / Pipeline / forecasting are Phase 12+. Phase 11 ships readiness handoff payload only ΓÇö never create Opportunity.',
++    deferredTo: 'Phase 12',
++    opportunityId: null,
++    inventOpportunityForbidden: true,
++  },
++});
++
++/**
++ * @param {import('@prisma/client').PrismaClient} _prisma
++ * @param {{ admin: object, kind?: string }} args
++ */
++export async function getCrmFoundations(_prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_view_forbidden' };
++  }
++
++  const kindFilter = args.kind
++    ? String(args.kind).trim().toUpperCase().replace(/-/g, '_')
++    : null;
++
++  const kinds = Object.values(CRM_FOUNDATION_KIND);
++  const selected = kindFilter
++    ? kinds.filter(
++        (k) =>
++          k === kindFilter ||
++          k.replace(/_/g, '') === kindFilter.replace(/_/g, '')
++      )
++    : kinds;
++
++  if (kindFilter && selected.length === 0) {
++    return {
++      ok: false,
++      error: `kind must be one of ${kinds.join('|')}`,
++    };
++  }
++
++  const items = selected.map((kind) => {
++    const c = FOUNDATION_CONTRACTS[kind];
++    return {
++      kind,
++      status: c.status,
++      contract: c.contract,
++      deferredTo: c.deferredTo,
++      opportunityId: c.opportunityId === undefined ? undefined : null,
++      inventOpportunityForbidden: Boolean(c.inventOpportunityForbidden),
++      items: [],
++    };
++  });
++
++  return {
++    ok: true,
++    definitionVersion: CRM_WAVE4_DEFINITION_VERSION,
++    status: CRM_FOUNDATION_STATUS.FOUNDATION,
++    items,
++    meta: {
++      inventImportMetricsForbidden: true,
++      inventReportZeroesForbidden: true,
++      emailChannel: 'NOT_AVAILABLE',
++      whatsappChannel: 'NOT_AVAILABLE',
++      opportunityCreate: 'NOT_AVAILABLE',
++    },
++  };
++}
++
++export { FOUNDATION_CONTRACTS };
+diff --git a/scripts/sql/crm-core-phase11-wave4.sql b/scripts/sql/crm-core-phase11-wave4.sql
+new file mode 100644
+index 0000000..7fdc394
+--- /dev/null
++++ b/scripts/sql/crm-core-phase11-wave4.sql
+@@ -0,0 +1,111 @@
++-- Phase 11 Wave 4 ΓÇö timeline / notes / tasks / merge / recon / export (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- CrmLead Γëá Opportunity Γëá Customer Γëá SupportTicket Γëá CsCase.
++-- Opportunity readiness never creates Opportunity.
++-- Never store Tenant GL, payment secrets, or MRA credentials.
++
++ALTER TABLE "CrmLead" ADD COLUMN IF NOT EXISTS "mergedIntoLeadId" TEXT;
++CREATE INDEX IF NOT EXISTS "CrmLead_mergedIntoLeadId_idx" ON "CrmLead"("mergedIntoLeadId");
++
++CREATE TABLE IF NOT EXISTS "CrmTimelineEvent" (
++  "id" TEXT PRIMARY KEY,
++  "subjectType" TEXT NOT NULL,
++  "subjectId" TEXT NOT NULL,
++  "eventType" TEXT NOT NULL,
++  "summary" TEXT,
++  "payload" JSONB,
++  "actorAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmTimelineEvent_subject_at_idx"
++  ON "CrmTimelineEvent"("subjectType", "subjectId", "at");
++CREATE INDEX IF NOT EXISTS "CrmTimelineEvent_eventType_at_idx"
++  ON "CrmTimelineEvent"("eventType", "at");
++CREATE INDEX IF NOT EXISTS "CrmTimelineEvent_actorAdminId_idx"
++  ON "CrmTimelineEvent"("actorAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmNote" (
++  "id" TEXT PRIMARY KEY,
++  "subjectType" TEXT NOT NULL,
++  "subjectId" TEXT NOT NULL,
++  "body" TEXT NOT NULL,
++  "visibility" TEXT NOT NULL DEFAULT 'INTERNAL',
++  "authorAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmNote_subject_createdAt_idx"
++  ON "CrmNote"("subjectType", "subjectId", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmNote_visibility_idx" ON "CrmNote"("visibility");
++CREATE INDEX IF NOT EXISTS "CrmNote_authorAdminId_idx" ON "CrmNote"("authorAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmTask" (
++  "id" TEXT PRIMARY KEY,
++  "subjectType" TEXT NOT NULL,
++  "subjectId" TEXT NOT NULL,
++  "title" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'TODO',
++  "dueAt" TIMESTAMP(3),
++  "assigneeAdminId" TEXT,
++  "createdByAdminId" TEXT,
++  "completedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmTask_subject_status_idx"
++  ON "CrmTask"("subjectType", "subjectId", "status");
++CREATE INDEX IF NOT EXISTS "CrmTask_assignee_status_idx"
++  ON "CrmTask"("assigneeAdminId", "status");
++CREATE INDEX IF NOT EXISTS "CrmTask_status_dueAt_idx" ON "CrmTask"("status", "dueAt");
++
++CREATE TABLE IF NOT EXISTS "CrmMergeRequest" (
++  "id" TEXT PRIMARY KEY,
++  "entityType" TEXT NOT NULL DEFAULT 'LEAD',
++  "survivorId" TEXT NOT NULL,
++  "loserId" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'PENDING',
++  "requestedByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "executedByAdminId" TEXT,
++  "duplicateCandidateId" TEXT,
++  "reason" TEXT,
++  "evidenceJson" JSONB,
++  "requestedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "approvedAt" TIMESTAMP(3),
++  "executedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmMergeRequest_status_createdAt_idx"
++  ON "CrmMergeRequest"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmMergeRequest_survivorId_idx" ON "CrmMergeRequest"("survivorId");
++CREATE INDEX IF NOT EXISTS "CrmMergeRequest_loserId_idx" ON "CrmMergeRequest"("loserId");
++CREATE INDEX IF NOT EXISTS "CrmMergeRequest_entity_status_idx"
++  ON "CrmMergeRequest"("entityType", "status");
++
++CREATE TABLE IF NOT EXISTS "CrmReconciliationRun" (
++  "id" TEXT PRIMARY KEY,
++  "status" TEXT NOT NULL,
++  "summaryJson" JSONB,
++  "runByAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmReconciliationRun_at_idx" ON "CrmReconciliationRun"("at");
++CREATE INDEX IF NOT EXISTS "CrmReconciliationRun_status_at_idx"
++  ON "CrmReconciliationRun"("status", "at");
++
++CREATE TABLE IF NOT EXISTS "CrmExportAudit" (
++  "id" TEXT PRIMARY KEY,
++  "dataset" TEXT NOT NULL,
++  "format" TEXT NOT NULL,
++  "rowCount" INTEGER NOT NULL DEFAULT 0,
++  "exportedByAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmExportAudit_at_idx" ON "CrmExportAudit"("at");
++CREATE INDEX IF NOT EXISTS "CrmExportAudit_dataset_at_idx"
++  ON "CrmExportAudit"("dataset", "at");
+diff --git a/test/systemAdmin.crm.wave4.test.js b/test/systemAdmin.crm.wave4.test.js
+new file mode 100644
+index 0000000..d3323ee
+--- /dev/null
++++ b/test/systemAdmin.crm.wave4.test.js
+@@ -0,0 +1,585 @@
++/**
++ * Phase 11 Wave 4 ΓÇö timeline / notes / tasks / merge SoD / opportunity readiness.
++ * Never creates Opportunity. Keep Waves 1ΓÇô3 contracts intact.
++ */
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import {
++  CRM_LEAD_STATUS,
++  CRM_MERGE_STATUS,
++  CRM_NOTE_VISIBILITY,
++  CRM_READINESS_STATUS,
++  CRM_TASK_STATUS,
++  appendTimelineEvent,
++  listTimeline,
++  createNote,
++  listNotes,
++  projectNotesForViewer,
++  createTask,
++  completeTask,
++  requestMerge,
++  approveMerge,
++  executeMerge,
++  evaluateOpportunityReadiness,
++  assertNoOpportunityCreate,
++  getCrmFoundations,
++  applyCrmReconHonesty,
++  CRM_RELIABILITY_STATUS,
++} from '@/lib/admin/crm';
++
++function makeAdmin(id, crmPerms = {}, role = 'Platform Support') {
++  return {
++    id,
++    role,
++    permissions: {
++      systemAdmin: {
++        crm: { ...crmPerms },
++      },
++    },
++  };
++}
++
++function superAdmin(id = 'super-1') {
++  return { id, role: 'Super Admin', permissions: {} };
++}
++
++function makePrisma(overrides = {}) {
++  const leadStore = overrides._leadStore || [];
++  const historyStore = overrides._historyStore || [];
++  const timelineStore = overrides._timelineStore || [];
++  const noteStore = overrides._noteStore || [];
++  const taskStore = overrides._taskStore || [];
++  const mergeStore = overrides._mergeStore || [];
++  const dupStore = overrides._duplicateStore || [];
++  const qualStore = overrides._qualStore || [];
++  const scoreStore = overrides._scoreStore || [];
++  const consentStore = overrides._consentStore || [];
++  const dncStore = overrides._dncStore || [];
++
++  const prisma = {
++    crmLead: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return leadStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = leadStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++      count: vi.fn(async () => leadStore.length),
++    },
++    crmLeadStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `hist-${historyStore.length + 1}`, ...data };
++        historyStore.push(row);
++        return row;
++      }),
++      count: vi.fn(async ({ where = {} } = {}) => {
++        return historyStore.filter((h) => !where.leadId || h.leadId === where.leadId)
++          .length;
++      }),
++      findMany: vi.fn(async () => [...historyStore]),
++    },
++    crmTimelineEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: `tl-${timelineStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          ...data,
++        };
++        timelineStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {}, take, skip, cursor, orderBy } = {}) => {
++        let rows = [...timelineStore];
++        if (where.subjectType) rows = rows.filter((r) => r.subjectType === where.subjectType);
++        if (where.subjectId) rows = rows.filter((r) => r.subjectId === where.subjectId);
++        if (orderBy?.at === 'desc') {
++          rows.sort((a, b) => new Date(b.at) - new Date(a.at));
++        }
++        let start = 0;
++        if (cursor?.id) {
++          const idx = rows.findIndex((r) => r.id === cursor.id);
++          start = idx >= 0 ? idx + 1 : 0;
++        }
++        if (typeof skip === 'number') start += skip;
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(start, start + limit);
++      }),
++    },
++    crmNote: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: `note-${noteStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        noteStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {}, take, skip } = {}) => {
++        let rows = [...noteStore];
++        if (where.subjectType) rows = rows.filter((r) => r.subjectType === where.subjectType);
++        if (where.subjectId) rows = rows.filter((r) => r.subjectId === where.subjectId);
++        rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        const start = typeof skip === 'number' ? skip : 0;
++        return rows.slice(start, start + (take || rows.length));
++      }),
++    },
++    crmTask: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: `task-${taskStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        taskStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return taskStore.find((r) => r.id === where.id) || null;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = taskStore.find((r) => r.id === where.id);
++        Object.assign(row, data);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...taskStore]),
++    },
++    crmMergeRequest: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: `merge-${mergeStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        mergeStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return mergeStore.find((r) => r.id === where.id) || null;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = mergeStore.find((r) => r.id === where.id);
++        Object.assign(row, data);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...mergeStore]),
++    },
++    crmDuplicateCandidate: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...dupStore];
++        if (where.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (clause.leadId) return r.leadId === clause.leadId;
++              if (clause.candidateLeadId) return r.candidateLeadId === clause.candidateLeadId;
++              return false;
++            })
++          );
++        }
++        if (where.status?.in) {
++          const set = new Set(where.status.in);
++          rows = rows.filter((r) => set.has(r.status));
++        }
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = dupStore.find((r) => r.id === where.id);
++        if (row) Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmQualificationResponse: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        return qualStore.filter(
++          (r) =>
++            (!where.leadId || r.leadId === where.leadId) &&
++            (!where.definitionVersionId ||
++              r.definitionVersionId === where.definitionVersionId)
++        );
++      }),
++    },
++    crmScoreEvaluation: {
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        const rows = scoreStore.filter((r) => !where.leadId || r.leadId === where.leadId);
++        return rows[0] || null;
++      }),
++      count: vi.fn(async ({ where = {} } = {}) => {
++        return scoreStore.filter((r) => !where.leadId || r.leadId === where.leadId).length;
++      }),
++    },
++    crmConsentRecord: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `c-${consentStore.length + 1}`, ...data };
++        consentStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.contactId_purpose;
++        if (!key) return null;
++        return (
++          consentStore.find(
++            (r) => r.contactId === key.contactId && r.purpose === key.purpose
++          ) || null
++        );
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          consentStore.find(
++            (r) =>
++              (!where.contactId || r.contactId === where.contactId) &&
++              (!where.purpose || r.purpose === where.purpose)
++          ) || null
++        );
++      }),
++    },
++    crmDoNotContact: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `dnc-${dncStore.length + 1}`, ...data };
++        dncStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        return dncStore.filter(
++          (r) =>
++            (!where.contactId || r.contactId === where.contactId) &&
++            (where.active === undefined || r.active === where.active)
++        );
++      }),
++    },
++    crmCommunicationPreference: {
++      findMany: vi.fn(async () => []),
++    },
++    _stores: {
++      leadStore,
++      historyStore,
++      timelineStore,
++      noteStore,
++      taskStore,
++      mergeStore,
++      dupStore,
++      qualStore,
++      scoreStore,
++      consentStore,
++    },
++  };
++
++  return prisma;
++}
++
++describe('CRM Wave 4 ΓÇö timeline pagination', () => {
++  it('pages timeline events with limit/offset', async () => {
++    const prisma = makePrisma();
++    const admin = superAdmin();
++    for (let i = 0; i < 5; i += 1) {
++      await appendTimelineEvent(prisma, {
++        subjectType: 'LEAD',
++        subjectId: 'lead-1',
++        eventType: 'SYSTEM',
++        summary: `event-${i}`,
++        actorAdminId: admin.id,
++        at: new Date(Date.UTC(2026, 6, 30, 12, i)),
++      });
++    }
++
++    const page1 = await listTimeline(prisma, {
++      admin,
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++      limit: 2,
++      offset: 0,
++    });
++    expect(page1.ok).toBe(true);
++    expect(page1.items).toHaveLength(2);
++    expect(page1.meta.limit).toBe(2);
++
++    const page2 = await listTimeline(prisma, {
++      admin,
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++      limit: 2,
++      offset: 2,
++    });
++    expect(page2.items).toHaveLength(2);
++    expect(page2.items[0].id).not.toBe(page1.items[0].id);
++  });
++});
++
++describe('CRM Wave 4 ΓÇö notes restricted projection', () => {
++  it('omits RESTRICTED notes for viewers without restricted permission', async () => {
++    const prisma = makePrisma();
++    const editor = makeAdmin('ed-1', { viewLeads: true, editLeads: true });
++    const viewer = makeAdmin('vw-1', { viewLeads: true });
++
++    await createNote(prisma, {
++      admin: editor,
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++      body: 'internal ok',
++      visibility: CRM_NOTE_VISIBILITY.INTERNAL,
++    });
++
++    const restrictedAdmin = superAdmin('sec-1');
++    await createNote(prisma, {
++      admin: restrictedAdmin,
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++      body: 'secret restricted',
++      visibility: CRM_NOTE_VISIBILITY.RESTRICTED,
++    });
++
++    const listed = await listNotes(prisma, {
++      admin: viewer,
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++    });
++    expect(listed.ok).toBe(true);
++    expect(listed.items.every((n) => n.visibility !== CRM_NOTE_VISIBILITY.RESTRICTED)).toBe(
++      true
++    );
++    expect(listed.items.some((n) => n.body === 'internal ok')).toBe(true);
++
++    const projected = projectNotesForViewer(
++      [
++        { visibility: 'INTERNAL', body: 'a' },
++        { visibility: 'RESTRICTED', body: 'b' },
++      ],
++      { canViewRestricted: false, mode: 'omit' }
++    );
++    expect(projected).toHaveLength(1);
++  });
++});
++
++describe('CRM Wave 4 ΓÇö tasks TODOΓåÆCOMPLETED', () => {
++  it('completes a TODO task', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('ed-1', { viewLeads: true, editLeads: true });
++    const created = await createTask(prisma, {
++      admin,
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++      title: 'Call prospect',
++    });
++    expect(created.ok).toBe(true);
++    expect(created.task.status).toBe(CRM_TASK_STATUS.TODO);
++
++    const done = await completeTask(prisma, { admin, taskId: created.task.id });
++    expect(done.ok).toBe(true);
++    expect(done.task.status).toBe(CRM_TASK_STATUS.COMPLETED);
++  });
++});
++
++describe('CRM Wave 4 ΓÇö merge SoD + evidence', () => {
++  let prisma;
++  beforeEach(() => {
++    prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'surv-1',
++          leadNumber: 'LEAD-2026-000001',
++          status: CRM_LEAD_STATUS.QUALIFIED,
++          source: 'MANUAL',
++          sourceIdempotencyKey: 'surv-key',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++          title: 'Survivor',
++        },
++        {
++          id: 'lose-1',
++          leadNumber: 'LEAD-2026-000002',
++          status: CRM_LEAD_STATUS.NEW,
++          source: 'WEB_FORM',
++          sourceIdempotencyKey: 'lose-key',
++          accountId: null,
++          contactId: null,
++          title: 'Loser',
++        },
++      ],
++      _duplicateStore: [
++        {
++          id: 'dup-1',
++          leadId: 'surv-1',
++          candidateLeadId: 'lose-1',
++          status: 'LIKELY_DUPLICATE',
++          confidence: 'HIGH',
++        },
++      ],
++    });
++  });
++
++  it('blocks self-approval (requester Γëá approver)', async () => {
++    const requester = makeAdmin('req-1', {
++      viewLeads: true,
++      editLeads: true,
++      mergeLeads: true,
++    });
++    const req = await requestMerge(prisma, {
++      admin: requester,
++      survivorId: 'surv-1',
++      loserId: 'lose-1',
++      reason: 'same company',
++    });
++    expect(req.ok).toBe(true);
++    expect(req.mergeRequest.status).toBe(CRM_MERGE_STATUS.PENDING);
++    expect(req.mergeRequest.evidence?.preservedIds?.loserLeadId).toBe('lose-1');
++
++    const selfApprove = await approveMerge(prisma, {
++      admin: requester,
++      mergeRequestId: req.mergeRequest.id,
++    });
++    expect(selfApprove.ok).toBe(false);
++    expect(selfApprove.error).toBe('SOD_VIOLATION');
++  });
++
++  it('executes merge with evidence preserved and no Opportunity', async () => {
++    const requester = makeAdmin('req-1', { viewLeads: true, editLeads: true });
++    const approver = makeAdmin('apr-1', { viewLeads: true, mergeLeads: true });
++
++    const req = await requestMerge(prisma, {
++      admin: requester,
++      survivorId: 'surv-1',
++      loserId: 'lose-1',
++    });
++    const appr = await approveMerge(prisma, {
++      admin: approver,
++      mergeRequestId: req.mergeRequest.id,
++    });
++    expect(appr.ok).toBe(true);
++
++    const exec = await executeMerge(prisma, {
++      admin: approver,
++      mergeRequestId: req.mergeRequest.id,
++    });
++    expect(exec.ok).toBe(true);
++    expect(exec.opportunityCreated).toBe(false);
++    expect(exec.evidencePreserved).toBe(true);
++    expect(exec.loser.status).toBe(CRM_LEAD_STATUS.MERGED);
++    expect(prisma._stores.leadStore.find((l) => l.id === 'lose-1').mergedIntoLeadId).toBe(
++      'surv-1'
++    );
++    expect(prisma._stores.historyStore.some((h) => h.toStatus === 'MERGED')).toBe(true);
++  });
++});
++
++describe('CRM Wave 4 ΓÇö opportunity readiness (no Opportunity create)', () => {
++  it('returns READY handoff without creating Opportunity', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-ready',
++          leadNumber: 'LEAD-2026-000010',
++          status: CRM_LEAD_STATUS.QUALIFIED,
++          source: 'REQUEST_DEMO',
++          channel: 'WEB_FORM',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++          title: 'Ready lead',
++        },
++      ],
++      _qualStore: [
++        {
++          leadId: 'lead-ready',
++          definitionVersionId: 'qual-small-business-standard-v1',
++          criterionKey: 'FIT',
++          state: 'YES',
++        },
++        {
++          leadId: 'lead-ready',
++          definitionVersionId: 'qual-small-business-standard-v1',
++          criterionKey: 'NEED',
++          state: 'YES',
++        },
++      ],
++      _scoreStore: [
++        {
++          id: 'eval-1',
++          leadId: 'lead-ready',
++          definitionVersionId: 'score-lead-fit-v1',
++          createdAt: new Date(),
++        },
++      ],
++      _consentStore: [
++        {
++          contactId: 'con-1',
++          purpose: 'SALES_CONTACT',
++          status: 'GRANTED',
++        },
++      ],
++    });
++
++    const admin = superAdmin();
++    const result = await evaluateOpportunityReadiness(prisma, {
++      admin,
++      leadId: 'lead-ready',
++    });
++
++    expect(result.ok).toBe(true);
++    expect(result.readinessStatus).toBe(CRM_READINESS_STATUS.READY);
++    expect(result.opportunityCreated).toBe(false);
++    expect(result.handoffPayload.opportunityId).toBeNull();
++    expect(result.handoffPayload.opportunityCreated).toBe(false);
++    expect(result.handoffPayload.leadId).toBe('lead-ready');
++    expect(result.handoffPayload.idempotencyKey).toContain('opp-ready:lead-ready');
++    expect(assertNoOpportunityCreate(result)).toBe(true);
++  });
++
++  it('UNKNOWN consent blocks READY', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-unk',
++          leadNumber: 'LEAD-2026-000011',
++          status: CRM_LEAD_STATUS.QUALIFIED,
++          accountId: 'acc-1',
++          contactId: 'con-2',
++          source: 'MANUAL',
++          title: 'Unknown consent',
++        },
++      ],
++      _qualStore: [
++        {
++          leadId: 'lead-unk',
++          definitionVersionId: 'qual-small-business-standard-v1',
++          criterionKey: 'FIT',
++          state: 'YES',
++        },
++      ],
++    });
++
++    const result = await evaluateOpportunityReadiness(prisma, {
++      admin: superAdmin(),
++      leadId: 'lead-unk',
++    });
++    expect(result.ok).toBe(true);
++    expect(result.readinessStatus).not.toBe(CRM_READINESS_STATUS.READY);
++    expect(result.checklist.find((c) => c.key === 'consent_eligibility')?.ok).toBe(false);
++    expect(result.opportunityCreated).toBe(false);
++  });
++});
++
++describe('CRM Wave 4 ΓÇö foundations + recon honesty', () => {
++  it('reports import/reporting FOUNDATION and Email/WhatsApp NOT_AVAILABLE', async () => {
++    const result = await getCrmFoundations({}, { admin: superAdmin() });
++    expect(result.ok).toBe(true);
++    const byKind = Object.fromEntries(result.items.map((i) => [i.kind, i]));
++    expect(byKind.IMPORT.status).toBe('FOUNDATION');
++    expect(byKind.EMAIL_INGEST.status).toBe('NOT_AVAILABLE');
++    expect(byKind.WHATSAPP_INGEST.status).toBe('NOT_AVAILABLE');
++    expect(byKind.OPPORTUNITY_PIPELINE.opportunityId).toBeNull();
++  });
++
++  it('recon honesty nulls KPIs on failure', () => {
++    const honesty = applyCrmReconHonesty({
++      status: CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++      reconOk: false,
++      leadCount: 0,
++    });
++    expect(honesty.kpiSafe).toBe(false);
++    expect(honesty.leadCount).toBeNull();
++  });
++});
+diff --git a/docs/admin-intelligence-crm/phase-11/FINAL_PHASE_11_REPORT.md b/docs/admin-intelligence-crm/phase-11/FINAL_PHASE_11_REPORT.md
+new file mode 100644
+index 0000000..224079f
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-11/FINAL_PHASE_11_REPORT.md
+@@ -0,0 +1,95 @@
++# Phase 11 Final Report ΓÇö CRM Core Foundation
++
++**Decision:** **READY_FOR_PHASE_12_WITH_BLOCKERS**
++
++**Date:** 2026-07-30
++
++**Working tree:** Phase 11 Waves 0ΓÇô4 delivered in-place on branch `v2` (no git commit required for Wave 4 exit).
++
++CRM Core is shippable for authorised System Admin users as a **dedicated CrmLead / CrmAccount / CrmContact plane** (Γëá Customer Γëá SupportTicket Γëá CsCase Γëá Tenant Client Γëá POS `sales.*`): numbering + state machine, idempotent public/handoff capture, duplicate candidates, versioned qualification, deterministic explainable scoring (not probability/Revenue), teams/territories/assignment, consent/DNC eligibility, timeline/notes/tasks foundations, controlled merge with SoD, opportunity-readiness handoff payload (**never creates Opportunity**), My Work / lead list / lead detail UI, and import/report/Email/WhatsApp foundation contracts.
++
++## Delivered
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices + CONDITIONAL GO | Done |
++| 1 | Account / Contact / Lead + numbering + status SM + APIs | Done |
++| 2 | Public capture + handoffs ΓåÆ Lead + duplicate candidates | Done |
++| 3 | Qualification + scoring + ownership/territories + consent/DNC | Done |
++| 4 | Timeline/tasks/notes + merge + readiness + UI + Phase 12 pack | Done |
++
++## Surfaces (Wave 4)
++
++### Libraries
++
++- `lib/admin/crm/timeline.js` ΓÇö paginated timeline events (Γëá Support/CS threads)
++- `lib/admin/crm/notes.js` ΓÇö INTERNAL / RESTRICTED notes; restricted projection API-enforced
++- `lib/admin/crm/tasks.js` ΓÇö TODO ΓåÆ COMPLETED only (no sales sequences)
++- `lib/admin/crm/merge.js` ΓÇö request / approve / execute; SoD requester Γëá approver; evidence preserved
++- `lib/admin/crm/opportunityReadiness.js` ΓÇö checklist ΓåÆ NOT_READY|PARTIALLY_READY|READY|BLOCKED; typed handoff; **never creates Opportunity**
++- `lib/admin/crm/reconciliation.js`, `export.js`, `foundations.js` ΓÇö light recon/export; FOUNDATION / NOT_AVAILABLE honesty
++
++### Prisma / SQL
++
++- `CrmTimelineEvent`, `CrmNote`, `CrmTask`, `CrmMergeRequest`, `CrmReconciliationRun`, `CrmExportAudit`
++- `CrmLead.mergedIntoLeadId`
++- Fallback: `scripts/sql/crm-core-phase11-wave4.sql`
++
++### APIs
++
++- Timeline / notes / tasks (+ complete)
++- Merge request / approve / execute
++- Opportunity readiness (POST)
++- Reconciliation / export / foundations
++
++### UI
++
++- `/insightbooks/crm` ΓåÆ My Work; lead list + detail; thin stubs for accounts/contacts/duplicates/imports/settings
++- Reports + foundations views; section nav + i18n (en/ny)
++- Channel badges: EMAIL / WHATSAPP = NOT_AVAILABLE
++- Score copy: ΓÇ£Lead fit scoreΓÇ¥ ΓÇö never probability
++
++## Hard rules preserved
++
++- Lead Γëá Opportunity Γëá Customer Γëá Support Ticket Γëá CsCase
++- CRM Account may link to Customer; must not duplicate billing/MRR truth
++- Contact Γëá Platform User
++- Capture idempotent; consent never inferred; DNC via eligibility
++- Qualification Γëá scoring; score Γëá win probability; no AI scoring
++- No silent merges; SoD on merge approval
++- Email / WhatsApp Lead ingest remain `NOT_AVAILABLE` + contracts
++- Tenant POS `sales.*` is WRONG_DOMAIN
++- System CoA admin route stays removed
++
++## Verification
++
++```bash
++npx vitest run \
++  test/systemAdmin.crm.wave4.test.js \
++  test/systemAdmin.crm.qualification.test.js \
++  test/systemAdmin.crm.scoring.test.js \
++  test/systemAdmin.crm.assignment.test.js \
++  test/systemAdmin.crm.consent.test.js \
++  test/systemAdmin.crm.leads.test.js \
++  test/systemAdmin.crm.capture.test.js \
++  test/systemAdmin.crm.duplicates.test.js
++```
++
++**Result (2026-07-30):** Test Files 8 passed (8) ┬╖ Tests 60 passed (60)
++
++## Known blockers for Phase 12
++
++1. **Email ΓåÆ Lead ingest** ΓÇö channel contract `NOT_AVAILABLE` (no invented inbound volume)
++2. **WhatsApp ΓåÆ Lead ingest** ΓÇö deferred; same honesty gate
++3. **Full CRM import tooling** ΓÇö FOUNDATION only; no fake import success metrics
++4. **Full CRM reporting / dashboards** ΓÇö FOUNDATION; export JSON/CSV only
++5. **Opportunity / Pipeline / forecasting / proposals** ΓÇö NOT_AVAILABLE in Phase 11 create scope; readiness handoff only
++6. **Lead ΓåÆ Tenant conversion transaction** ΓÇö CARRY (human Tenant create today)
++7. **Account/Contact merge UI depth** ΓÇö Lead merge executed; Account/Contact merge deferred (`NOT_AVAILABLE`)
++8. **Rich Accounts/Contacts/Duplicates admin UI** ΓÇö thin stubs; APIs exist
++9. **Owner/team/territory list scope filtering** ΓÇö `resolveCrmScope` still `mode: 'all'` stub
++10. **Prisma generate / db push on Windows** ΓÇö schema + SQL ready; apply when EPERM clears
++
++## Exit readiness
++
++**READY_FOR_PHASE_12_WITH_BLOCKERS** ΓÇö CRM Core Waves 1ΓÇô4 are honest and gated for capture, qualification, scoring, ownership, consent, merge SoD, opportunity-readiness handoff, and admin My Work/list/detail; Email/WhatsApp ingest, full import/reporting, and Opportunity create remain explicit blockers for treating CRM as revenue-pipeline-complete.
+diff --git a/docs/admin-intelligence-crm/phase-11/PHASE_12_INPUTS.md b/docs/admin-intelligence-crm/phase-11/PHASE_12_INPUTS.md
+new file mode 100644
+index 0000000..32e9019
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-11/PHASE_12_INPUTS.md
+@@ -0,0 +1,47 @@
++# Phase 12 Inputs ΓÇö from CRM Core Phase 11
++
++**Source exit:** `READY_FOR_PHASE_12_WITH_BLOCKERS` (see `FINAL_PHASE_11_REPORT.md`)  
++**Date:** 2026-07-30
++
++## What Phase 12 may consume
++
++| Input | Location / contract | Notes |
++|-------|---------------------|-------|
++| Opportunity readiness handoff | `evaluateOpportunityReadiness` ΓåÆ `handoffPayload` | Typed payload; `opportunityId` always null in Phase 11 |
++| Idempotency key | `handoffPayload.idempotencyKey` | `opp-ready:{leadId}:{qualVersion}:{scoreVersion}` |
++| Lead / Account / Contact ids | Payload fields | Preserve Crm* identity; do not alias Customer |
++| Score / qualification versions | Pinned version strings | Deterministic; not probability / Revenue |
++| Merge evidence | `CrmMergeRequest.evidenceJson` | Survivor/loser IDs + history refs preserved |
++| Consent / DNC | `CrmConsentRecord`, `CrmDoNotContact`, eligibility | Never infer GRANTED |
++| Capture sources | Distinct source codes | Email/WhatsApp still NOT_AVAILABLE |
++
++## What Phase 12 must not assume
++
++- Opportunities / Pipelines already exist in Phase 11 (they do not)
++- Email or WhatsApp inbound Lead volume (NOT_AVAILABLE)
++- Full import success rates or funnel conversion % (FOUNDATION / honesty gates)
++- CRM Account billing/MRR as Customer truth
++- Contact grants Platform User access automatically
++- Silent merges or self-approved merges
++
++## Suggested Phase 12 scope seeds
++
++1. Opportunity create from READY handoff only (consume idempotency key)
++2. Pipeline stages + forecasting (no fabricated zeroes)
++3. Lead ΓåÆ Tenant conversion transaction (if in scope)
++4. Email / WhatsApp ingest contracts ΓåÆ producers (or keep NOT_AVAILABLE)
++5. Full import + reporting beyond JSON/CSV foundation
++6. Harden owner/team/territory list scope filtering
++
++## Carry gaps (from Phase 11 gap register)
++
++- G11-16 Email ΓåÆ Lead ingest (DEFERRED)
++- G11-17 WhatsApp ΓåÆ Lead (DEFERRED)
++- G11-23 Lead ΓåÆ Tenant conversion (CARRY)
++- G11-24 Opportunities / forecasting / proposals (CARRY ΓåÆ Phase 12+)
++
++## Honesty gates to preserve
++
++- Empty recon / export Γëá invent rows or KPI zeroes
++- Score Γëá probability / expected revenue
++- Opportunity create only when readiness READY (and Phase 12 owns create)
+diff --git a/docs/admin-intelligence-crm/phase-11/README.md b/docs/admin-intelligence-crm/phase-11/README.md
+new file mode 100644
+index 0000000..0116599
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-11/README.md
+@@ -0,0 +1,44 @@
++# Phase 11 ΓÇö CRM Core Foundation
++
++**Surface:** `/insightbooks/crm`  
++**Architecture:** Approach B ΓÇö dedicated CRM domain (Γëá Customer, SupportTicket, CsCase, Tenant Client, POS `sales.*`)  
++**Design:** `docs/superpowers/specs/2026-07-30-crm-core-phase-11-design.md`  
++**Plan:** `docs/superpowers/plans/2026-07-30-crm-core-phase-11.md`  
++**Handoff in:** `docs/admin-intelligence-crm/phase-10/PHASE_11_INPUTS.md`  
++**Phase 1 gaps:** `docs/admin-intelligence-crm/CRM_GAP_REGISTER.md`
++
++## Wave status
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices + CONDITIONAL GO | Complete (2026-07-30) |
++| 1 | Account / Contact / Lead models, numbering, status SM, manual APIs, permissions/nav stubs | Complete (WORKING_TREE) |
++| 2 | Public capture + dedicated forms; CS/Support/Product handoffΓåÆLead; duplicate candidates | Complete (WORKING_TREE) |
++| 3 | Qualification + scoring; teams/territories/assignment; consent/DNC | Complete (WORKING_TREE) |
++| 4 | Timeline/tasks/notes; merge; opportunity readiness; UI; import/report stubs; Phase 12 pack | Complete (WORKING_TREE) |
++
++**Phase exit:** see `FINAL_PHASE_11_REPORT.md` ΓÇö **READY_FOR_PHASE_12_WITH_BLOCKERS**  
++**Phase 12 pack:** `PHASE_12_INPUTS.md`
++
++## Hard rules
++
++- Lead Γëá Opportunity Γëá Customer Γëá Support Ticket Γëá CsCase
++- CRM Account may link to Customer; must not duplicate billing/MRR/subscription truth
++- Contact Γëá Platform User (verified link only)
++- Capture idempotent; consent never inferred; DNC via eligibility service
++- Qualification Γëá scoring; score Γëá win probability; no AI scoring/messages
++- No silent merges; Email / WhatsApp Lead ingest remain `NOT_AVAILABLE` + contracts
++- Tenant POS `sales.*` is WRONG_DOMAIN ΓÇö never alias as CRM
++
++## Classification legend
++
++| Class | Meaning |
++|-------|---------|
++| READY | Usable as-designed for Phase 11 consumption |
++| PARTIAL | Exists but incomplete / not CRM-shaped |
++| NOT_FOUND | Absent in codebase / schema |
++| WRONG_DOMAIN | Exists but belongs to another plane |
++| NOT_AVAILABLE | Explicitly deferred with contract |
++| BLOCKED | Cannot proceed until dependency cleared |
++| CORRECT_AND_REUSABLE | Keep as boundary / input; do not redefine |
++| FORBIDDEN | Must not be reused as CRM truth |
+diff --git "a/app\\insightbooks\\crm\\page.js" "b/app\\insightbooks\\crm\\page.js"
+new file mode 100644
+index 0000000..0c45dd3
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\page.js"
+@@ -0,0 +1,5 @@
++import { redirect } from 'next/navigation';
++
++export default function CrmIndexPage() {
++  redirect('/insightbooks/crm/my-work');
++}
+diff --git "a/app\\insightbooks\\crm\\accounts\\page.js" "b/app\\insightbooks\\crm\\accounts\\page.js"
+new file mode 100644
+index 0000000..646dedb
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\accounts\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmAccountsPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.accounts"
++      hintKey="admin-pages.crm.sectionHints.accounts"
++      emptyTitleKey="admin-pages.crm.stubs.accountsTitle"
++      emptyHintKey="admin-pages.crm.stubs.accountsHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\contacts\\page.js" "b/app\\insightbooks\\crm\\contacts\\page.js"
+new file mode 100644
+index 0000000..f9be535
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\contacts\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmContactsPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.contacts"
++      hintKey="admin-pages.crm.sectionHints.contacts"
++      emptyTitleKey="admin-pages.crm.stubs.contactsTitle"
++      emptyHintKey="admin-pages.crm.stubs.contactsHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\duplicates\\page.js" "b/app\\insightbooks\\crm\\duplicates\\page.js"
+new file mode 100644
+index 0000000..078d76d
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\duplicates\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmDuplicatesPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.duplicates"
++      hintKey="admin-pages.crm.sectionHints.duplicates"
++      emptyTitleKey="admin-pages.crm.stubs.duplicatesTitle"
++      emptyHintKey="admin-pages.crm.stubs.duplicatesHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\foundations\\page.js" "b/app\\insightbooks\\crm\\foundations\\page.js"
+new file mode 100644
+index 0000000..78a2c42
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\foundations\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmFoundationsView } from '@/components/admin';
++
++export default function CrmFoundationsPage() {
++  return <CrmFoundationsView />;
++}
+diff --git "a/app\\insightbooks\\crm\\imports\\page.js" "b/app\\insightbooks\\crm\\imports\\page.js"
+new file mode 100644
+index 0000000..c7eb3cc
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\imports\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmImportsPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.imports"
++      hintKey="admin-pages.crm.sectionHints.imports"
++      emptyTitleKey="admin-pages.crm.stubs.importsTitle"
++      emptyHintKey="admin-pages.crm.stubs.importsHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\leads\\page.js" "b/app\\insightbooks\\crm\\leads\\page.js"
+new file mode 100644
+index 0000000..79a6c6a
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\leads\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmLeadsView } from '@/components/admin';
++
++export default function CrmLeadsPage() {
++  return <CrmLeadsView />;
++}
+diff --git "a/app\\insightbooks\\crm\\leads\\[leadId]\\page.js" "b/app\\insightbooks\\crm\\leads\\[leadId]\\page.js"
+new file mode 100644
+index 0000000..0daaf7a
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\leads\\[leadId]\\page.js"
+@@ -0,0 +1,9 @@
++'use client';
++
++import { use } from 'react';
++import { CrmLeadDetailView } from '@/components/admin';
++
++export default function CrmLeadDetailPage({ params }) {
++  const resolved = use(params);
++  return <CrmLeadDetailView leadId={resolved?.leadId} />;
++}
+diff --git "a/app\\insightbooks\\crm\\my-work\\page.js" "b/app\\insightbooks\\crm\\my-work\\page.js"
+new file mode 100644
+index 0000000..dea6e24
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\my-work\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmMyWorkView } from '@/components/admin';
++
++export default function CrmMyWorkPage() {
++  return <CrmMyWorkView />;
++}
+diff --git "a/app\\insightbooks\\crm\\overview\\page.js" "b/app\\insightbooks\\crm\\overview\\page.js"
+new file mode 100644
+index 0000000..1cfd67d
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\overview\\page.js"
+@@ -0,0 +1,5 @@
++import { redirect } from 'next/navigation';
++
++export default function CrmOverviewPage() {
++  redirect('/insightbooks/crm/my-work');
++}
+diff --git "a/app\\insightbooks\\crm\\reports\\page.js" "b/app\\insightbooks\\crm\\reports\\page.js"
+new file mode 100644
+index 0000000..654f5b6
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\reports\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmReportsView } from '@/components/admin';
++
++export default function CrmReportsPage() {
++  return <CrmReportsView />;
++}
+diff --git "a/app\\insightbooks\\crm\\settings\\page.js" "b/app\\insightbooks\\crm\\settings\\page.js"
+new file mode 100644
+index 0000000..155d44c
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\settings\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmSettingsPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.settings"
++      hintKey="admin-pages.crm.sectionHints.settings"
++      emptyTitleKey="admin-pages.crm.stubs.settingsTitle"
++      emptyHintKey="admin-pages.crm.stubs.settingsHint"
++    />
++  );
++}

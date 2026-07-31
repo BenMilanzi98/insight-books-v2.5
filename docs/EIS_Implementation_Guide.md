@@ -2734,7 +2734,7 @@ Based on MRA requirements:
    - At least one line item
 
 2. **Tax Calculations**:
-   - VAT: 16.5% standard rate
+   - VAT: 17.5% standard rate
    - PAYE: Not applicable on invoices (handled separately)
    - Withholding tax: As per taxpayer category
 
@@ -2866,7 +2866,7 @@ This section maps the test cases from **POS_Test_Cases_For_External_Developers_n
 | **TC-INV-001** | Inventory | Insufficient quantity prevention – POS prevents sales when stock is inadequate | ✅ **Supported** | `app/api/sales/route.js`: before creating sale, checks `product.stockLevel` vs `item.quantity`; throws with clear error. |
 | **TC-INV-002** | Inventory | (See sheet for full title) | ✅ **Supported** | Same inventory checks; sale creation blocked when stock insufficient. |
 | **TC-INV-003**, **TC-INV-004** | Inventory | (Additional inventory scenarios) | ✅ **Supported** | Same validation in sales POST. |
-| **TC-TAX-005** | Tax | VAT calculation accuracy – only 16.5% rate should pass | ✅ **Supported** | `lib/eisConfig.js`: `STANDARD_VAT_RATE: 16.5`; tax applied from product/tax config. EIS submission includes item-level `taxRate`; MRA validates. |
+| **TC-TAX-005** | Tax | VAT calculation accuracy – only standard rate should pass | ✅ **Supported** | `lib/eisConfig.js` / `malawiTaxCatalog.js`: `STANDARD_VAT_RATE: 17.5`; tax applied from product/tax config. EIS submission includes item-level `taxRate`; MRA validates. |
 | **TC-TAX-006** | Tax | Tourism levy (hospitality) | ⚠️ **Config-dependent** | Supported if tax types and product tax assignment include tourism levy; no EIS-specific logic. |
 | **TC-OFF-007**, **TC-OFF-008**, **TC-OFF-009** | Offline | Offline operation, time-based and amount-based thresholds | 📱 **POS/device** | Web app requires network for API; offline behaviour is implemented in POS clients (mobile/desktop). |
 | **TC-CONF-010** | Config | Configuration version check – POS detects newer config from server | ⚠️ **Partial** | Tenant/TPIN and EIS config in `/account` and `/eis/config`; terminal-specific config versioning is a POS-client concern. |
@@ -2891,7 +2891,7 @@ This section maps the test cases from **POS_Test_Cases_For_External_Developers_n
 1. **TPIN**: Configure 8-digit TPIN in `/account` (tenant/settings). Validated before EIS submit in `lib/eisConfig.js` (`validateInvoiceData` – seller TPIN required).
 2. **EIS credentials**: Configure in `/eis/config`; encryption in `lib/encryption.js`.
 3. **Invoice number format (TC-INV-014)**: For strict MRA format, use `validateEISInvoiceNumberFormat(invoiceNumber)` from `lib/eisConfig.js`; generate numbers as `{tpin}-{terminalPosition}-{YYYYMMDD}-{seq}` where applicable.
-4. **VAT 16.5%**: Standard rate in `EIS_VALIDATION.STANDARD_VAT_RATE`; ensure product/tax setup uses correct rates so only 16.5% passes where required.
+4. **VAT 17.5%**: Standard rate in `EIS_VALIDATION.STANDARD_VAT_RATE` (`MALAWI_STANDARD_VAT_RATE`); ensure product/tax setup uses correct rates so only 17.5% passes where required.
 5. **Stock check**: Sales API rejects with clear message when quantity exceeds `stockLevel` (TC-INV-001).
 6. **Receipts**: Ensure receipt route and templates use a stable, valid URL for the transaction (TC-REC-012).
 

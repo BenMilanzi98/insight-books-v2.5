@@ -11,6 +11,11 @@ import {
   pickUserForLogin,
   tenantsHintFromUserCandidates,
 } from '@/lib/userEmailResolve';
+import { checkRateLimit } from '@/lib/securityGovernance/domain/rateLimit.js';
+import { createTrackedSession } from '@/lib/securityGovernance/application/sessionService.js';
+import { createSecurityAlert } from '@/lib/securityGovernance/application/alertService.js';
+import { appendAuditEvent } from '@/lib/securityGovernance/application/auditService.js';
+import { AUDIT_EVENT_TYPES } from '@/lib/securityGovernance/domain/enums.js';
 
 /**
  * POST /api/auth/login
@@ -38,12 +43,35 @@ export async function POST(request) {
 
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = body.password != null ? String(body.password) : '';
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
 
     // Basic validation
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
+      );
+    }
+
+    const ipLimit = checkRateLimit(`login:ip:${ip}`, { limit: 30, windowMs: 60_000 });
+    const emailLimit = checkRateLimit(`login:email:${email.toLowerCase()}`, {
+      limit: 10,
+      windowMs: 60_000,
+    });
+    if (!ipLimit.allowed || !emailLimit.allowed) {
+      await createSecurityAlert(prisma, {
+        eventType: 'RATE_LIMIT_TRIGGERED',
+        severity: 'MODERATE',
+        source: 'auth.login',
+        description: 'Login rate limit triggered',
+        evidence: { ip },
+      }).catch(() => {});
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfterSec || 60) } }
       );
     }
 
@@ -87,6 +115,14 @@ export async function POST(request) {
     }
 
     if (!user) {
+      await appendAuditEvent(prisma, {
+        eventType: AUDIT_EVENT_TYPES.LOGIN_FAILED,
+        businessId: null,
+        outcome: 'FAILURE',
+        reason: 'UNKNOWN_USER_OR_PASSWORD',
+        metadata: { emailDomain: email.includes('@') ? email.split('@')[1] : null },
+        actor: { actorType: 'USER', actorId: null, ipAddress: ip, requestId: null },
+      }).catch(() => {});
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
@@ -114,6 +150,18 @@ export async function POST(request) {
 
     // Check if password matches
     if (!passwordMatch) {
+      await appendAuditEvent(prisma, {
+        eventType: AUDIT_EVENT_TYPES.LOGIN_FAILED,
+        businessId: user.tenantId || null,
+        outcome: 'FAILURE',
+        reason: 'INVALID_PASSWORD',
+        actor: {
+          actorType: 'USER',
+          actorId: user.id,
+          businessId: user.tenantId,
+          ipAddress: ip,
+        },
+      }).catch(() => {});
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
@@ -161,16 +209,28 @@ export async function POST(request) {
       initialBranchId = null;
     }
 
-    // Create session data – keep payload small so cookie stays under header limits.
-    // Middleware only needs role name string; all permissions are loaded in getUserFromSession.
-    const sessionData = {
-      userId: user.id,
-      tenantId: user.tenantId,
-      branchId: initialBranchId,
-      role: user.role ? user.role.name : null
-    };
-
-    const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    // Phase 15: signed session token + tracked session row (revocable)
+    let session;
+    try {
+      const tracked = await createTrackedSession(prisma, {
+        userId: user.id,
+        businessId: user.tenantId,
+        branchId: initialBranchId,
+        role: user.role ? user.role.name : null,
+        ipAddress: ip,
+        userAgent: request.headers.get('user-agent'),
+      });
+      session = tracked.token;
+    } catch (sessionErr) {
+      console.warn('Tracked session create failed; falling back to legacy cookie', sessionErr?.message);
+      const sessionData = {
+        userId: user.id,
+        tenantId: user.tenantId,
+        branchId: initialBranchId,
+        role: user.role ? user.role.name : null,
+      };
+      session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    }
     if (session.length > 4000) {
       console.warn('Login: session payload large, cookie may be rejected by browser');
     }
@@ -208,6 +268,21 @@ export async function POST(request) {
     } catch (logError) {
       console.error('Login audit log failed (non-fatal):', logError?.message || logError);
     }
+    await appendAuditEvent(prisma, {
+      eventType: AUDIT_EVENT_TYPES.LOGIN_SUCCEEDED,
+      businessId: user.tenantId,
+      outcome: 'SUCCESS',
+      actor: {
+        actorType: 'USER',
+        actorId: user.id,
+        effectiveUserId: user.id,
+        businessId: user.tenantId,
+        ipAddress: ip,
+        userAgent: request.headers.get('user-agent'),
+      },
+      sourceModule: 'auth',
+      action: 'LOGIN',
+    }).catch(() => {});
 
     // Return success with user info (excluding password)
     return NextResponse.json({

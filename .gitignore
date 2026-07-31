@@ -48,3 +48,16 @@ public/uploads/
 public/releases/*.apk
 cookies.txt
 .env
+
+# Phase 1 accounting audit artifacts (may contain real financial data — never commit)
+/artifacts/accounting-audit/
+
+# Phase 6 repair artifacts and sign-off packs (real financial data — never commit)
+/artifacts/accounting-repair/
+/backups/
+
+# Phase 14 MRA EIS fiscal receipt artifacts (tenant-scoped immutable storage)
+/storage/mra-eis/
+
+# Phase 10 Support Ops — private attachment objects (never public/uploads)
+/storage/support-attachments/

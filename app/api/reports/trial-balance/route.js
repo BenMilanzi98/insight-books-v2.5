@@ -1,68 +1,38 @@
+// Legacy trial-balance API — Phase 4 cutover.
+// Canonical: POST /api/accounting-v2/reports/generate { type: 'TRIAL_BALANCE' }
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
-import { buildTrialBalance } from '@/lib/trialBalanceReport';
-import { resolveReportTenantScope } from '@/lib/reportTenantScope';
-import { generateScopedTrialBalance } from '@/lib/reportingEngine/multiTenantReporting';
-import { logReportAccess } from '@/lib/reportAuditLog';
+import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
+import {
+  ACCOUNTING_V2_REPORTS_GENERATE,
+  legacyFinancialReportDisabledResponse,
+} from '@/lib/retiredReports';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request) {
   try {
-    const user = await getUserFromSession(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const boot = await bootstrapReportRoute(request);
+    if (boot.error) return boot.error;
+    const { user, scope, tenantIds } = boot;
 
-    const scopeResult = await resolveReportTenantScope(request, user);
-    if (!scopeResult.ok) {
-      return NextResponse.json({ error: scopeResult.error }, { status: scopeResult.status });
-    }
-
-    const { tenantIds, tenants, scope, branchId, branchScoped, reportingCurrency } = scopeResult;
-    const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    const branchIdParam = searchParams.get('branchId');
-    const includeZero = (searchParams.get('includeZero') || 'false').toLowerCase() === 'true';
-
-    if (!startDate || !endDate) {
-      return NextResponse.json({ error: 'Start date and end date are required' }, { status: 400 });
-    }
-
-    const effectiveBranchId =
-      branchIdParam === 'all' || branchIdParam === ''
-        ? null
-        : branchIdParam ?? (branchScoped ? branchId : null);
-
-    const report = await generateScopedTrialBalance({
-      tenantIds,
-      tenants,
-      startDate,
-      endDate,
-      branchId: effectiveBranchId,
-      includeZero,
-      scope,
-      reportingCurrency,
-    });
-
-    await logReportAccess({
-      userId: user.id,
-      tenantId: tenantIds[0],
+    await auditReportAccess({
+      user,
       reportType: 'trial-balance',
-      action: 'REPORT_GENERATED',
       tenantIds,
-      businessNames: scope.businessNames,
-      filters: { startDate, endDate, includeZero },
+      scope,
+      filters: { blocked: 'LEGACY_REPORT_DISABLED' },
     });
 
-    return NextResponse.json(report);
+    return legacyFinancialReportDisabledResponse(
+      'Legacy /api/reports/trial-balance is disabled. Use Accounting V2 Trial Balance at /api/accounting-v2/reports/generate.',
+      ACCOUNTING_V2_REPORTS_GENERATE
+    );
   } catch (error) {
-    console.error('Error generating trial balance:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate trial balance', message: error.message },
-      { status: 500 }
+    console.error('Error on retired trial-balance route:', error);
+    return legacyFinancialReportDisabledResponse(
+      'Legacy /api/reports/trial-balance is disabled. Use Accounting V2 reports.',
+      ACCOUNTING_V2_REPORTS_GENERATE
     );
   }
 }

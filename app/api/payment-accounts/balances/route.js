@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
+import { loadPostedGlBalancesByCoaIds } from '@/lib/paymentAccountPostedGlBalance';
 
 async function ensurePaymentCoaForAccounts(tenantId, rows) {
   const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
@@ -145,29 +146,33 @@ export async function GET(request) {
       }
     });
 
+    const linkedCoaIds = [
+      ...new Set(paymentAccounts.map((p) => p.coaAccountId).filter(Boolean)),
+    ];
+    const glByCoaId = await loadPostedGlBalancesByCoaIds(tenantId, linkedCoaIds, prisma);
+
     // Resolve balance for one payment account.
-    // User-created accounts: only use balance keyed by PaymentAccount.id (from transfers/revenue). Default 0.
-    // System accounts: may also use name/type mapping to CoA for legacy display.
+    // Prefer posted journals on linked CoA; legacy AccountBalance is fallback only.
     const getBalanceForPaymentAccount = (account) => {
+      if (account.coaAccountId && glByCoaId.has(account.coaAccountId)) {
+        return glByCoaId.get(account.coaAccountId);
+      }
+
       const id = account.id;
       const name = account.name || '';
       const normalized = normalizeName(name);
       const accountType = (account.accountType || '').toLowerCase();
 
-      // 1) AccountBalance keyed by PaymentAccount.id (only source for user-created accounts)
       let balance = balanceByKey.get(id);
       if (balance !== undefined && balance !== null) return balance;
 
-      // 2) User-created accounts: no name/type fallback – new account must show 0 until money is transferred or revenue added
       if (!account.isSystem) {
         return 0;
       }
 
-      // 3) System accounts only: AccountBalance keyed by normalized name
       balance = balanceByNormalized.get(normalized);
       if (balance !== undefined && balance !== null) return balance;
 
-      // 4) System accounts only: map to CoA so default "Cash" shows ledger balance
       const standardKeys = getStandardKeysForNameAndType(name, accountType);
       for (const key of standardKeys) {
         const b = balanceByNormalized.get(key) ?? balanceByKey.get(key);
@@ -184,11 +189,23 @@ export async function GET(request) {
       return 0;
     };
 
+    const coaCodeById = new Map();
+    if (linkedCoaIds.length) {
+      const linkedCoa = await prisma.account.findMany({
+        where: { tenantId, id: { in: linkedCoaIds } },
+        select: { id: true, accountCode: true },
+      });
+      for (const a of linkedCoa) {
+        if (a.accountCode) coaCodeById.set(a.id, a.accountCode);
+      }
+    }
+
     const accountsWithBalances = paymentAccounts.map(account => ({
       id: account.id,
       name: account.name,
       accountType: account.accountType,
       reference: account.reference,
+      accountCode: account.coaAccountId ? (coaCodeById.get(account.coaAccountId) || null) : null,
       isSystem: account.isSystem,
       isActive: account.isActive,
       balance: getBalanceForPaymentAccount(account)

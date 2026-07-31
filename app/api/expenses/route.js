@@ -3,17 +3,16 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
-import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
+import {
+  normalizeExpenseAmountsForGl,
+  postApprovedExpenseJournalIfMissing,
+} from '@/lib/expenseGlPosting';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
 import { roundMoney } from '@/lib/money';
-import {
-  assertNoDuplicatePostedSource,
-  resolveExpenseAccountSelection
-} from '@/lib/accountingMappingRules';
+import { resolveExpenseAccountSelection } from '@/lib/accountingMappingRules';
 
 function isOptionalExpenseFieldSchemaError(err) {
   const msg = String(err?.message || '');
@@ -638,10 +637,8 @@ export async function POST(request) {
     const taxAmount = body.taxAmount != null ? roundMoney(body.taxAmount) : 0;
     const taxRate = body.taxRate != null ? roundMoney(body.taxRate) : 0;
 
-    let journalBase;
-    let journalTax;
     try {
-      ({ base: journalBase, tax: journalTax } = normalizeExpenseAmountsForGl(amount, taxAmount));
+      normalizeExpenseAmountsForGl(amount, taxAmount);
     } catch (normErr) {
       return NextResponse.json(
         { error: normErr.message || 'Invalid amount and tax combination.' },
@@ -685,6 +682,29 @@ export async function POST(request) {
       paymentStatus === 'Partially'
         ? roundMoney(body.paidAmount ?? grossAmount)
         : grossAmount;
+
+    if (paymentStatus !== 'Pending' && paymentMethod && paymentMethod !== 'cash') {
+      const { assertPaymentAccountHasFunds } = await import(
+        '@/lib/paymentAccountBalanceResolver'
+      );
+      const funds = await assertPaymentAccountHasFunds(
+        user.tenantId,
+        paymentMethod,
+        paymentAmount
+      );
+      if (!funds.ok) {
+        return NextResponse.json(
+          {
+            error: funds.message,
+            code: funds.code,
+            available: funds.available,
+            required: funds.required,
+            shortfall: funds.shortfall,
+          },
+          { status: 400 }
+        );
+      }
+    }
     const paidAmountForExpense =
       paymentStatus === 'Fully paid'
         ? body.paidAmount != null && body.paidAmount !== ''
@@ -741,16 +761,28 @@ export async function POST(request) {
     // Coerce required string fields so Prisma never receives wrong types
     const description = body.description != null ? String(body.description).trim() : '';
     const categoryForCreate = (selectedCategory != null && String(selectedCategory).trim()) ? String(selectedCategory).trim() : 'Uncategorized';
-    const statusForCreate = body.status != null ? String(body.status).trim() : 'Pending';
+    let statusForCreate;
+    try {
+      const { assertExpenseCreateStatus } = await import('@/lib/expenses/expenseStateMachine');
+      statusForCreate = assertExpenseCreateStatus(
+        body.status != null ? String(body.status).trim() : 'Approved'
+      );
+    } catch (smErr) {
+      return NextResponse.json(
+        { error: smErr.message, code: smErr.code || 'EXPENSE_INVALID_CREATE_STATUS' },
+        { status: 400 }
+      );
+    }
 
     if (statusForCreate === 'Approved') {
+      // Posted expenses are Approved by default — expenses.create is sufficient (no separate approval step).
       const hasSupplier =
         body.supplierId != null && String(body.supplierId).trim() !== '';
       if (paymentStatus === 'Pending' && !hasSupplier) {
         return NextResponse.json(
           {
             error:
-              'An expense cannot be created as Approved while payment is still pending and no supplier is set. Record payment, add a supplier for Accounts Payable, or leave status as Pending until posting is possible.'
+              'An expense cannot be posted while payment is still pending and no supplier is set. Record payment, add a supplier for Accounts Payable, or set payment status so the expense can post.'
           },
           { status: 400 }
         );
@@ -843,55 +875,15 @@ export async function POST(request) {
           }
         }
 
-        // Create journal entry for expense
-        console.log('🔥 About to create journal entry for expense:', expense.id);
-        await assertNoDuplicatePostedSource({
-          tenantId: user.tenantId,
-          sourceType: 'Expense',
-          sourceId: expense.id,
-          db: tx,
-        });
-        await createExpenseJournalEntry({
-          tenantId: user.tenantId,
-          userId: user.id,
-          expenseId: expense.id,
-          expenseDate: paymentDate,
-          amount: journalBase,
-          taxAmount: journalTax,
-          taxTypeId: effectiveTaxTypeId || null,
-          category: selectedCategory,
-          expenseAccountId: expenseAccount.id,
-          paymentMethod,
-          supplierId: expense.supplierId || null,
-          paymentStatus: paymentStatus,
-          tx,
-        });
-        console.log('✅ Journal entry created successfully for expense:', expense.id);
-      } else if (paymentStatus === 'Pending' && expense.supplierId) {
-        console.log('🔥 About to create journal entry for unpaid supplier expense:', expense.id);
-        await assertNoDuplicatePostedSource({
-          tenantId: user.tenantId,
-          sourceType: 'Expense',
-          sourceId: expense.id,
-          db: tx,
-        });
-        await createExpenseJournalEntry({
-          tenantId: user.tenantId,
-          userId: user.id,
-          expenseId: expense.id,
-          expenseDate: expenseDate,
-          amount: journalBase,
-          taxAmount: journalTax,
-          taxTypeId: effectiveTaxTypeId || null,
-          category: selectedCategory,
-          expenseAccountId: expenseAccount.id,
-          paymentMethod: null,
-          supplierId: expense.supplierId,
-          paymentStatus: 'Pending',
-          tx,
-        });
-        console.log('✅ Journal entry created successfully for unpaid supplier expense:', expense.id);
       }
+
+      // V2: post via postExpenseAccounting when Approved (idempotent if already posted)
+      await postApprovedExpenseJournalIfMissing({
+        tx,
+        tenantId: user.tenantId,
+        userId: user.id,
+        expense,
+      });
 
       return { expense, payment: newPayment };
     });
@@ -949,6 +941,17 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error creating expense:', error);
     const message = error?.message || 'Failed to create expense. Please try again.';
+    const code = error?.code;
+    const glEligibilityFailure =
+      code === 'EXPENSE_TAX_EXCEEDS_GROSS' ||
+      code === 'EXPENSE_GL_PENDING_NO_SUPPLIER' ||
+      code === 'EXPENSE_GL_NO_ACCOUNT' ||
+      code === 'EXPENSE_GL_NO_PAYMENT_METHOD' ||
+      message.includes('general ledger') ||
+      message.includes('Tax amount cannot exceed') ||
+      message.includes('Payment method is required') ||
+      message.includes('Expense account is required') ||
+      message.includes('unpaid and has no supplier');
     const directPostingFailure =
       message.includes('consolidation parent') ||
       message.includes('cannot receive direct postings') ||
@@ -956,7 +959,7 @@ export async function POST(request) {
       message.includes('Structural chart section headers');
     return NextResponse.json(
       { error: message },
-      { status: directPostingFailure ? 400 : 500 }
+      { status: glEligibilityFailure || directPostingFailure ? 400 : 500 }
     );
   }
 }

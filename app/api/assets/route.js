@@ -553,7 +553,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
             creditAmount: asset.originalCost,
             description: `Owner's Capital — ${asset.name}`
           }
-        ], `Owner Contribution — ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber);
+        ], `Owner Contribution — ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber, asset.id);
         
         // If there's accumulated depreciation, create that entry too
         if (asset.accumulatedDepreciation > 0) {
@@ -571,7 +571,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
               creditAmount: asset.accumulatedDepreciation,
               description: `Opening balance - Accumulated Depreciation for ${asset.name}`
             }
-          ], `Opening Balance - Accumulated Depreciation - ${asset.name}`, tenantId, userId, purchaseDate, depReferenceNumber);
+          ], `Opening Balance - Accumulated Depreciation - ${asset.name}`, tenantId, userId, purchaseDate, depReferenceNumber, `${asset.id}-accum-ob`);
         }
       } else {
         // For new assets, create purchase entry
@@ -615,7 +615,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
             creditAmount: asset.originalCost,
             description: `Purchase of ${asset.name}`
           }
-        ], `Asset Purchase - ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber);
+        ], `Asset Purchase - ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber, asset.id);
         
         console.log('Transaction created:', transaction.id);
         
@@ -647,7 +647,15 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
 /**
  * Helper function to create transaction with journal entries
  */
-async function createTransactionWithEntries(entries, description, tenantId, userId = null, entryDate = null, referenceNumber = null) {
+async function createTransactionWithEntries(
+  entries,
+  description,
+  tenantId,
+  userId = null,
+  entryDate = null,
+  referenceNumber = null,
+  assetId = null
+) {
   // Validate entries
   if (!entries || !Array.isArray(entries) || entries.length === 0) {
     throw new Error('Transaction entries are required');
@@ -661,7 +669,7 @@ async function createTransactionWithEntries(entries, description, tenantId, user
   const totalDebits = entries.reduce((sum, entry) => sum + parseFloat(entry.debitAmount || 0), 0);
   const totalCredits = entries.reduce((sum, entry) => sum + parseFloat(entry.creditAmount || 0), 0);
   const difference = Math.abs(totalDebits - totalCredits);
-  
+
   if (difference > 0.01) {
     throw new Error(`Transaction does not balance. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}, Difference: ${difference.toFixed(2)}`);
   }
@@ -669,52 +677,42 @@ async function createTransactionWithEntries(entries, description, tenantId, user
   const transactionDate = entryDate || new Date();
   await assertPeriodOpen(tenantId, transactionDate, prisma);
   const refNumber = referenceNumber || await generateReferenceNumber(prisma, tenantId, transactionDate);
-  
-  const transaction = await prisma.transaction.create({
-    data: {
-      date: transactionDate,
-      description: description,
-      reference: refNumber,
-      status: 'posted',
-      entryType: 'Regular',
-      sourceType: 'Asset',
-      tenantId: tenantId,
-      createdById: userId,
-      postedById: userId,
-      postedDate: new Date(),
-      lines: {
-        create: entries.map((entry, index) => ({
-          lineNumber: index + 1,
-          accountId: entry.accountId,
-          debitAmount: entry.debitAmount || 0,
-          creditAmount: entry.creditAmount || 0,
-          description: entry.description
-        }))
-      }
-    },
-    include: {
-      lines: true // Include lines to verify they were created
-    }
+
+  const lines = entries.map((entry, index) => ({
+    lineNumber: index + 1,
+    accountId: entry.accountId,
+    debitAmount: parseFloat(entry.debitAmount || 0),
+    creditAmount: parseFloat(entry.creditAmount || 0),
+    description: entry.description || description,
+  }));
+
+  const { postAssetAcquiredAccounting } = await import(
+    '@/lib/accountingV2/adapters/remainingAdapters.js'
+  );
+  const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry.js');
+  const sourceId = assetId || `asset-${refNumber}`;
+  const outcome = await postAssetAcquiredAccounting({
+    db: prisma,
+    tenantId,
+    userId,
+    assetId: sourceId,
+    amount: totalDebits,
+    date: transactionDate,
+    description,
+    lines,
+    legacyPost: () =>
+      postGlEntry({
+        tenantId,
+        userId,
+        entryDate: transactionDate,
+        description,
+        reference: refNumber,
+        sourceType: 'Asset',
+        sourceId,
+        lines,
+      }),
   });
-
-  // Verify lines were created
-  if (!transaction.lines || transaction.lines.length === 0) {
-    // If lines weren't created, delete the transaction and throw error
-    await prisma.transaction.delete({
-      where: { id: transaction.id }
-    });
-    throw new Error('Failed to create transaction lines. Transaction was not created.');
-  }
-
-  if (transaction.lines.length !== entries.length) {
-    // If not all lines were created, delete the transaction and throw error
-    await prisma.transaction.delete({
-      where: { id: transaction.id }
-    });
-    throw new Error(`Failed to create all transaction lines. Expected ${entries.length}, got ${transaction.lines.length}.`);
-  }
-  
-  return transaction;
+  return outcome.result || { id: outcome.result?.journalEntryId };
 }
 
 /**

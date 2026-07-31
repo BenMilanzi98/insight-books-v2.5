@@ -1,0 +1,6 @@
+{
+  "welcomeSubject": "Takulandirani ku InsightBooks",
+  "passwordResetSubject": "Sinthani mawu achinsinsi a InsightBooks",
+  "invoiceSubject": "Invoice {{number}} kuchokera kwa {{business}}",
+  "payslipSubject": "Pepala lanu la malipiro lakonzeka"
+}

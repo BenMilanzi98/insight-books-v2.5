@@ -342,7 +342,7 @@ export async function GET(request) {
       const { getBudgetVsActual } = await import('@/lib/budgetService');
       const budgetTenantId = tenantIds[0];
       
-      const activeBudgets = await prisma.budget.findMany({
+      const activeBudgets = await prisma.legacyBudget.findMany({
         where: {
           tenantId: budgetTenantId,
           status: { in: ['active', 'approved'] },

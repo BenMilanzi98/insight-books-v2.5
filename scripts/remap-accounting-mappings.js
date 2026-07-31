@@ -100,10 +100,22 @@ const ROW_SPECS = [
     where: (tenantId, accountIds) => ({ tenantId, expenseAccountId: { in: accountIds } }),
   },
   {
-    entityType: 'BudgetItem',
-    delegate: 'budgetItem',
+    entityType: 'LegacyBudgetItem',
+    delegate: 'legacyBudgetItem',
     fieldName: 'accountId',
     where: (tenantId, accountIds) => ({ accountId: { in: accountIds }, budget: { tenantId } }),
+  },
+  {
+    entityType: 'BudgetLine',
+    delegate: 'budgetLine',
+    fieldName: 'accountId',
+    where: (tenantId, accountIds) => ({ accountId: { in: accountIds }, budget: { tenantId } }),
+  },
+  {
+    entityType: 'ForecastLine',
+    delegate: 'forecastLine',
+    fieldName: 'accountId',
+    where: (tenantId, accountIds) => ({ accountId: { in: accountIds }, forecast: { tenantId } }),
   },
   {
     entityType: 'BfExpenseBudgetLine',

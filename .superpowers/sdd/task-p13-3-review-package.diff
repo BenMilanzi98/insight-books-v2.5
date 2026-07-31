@@ -1,0 +1,3334 @@
+﻿# Review package — Phase 13 Task 3
+
+diff --git "a/lib\\admin\\crm\\meetings\\catalogue.js" "b/lib\\admin\\crm\\meetings\\catalogue.js"
+new file mode 100644
+index 0000000..80784de
+--- /dev/null
++++ "b/lib\\admin\\crm\\meetings\\catalogue.js"
+@@ -0,0 +1,86 @@
++/**
++ * Meeting catalogue ΓÇö Phase 13 Wave 3.
++ * RSVP Γëá attendance; Meeting Γëá Demo.
++ */
++
++import {
++  CRM_MEETING_STATUS,
++  CRM_MEETING_STATUSES,
++  CRM_MEETING_RSVP,
++  CRM_MEETING_RSVPS,
++  CRM_MEETING_ATTENDANCE,
++  CRM_MEETING_ATTENDANCES,
++  CRM_MEETING_INVITATION_STATUS,
++  CRM_MEETING_INVITATION_STATUSES,
++  CRM_MEETING_OUTCOME,
++  CRM_MEETING_OUTCOMES,
++  CRM_MEETING_NUMBER_RE,
++  CRM_CALENDAR_INTEGRATION_STATUS,
++} from '../catalogue.js';
++
++export {
++  CRM_MEETING_STATUS,
++  CRM_MEETING_STATUSES,
++  CRM_MEETING_RSVP,
++  CRM_MEETING_RSVPS,
++  CRM_MEETING_ATTENDANCE,
++  CRM_MEETING_ATTENDANCES,
++  CRM_MEETING_INVITATION_STATUS,
++  CRM_MEETING_INVITATION_STATUSES,
++  CRM_MEETING_OUTCOME,
++  CRM_MEETING_OUTCOMES,
++  CRM_MEETING_NUMBER_RE,
++  CRM_CALENDAR_INTEGRATION_STATUS,
++};
++
++const RSVP_SET = new Set(CRM_MEETING_RSVPS);
++const ATTENDANCE_SET = new Set(CRM_MEETING_ATTENDANCES);
++const OUTCOME_SET = new Set(CRM_MEETING_OUTCOMES);
++
++export const CRM_MEETING_PARTICIPANT_TYPE = Object.freeze({
++  CONTACT: 'CONTACT',
++  ADMIN: 'ADMIN',
++  EXTERNAL: 'EXTERNAL',
++});
++
++export const CRM_MEETING_PARTICIPANT_ROLE = Object.freeze({
++  ORGANIZER: 'ORGANIZER',
++  REQUIRED: 'REQUIRED',
++  OPTIONAL: 'OPTIONAL',
++});
++
++/**
++ * @param {string} status
++ * @returns {boolean}
++ */
++export function isValidMeetingRsvp(status) {
++  return RSVP_SET.has(String(status || '').trim().toUpperCase());
++}
++
++/**
++ * @param {string} status
++ * @returns {boolean}
++ */
++export function isValidMeetingAttendance(status) {
++  return ATTENDANCE_SET.has(String(status || '').trim().toUpperCase());
++}
++
++/**
++ * @param {string} outcome
++ * @returns {boolean}
++ */
++export function isValidMeetingOutcome(outcome) {
++  return OUTCOME_SET.has(String(outcome || '').trim().toUpperCase());
++}
++
++/**
++ * Typed external calendar boundary ΓÇö never fabricate Google/Outlook Events.
++ */
++export function getMeetingIntegrationContract() {
++  return Object.freeze({
++    google: CRM_CALENDAR_INTEGRATION_STATUS,
++    outlook: CRM_CALENDAR_INTEGRATION_STATUS,
++    externalEventsFabricated: false,
++    inventAttendanceFromRsvpForbidden: true,
++  });
++}
+diff --git "a/lib\\admin\\crm\\meetings\\index.js" "b/lib\\admin\\crm\\meetings\\index.js"
+new file mode 100644
+index 0000000..2ec0007
+--- /dev/null
++++ "b/lib\\admin\\crm\\meetings\\index.js"
+@@ -0,0 +1,43 @@
++/**
+
++ * CRM Meetings ΓÇö Phase 13 Wave 3 public surface.
+
++ * RSVP Γëá attendance; Meeting Γëá Demo; Activity-linked fail-closed.
+
++ */
+
++
+
++export {
+
++  CRM_MEETING_STATUS,
+
++  CRM_MEETING_STATUSES,
+
++  CRM_MEETING_RSVP,
+
++  CRM_MEETING_RSVPS,
+
++  CRM_MEETING_ATTENDANCE,
+
++  CRM_MEETING_ATTENDANCES,
+
++  CRM_MEETING_INVITATION_STATUS,
+
++  CRM_MEETING_INVITATION_STATUSES,
+
++  CRM_MEETING_OUTCOME,
+
++  CRM_MEETING_OUTCOMES,
+
++  CRM_MEETING_NUMBER_RE,
+
++  CRM_CALENDAR_INTEGRATION_STATUS,
+
++  CRM_MEETING_PARTICIPANT_TYPE,
+
++  CRM_MEETING_PARTICIPANT_ROLE,
+
++  isValidMeetingRsvp,
+
++  isValidMeetingAttendance,
+
++  isValidMeetingOutcome,
+
++  getMeetingIntegrationContract,
+
++} from './catalogue.js';
+
++
+
++export { allocateMeetingNumber } from './numbering.js';
+
++export {
+
++  hasCrmMeetingModel,
+
++  hasCrmMeetingParticipantModel,
+
++  hasCrmMeetingRescheduleHistoryModel,
+
++  serializeMeeting,
+
++  serializeMeetingParticipant,
+
++  serializeRescheduleHistory,
+
++} from './model.js';
+
++export {
+
++  createMeeting,
+
++  rescheduleMeeting,
+
++  cancelMeeting,
+
++  recordMeetingRsvp,
+
++  recordAttendance,
+
++  listMeetings,
+
++} from './service.js';
+
+diff --git "a/lib\\admin\\crm\\meetings\\model.js" "b/lib\\admin\\crm\\meetings\\model.js"
+new file mode 100644
+index 0000000..9b9987f
+--- /dev/null
++++ "b/lib\\admin\\crm\\meetings\\model.js"
+@@ -0,0 +1,96 @@
++/**
++ * CrmMeeting model guards + serialize ΓÇö Phase 13 Wave 3.
++ * RSVP Γëá attendance; never invent ATTENDED from ACCEPTED.
++ */
++
++import {
++  CRM_MEETING_ATTENDANCE,
++  CRM_MEETING_INVITATION_STATUS,
++  CRM_MEETING_RSVP,
++} from '../catalogue.js';
++import { getMeetingIntegrationContract } from './catalogue.js';
++
++export function hasCrmMeetingModel(prisma) {
++  return typeof prisma?.crmMeeting?.create === 'function';
++}
++
++export function hasCrmMeetingParticipantModel(prisma) {
++  return typeof prisma?.crmMeetingParticipant?.create === 'function';
++}
++
++export function hasCrmMeetingRescheduleHistoryModel(prisma) {
++  return typeof prisma?.crmMeetingRescheduleHistory?.create === 'function';
++}
++
++export function serializeMeeting(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    meetingNumber: row.meetingNumber,
++    activityId: row.activityId || null,
++    status: row.status,
++    title: row.title || null,
++    outcome: row.outcome || null,
++    subjectType: row.subjectType || null,
++    subjectId: row.subjectId || null,
++    contactId: row.contactId || null,
++    startsAtUtc: row.startsAtUtc ? new Date(row.startsAtUtc).toISOString() : null,
++    endsAtUtc: row.endsAtUtc ? new Date(row.endsAtUtc).toISOString() : null,
++    timezone: row.timezone || null,
++    startsAtOriginal: row.startsAtOriginal || null,
++    endsAtOriginal: row.endsAtOriginal || null,
++    location: row.location || null,
++    notes: row.notes || null,
++    visibility: row.visibility || 'PUBLIC',
++    consentBlocked: Boolean(row.consentBlocked),
++    eligibilityJson: row.eligibilityJson ?? null,
++    ownerAdminId: row.ownerAdminId || null,
++    createdByAdminId: row.createdByAdminId || null,
++    idempotencyKey: row.idempotencyKey || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++export function serializeMeetingParticipant(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    meetingId: row.meetingId,
++    participantType: row.participantType,
++    participantId: row.participantId,
++    role: row.role || 'REQUIRED',
++    rsvpStatus: row.rsvpStatus || CRM_MEETING_RSVP.PENDING,
++    /** Attendance never inferred from RSVP */
++    attendanceStatus: row.attendanceStatus || CRM_MEETING_ATTENDANCE.UNKNOWN,
++    attendanceRecordedByAdminId: row.attendanceRecordedByAdminId || null,
++    attendanceRecordedAt: row.attendanceRecordedAt
++      ? new Date(row.attendanceRecordedAt).toISOString()
++      : null,
++    invitationStatus: row.invitationStatus || CRM_MEETING_INVITATION_STATUS.NOT_SENT,
++    eligibilityJson: row.eligibilityJson ?? null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++export function serializeRescheduleHistory(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    meetingId: row.meetingId,
++    fromStartsAtUtc: row.fromStartsAtUtc
++      ? new Date(row.fromStartsAtUtc).toISOString()
++      : null,
++    fromEndsAtUtc: row.fromEndsAtUtc ? new Date(row.fromEndsAtUtc).toISOString() : null,
++    fromTimezone: row.fromTimezone || null,
++    toStartsAtUtc: row.toStartsAtUtc ? new Date(row.toStartsAtUtc).toISOString() : null,
++    toEndsAtUtc: row.toEndsAtUtc ? new Date(row.toEndsAtUtc).toISOString() : null,
++    toTimezone: row.toTimezone || null,
++    reason: row.reason || null,
++    changedByAdminId: row.changedByAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++  };
++}
++
++export { getMeetingIntegrationContract };
+diff --git "a/lib\\admin\\crm\\meetings\\numbering.js" "b/lib\\admin\\crm\\meetings\\numbering.js"
+new file mode 100644
+index 0000000..fcfd113
+--- /dev/null
++++ "b/lib\\admin\\crm\\meetings\\numbering.js"
+@@ -0,0 +1,19 @@
++/**
++ * Meeting numbering ΓÇö MEET-YYYY-###### (UTC year).
++ */
++
++import { allocateCrmNumber } from '../numbering.js';
++import { CRM_NUMBER_PREFIX, CRM_MEETING_NUMBER_RE } from '../catalogue.js';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ now?: Date }} [opts]
++ */
++export async function allocateMeetingNumber(prisma, opts = {}) {
++  return allocateCrmNumber(prisma, {
++    prefix: CRM_NUMBER_PREFIX.MEET,
++    now: opts.now,
++  });
++}
++
++export { CRM_MEETING_NUMBER_RE, CRM_NUMBER_PREFIX };
+diff --git "a/lib\\admin\\crm\\meetings\\service.js" "b/lib\\admin\\crm\\meetings\\service.js"
+new file mode 100644
+index 0000000..f1114ea
+--- /dev/null
++++ "b/lib\\admin\\crm\\meetings\\service.js"
+@@ -0,0 +1,858 @@
++/**
++ * Meetings ΓÇö Phase 13 Wave 3.
++ * Explicit timezone; end-before-start blocked; RSVP Γëá attendance;
++ * Activity-linked fail-closed; invitation Contact gate (Wave 2 patterns).
++ */
++
++import {
++  CRM_ACTIVITY_DIRECTION,
++  CRM_ACTIVITY_STATUS,
++  CRM_ACTIVITY_TYPE,
++  CRM_CALENDAR_CONFLICT_POLICY,
++  CRM_CALENDAR_EVENT_STATUS,
++  CRM_CALENDAR_VISIBILITY,
++  CRM_COMMUNICATION_CHANNEL,
++  CRM_CONSENT_PURPOSE,
++  CRM_MEETING_ATTENDANCE,
++  CRM_MEETING_INVITATION_STATUS,
++  CRM_MEETING_RSVP,
++  CRM_MEETING_STATUS,
++  CRM_SUBJECT_TYPE,
++  CRM_SUBJECT_TYPES,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { checkCommunicationEligibility } from '../eligibility.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { createFollowUp } from '../followUps.js';
++import { hasCrmContactModel } from '../contacts.js';
++import {
++  createCrmActivity,
++  hasCrmActivityModel,
++  transitionActivityStatus,
++} from '../activities/index.js';
++import {
++  applyConflictPolicy,
++  createCalendarEventForMeeting,
++} from '../calendar/index.js';
++import {
++  getMeetingIntegrationContract,
++  isValidMeetingAttendance,
++  isValidMeetingOutcome,
++  isValidMeetingRsvp,
++  CRM_MEETING_PARTICIPANT_ROLE,
++  CRM_MEETING_PARTICIPANT_TYPE,
++} from './catalogue.js';
++import { allocateMeetingNumber } from './numbering.js';
++import {
++  hasCrmMeetingModel,
++  hasCrmMeetingParticipantModel,
++  hasCrmMeetingRescheduleHistoryModel,
++  serializeMeeting,
++  serializeMeetingParticipant,
++  serializeRescheduleHistory,
++} from './model.js';
++
++const SUBJECT_SET = new Set(
++  CRM_SUBJECT_TYPES.filter((s) => s !== CRM_SUBJECT_TYPE.ACTIVITY)
++);
++
++function canEditMeetings(access) {
++  return (
++    access.canEditActivities ||
++    access.canEditLeads ||
++    access.canEditOpportunities ||
++    access.canCreateLeads
++  );
++}
++
++function toUtcDate(value) {
++  if (!value) return null;
++  const d = value instanceof Date ? value : new Date(value);
++  return Number.isNaN(d.getTime()) ? null : d;
++}
++
++/**
++ * Outbound invitations require a resolvable Contact (Wave 2 gate pattern).
++ */
++async function requireOutboundContact(prisma, contactId) {
++  const id = contactId ? String(contactId).trim() : '';
++  if (!id) {
++    return { ok: false, error: 'CONTACT_REQUIRED' };
++  }
++  if (!hasCrmContactModel(prisma)) {
++    return { ok: true, contactId: id };
++  }
++  try {
++    let row = null;
++    if (typeof prisma.crmContact.findUnique === 'function') {
++      row = await prisma.crmContact.findUnique({ where: { id } });
++    }
++    if (!row && typeof prisma.crmContact.findFirst === 'function') {
++      row = await prisma.crmContact.findFirst({
++        where: { OR: [{ id }, { contactNumber: id }] },
++      });
++    }
++    if (!row) {
++      return { ok: false, error: 'CONTACT_IDENTITY_UNRESOLVED' };
++    }
++  } catch {
++    return { ok: false, error: 'CONTACT_IDENTITY_UNRESOLVED' };
++  }
++  return { ok: true, contactId: id };
++}
++
++async function evaluateInviteEligibility(prisma, { contactId, purpose, now }) {
++  const elig = await checkCommunicationEligibility(prisma, {
++    contactId,
++    purpose: purpose || CRM_CONSENT_PURPOSE.SALES_CONTACT,
++    channel: CRM_COMMUNICATION_CHANNEL.EMAIL,
++  });
++  const eligibilityJson = {
++    eligible: elig.eligible,
++    reasons: elig.reasons,
++    consentStatus: elig.consentStatus,
++    dncFlags: elig.dncFlags,
++    inferred: false,
++    evaluatedAt: now.toISOString(),
++    channel: CRM_COMMUNICATION_CHANNEL.EMAIL,
++    purpose: purpose || CRM_CONSENT_PURPOSE.SALES_CONTACT,
++  };
++  return {
++    consentBlocked: !elig.eligible,
++    eligibilityJson,
++    invitationStatus: elig.eligible
++      ? CRM_MEETING_INVITATION_STATUS.REQUESTED
++      : CRM_MEETING_INVITATION_STATUS.BLOCKED_BY_CONSENT,
++  };
++}
++
++/**
++ * Create a Meeting linked to CrmActivity type MEETING (fail-closed).
++ */
++export async function createMeeting(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditMeetings(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_meeting_create_forbidden' };
++  }
++
++  if (!hasCrmMeetingModel(prisma)) {
++    return { ok: false, error: 'crm_meeting_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const timezone = args.timezone != null ? String(args.timezone).trim() : '';
++  if (!timezone) {
++    return { ok: false, error: 'timezone_required' };
++  }
++
++  const startsAtUtc = toUtcDate(args.startsAt || args.startsAtUtc);
++  const endsAtUtc = toUtcDate(args.endsAt || args.endsAtUtc);
++  if (!startsAtUtc || !endsAtUtc) {
++    return { ok: false, error: 'startsAt_and_endsAt_required' };
++  }
++  if (endsAtUtc <= startsAtUtc) {
++    return { ok: false, error: 'end_before_start' };
++  }
++
++  const subjectType = args.subjectType
++    ? String(args.subjectType).trim().toUpperCase()
++    : null;
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : null;
++  if (Boolean(subjectType) !== Boolean(subjectId)) {
++    return { ok: false, error: 'subjectType_and_subjectId_required_together' };
++  }
++  if (subjectType && !SUBJECT_SET.has(subjectType)) {
++    return { ok: false, error: 'invalid_subject_type' };
++  }
++
++  const title =
++    args.title != null ? String(args.title).trim().slice(0, 500) : 'Meeting';
++  const contactId = args.contactId ? String(args.contactId).trim() : null;
++  const purpose = args.purpose
++    ? String(args.purpose).trim().toUpperCase()
++    : CRM_CONSENT_PURPOSE.SALES_CONTACT;
++  const now = args.now || new Date();
++  const ownerAdminId = args.ownerAdminId || args.admin?.id || null;
++  const sendInvitations = args.sendInvitations === true;
++  const visibility = String(args.visibility || CRM_CALENDAR_VISIBILITY.PUBLIC)
++    .trim()
++    .toUpperCase();
++
++  const idempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  if (idempotencyKey) {
++    try {
++      const existing = await prisma.crmMeeting.findUnique({
++        where: { idempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          meeting: serializeMeeting(existing),
++          alreadyExists: true,
++          integrations: getMeetingIntegrationContract(),
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  if (sendInvitations) {
++    const contactGate = await requireOutboundContact(prisma, contactId);
++    if (!contactGate.ok) {
++      return { ok: false, error: contactGate.error };
++    }
++  }
++
++  const conflict = await applyConflictPolicy(prisma, {
++    admin: args.admin,
++    ownerAdminId,
++    startsAt: startsAtUtc,
++    endsAt: endsAtUtc,
++    conflictPolicy: args.conflictPolicy || CRM_CALENDAR_CONFLICT_POLICY.WARN,
++    conflictReason: args.conflictReason,
++  });
++  if (!conflict.ok) {
++    return conflict;
++  }
++
++  let consentBlocked = false;
++  let eligibilityJson = null;
++  let invitationStatus = CRM_MEETING_INVITATION_STATUS.NOT_SENT;
++
++  if (sendInvitations && contactId) {
++    const gate = await evaluateInviteEligibility(prisma, {
++      contactId,
++      purpose,
++      now,
++    });
++    consentBlocked = gate.consentBlocked;
++    eligibilityJson = gate.eligibilityJson;
++    invitationStatus = gate.invitationStatus;
++  }
++
++  const allocated = await allocateMeetingNumber(prisma, { now });
++  if (!allocated.ok) {
++    return { ok: false, error: allocated.error || 'meeting_number_allocation_failed' };
++  }
++
++  let activity = null;
++  if (hasCrmActivityModel(prisma)) {
++    const actResult = await createCrmActivity(prisma, {
++      admin: args.admin,
++      type: CRM_ACTIVITY_TYPE.MEETING,
++      status: CRM_ACTIVITY_STATUS.PLANNED,
++      direction: CRM_ACTIVITY_DIRECTION.INTERNAL,
++      title,
++      ownerAdminId,
++      timezone,
++      dueAt: startsAtUtc,
++      primarySubjectType: subjectType,
++      primarySubjectId: subjectId,
++      now,
++    });
++    if (!actResult.ok) {
++      return {
++        ok: false,
++        error: actResult.error || 'activity_create_failed',
++        forbidden: actResult.forbidden,
++        reason: actResult.reason,
++      };
++    }
++    activity = actResult.activity;
++  }
++
++  const row = await prisma.crmMeeting.create({
++    data: {
++      meetingNumber: allocated.number,
++      activityId: activity?.id || null,
++      status: CRM_MEETING_STATUS.SCHEDULED,
++      title,
++      outcome: null,
++      subjectType,
++      subjectId,
++      contactId,
++      startsAtUtc,
++      endsAtUtc,
++      timezone,
++      startsAtOriginal:
++        args.startsAtOriginal != null
++          ? String(args.startsAtOriginal).trim().slice(0, 64)
++          : null,
++      endsAtOriginal:
++        args.endsAtOriginal != null
++          ? String(args.endsAtOriginal).trim().slice(0, 64)
++          : null,
++      location: args.location != null ? String(args.location).slice(0, 500) : null,
++      notes: args.notes != null ? String(args.notes).slice(0, 4000) : null,
++      visibility,
++      consentBlocked,
++      eligibilityJson: eligibilityJson || undefined,
++      ownerAdminId,
++      createdByAdminId: args.admin?.id || null,
++      idempotencyKey: idempotencyKey || undefined,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  const calResult = await createCalendarEventForMeeting(prisma, {
++    admin: args.admin,
++    internalTrusted: true,
++    activityId: activity?.id || null,
++    meetingId: row.id,
++    title,
++    startsAtUtc,
++    endsAtUtc,
++    timezone,
++    ownerAdminId,
++    visibility,
++    location: args.location,
++    now,
++  });
++  if (!calResult.ok) {
++    // Fail-closed: do not leave orphan Meeting without calendar projection when model present
++    try {
++      if (typeof prisma.crmMeeting.update === 'function') {
++        await prisma.crmMeeting.update({
++          where: { id: row.id },
++          data: {
++            status: CRM_MEETING_STATUS.CANCELLED,
++            outcome: 'CALENDAR_CREATE_FAILED',
++            updatedAt: now,
++          },
++        });
++      }
++    } catch {
++      // best-effort
++    }
++    return {
++      ok: false,
++      error: calResult.error || 'calendar_event_create_failed',
++      status: calResult.status,
++    };
++  }
++
++  const participants = [];
++  const participantInputs = Array.isArray(args.participants) ? args.participants : [];
++  if (hasCrmMeetingParticipantModel(prisma) && participantInputs.length) {
++    for (const p of participantInputs) {
++      const participantType = String(p.participantType || CRM_MEETING_PARTICIPANT_TYPE.CONTACT)
++        .trim()
++        .toUpperCase();
++      const participantId = String(p.participantId || '').trim();
++      if (!participantId) continue;
++
++      let pInviteStatus = CRM_MEETING_INVITATION_STATUS.NOT_SENT;
++      let pElig = null;
++      if (
++        sendInvitations &&
++        participantType === CRM_MEETING_PARTICIPANT_TYPE.CONTACT
++      ) {
++        const gate = await evaluateInviteEligibility(prisma, {
++          contactId: participantId,
++          purpose,
++          now,
++        });
++        pInviteStatus = gate.invitationStatus;
++        pElig = gate.eligibilityJson;
++        if (gate.consentBlocked) consentBlocked = true;
++      } else if (
++        participantType === CRM_MEETING_PARTICIPANT_TYPE.CONTACT &&
++        contactId === participantId
++      ) {
++        pInviteStatus = invitationStatus;
++        pElig = eligibilityJson;
++      }
++
++      const prow = await prisma.crmMeetingParticipant.create({
++        data: {
++          meetingId: row.id,
++          participantType,
++          participantId,
++          role: String(p.role || CRM_MEETING_PARTICIPANT_ROLE.REQUIRED)
++            .trim()
++            .toUpperCase(),
++          rsvpStatus: CRM_MEETING_RSVP.PENDING,
++          attendanceStatus: CRM_MEETING_ATTENDANCE.UNKNOWN,
++          invitationStatus: pInviteStatus,
++          eligibilityJson: pElig || undefined,
++          createdAt: now,
++          updatedAt: now,
++        },
++      });
++      participants.push(serializeMeetingParticipant(prow));
++    }
++  }
++
++  if (subjectType && subjectId) {
++    await appendTimelineEvent(prisma, {
++      subjectType,
++      subjectId,
++      eventType: CRM_TIMELINE_EVENT_TYPE.MEETING_CREATED,
++      summary: `Meeting scheduled: ${title.slice(0, 120)}`,
++      payload: {
++        meetingId: row.id,
++        meetingNumber: row.meetingNumber,
++        activityId: activity?.id || null,
++        timezone,
++        externalSync: false,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++  }
++
++  // Refresh consentBlocked on meeting if participants blocked
++  if (consentBlocked && !row.consentBlocked) {
++    try {
++      await prisma.crmMeeting.update({
++        where: { id: row.id },
++        data: { consentBlocked: true, updatedAt: now },
++      });
++      row.consentBlocked = true;
++    } catch {
++      // best-effort
++    }
++  }
++
++  return {
++    ok: true,
++    meeting: serializeMeeting(row),
++    activity,
++    calendarEvent: calResult.event,
++    participants,
++    conflicts: conflict.conflicts || [],
++    conflictReason: conflict.conflictReason || null,
++    invitationSent: false,
++    integrations: getMeetingIntegrationContract(),
++  };
++}
++
++/**
++ * Reschedule Meeting ΓÇö history required; conflict policy re-checked.
++ */
++export async function rescheduleMeeting(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditMeetings(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_meeting_reschedule_forbidden' };
++  }
++
++  if (!hasCrmMeetingModel(prisma)) {
++    return { ok: false, error: 'crm_meeting_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const meetingId = args.meetingId ? String(args.meetingId).trim() : '';
++  if (!meetingId) return { ok: false, error: 'meetingId_required' };
++
++  const row = await prisma.crmMeeting.findUnique({ where: { id: meetingId } });
++  if (!row) return { ok: false, error: 'meeting_not_found' };
++  if (row.status === CRM_MEETING_STATUS.CANCELLED) {
++    return { ok: false, error: 'meeting_cancelled' };
++  }
++
++  const timezone = args.timezone != null ? String(args.timezone).trim() : row.timezone;
++  if (!timezone) return { ok: false, error: 'timezone_required' };
++
++  const startsAtUtc = toUtcDate(args.startsAt || args.startsAtUtc);
++  const endsAtUtc = toUtcDate(args.endsAt || args.endsAtUtc);
++  if (!startsAtUtc || !endsAtUtc) {
++    return { ok: false, error: 'startsAt_and_endsAt_required' };
++  }
++  if (endsAtUtc <= startsAtUtc) {
++    return { ok: false, error: 'end_before_start' };
++  }
++
++  const now = args.now || new Date();
++  const conflict = await applyConflictPolicy(prisma, {
++    admin: args.admin,
++    ownerAdminId: row.ownerAdminId || args.admin?.id,
++    startsAt: startsAtUtc,
++    endsAt: endsAtUtc,
++    excludeMeetingId: meetingId,
++    conflictPolicy: args.conflictPolicy || CRM_CALENDAR_CONFLICT_POLICY.WARN,
++    conflictReason: args.conflictReason,
++  });
++  if (!conflict.ok) return conflict;
++
++  let historyRow = null;
++  if (hasCrmMeetingRescheduleHistoryModel(prisma)) {
++    historyRow = await prisma.crmMeetingRescheduleHistory.create({
++      data: {
++        meetingId,
++        fromStartsAtUtc: row.startsAtUtc,
++        fromEndsAtUtc: row.endsAtUtc,
++        fromTimezone: row.timezone,
++        toStartsAtUtc: startsAtUtc,
++        toEndsAtUtc: endsAtUtc,
++        toTimezone: timezone,
++        reason: args.reason != null ? String(args.reason).slice(0, 1000) : null,
++        changedByAdminId: args.admin?.id || null,
++        at: now,
++      },
++    });
++  }
++
++  const updated = await prisma.crmMeeting.update({
++    where: { id: meetingId },
++    data: {
++      status: CRM_MEETING_STATUS.RESCHEDULED,
++      startsAtUtc,
++      endsAtUtc,
++      timezone,
++      startsAtOriginal:
++        args.startsAtOriginal != null
++          ? String(args.startsAtOriginal).trim().slice(0, 64)
++          : row.startsAtOriginal,
++      endsAtOriginal:
++        args.endsAtOriginal != null
++          ? String(args.endsAtOriginal).trim().slice(0, 64)
++          : row.endsAtOriginal,
++      updatedAt: now,
++    },
++  });
++
++  try {
++    if (typeof prisma.crmCalendarEvent.updateMany === 'function') {
++      await prisma.crmCalendarEvent.updateMany({
++        where: { meetingId },
++        data: {
++          startsAtUtc,
++          endsAtUtc,
++          timezone,
++          status: CRM_CALENDAR_EVENT_STATUS.SCHEDULED,
++          updatedAt: now,
++        },
++      });
++    }
++  } catch {
++    // best-effort
++  }
++
++  if (row.activityId && hasCrmActivityModel(prisma)) {
++    try {
++      await prisma.crmActivity.update({
++        where: { id: row.activityId },
++        data: { dueAt: startsAtUtc, timezone, updatedAt: now },
++      });
++    } catch {
++      // best-effort
++    }
++  }
++
++  if (row.subjectType && row.subjectId) {
++    await appendTimelineEvent(prisma, {
++      subjectType: row.subjectType,
++      subjectId: row.subjectId,
++      eventType: CRM_TIMELINE_EVENT_TYPE.MEETING_RESCHEDULED,
++      summary: `Meeting rescheduled: ${(row.title || '').slice(0, 120)}`,
++      payload: {
++        meetingId,
++        from: {
++          startsAtUtc: new Date(row.startsAtUtc).toISOString(),
++          endsAtUtc: new Date(row.endsAtUtc).toISOString(),
++        },
++        to: {
++          startsAtUtc: startsAtUtc.toISOString(),
++          endsAtUtc: endsAtUtc.toISOString(),
++        },
++        reason: args.reason || null,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++  }
++
++  let history = [];
++  if (hasCrmMeetingRescheduleHistoryModel(prisma)) {
++    try {
++      const rows = await prisma.crmMeetingRescheduleHistory.findMany({
++        where: { meetingId },
++      });
++      history = (rows || []).map(serializeRescheduleHistory);
++    } catch {
++      history = historyRow ? [serializeRescheduleHistory(historyRow)] : [];
++    }
++  }
++
++  return {
++    ok: true,
++    meeting: serializeMeeting(updated),
++    history,
++    conflicts: conflict.conflicts || [],
++    integrations: getMeetingIntegrationContract(),
++  };
++}
++
++/**
++ * Cancel Meeting; optional Follow-Up hook (never auto-executed).
++ */
++export async function cancelMeeting(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditMeetings(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_meeting_cancel_forbidden' };
++  }
++
++  if (!hasCrmMeetingModel(prisma)) {
++    return { ok: false, error: 'crm_meeting_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const meetingId = args.meetingId ? String(args.meetingId).trim() : '';
++  if (!meetingId) return { ok: false, error: 'meetingId_required' };
++
++  const row = await prisma.crmMeeting.findUnique({ where: { id: meetingId } });
++  if (!row) return { ok: false, error: 'meeting_not_found' };
++  if (row.status === CRM_MEETING_STATUS.CANCELLED) {
++    return {
++      ok: true,
++      meeting: serializeMeeting(row),
++      alreadyCancelled: true,
++      followUp: null,
++    };
++  }
++
++  const now = args.now || new Date();
++  const outcome =
++    args.outcome && isValidMeetingOutcome(args.outcome)
++      ? String(args.outcome).trim().toUpperCase()
++      : null;
++
++  const updated = await prisma.crmMeeting.update({
++    where: { id: meetingId },
++    data: {
++      status: CRM_MEETING_STATUS.CANCELLED,
++      outcome,
++      notes:
++        args.reason != null
++          ? `${row.notes ? `${row.notes}\n` : ''}Cancelled: ${String(args.reason).slice(0, 500)}`
++          : row.notes,
++      updatedAt: now,
++    },
++  });
++
++  try {
++    if (typeof prisma.crmCalendarEvent.updateMany === 'function') {
++      await prisma.crmCalendarEvent.updateMany({
++        where: { meetingId },
++        data: {
++          status: CRM_CALENDAR_EVENT_STATUS.CANCELLED,
++          updatedAt: now,
++        },
++      });
++    }
++  } catch {
++    // best-effort
++  }
++
++  if (row.activityId && hasCrmActivityModel(prisma)) {
++    try {
++      await transitionActivityStatus(prisma, {
++        admin: args.admin,
++        activityId: row.activityId,
++        toStatus: CRM_ACTIVITY_STATUS.CANCELLED,
++        reason: args.reason || 'meeting_cancelled',
++        now,
++      });
++    } catch {
++      // best-effort
++    }
++  }
++
++  let followUp = null;
++  if (args.createFollowUp === true && row.subjectType && row.subjectId) {
++    const fu = await createFollowUp(prisma, {
++      admin: args.admin,
++      subjectType: row.subjectType,
++      subjectId: row.subjectId,
++      title: `Follow-up after cancelled meeting: ${(row.title || 'Meeting').slice(0, 80)}`,
++      contactId: row.contactId,
++      channel: CRM_COMMUNICATION_CHANNEL.EMAIL,
++      purpose: CRM_CONSENT_PURPOSE.SALES_CONTACT,
++      dueAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
++      ownerAdminId: row.ownerAdminId || args.admin?.id,
++      now,
++    });
++    if (fu.ok) {
++      followUp = fu.followUp;
++    }
++  }
++
++  if (row.subjectType && row.subjectId) {
++    await appendTimelineEvent(prisma, {
++      subjectType: row.subjectType,
++      subjectId: row.subjectId,
++      eventType: CRM_TIMELINE_EVENT_TYPE.MEETING_CANCELLED,
++      summary: `Meeting cancelled: ${(row.title || '').slice(0, 120)}`,
++      payload: {
++        meetingId,
++        reason: args.reason || null,
++        followUpId: followUp?.id || null,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++  }
++
++  return {
++    ok: true,
++    meeting: serializeMeeting(updated),
++    followUp,
++    integrations: getMeetingIntegrationContract(),
++  };
++}
++
++/**
++ * Record RSVP only ΓÇö never sets attendance.
++ */
++export async function recordMeetingRsvp(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditMeetings(access) && !access.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_meeting_rsvp_forbidden' };
++  }
++
++  if (!hasCrmMeetingParticipantModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_meeting_participant_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const participantId = args.participantId ? String(args.participantId).trim() : '';
++  const rsvpStatus = String(args.rsvpStatus || '').trim().toUpperCase();
++  if (!participantId) return { ok: false, error: 'participantId_required' };
++  if (!isValidMeetingRsvp(rsvpStatus)) {
++    return { ok: false, error: 'invalid_rsvp_status', rsvpStatus };
++  }
++
++  const row = await prisma.crmMeetingParticipant.findUnique({
++    where: { id: participantId },
++  });
++  if (!row) return { ok: false, error: 'participant_not_found' };
++  if (args.meetingId && row.meetingId !== String(args.meetingId).trim()) {
++    return { ok: false, error: 'participant_meeting_mismatch' };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmMeetingParticipant.update({
++    where: { id: participantId },
++    data: {
++      rsvpStatus,
++      // Explicitly do NOT touch attendanceStatus
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    participant: serializeMeetingParticipant(updated),
++    fabricatedAttendance: false,
++    integrations: getMeetingIntegrationContract(),
++  };
++}
++
++/**
++ * Authorised attendance confirmation ΓÇö never from RSVP alone.
++ */
++export async function recordAttendance(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditMeetings(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_meeting_attendance_forbidden' };
++  }
++
++  if (!hasCrmMeetingParticipantModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_meeting_participant_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const participantId = args.participantId ? String(args.participantId).trim() : '';
++  const attendanceStatus = String(args.attendanceStatus || '').trim().toUpperCase();
++  if (!participantId) return { ok: false, error: 'participantId_required' };
++  if (!isValidMeetingAttendance(attendanceStatus)) {
++    return { ok: false, error: 'invalid_attendance_status', attendanceStatus };
++  }
++  if (attendanceStatus === CRM_MEETING_ATTENDANCE.UNKNOWN) {
++    return { ok: false, error: 'attendance_status_must_be_confirmed' };
++  }
++
++  const row = await prisma.crmMeetingParticipant.findUnique({
++    where: { id: participantId },
++  });
++  if (!row) return { ok: false, error: 'participant_not_found' };
++  if (args.meetingId && row.meetingId !== String(args.meetingId).trim()) {
++    return { ok: false, error: 'participant_meeting_mismatch' };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmMeetingParticipant.update({
++    where: { id: participantId },
++    data: {
++      attendanceStatus,
++      attendanceRecordedByAdminId: args.admin?.id || null,
++      attendanceRecordedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  const meeting = await prisma.crmMeeting.findUnique({
++    where: { id: row.meetingId },
++  });
++  if (meeting?.subjectType && meeting?.subjectId) {
++    await appendTimelineEvent(prisma, {
++      subjectType: meeting.subjectType,
++      subjectId: meeting.subjectId,
++      eventType: CRM_TIMELINE_EVENT_TYPE.MEETING_ATTENDANCE_RECORDED,
++      summary: `Attendance recorded: ${attendanceStatus}`,
++      payload: {
++        meetingId: meeting.id,
++        participantId,
++        attendanceStatus,
++        rsvpStatus: row.rsvpStatus,
++        fromRsvpAlone: false,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++  }
++
++  return {
++    ok: true,
++    participant: serializeMeetingParticipant(updated),
++    fromRsvpAlone: false,
++    integrations: getMeetingIntegrationContract(),
++  };
++}
++
++export async function listMeetings(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditMeetings(access) && !access.canView && !access.canViewLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_meeting_list_forbidden' };
++  }
++
++  if (!hasCrmMeetingModel(prisma)) {
++    return { ok: false, error: 'crm_meeting_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const where = {};
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  if (args.subjectId) where.subjectId = String(args.subjectId).trim();
++  if (args.ownerAdminId) where.ownerAdminId = String(args.ownerAdminId).trim();
++
++  let rows = [];
++  try {
++    rows = await prisma.crmMeeting.findMany({ where });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    meetings: (rows || []).map(serializeMeeting),
++    integrations: getMeetingIntegrationContract(),
++  };
++}
+diff --git "a/lib\\admin\\crm\\calendar\\catalogue.js" "b/lib\\admin\\crm\\calendar\\catalogue.js"
+new file mode 100644
+index 0000000..01d8156
+--- /dev/null
++++ "b/lib\\admin\\crm\\calendar\\catalogue.js"
+@@ -0,0 +1,66 @@
++/**
++ * Calendar catalogue ΓÇö Phase 13 Wave 3.
++ * Internal CrmCalendarEvent only; Google/Outlook NOT_CONNECTED.
++ */
++
++import {
++  CRM_CALENDAR_CONFLICT_POLICY,
++  CRM_CALENDAR_CONFLICT_POLICIES,
++  CRM_CALENDAR_VIEW,
++  CRM_CALENDAR_VIEWS,
++  CRM_CALENDAR_VISIBILITY,
++  CRM_CALENDAR_EVENT_STATUS,
++  CRM_CALENDAR_INTEGRATION_STATUS,
++} from '../catalogue.js';
++
++export {
++  CRM_CALENDAR_CONFLICT_POLICY,
++  CRM_CALENDAR_CONFLICT_POLICIES,
++  CRM_CALENDAR_VIEW,
++  CRM_CALENDAR_VIEWS,
++  CRM_CALENDAR_VISIBILITY,
++  CRM_CALENDAR_EVENT_STATUS,
++  CRM_CALENDAR_INTEGRATION_STATUS,
++};
++
++/** Default working hours (local wall clock in event timezone). */
++export const CRM_CALENDAR_DEFAULT_WORKING_HOURS = Object.freeze({
++  startHour: 8,
++  endHour: 17,
++  days: Object.freeze([1, 2, 3, 4, 5]), // MonΓÇôFri
++});
++
++/** Max agenda/list span to keep queries bounded. */
++export const CRM_CALENDAR_MAX_RANGE_DAYS = 62;
++
++/**
++ * Typed Google/Outlook contract ΓÇö never fabricate external sync.
++ */
++export function getCalendarIntegrationStatus() {
++  return Object.freeze({
++    google: CRM_CALENDAR_INTEGRATION_STATUS,
++    outlook: CRM_CALENDAR_INTEGRATION_STATUS,
++    icsExport: true,
++    internalCalendar: true,
++    externalEventsFabricated: false,
++    inventExternalSyncForbidden: true,
++  });
++}
++
++/**
++ * @param {string} policy
++ * @returns {boolean}
++ */
++export function isValidConflictPolicy(policy) {
++  return CRM_CALENDAR_CONFLICT_POLICIES.includes(
++    String(policy || '').trim().toUpperCase()
++  );
++}
++
++/**
++ * @param {string} view
++ * @returns {boolean}
++ */
++export function isValidCalendarView(view) {
++  return CRM_CALENDAR_VIEWS.includes(String(view || '').trim().toLowerCase());
++}
+diff --git "a/lib\\admin\\crm\\calendar\\index.js" "b/lib\\admin\\crm\\calendar\\index.js"
+new file mode 100644
+index 0000000..b984ebf
+--- /dev/null
++++ "b/lib\\admin\\crm\\calendar\\index.js"
+@@ -0,0 +1,29 @@
++/**
+
++ * CRM Calendar ΓÇö Phase 13 Wave 3 public surface.
+
++ * Internal events only; Google/Outlook NOT_CONNECTED; ICS export.
+
++ */
+
++
+
++export {
+
++  CRM_CALENDAR_CONFLICT_POLICY,
+
++  CRM_CALENDAR_CONFLICT_POLICIES,
+
++  CRM_CALENDAR_VIEW,
+
++  CRM_CALENDAR_VIEWS,
+
++  CRM_CALENDAR_VISIBILITY,
+
++  CRM_CALENDAR_EVENT_STATUS,
+
++  CRM_CALENDAR_INTEGRATION_STATUS,
+
++  CRM_CALENDAR_DEFAULT_WORKING_HOURS,
+
++  CRM_CALENDAR_MAX_RANGE_DAYS,
+
++  getCalendarIntegrationStatus,
+
++  isValidConflictPolicy,
+
++  isValidCalendarView,
+
++} from './catalogue.js';
+
++
+
++export { hasCrmCalendarEventModel, serializeCalendarEvent } from './model.js';
+
++export { resolveCalendarRange, rangesOverlap } from './range.js';
+
++export {
+
++  detectCalendarConflicts,
+
++  applyConflictPolicy,
+
++  listCalendarEvents,
+
++  exportIcs,
+
++  createCalendarEventForMeeting,
+
++} from './service.js';
+
+diff --git "a/lib\\admin\\crm\\calendar\\model.js" "b/lib\\admin\\crm\\calendar\\model.js"
+new file mode 100644
+index 0000000..ec575ba
+--- /dev/null
++++ "b/lib\\admin\\crm\\calendar\\model.js"
+@@ -0,0 +1,55 @@
++/**
++ * CrmCalendarEvent model guards + serialize ΓÇö Phase 13 Wave 3.
++ */
++
++import { CRM_CALENDAR_EVENT_STATUS, CRM_CALENDAR_VISIBILITY } from '../catalogue.js';
++
++export function hasCrmCalendarEventModel(prisma) {
++  return typeof prisma?.crmCalendarEvent?.create === 'function';
++}
++
++export function serializeCalendarEvent(row, opts = {}) {
++  if (!row) return null;
++  const availabilityOnly = opts.availabilityOnly === true;
++  const isPrivate =
++    String(row.visibility || CRM_CALENDAR_VISIBILITY.PUBLIC).toUpperCase() ===
++    CRM_CALENDAR_VISIBILITY.PRIVATE;
++
++  if (availabilityOnly && isPrivate) {
++    return {
++      id: row.id,
++      activityId: row.activityId || null,
++      meetingId: row.meetingId || null,
++      title: 'Busy',
++      startsAtUtc: row.startsAtUtc ? new Date(row.startsAtUtc).toISOString() : null,
++      endsAtUtc: row.endsAtUtc ? new Date(row.endsAtUtc).toISOString() : null,
++      timezone: row.timezone || null,
++      ownerAdminId: row.ownerAdminId || null,
++      visibility: CRM_CALENDAR_VISIBILITY.PRIVATE,
++      status: row.status || CRM_CALENDAR_EVENT_STATUS.SCHEDULED,
++      busy: true,
++      privateDetailsHidden: true,
++      location: null,
++      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    };
++  }
++
++  return {
++    id: row.id,
++    activityId: row.activityId || null,
++    meetingId: row.meetingId || null,
++    title: row.title || null,
++    startsAtUtc: row.startsAtUtc ? new Date(row.startsAtUtc).toISOString() : null,
++    endsAtUtc: row.endsAtUtc ? new Date(row.endsAtUtc).toISOString() : null,
++    timezone: row.timezone || null,
++    ownerAdminId: row.ownerAdminId || null,
++    visibility: row.visibility || CRM_CALENDAR_VISIBILITY.PUBLIC,
++    status: row.status || CRM_CALENDAR_EVENT_STATUS.SCHEDULED,
++    busy: true,
++    privateDetailsHidden: false,
++    location: row.location || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
+diff --git "a/lib\\admin\\crm\\calendar\\range.js" "b/lib\\admin\\crm\\calendar\\range.js"
+new file mode 100644
+index 0000000..f7b50c4
+--- /dev/null
++++ "b/lib\\admin\\crm\\calendar\\range.js"
+@@ -0,0 +1,59 @@
++/**
++ * Bounded calendar range helpers ΓÇö day/week/month/agenda.
++ */
++
++import { CRM_CALENDAR_MAX_RANGE_DAYS, CRM_CALENDAR_VIEW } from './catalogue.js';
++
++/**
++ * @param {string|Date} dateInput
++ * @param {string} view
++ * @returns {{ ok: true, rangeStart: Date, rangeEnd: Date, view: string } | { ok: false, error: string }}
++ */
++export function resolveCalendarRange(dateInput, view = CRM_CALENDAR_VIEW.DAY) {
++  const v = String(view || CRM_CALENDAR_VIEW.DAY).trim().toLowerCase();
++  const base = dateInput ? new Date(dateInput) : new Date();
++  if (Number.isNaN(base.getTime())) {
++    return { ok: false, error: 'invalid_date' };
++  }
++
++  const y = base.getUTCFullYear();
++  const m = base.getUTCMonth();
++  const d = base.getUTCDate();
++
++  if (v === CRM_CALENDAR_VIEW.DAY) {
++    const rangeStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
++    const rangeEnd = new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0));
++    return { ok: true, rangeStart, rangeEnd, view: v };
++  }
++
++  if (v === CRM_CALENDAR_VIEW.WEEK) {
++    const dow = base.getUTCDay(); // 0=Sun
++    const mondayOffset = dow === 0 ? -6 : 1 - dow;
++    const rangeStart = new Date(Date.UTC(y, m, d + mondayOffset, 0, 0, 0, 0));
++    const rangeEnd = new Date(rangeStart.getTime() + 7 * 24 * 60 * 60 * 1000);
++    return { ok: true, rangeStart, rangeEnd, view: v };
++  }
++
++  if (v === CRM_CALENDAR_VIEW.MONTH) {
++    const rangeStart = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0));
++    const rangeEnd = new Date(Date.UTC(y, m + 1, 1, 0, 0, 0, 0));
++    return { ok: true, rangeStart, rangeEnd, view: v };
++  }
++
++  if (v === CRM_CALENDAR_VIEW.AGENDA) {
++    const rangeStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
++    const rangeEnd = new Date(
++      rangeStart.getTime() + CRM_CALENDAR_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000
++    );
++    return { ok: true, rangeStart, rangeEnd, view: v };
++  }
++
++  return { ok: false, error: 'invalid_calendar_view' };
++}
++
++/**
++ * Overlap: A starts before B ends AND A ends after B starts.
++ */
++export function rangesOverlap(aStart, aEnd, bStart, bEnd) {
++  return aStart < bEnd && aEnd > bStart;
++}
+diff --git "a/lib\\admin\\crm\\calendar\\service.js" "b/lib\\admin\\crm\\calendar\\service.js"
+new file mode 100644
+index 0000000..1e3f295
+--- /dev/null
++++ "b/lib\\admin\\crm\\calendar\\service.js"
+@@ -0,0 +1,453 @@
++/**
++ * Internal Calendar ΓÇö Phase 13 Wave 3.
++ * Conflict detect server-side; ICS export; Google/Outlook NOT_CONNECTED.
++ * Never reuse SupportSlaCalendar.
++ */
++
++import {
++  CRM_CALENDAR_CONFLICT_POLICY,
++  CRM_CALENDAR_EVENT_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_MEETING_STATUS,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import {
++  CRM_CALENDAR_DEFAULT_WORKING_HOURS,
++  getCalendarIntegrationStatus,
++  isValidConflictPolicy,
++  isValidCalendarView,
++} from './catalogue.js';
++import { hasCrmCalendarEventModel, serializeCalendarEvent } from './model.js';
++import { rangesOverlap, resolveCalendarRange } from './range.js';
++
++function canViewCalendar(access) {
++  return (
++    access.canView ||
++    access.canViewLeads ||
++    access.canViewOpportunities ||
++    access.canEditActivities
++  );
++}
++
++function canEditCalendar(access) {
++  return (
++    access.canEditActivities ||
++    access.canEditLeads ||
++    access.canEditOpportunities ||
++    access.canCreateLeads
++  );
++}
++
++function toUtcDate(value) {
++  if (!value) return null;
++  const d = value instanceof Date ? value : new Date(value);
++  return Number.isNaN(d.getTime()) ? null : d;
++}
++
++function icsEscape(text) {
++  return String(text || '')
++    .replace(/\\/g, '\\\\')
++    .replace(/;/g, '\\;')
++    .replace(/,/g, '\\,')
++    .replace(/\n/g, '\\n');
++}
++
++function toIcsUtc(date) {
++  const d = toUtcDate(date);
++  if (!d) return null;
++  const pad = (n) => String(n).padStart(2, '0');
++  return (
++    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T` +
++    `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
++  );
++}
++
++/**
++ * Detect overlapping calendar events / meetings for an owner window.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {object} args
++ */
++export async function detectCalendarConflicts(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewCalendar(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_calendar_view_forbidden' };
++  }
++
++  const startsAt = toUtcDate(args.startsAt);
++  const endsAt = toUtcDate(args.endsAt);
++  if (!startsAt || !endsAt) {
++    return { ok: false, error: 'startsAt_and_endsAt_required' };
++  }
++  if (endsAt <= startsAt) {
++    return { ok: false, error: 'end_before_start' };
++  }
++
++  const ownerAdminId = args.ownerAdminId
++    ? String(args.ownerAdminId).trim()
++    : args.admin?.id || null;
++  if (!ownerAdminId) {
++    return { ok: false, error: 'ownerAdminId_required' };
++  }
++
++  const excludeMeetingId = args.excludeMeetingId
++    ? String(args.excludeMeetingId).trim()
++    : null;
++
++  const conflicts = [];
++
++  if (hasCrmCalendarEventModel(prisma)) {
++    try {
++      const rows = await prisma.crmCalendarEvent.findMany({
++        where: {
++          AND: [
++            { ownerAdminId },
++            { startsAtUtc: { lt: endsAt } },
++            { endsAtUtc: { gt: startsAt } },
++            { status: { not: CRM_CALENDAR_EVENT_STATUS.CANCELLED } },
++            ...(excludeMeetingId ? [{ meetingId: { not: excludeMeetingId } }] : []),
++          ],
++        },
++      });
++      for (const row of rows || []) {
++        if (
++          rangesOverlap(
++            startsAt,
++            endsAt,
++            new Date(row.startsAtUtc),
++            new Date(row.endsAtUtc)
++          )
++        ) {
++          conflicts.push({
++            type: 'CALENDAR_EVENT',
++            id: row.id,
++            meetingId: row.meetingId || null,
++            activityId: row.activityId || null,
++            title: row.title || null,
++            startsAtUtc: new Date(row.startsAtUtc).toISOString(),
++            endsAtUtc: new Date(row.endsAtUtc).toISOString(),
++          });
++        }
++      }
++    } catch {
++      // continue with meeting store if present
++    }
++  }
++
++  if (typeof prisma?.crmMeeting?.findMany === 'function') {
++    try {
++      const meetings = await prisma.crmMeeting.findMany({
++        where: {
++          AND: [
++            { ownerAdminId },
++            { startsAtUtc: { lt: endsAt } },
++            { endsAtUtc: { gt: startsAt } },
++            { status: { not: CRM_MEETING_STATUS.CANCELLED } },
++            ...(excludeMeetingId ? [{ id: { not: excludeMeetingId } }] : []),
++          ],
++        },
++      });
++      const seenMeetingIds = new Set(
++        conflicts.filter((c) => c.meetingId).map((c) => c.meetingId)
++      );
++      for (const row of meetings || []) {
++        if (seenMeetingIds.has(row.id)) continue;
++        if (
++          rangesOverlap(
++            startsAt,
++            endsAt,
++            new Date(row.startsAtUtc),
++            new Date(row.endsAtUtc)
++          )
++        ) {
++          conflicts.push({
++            type: 'MEETING',
++            id: row.id,
++            meetingId: row.id,
++            activityId: row.activityId || null,
++            title: row.title || null,
++            startsAtUtc: new Date(row.startsAtUtc).toISOString(),
++            endsAtUtc: new Date(row.endsAtUtc).toISOString(),
++          });
++        }
++      }
++    } catch {
++      // best-effort
++    }
++  }
++
++  return {
++    ok: true,
++    conflicts,
++    hasConflict: conflicts.length > 0,
++    integrations: getCalendarIntegrationStatus(),
++  };
++}
++
++/**
++ * Apply conflict policy. Server-side truth only.
++ *
++ * @returns {{ ok: true, conflicts: any[], policy: string, conflictReason?: string } | { ok: false, error: string, conflicts?: any[] }}
++ */
++export async function applyConflictPolicy(prisma, args = {}) {
++  const policy = String(args.conflictPolicy || CRM_CALENDAR_CONFLICT_POLICY.WARN)
++    .trim()
++    .toUpperCase();
++  if (!isValidConflictPolicy(policy)) {
++    return { ok: false, error: 'invalid_conflict_policy', policy };
++  }
++
++  const detected = await detectCalendarConflicts(prisma, args);
++  if (!detected.ok) return detected;
++
++  const conflicts = detected.conflicts || [];
++  if (!conflicts.length) {
++    return { ok: true, conflicts: [], policy };
++  }
++
++  if (policy === CRM_CALENDAR_CONFLICT_POLICY.BLOCK) {
++    return {
++      ok: false,
++      error: 'calendar_conflict_blocked',
++      conflicts,
++      policy,
++    };
++  }
++
++  if (policy === CRM_CALENDAR_CONFLICT_POLICY.ALLOW_WITH_REASON) {
++    const reason = args.conflictReason != null ? String(args.conflictReason).trim() : '';
++    if (!reason) {
++      return {
++        ok: false,
++        error: 'conflict_reason_required',
++        conflicts,
++        policy,
++      };
++    }
++    return { ok: true, conflicts, policy, conflictReason: reason };
++  }
++
++  // WARN ΓÇö allow with conflicts listed
++  return { ok: true, conflicts, policy };
++}
++
++/**
++ * List calendar events for day/week/month/agenda (bounded).
++ */
++export async function listCalendarEvents(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewCalendar(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_calendar_view_forbidden' };
++  }
++
++  if (!hasCrmCalendarEventModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_calendar_event_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const view = String(args.view || 'day').trim().toLowerCase();
++  if (!isValidCalendarView(view)) {
++    return { ok: false, error: 'invalid_calendar_view', view };
++  }
++
++  const range = resolveCalendarRange(args.date || args.rangeStart || new Date(), view);
++  if (!range.ok) return range;
++
++  const ownerAdminId = args.ownerAdminId
++    ? String(args.ownerAdminId).trim()
++    : undefined;
++  const limit = Math.min(
++    Math.max(Number(args.limit) || CRM_LIST_DEFAULT_LIMIT, 1),
++    CRM_LIST_MAX_LIMIT
++  );
++  const availabilityOnly = args.availabilityOnly === true;
++
++  let rows = [];
++  try {
++    rows = await prisma.crmCalendarEvent.findMany({
++      where: {
++        ...(ownerAdminId ? { ownerAdminId } : {}),
++        status: args.includeCancelled
++          ? undefined
++          : CRM_CALENDAR_EVENT_STATUS.SCHEDULED,
++        AND: [
++          { startsAtUtc: { lt: range.rangeEnd } },
++          { endsAtUtc: { gt: range.rangeStart } },
++        ],
++      },
++    });
++  } catch {
++    rows = [];
++  }
++
++  // Filter overlap in-memory for mock/prisma variance
++  rows = (rows || [])
++    .filter((r) => {
++      if (!args.includeCancelled && r.status === CRM_CALENDAR_EVENT_STATUS.CANCELLED) {
++        return false;
++      }
++      return rangesOverlap(
++        range.rangeStart,
++        range.rangeEnd,
++        new Date(r.startsAtUtc),
++        new Date(r.endsAtUtc)
++      );
++    })
++    .slice(0, limit);
++
++  const events = rows.map((r) => serializeCalendarEvent(r, { availabilityOnly }));
++
++  return {
++    ok: true,
++    view: range.view,
++    rangeStart: range.rangeStart.toISOString(),
++    rangeEnd: range.rangeEnd.toISOString(),
++    timezone: args.timezone ? String(args.timezone).trim() : 'UTC',
++    workingHours: { ...CRM_CALENDAR_DEFAULT_WORKING_HOURS },
++    availabilityOnly,
++    events,
++    integrations: getCalendarIntegrationStatus(),
++  };
++}
++
++/**
++ * Export ICS for selected events (internal only ΓÇö not external sync).
++ */
++export async function exportIcs(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewCalendar(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_calendar_export_forbidden' };
++  }
++
++  if (!hasCrmCalendarEventModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_calendar_event_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const eventIds = Array.isArray(args.eventIds)
++    ? args.eventIds.map((id) => String(id).trim()).filter(Boolean)
++    : [];
++  const ownerAdminId = args.ownerAdminId
++    ? String(args.ownerAdminId).trim()
++    : args.admin?.id || null;
++
++  let rows = [];
++  try {
++    rows = await prisma.crmCalendarEvent.findMany({
++      where: {
++        ...(ownerAdminId ? { ownerAdminId } : {}),
++      },
++    });
++  } catch {
++    rows = [];
++  }
++
++  rows = (rows || []).filter(
++    (r) => r.status !== CRM_CALENDAR_EVENT_STATUS.CANCELLED
++  );
++  if (eventIds.length) {
++    const set = new Set(eventIds);
++    rows = rows.filter((r) => set.has(r.id));
++  }
++
++  const lines = [
++    'BEGIN:VCALENDAR',
++    'VERSION:2.0',
++    'PRODID:-//InsightBooks//CRM Calendar//EN',
++    'CALSCALE:GREGORIAN',
++    'METHOD:PUBLISH',
++  ];
++
++  for (const row of rows || []) {
++    const dtStart = toIcsUtc(row.startsAtUtc);
++    const dtEnd = toIcsUtc(row.endsAtUtc);
++    if (!dtStart || !dtEnd) continue;
++    lines.push('BEGIN:VEVENT');
++    lines.push(`UID:${icsEscape(row.id)}@insightbooks.crm`);
++    lines.push(`DTSTAMP:${toIcsUtc(new Date())}`);
++    lines.push(`DTSTART:${dtStart}`);
++    lines.push(`DTEND:${dtEnd}`);
++    lines.push(`SUMMARY:${icsEscape(row.title || 'CRM Meeting')}`);
++    if (row.location) lines.push(`LOCATION:${icsEscape(row.location)}`);
++    if (row.timezone) lines.push(`X-WR-TIMEZONE:${icsEscape(row.timezone)}`);
++    if (row.activityId) lines.push(`X-CRM-ACTIVITY-ID:${icsEscape(row.activityId)}`);
++    if (row.meetingId) lines.push(`X-CRM-MEETING-ID:${icsEscape(row.meetingId)}`);
++    lines.push('END:VEVENT');
++  }
++
++  lines.push('END:VCALENDAR');
++
++  return {
++    ok: true,
++    ics: lines.join('\r\n'),
++    eventCount: rows.length,
++    externalSync: false,
++    integrations: getCalendarIntegrationStatus(),
++  };
++}
++
++/**
++ * Create an internal calendar event linked to Activity (+ optional Meeting).
++ * Used by Meeting service ΓÇö not a public invent path for external Events.
++ */
++export async function createCalendarEventForMeeting(prisma, args = {}) {
++  if (!hasCrmCalendarEventModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_calendar_event_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditCalendar(access) && !args.internalTrusted) {
++    return { ok: false, forbidden: true, reason: 'crm_calendar_create_forbidden' };
++  }
++
++  const startsAtUtc = toUtcDate(args.startsAtUtc);
++  const endsAtUtc = toUtcDate(args.endsAtUtc);
++  if (!startsAtUtc || !endsAtUtc) {
++    return { ok: false, error: 'startsAt_and_endsAt_required' };
++  }
++  if (endsAtUtc <= startsAtUtc) {
++    return { ok: false, error: 'end_before_start' };
++  }
++
++  const timezone = args.timezone ? String(args.timezone).trim() : null;
++  if (!timezone) {
++    return { ok: false, error: 'timezone_required' };
++  }
++
++  const now = args.now || new Date();
++  const row = await prisma.crmCalendarEvent.create({
++    data: {
++      activityId: args.activityId || null,
++      meetingId: args.meetingId || null,
++      title: args.title != null ? String(args.title).trim().slice(0, 500) : 'Meeting',
++      startsAtUtc,
++      endsAtUtc,
++      timezone,
++      ownerAdminId: args.ownerAdminId || args.admin?.id || null,
++      visibility: args.visibility || 'PUBLIC',
++      status: CRM_CALENDAR_EVENT_STATUS.SCHEDULED,
++      location: args.location != null ? String(args.location).slice(0, 500) : null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    event: serializeCalendarEvent(row),
++    integrations: getCalendarIntegrationStatus(),
++  };
++}
++
++export { canViewCalendar, canEditCalendar };
+diff --git a/scripts/sql/crm-activity-phase13-wave3.sql b/scripts/sql/crm-activity-phase13-wave3.sql
+new file mode 100644
+index 0000000..61f7951
+--- /dev/null
++++ b/scripts/sql/crm-activity-phase13-wave3.sql
+@@ -0,0 +1,110 @@
++-- Phase 13 Wave 3 ΓÇö CrmMeeting + participants + reschedule history + CrmCalendarEvent (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- RSVP Γëá attendance; Google/Outlook NOT_CONNECTED; ICS export is application-layer.
++-- Never alias Demo management or SupportSlaCalendar as Sales Meeting/Calendar.
++
++CREATE TABLE IF NOT EXISTS "CrmMeeting" (
++  "id" TEXT PRIMARY KEY,
++  "meetingNumber" TEXT NOT NULL,
++  "activityId" TEXT,
++  "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
++  "title" TEXT,
++  "outcome" TEXT,
++  "subjectType" TEXT,
++  "subjectId" TEXT,
++  "contactId" TEXT,
++  "startsAtUtc" TIMESTAMP(3) NOT NULL,
++  "endsAtUtc" TIMESTAMP(3) NOT NULL,
++  "timezone" TEXT NOT NULL,
++  "startsAtOriginal" TEXT,
++  "endsAtOriginal" TEXT,
++  "location" TEXT,
++  "notes" TEXT,
++  "visibility" TEXT NOT NULL DEFAULT 'PUBLIC',
++  "consentBlocked" BOOLEAN NOT NULL DEFAULT FALSE,
++  "eligibilityJson" JSONB,
++  "ownerAdminId" TEXT,
++  "createdByAdminId" TEXT,
++  "idempotencyKey" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmMeeting_meetingNumber_key" ON "CrmMeeting"("meetingNumber");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmMeeting_idempotencyKey_key" ON "CrmMeeting"("idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmMeeting_activityId_idx" ON "CrmMeeting"("activityId");
++CREATE INDEX IF NOT EXISTS "CrmMeeting_subject_status_idx"
++  ON "CrmMeeting"("subjectType", "subjectId", "status");
++CREATE INDEX IF NOT EXISTS "CrmMeeting_status_startsAtUtc_idx"
++  ON "CrmMeeting"("status", "startsAtUtc");
++CREATE INDEX IF NOT EXISTS "CrmMeeting_owner_status_starts_idx"
++  ON "CrmMeeting"("ownerAdminId", "status", "startsAtUtc");
++CREATE INDEX IF NOT EXISTS "CrmMeeting_contactId_idx" ON "CrmMeeting"("contactId");
++
++CREATE TABLE IF NOT EXISTS "CrmMeetingParticipant" (
++  "id" TEXT PRIMARY KEY,
++  "meetingId" TEXT NOT NULL,
++  "participantType" TEXT NOT NULL,
++  "participantId" TEXT NOT NULL,
++  "role" TEXT NOT NULL DEFAULT 'REQUIRED',
++  "rsvpStatus" TEXT NOT NULL DEFAULT 'PENDING',
++  "attendanceStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
++  "attendanceRecordedByAdminId" TEXT,
++  "attendanceRecordedAt" TIMESTAMP(3),
++  "invitationStatus" TEXT NOT NULL DEFAULT 'NOT_SENT',
++  "eligibilityJson" JSONB,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmMeetingParticipant_meeting_participant_role_key"
++  ON "CrmMeetingParticipant"("meetingId", "participantType", "participantId", "role");
++CREATE INDEX IF NOT EXISTS "CrmMeetingParticipant_meetingId_idx"
++  ON "CrmMeetingParticipant"("meetingId");
++CREATE INDEX IF NOT EXISTS "CrmMeetingParticipant_participant_idx"
++  ON "CrmMeetingParticipant"("participantType", "participantId");
++CREATE INDEX IF NOT EXISTS "CrmMeetingParticipant_rsvpStatus_idx"
++  ON "CrmMeetingParticipant"("rsvpStatus");
++CREATE INDEX IF NOT EXISTS "CrmMeetingParticipant_attendanceStatus_idx"
++  ON "CrmMeetingParticipant"("attendanceStatus");
++
++CREATE TABLE IF NOT EXISTS "CrmMeetingRescheduleHistory" (
++  "id" TEXT PRIMARY KEY,
++  "meetingId" TEXT NOT NULL,
++  "fromStartsAtUtc" TIMESTAMP(3) NOT NULL,
++  "fromEndsAtUtc" TIMESTAMP(3) NOT NULL,
++  "fromTimezone" TEXT,
++  "toStartsAtUtc" TIMESTAMP(3) NOT NULL,
++  "toEndsAtUtc" TIMESTAMP(3) NOT NULL,
++  "toTimezone" TEXT,
++  "reason" TEXT,
++  "changedByAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmMeetingRescheduleHistory_meeting_at_idx"
++  ON "CrmMeetingRescheduleHistory"("meetingId", "at");
++CREATE INDEX IF NOT EXISTS "CrmMeetingRescheduleHistory_changedBy_idx"
++  ON "CrmMeetingRescheduleHistory"("changedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmCalendarEvent" (
++  "id" TEXT PRIMARY KEY,
++  "activityId" TEXT,
++  "meetingId" TEXT,
++  "title" TEXT,
++  "startsAtUtc" TIMESTAMP(3) NOT NULL,
++  "endsAtUtc" TIMESTAMP(3) NOT NULL,
++  "timezone" TEXT NOT NULL,
++  "ownerAdminId" TEXT,
++  "visibility" TEXT NOT NULL DEFAULT 'PUBLIC',
++  "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
++  "location" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmCalendarEvent_activityId_idx" ON "CrmCalendarEvent"("activityId");
++CREATE INDEX IF NOT EXISTS "CrmCalendarEvent_meetingId_idx" ON "CrmCalendarEvent"("meetingId");
++CREATE INDEX IF NOT EXISTS "CrmCalendarEvent_owner_starts_idx"
++  ON "CrmCalendarEvent"("ownerAdminId", "startsAtUtc");
++CREATE INDEX IF NOT EXISTS "CrmCalendarEvent_status_range_idx"
++  ON "CrmCalendarEvent"("status", "startsAtUtc", "endsAtUtc");
+diff --git a/test/systemAdmin.crm.activityWave3.test.js b/test/systemAdmin.crm.activityWave3.test.js
+new file mode 100644
+index 0000000..ed0a49e
+--- /dev/null
++++ b/test/systemAdmin.crm.activityWave3.test.js
+@@ -0,0 +1,857 @@
++/**
++ * Phase 13 Wave 3 ΓÇö Meetings + internal Calendar + conflicts + ICS.
++ * RSVP Γëá attendance; Google/Outlook NOT_CONNECTED; fail-closed on Activity create.
++ */
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import {
++  CRM_ACTIVITY_TYPE,
++  CRM_ACTIVITY_STATUS,
++  CRM_MEETING_STATUS,
++  CRM_MEETING_NUMBER_RE,
++  CRM_MEETING_RSVP,
++  CRM_MEETING_ATTENDANCE,
++  CRM_CALENDAR_CONFLICT_POLICY,
++  CRM_CALENDAR_INTEGRATION_STATUS,
++  allocateMeetingNumber,
++  createMeeting,
++  rescheduleMeeting,
++  cancelMeeting,
++  recordAttendance,
++  recordMeetingRsvp,
++  listCalendarEvents,
++  detectCalendarConflicts,
++  exportIcs,
++  getCalendarIntegrationStatus,
++} from '@/lib/admin/crm';
++
++function makeAdmin(id, crmPerms = {}, role = 'Platform Support') {
++  return {
++    id,
++    role,
++    permissions: {
++      systemAdmin: {
++        crm: { ...crmPerms },
++      },
++    },
++  };
++}
++
++function superAdmin(id = 'super-1') {
++  return { id, role: 'Super Admin', permissions: {} };
++}
++
++function makePrisma(overrides = {}) {
++  const seqStore = overrides._seqStore || [];
++  const activityStore = overrides._activityStore || [];
++  const statusHistoryStore = overrides._statusHistoryStore || [];
++  const relationStore = overrides._relationStore || [];
++  const participantStore = overrides._participantStore || [];
++  const meetingStore = overrides._meetingStore || [];
++  const meetingParticipantStore = overrides._meetingParticipantStore || [];
++  const rescheduleStore = overrides._rescheduleStore || [];
++  const calendarStore = overrides._calendarStore || [];
++  const followUpStore = overrides._followUpStore || [];
++  const timelineStore = overrides._timelineStore || [];
++  const consentStore = overrides._consentStore || [];
++  const dncStore = overrides._dncStore || [];
++  const contactStore = overrides._contactStore || [
++    { id: 'con-ok', contactNumber: 'CON-2026-000001', email: 'ok@example.com' },
++    { id: 'con-dnc', contactNumber: 'CON-2026-000002', email: 'dnc@example.com' },
++  ];
++
++  const prisma = {
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmActivity: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `act-${activityStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          completedAt: data.completedAt ?? null,
++          dueAt: data.dueAt ?? null,
++          outcome: data.outcome ?? null,
++          title: data.title ?? null,
++          timezone: data.timezone ?? null,
++          idempotencyKey: data.idempotencyKey ?? null,
++          ...data,
++        };
++        activityStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return activityStore.find((r) => r.id === where.id) || null;
++        if (where.activityNumber) {
++          return activityStore.find((r) => r.activityNumber === where.activityNumber) || null;
++        }
++        if (where.idempotencyKey) {
++          return activityStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        return null;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = activityStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmActivityStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `ash-${statusHistoryStore.length + 1}`, ...data };
++        statusHistoryStore.push(row);
++        return row;
++      }),
++    },
++    crmActivityRelation: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `rel-${relationStore.length + 1}`, ...data };
++        relationStore.push(row);
++        return row;
++      }),
++    },
++    crmActivityParticipant: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `part-${participantStore.length + 1}`, ...data };
++        participantStore.push(row);
++        return row;
++      }),
++    },
++    crmMeeting: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `meet-${meetingStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          outcome: data.outcome ?? null,
++          consentBlocked: data.consentBlocked === true,
++          eligibilityJson: data.eligibilityJson ?? null,
++          ...data,
++        };
++        meetingStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return meetingStore.find((r) => r.id === where.id) || null;
++        if (where.meetingNumber) {
++          return meetingStore.find((r) => r.meetingNumber === where.meetingNumber) || null;
++        }
++        if (where.idempotencyKey) {
++          return meetingStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...meetingStore];
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.ownerAdminId) {
++          rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
++        }
++        if (where.AND) {
++          for (const clause of where.AND) {
++            if (clause.startsAtUtc?.lt) {
++              rows = rows.filter((r) => new Date(r.startsAtUtc) < new Date(clause.startsAtUtc.lt));
++            }
++            if (clause.endsAtUtc?.gt) {
++              rows = rows.filter((r) => new Date(r.endsAtUtc) > new Date(clause.endsAtUtc.gt));
++            }
++            if (clause.status?.not) {
++              rows = rows.filter((r) => r.status !== clause.status.not);
++            }
++            if (clause.status?.in) {
++              rows = rows.filter((r) => clause.status.in.includes(r.status));
++            }
++            if (clause.id?.not) {
++              rows = rows.filter((r) => r.id !== clause.id.not);
++            }
++            if (clause.ownerAdminId) {
++              rows = rows.filter((r) => r.ownerAdminId === clause.ownerAdminId);
++            }
++          }
++        }
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = meetingStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmMeetingParticipant: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `mp-${meetingParticipantStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          rsvpStatus: data.rsvpStatus || CRM_MEETING_RSVP.PENDING,
++          attendanceStatus: data.attendanceStatus ?? CRM_MEETING_ATTENDANCE.UNKNOWN,
++          ...data,
++        };
++        meetingParticipantStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) {
++          return meetingParticipantStore.find((r) => r.id === where.id) || null;
++        }
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...meetingParticipantStore];
++        if (where.meetingId) rows = rows.filter((r) => r.meetingId === where.meetingId);
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = meetingParticipantStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmMeetingRescheduleHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `mrh-${rescheduleStore.length + 1}`, ...data };
++        rescheduleStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...rescheduleStore];
++        if (where.meetingId) rows = rows.filter((r) => r.meetingId === where.meetingId);
++        return rows;
++      }),
++    },
++    crmCalendarEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `cal-${calendarStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        calendarStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...calendarStore];
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.ownerAdminId) {
++          rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
++        }
++        if (where.AND) {
++          for (const clause of where.AND) {
++            if (clause.startsAtUtc?.lt) {
++              rows = rows.filter((r) => new Date(r.startsAtUtc) < new Date(clause.startsAtUtc.lt));
++            }
++            if (clause.endsAtUtc?.gt) {
++              rows = rows.filter((r) => new Date(r.endsAtUtc) > new Date(clause.endsAtUtc.gt));
++            }
++            if (clause.status?.not) {
++              rows = rows.filter((r) => r.status !== clause.status.not);
++            }
++            if (clause.meetingId?.not) {
++              rows = rows.filter((r) => r.meetingId !== clause.meetingId.not);
++            }
++            if (clause.ownerAdminId) {
++              rows = rows.filter((r) => r.ownerAdminId === clause.ownerAdminId);
++            }
++          }
++        }
++        if (where.startsAtUtc?.gte && where.startsAtUtc?.lt) {
++          rows = rows.filter(
++            (r) =>
++              new Date(r.startsAtUtc) >= new Date(where.startsAtUtc.gte) &&
++              new Date(r.startsAtUtc) < new Date(where.startsAtUtc.lt)
++          );
++        }
++        if (where.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (clause.AND) {
++                return clause.AND.every((c) => {
++                  if (c.startsAtUtc?.lt) {
++                    return new Date(r.startsAtUtc) < new Date(c.startsAtUtc.lt);
++                  }
++                  if (c.endsAtUtc?.gt) {
++                    return new Date(r.endsAtUtc) > new Date(c.endsAtUtc.gt);
++                  }
++                  return true;
++                });
++              }
++              return true;
++            })
++          );
++        }
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = calendarStore.find((r) => r.id === where.id || r.meetingId === where.meetingId);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        let count = 0;
++        for (const row of calendarStore) {
++          if (where.meetingId && row.meetingId !== where.meetingId) continue;
++          Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++          count += 1;
++        }
++        return { count };
++      }),
++    },
++    crmFollowUp: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `fu-${followUpStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          consentBlocked: data.consentBlocked === true,
++          ...data,
++        };
++        followUpStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return followUpStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findMany: vi.fn(async () => [...followUpStore]),
++    },
++    crmContact: {
++      findMany: vi.fn(async () => [...contactStore]),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return contactStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where.OR) {
++          return (
++            contactStore.find((r) =>
++              where.OR.some(
++                (c) =>
++                  (c.id && r.id === c.id) ||
++                  (c.contactNumber && r.contactNumber === c.contactNumber)
++              )
++            ) || null
++          );
++        }
++        if (where.id) return contactStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++    },
++    crmFollowUpHistory: {
++      create: vi.fn(async ({ data }) => data),
++    },
++    crmTimelineEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
++        timelineStore.push(row);
++        return row;
++      }),
++    },
++    crmConsentRecord: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `cons-${consentStore.length + 1}`, ...data };
++        consentStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...consentStore];
++        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
++        if (where.purpose) rows = rows.filter((r) => r.purpose === where.purpose);
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
++        let rows = [...consentStore];
++        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
++        if (where.purpose) rows = rows.filter((r) => r.purpose === where.purpose);
++        if (orderBy?.createdAt === 'desc') {
++          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        }
++        return rows[0] || null;
++      }),
++    },
++    crmDoNotContact: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `dnc-${dncStore.length + 1}`, ...data };
++        dncStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...dncStore];
++        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
++        if (where.active === true) rows = rows.filter((r) => r.active !== false);
++        return rows;
++      }),
++    },
++    _stores: {
++      seqStore,
++      activityStore,
++      meetingStore,
++      meetingParticipantStore,
++      rescheduleStore,
++      calendarStore,
++      followUpStore,
++      timelineStore,
++      consentStore,
++      dncStore,
++      contactStore,
++    },
++  };
++
++  return prisma;
++}
++
++describe('CRM Activity Wave 3 ΓÇö Meeting numbering + timezone + end-before-start', () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it('allocates MEET-YYYY-###### and creates timezone-explicit Meeting + Activity', async () => {
++    const prisma = makePrisma({
++      _consentStore: [
++        {
++          contactId: 'con-ok',
++          purpose: 'SALES_CONTACT',
++          status: 'GRANTED',
++          source: 'explicit',
++          createdAt: new Date('2026-01-01'),
++        },
++      ],
++    });
++    const admin = makeAdmin('m-1', { viewLeads: true, editLeads: true });
++
++    const allocated = await allocateMeetingNumber(prisma, {
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(allocated.ok).toBe(true);
++    expect(allocated.number).toMatch(CRM_MEETING_NUMBER_RE);
++
++    const created = await createMeeting(prisma, {
++      admin,
++      title: 'Discovery call',
++      subjectType: 'LEAD',
++      subjectId: 'lead-1',
++      contactId: 'con-ok',
++      timezone: 'Africa/Blantyre',
++      startsAt: '2026-08-01T08:00:00.000Z',
++      endsAt: '2026-08-01T09:00:00.000Z',
++      startsAtOriginal: '2026-08-01T10:00:00',
++      endsAtOriginal: '2026-08-01T11:00:00',
++      participants: [
++        { participantType: 'CONTACT', participantId: 'con-ok', role: 'REQUIRED' },
++      ],
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++
++    expect(created.ok).toBe(true);
++    expect(created.meeting.meetingNumber).toMatch(CRM_MEETING_NUMBER_RE);
++    expect(created.meeting.timezone).toBe('Africa/Blantyre');
++    expect(created.meeting.startsAtOriginal).toBe('2026-08-01T10:00:00');
++    expect(created.meeting.status).toBe(CRM_MEETING_STATUS.SCHEDULED);
++    expect(created.activity?.type).toBe(CRM_ACTIVITY_TYPE.MEETING);
++    expect(created.activity?.status).toBe(CRM_ACTIVITY_STATUS.PLANNED);
++    expect(created.calendarEvent?.activityId).toBe(created.activity.id);
++    expect(created.calendarEvent?.meetingId).toBe(created.meeting.id);
++    expect(created.integrations.google).toBe(CRM_CALENDAR_INTEGRATION_STATUS);
++    expect(created.integrations.outlook).toBe(CRM_CALENDAR_INTEGRATION_STATUS);
++  });
++
++  it('blocks end-before-start and missing timezone', async () => {
++    const prisma = makePrisma();
++    const admin = superAdmin();
++
++    const noTz = await createMeeting(prisma, {
++      admin,
++      title: 'No tz',
++      subjectType: 'LEAD',
++      subjectId: 'lead-tz',
++      startsAt: '2026-08-01T08:00:00.000Z',
++      endsAt: '2026-08-01T09:00:00.000Z',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(noTz.ok).toBe(false);
++    expect(noTz.error).toBe('timezone_required');
++    expect(prisma.crmMeeting.create).not.toHaveBeenCalled();
++
++    const bad = await createMeeting(prisma, {
++      admin,
++      title: 'Inverted',
++      subjectType: 'LEAD',
++      subjectId: 'lead-inv',
++      timezone: 'UTC',
++      startsAt: '2026-08-01T10:00:00.000Z',
++      endsAt: '2026-08-01T09:00:00.000Z',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(bad.ok).toBe(false);
++    expect(bad.error).toBe('end_before_start');
++    expect(prisma.crmMeeting.create).not.toHaveBeenCalled();
++  });
++});
++
++describe('CRM Activity Wave 3 ΓÇö RSVP Γëá attendance', () => {
++  it('keeps RSVP ACCEPTED distinct from ATTENDED; attendance needs authorised confirmation', async () => {
++    const prisma = makePrisma({
++      _consentStore: [
++        {
++          contactId: 'con-ok',
++          purpose: 'SALES_CONTACT',
++          status: 'GRANTED',
++          source: 'explicit',
++          createdAt: new Date('2026-01-01'),
++        },
++      ],
++    });
++    const admin = makeAdmin('m-att', { viewLeads: true, editLeads: true });
++
++    const created = await createMeeting(prisma, {
++      admin,
++      title: 'RSVP vs attendance',
++      subjectType: 'OPPORTUNITY',
++      subjectId: 'opp-1',
++      contactId: 'con-ok',
++      timezone: 'UTC',
++      startsAt: '2026-08-02T10:00:00.000Z',
++      endsAt: '2026-08-02T11:00:00.000Z',
++      participants: [
++        { participantType: 'CONTACT', participantId: 'con-ok', role: 'REQUIRED' },
++      ],
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(created.ok).toBe(true);
++    const participantId = created.participants[0].id;
++
++    const rsvp = await recordMeetingRsvp(prisma, {
++      admin,
++      meetingId: created.meeting.id,
++      participantId,
++      rsvpStatus: CRM_MEETING_RSVP.ACCEPTED,
++      now: new Date('2026-07-30T13:00:00.000Z'),
++    });
++    expect(rsvp.ok).toBe(true);
++    expect(rsvp.participant.rsvpStatus).toBe(CRM_MEETING_RSVP.ACCEPTED);
++    expect(rsvp.participant.attendanceStatus).toBe(CRM_MEETING_ATTENDANCE.UNKNOWN);
++    expect(rsvp.fabricatedAttendance).toBe(false);
++
++    const forbidden = await recordAttendance(prisma, {
++      admin: makeAdmin('viewer', { viewLeads: true }),
++      meetingId: created.meeting.id,
++      participantId,
++      attendanceStatus: CRM_MEETING_ATTENDANCE.ATTENDED,
++      now: new Date('2026-08-02T12:00:00.000Z'),
++    });
++    expect(forbidden.ok).toBe(false);
++    expect(forbidden.forbidden || forbidden.error).toBeTruthy();
++
++    const attended = await recordAttendance(prisma, {
++      admin,
++      meetingId: created.meeting.id,
++      participantId,
++      attendanceStatus: CRM_MEETING_ATTENDANCE.ATTENDED,
++      now: new Date('2026-08-02T12:00:00.000Z'),
++    });
++    expect(attended.ok).toBe(true);
++    expect(attended.participant.attendanceStatus).toBe(CRM_MEETING_ATTENDANCE.ATTENDED);
++    expect(attended.participant.rsvpStatus).toBe(CRM_MEETING_RSVP.ACCEPTED);
++    expect(attended.fromRsvpAlone).toBe(false);
++  });
++});
++
++describe('CRM Activity Wave 3 ΓÇö conflicts + ICS + NOT_CONNECTED', () => {
++  it('detects conflicts, exports ICS, and reports Google/Outlook NOT_CONNECTED', async () => {
++    const prisma = makePrisma();
++    const admin = superAdmin('owner-cal');
++
++    const a = await createMeeting(prisma, {
++      admin,
++      title: 'Slot A',
++      subjectType: 'LEAD',
++      subjectId: 'lead-a',
++      timezone: 'UTC',
++      startsAt: '2026-08-05T09:00:00.000Z',
++      endsAt: '2026-08-05T10:00:00.000Z',
++      ownerAdminId: 'owner-cal',
++      conflictPolicy: CRM_CALENDAR_CONFLICT_POLICY.WARN,
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(a.ok).toBe(true);
++
++    const blocked = await createMeeting(prisma, {
++      admin,
++      title: 'Slot B blocked',
++      subjectType: 'LEAD',
++      subjectId: 'lead-b',
++      timezone: 'UTC',
++      startsAt: '2026-08-05T09:30:00.000Z',
++      endsAt: '2026-08-05T10:30:00.000Z',
++      ownerAdminId: 'owner-cal',
++      conflictPolicy: CRM_CALENDAR_CONFLICT_POLICY.BLOCK,
++      now: new Date('2026-07-30T12:05:00.000Z'),
++    });
++    expect(blocked.ok).toBe(false);
++    expect(blocked.error).toBe('calendar_conflict_blocked');
++    expect(blocked.conflicts?.length).toBeGreaterThan(0);
++
++    const warned = await createMeeting(prisma, {
++      admin,
++      title: 'Slot B warn',
++      subjectType: 'LEAD',
++      subjectId: 'lead-b2',
++      timezone: 'UTC',
++      startsAt: '2026-08-05T09:30:00.000Z',
++      endsAt: '2026-08-05T10:30:00.000Z',
++      ownerAdminId: 'owner-cal',
++      conflictPolicy: CRM_CALENDAR_CONFLICT_POLICY.WARN,
++      now: new Date('2026-07-30T12:06:00.000Z'),
++    });
++    expect(warned.ok).toBe(true);
++    expect(warned.conflicts?.length).toBeGreaterThan(0);
++
++    const allowed = await createMeeting(prisma, {
++      admin,
++      title: 'Slot C reason',
++      subjectType: 'LEAD',
++      subjectId: 'lead-c',
++      timezone: 'UTC',
++      startsAt: '2026-08-05T09:45:00.000Z',
++      endsAt: '2026-08-05T10:15:00.000Z',
++      ownerAdminId: 'owner-cal',
++      conflictPolicy: CRM_CALENDAR_CONFLICT_POLICY.ALLOW_WITH_REASON,
++      conflictReason: 'Customer requested overlap',
++      now: new Date('2026-07-30T12:07:00.000Z'),
++    });
++    expect(allowed.ok).toBe(true);
++    expect(allowed.conflictReason).toBe('Customer requested overlap');
++
++    const noReason = await createMeeting(prisma, {
++      admin,
++      title: 'No reason',
++      subjectType: 'LEAD',
++      subjectId: 'lead-d',
++      timezone: 'UTC',
++      startsAt: '2026-08-05T09:50:00.000Z',
++      endsAt: '2026-08-05T10:20:00.000Z',
++      ownerAdminId: 'owner-cal',
++      conflictPolicy: CRM_CALENDAR_CONFLICT_POLICY.ALLOW_WITH_REASON,
++      now: new Date('2026-07-30T12:08:00.000Z'),
++    });
++    expect(noReason.ok).toBe(false);
++    expect(noReason.error).toBe('conflict_reason_required');
++
++    const detected = await detectCalendarConflicts(prisma, {
++      admin,
++      ownerAdminId: 'owner-cal',
++      startsAt: '2026-08-05T09:00:00.000Z',
++      endsAt: '2026-08-05T10:00:00.000Z',
++    });
++    expect(detected.ok).toBe(true);
++    expect(detected.conflicts.length).toBeGreaterThan(0);
++
++    const listed = await listCalendarEvents(prisma, {
++      admin,
++      view: 'day',
++      date: '2026-08-05',
++      timezone: 'UTC',
++      ownerAdminId: 'owner-cal',
++    });
++    expect(listed.ok).toBe(true);
++    expect(listed.events.length).toBeGreaterThan(0);
++    expect(listed.view).toBe('day');
++    expect(listed.workingHours).toBeTruthy();
++
++    const ics = await exportIcs(prisma, {
++      admin,
++      eventIds: listed.events.map((e) => e.id),
++      ownerAdminId: 'owner-cal',
++    });
++    expect(ics.ok).toBe(true);
++    expect(ics.ics).toContain('BEGIN:VCALENDAR');
++    expect(ics.ics).toContain('BEGIN:VEVENT');
++    expect(ics.ics).toContain('END:VCALENDAR');
++    expect(ics.externalSync).toBe(false);
++
++    const status = getCalendarIntegrationStatus();
++    expect(status.google).toBe(CRM_CALENDAR_INTEGRATION_STATUS);
++    expect(status.outlook).toBe(CRM_CALENDAR_INTEGRATION_STATUS);
++    expect(status.externalEventsFabricated).toBe(false);
++  });
++
++  it('hides private details in availability mode', async () => {
++    const prisma = makePrisma();
++    const admin = superAdmin('priv-1');
++
++    await createMeeting(prisma, {
++      admin,
++      title: 'Secret pipeline review',
++      subjectType: 'LEAD',
++      subjectId: 'lead-p',
++      timezone: 'UTC',
++      startsAt: '2026-08-06T14:00:00.000Z',
++      endsAt: '2026-08-06T15:00:00.000Z',
++      visibility: 'PRIVATE',
++      ownerAdminId: 'priv-1',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++
++    const avail = await listCalendarEvents(prisma, {
++      admin,
++      view: 'day',
++      date: '2026-08-06',
++      timezone: 'UTC',
++      ownerAdminId: 'priv-1',
++      availabilityOnly: true,
++    });
++    expect(avail.ok).toBe(true);
++    expect(avail.events[0].title).not.toContain('Secret');
++    expect(avail.events[0].busy).toBe(true);
++    expect(avail.events[0].privateDetailsHidden).toBe(true);
++  });
++});
++
++describe('CRM Activity Wave 3 ΓÇö reschedule / cancel / fail-closed', () => {
++  it('records reschedule history, cancels with Follow-Up hook, fail-closes on Activity failure', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('m-rs', { viewLeads: true, editLeads: true });
++
++    const created = await createMeeting(prisma, {
++      admin,
++      title: 'Reschedule me',
++      subjectType: 'LEAD',
++      subjectId: 'lead-rs',
++      timezone: 'Africa/Blantyre',
++      startsAt: '2026-08-10T08:00:00.000Z',
++      endsAt: '2026-08-10T09:00:00.000Z',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(created.ok).toBe(true);
++
++    const moved = await rescheduleMeeting(prisma, {
++      admin,
++      meetingId: created.meeting.id,
++      timezone: 'Africa/Blantyre',
++      startsAt: '2026-08-11T08:00:00.000Z',
++      endsAt: '2026-08-11T09:00:00.000Z',
++      reason: 'Prospect asked for Tuesday',
++      now: new Date('2026-07-30T13:00:00.000Z'),
++    });
++    expect(moved.ok).toBe(true);
++    expect(moved.meeting.status).toBe(CRM_MEETING_STATUS.RESCHEDULED);
++    expect(moved.history?.length).toBeGreaterThan(0);
++
++    const cancelled = await cancelMeeting(prisma, {
++      admin,
++      meetingId: created.meeting.id,
++      reason: 'Prospect cancelled',
++      createFollowUp: true,
++      now: new Date('2026-07-30T14:00:00.000Z'),
++    });
++    expect(cancelled.ok).toBe(true);
++    expect(cancelled.meeting.status).toBe(CRM_MEETING_STATUS.CANCELLED);
++    expect(cancelled.followUp).toBeTruthy();
++    expect(cancelled.followUp.autoExecuted).toBe(false);
++
++    const broken = makePrisma();
++    const realCreate = broken.crmNumberSeq.create;
++    broken.crmNumberSeq.create = vi.fn(async ({ data }) => {
++      if (data.prefix === 'ACT') {
++        const err = Object.assign(new Error('fail'), { code: 'P2002' });
++        throw err;
++      }
++      return realCreate({ data });
++    });
++    broken.crmNumberSeq.findUnique = vi.fn(async ({ where = {} } = {}) => {
++      const key = where.prefix_year || where;
++      if (key.prefix === 'ACT') return { prefix: 'ACT', year: key.year, lastIssued: 1 };
++      return null;
++    });
++    broken.crmNumberSeq.updateMany = vi.fn(async () => ({ count: 0 }));
++
++    const orphan = await createMeeting(broken, {
++      admin,
++      title: 'Must not orphan meeting',
++      subjectType: 'LEAD',
++      subjectId: 'lead-orphan',
++      timezone: 'UTC',
++      startsAt: '2026-08-12T08:00:00.000Z',
++      endsAt: '2026-08-12T09:00:00.000Z',
++      now: new Date('2026-07-30T15:00:00.000Z'),
++    });
++    expect(orphan.ok).toBe(false);
++    expect(orphan.error).toBeTruthy();
++    expect(broken.crmMeeting.create).not.toHaveBeenCalled();
++    expect(broken.crmCalendarEvent.create).not.toHaveBeenCalled();
++  });
++
++  it('blocks outbound invitation when Contact gate fails (DNC / missing contact)', async () => {
++    const prisma = makePrisma({
++      _dncStore: [
++        {
++          contactId: 'con-dnc',
++          flag: 'DO_NOT_EMAIL',
++          active: true,
++          createdAt: new Date('2026-01-01'),
++        },
++      ],
++    });
++    const admin = superAdmin();
++
++    const noContact = await createMeeting(prisma, {
++      admin,
++      title: 'Invite without contact',
++      subjectType: 'LEAD',
++      subjectId: 'lead-nc',
++      timezone: 'UTC',
++      startsAt: '2026-08-13T08:00:00.000Z',
++      endsAt: '2026-08-13T09:00:00.000Z',
++      sendInvitations: true,
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(noContact.ok).toBe(false);
++    expect(noContact.error).toBe('CONTACT_REQUIRED');
++
++    const dnc = await createMeeting(prisma, {
++      admin,
++      title: 'Invite DNC',
++      subjectType: 'LEAD',
++      subjectId: 'lead-dnc',
++      contactId: 'con-dnc',
++      timezone: 'UTC',
++      startsAt: '2026-08-13T10:00:00.000Z',
++      endsAt: '2026-08-13T11:00:00.000Z',
++      sendInvitations: true,
++      participants: [
++        { participantType: 'CONTACT', participantId: 'con-dnc', role: 'REQUIRED' },
++      ],
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(dnc.ok).toBe(true);
++    expect(dnc.meeting.consentBlocked).toBe(true);
++    expect(dnc.participants[0].invitationStatus).toBe('BLOCKED_BY_CONSENT');
++    expect(dnc.invitationSent).toBe(false);
++  });
++});
+diff --git "a/app\\api\\admin\\crm\\meetings\\route.js" "b/app\\api\\admin\\crm\\meetings\\route.js"
+new file mode 100644
+index 0000000..9b2a31a
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\meetings\\route.js"
+@@ -0,0 +1,113 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { createMeeting, listMeetings } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listMeetings(prisma, {
++      admin,
++      subjectType: searchParams.get('subjectType') || undefined,
++      subjectId: searchParams.get('subjectId') || undefined,
++      status: searchParams.get('status') || undefined,
++      ownerAdminId: searchParams.get('ownerAdminId') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to list meetings' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM meetings list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM meetings' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await createMeeting(prisma, {
++      admin,
++      title: body.title,
++      subjectType: body.subjectType || 'LEAD',
++      subjectId: body.subjectId || body.leadId || body.opportunityId,
++      contactId: body.contactId,
++      purpose: body.purpose,
++      timezone: body.timezone,
++      startsAt: body.startsAt || body.startsAtUtc,
++      endsAt: body.endsAt || body.endsAtUtc,
++      startsAtOriginal: body.startsAtOriginal,
++      endsAtOriginal: body.endsAtOriginal,
++      location: body.location,
++      notes: body.notes,
++      visibility: body.visibility,
++      participants: body.participants,
++      sendInvitations: body.sendInvitations === true,
++      conflictPolicy: body.conflictPolicy,
++      conflictReason: body.conflictReason,
++      ownerAdminId: body.ownerAdminId,
++      idempotencyKey: body.idempotencyKey,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        {
++          success: false,
++          error: result.error || 'Failed to create meeting',
++          conflicts: result.conflicts,
++        },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json(
++      {
++        success: true,
++        meeting: result.meeting,
++        activity: result.activity,
++        calendarEvent: result.calendarEvent,
++        participants: result.participants,
++        conflicts: result.conflicts,
++        integrations: result.integrations,
++        alreadyExists: result.alreadyExists,
++      },
++      { status: result.alreadyExists ? 200 : 201 }
++    );
++  } catch (error) {
++    console.error('CRM meetings create error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to create CRM meeting' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\meetings\\[id]\\[action]\\route.js" "b/app\\api\\admin\\crm\\meetings\\[id]\\[action]\\route.js"
+new file mode 100644
+index 0000000..199a21d
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\meetings\\[id]\\[action]\\route.js"
+@@ -0,0 +1,91 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import {
++  cancelMeeting,
++  recordAttendance,
++  recordMeetingRsvp,
++  rescheduleMeeting,
++} from '@/lib/admin/crm';
++
++export async function POST(request, { params }) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { id, action } = await params;
++    const meetingId = String(id || '').trim();
++    const act = String(action || '').trim().toLowerCase();
++    const body = await request.json().catch(() => ({}));
++
++    let result;
++    if (act === 'reschedule') {
++      result = await rescheduleMeeting(prisma, {
++        admin,
++        meetingId,
++        timezone: body.timezone,
++        startsAt: body.startsAt || body.startsAtUtc,
++        endsAt: body.endsAt || body.endsAtUtc,
++        startsAtOriginal: body.startsAtOriginal,
++        endsAtOriginal: body.endsAtOriginal,
++        reason: body.reason,
++        conflictPolicy: body.conflictPolicy,
++        conflictReason: body.conflictReason,
++      });
++    } else if (act === 'cancel') {
++      result = await cancelMeeting(prisma, {
++        admin,
++        meetingId,
++        reason: body.reason,
++        outcome: body.outcome,
++        createFollowUp: body.createFollowUp === true,
++      });
++    } else if (act === 'rsvp') {
++      result = await recordMeetingRsvp(prisma, {
++        admin,
++        meetingId,
++        participantId: body.participantId,
++        rsvpStatus: body.rsvpStatus,
++      });
++    } else if (act === 'attendance') {
++      result = await recordAttendance(prisma, {
++        admin,
++        meetingId,
++        participantId: body.participantId,
++        attendanceStatus: body.attendanceStatus,
++      });
++    } else {
++      return NextResponse.json(
++        { success: false, error: 'invalid_action', action: act },
++        { status: 400 }
++      );
++    }
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        {
++          success: false,
++          error: result.error || 'Meeting action failed',
++          conflicts: result.conflicts,
++        },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM meeting action error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to update CRM meeting' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\calendar\\route.js" "b/app\\api\\admin\\crm\\calendar\\route.js"
+new file mode 100644
+index 0000000..43f6cfd
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\calendar\\route.js"
+@@ -0,0 +1,115 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import {
++  detectCalendarConflicts,
++  exportIcs,
++  getCalendarIntegrationStatus,
++  listCalendarEvents,
++} from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const mode = String(searchParams.get('mode') || 'list').trim().toLowerCase();
++
++    if (mode === 'integrations' || mode === 'status') {
++      return NextResponse.json({
++        success: true,
++        integrations: getCalendarIntegrationStatus(),
++      });
++    }
++
++    if (mode === 'conflicts') {
++      const result = await detectCalendarConflicts(prisma, {
++        admin,
++        ownerAdminId: searchParams.get('ownerAdminId') || admin.id,
++        startsAt: searchParams.get('startsAt'),
++        endsAt: searchParams.get('endsAt'),
++        excludeMeetingId: searchParams.get('excludeMeetingId') || undefined,
++      });
++      if (result.forbidden) {
++        return NextResponse.json(
++          { success: false, error: 'Insufficient admin privileges' },
++          { status: 403 }
++        );
++      }
++      if (!result.ok) {
++        return NextResponse.json(
++          { success: false, error: result.error || 'Conflict detect failed' },
++          { status: 400 }
++        );
++      }
++      return NextResponse.json({ success: true, ...result });
++    }
++
++    if (mode === 'ics') {
++      const eventIds = (searchParams.get('eventIds') || '')
++        .split(',')
++        .map((s) => s.trim())
++        .filter(Boolean);
++      const result = await exportIcs(prisma, {
++        admin,
++        ownerAdminId: searchParams.get('ownerAdminId') || admin.id,
++        eventIds,
++      });
++      if (result.forbidden) {
++        return NextResponse.json(
++          { success: false, error: 'Insufficient admin privileges' },
++          { status: 403 }
++        );
++      }
++      if (!result.ok) {
++        return NextResponse.json(
++          { success: false, error: result.error || 'ICS export failed' },
++          { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++        );
++      }
++      return new NextResponse(result.ics, {
++        status: 200,
++        headers: {
++          'Content-Type': 'text/calendar; charset=utf-8',
++          'Content-Disposition': 'attachment; filename="crm-calendar.ics"',
++          'X-CRM-External-Sync': 'false',
++        },
++      });
++    }
++
++    const result = await listCalendarEvents(prisma, {
++      admin,
++      view: searchParams.get('view') || 'day',
++      date: searchParams.get('date') || undefined,
++      timezone: searchParams.get('timezone') || 'UTC',
++      ownerAdminId: searchParams.get('ownerAdminId') || undefined,
++      availabilityOnly: searchParams.get('availabilityOnly') === 'true',
++      includeCancelled: searchParams.get('includeCancelled') === 'true',
++      limit: searchParams.get('limit') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to list calendar events' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM calendar list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to load CRM calendar' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\insightbooks\\crm\\meetings\\page.js" "b/app\\insightbooks\\crm\\meetings\\page.js"
+new file mode 100644
+index 0000000..821f29d
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\meetings\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmMeetingsPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.meetings"
++      hintKey="admin-pages.crm.sectionHints.meetings"
++      emptyTitleKey="admin-pages.crm.meetings.emptyTitle"
++      emptyHintKey="admin-pages.crm.meetings.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\calendar\\page.js" "b/app\\insightbooks\\crm\\calendar\\page.js"
+new file mode 100644
+index 0000000..5a81bb6
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\calendar\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmCalendarPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.calendar"
++      hintKey="admin-pages.crm.sectionHints.calendar"
++      emptyTitleKey="admin-pages.crm.calendar.emptyTitle"
++      emptyHintKey="admin-pages.crm.calendar.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\calendar\\agenda\\page.js" "b/app\\insightbooks\\crm\\calendar\\agenda\\page.js"
+new file mode 100644
+index 0000000..0e654b0
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\calendar\\agenda\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmCalendarAgendaPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.calendarAgenda"
++      hintKey="admin-pages.crm.sectionHints.calendar"
++      emptyTitleKey="admin-pages.crm.calendar.emptyTitle"
++      emptyHintKey="admin-pages.crm.calendar.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\calendar\\day\\page.js" "b/app\\insightbooks\\crm\\calendar\\day\\page.js"
+new file mode 100644
+index 0000000..6e6a13f
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\calendar\\day\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmCalendarDayPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.calendarDay"
++      hintKey="admin-pages.crm.sectionHints.calendar"
++      emptyTitleKey="admin-pages.crm.calendar.emptyTitle"
++      emptyHintKey="admin-pages.crm.calendar.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\calendar\\month\\page.js" "b/app\\insightbooks\\crm\\calendar\\month\\page.js"
+new file mode 100644
+index 0000000..dbc363a
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\calendar\\month\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmCalendarMonthPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.calendarMonth"
++      hintKey="admin-pages.crm.sectionHints.calendar"
++      emptyTitleKey="admin-pages.crm.calendar.emptyTitle"
++      emptyHintKey="admin-pages.crm.calendar.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\calendar\\week\\page.js" "b/app\\insightbooks\\crm\\calendar\\week\\page.js"
+new file mode 100644
+index 0000000..a84c9cf
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\calendar\\week\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmCalendarWeekPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.calendarWeek"
++      hintKey="admin-pages.crm.sectionHints.calendar"
++      emptyTitleKey="admin-pages.crm.calendar.emptyTitle"
++      emptyHintKey="admin-pages.crm.calendar.emptyHint"
++    />
++  );
++}

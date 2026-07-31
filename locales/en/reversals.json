@@ -1,0 +1,8 @@
+{
+  "title": "Reversed Transactions",
+  "pendingApprovals": "Pending approvals",
+  "reason": "Reversal reason",
+  "approveExecute": "Approve & execute",
+  "impactPreview": "Impact preview",
+  "originalTransaction": "Original transaction"
+}

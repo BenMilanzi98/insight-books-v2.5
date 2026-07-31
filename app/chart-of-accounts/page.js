@@ -1417,13 +1417,21 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
   const chartBalanceMain =
     account.chartGridBalance != null ? Number(account.chartGridBalance) : Number(account.currentBalance) || 0;
 
-  const descendantsTotal = useMemo(
-    () => subtreeRows.reduce((s, { row }) => s + (Number(row.currentBalance) || 0), 0),
+  // Parent chart totals already roll up nested children into each direct child’s
+  // currentBalance. Summing every descendant row double-counts (e.g. 1110 + 1110-01).
+  // Reconcile using direct children only (depth 0).
+  const directChildrenTotal = useMemo(
+    () =>
+      subtreeRows
+        .filter(({ depth }) => depth === 0)
+        .reduce((s, { row }) => s + (Number(row.currentBalance) || 0), 0),
     [subtreeRows]
   );
 
+  const descendantsTotal = directChildrenTotal;
+
   const subtreeMismatch =
-    subtreeRows.length > 0 && Math.abs(descendantsTotal - chartBalanceMain) > COA_RECONCILE_TOLERANCE;
+    subtreeRows.length > 0 && Math.abs(directChildrenTotal - chartBalanceMain) > COA_RECONCILE_TOLERANCE;
 
   const handleExportExcel = useCallback(async () => {
     const code = safeCoaExportBasename(account.accountCode || account.code);
@@ -1453,8 +1461,8 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
       { field: 'Status', value: account.isActive !== false ? 'Active' : 'Inactive' },
       { field: 'Parent', value: account.parentAccount ? `${account.parentAccount.accountCode} — ${account.parentAccount.accountName || ''}` : '' },
       {
-        field: 'Sum of sub-account chart balances',
-        value: descendantsTotal,
+        field: 'Sum of direct sub-account chart balances',
+        value: directChildrenTotal,
       },
     ];
 
@@ -1524,7 +1532,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
       },
       { label: 'Transactions (posted lines est.)', value: String(account.transactionCount ?? 0) },
       { label: 'Sub-accounts listed', value: String(subtreeRows.length) },
-      { label: 'Sum of sub-account balances', value: formatCurrency(descendantsTotal) },
+      { label: 'Sum of direct sub-account balances', value: formatCurrency(directChildrenTotal) },
     ];
 
     const pdfRows = subtreeRows.map(({ row, depth }) => ({
@@ -1693,13 +1701,16 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                 <div>
                   <p className={dl}>Sub-account balances</p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Amounts match the chart grid for each descendant. Sum of rows:{' '}
-                    <span className="font-mono font-semibold text-slate-900">{formatCurrency(descendantsTotal)}</span>
+                    Each row shows its chart-grid balance (children already rolled in). Sum of{' '}
+                    <span className="font-medium text-slate-800">direct</span> sub-accounts only:{' '}
+                    <span className="font-mono font-semibold text-slate-900">{formatCurrency(directChildrenTotal)}</span>
+                    {' '}(nested rows are listed for detail, not re-added).
                   </p>
                 </div>
                 {subtreeMismatch ? (
                   <p className="text-xs font-medium text-amber-800">
-                    Differs from parent chart total ({formatCurrency(chartBalanceMain)}); normal when filters hide rows or roll-ups differ.
+                    Direct children sum differs from parent chart total ({formatCurrency(chartBalanceMain)});
+                    check filters, hidden rollup rows, or structure catch-all buckets.
                   </p>
                 ) : null}
               </div>
@@ -1738,10 +1749,10 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                       <tfoot>
                         <tr className="bg-slate-50 font-semibold">
                           <td colSpan={3} className="px-3 py-2.5 text-right text-slate-600">
-                            Total (sum of listed sub-accounts)
+                            Total (direct sub-accounts only)
                           </td>
                           <td className="px-3 py-2.5 text-right font-mono tabular-nums text-indigo-900">
-                            {formatCurrency(descendantsTotal)}
+                            {formatCurrency(directChildrenTotal)}
                           </td>
                         </tr>
                       </tfoot>

@@ -99,6 +99,7 @@ export async function GET(request) {
       journalEntry: {
         ...tw,
         status: { in: ['Posted', 'posted'] },
+        architectureVersion: 'ACCOUNTING_V2',
         ...(Object.keys(dateRange).length > 0 ? { entryDate: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
       },
@@ -134,6 +135,7 @@ export async function GET(request) {
       } : {}),
     };
 
+    void transactionWhere;
     const [journalLines, transactionLines] = await Promise.all([
       prisma.journalEntryLine.findMany({
         where: journalWhere,
@@ -152,29 +154,7 @@ export async function GET(request) {
         },
         orderBy: { journalEntry: { entryDate: 'asc' } },
       }),
-      prisma.transactionLine.findMany({
-        where: transactionWhere,
-        include: {
-          account: { select: { accountCode: true, accountName: true, accountType: true, normalBalance: true } },
-          transaction: {
-            select: {
-              id: true,
-              date: true,
-              reference: true,
-              description: true,
-              sourceType: true,
-              sourceId: true,
-              tenantId: true,
-              entryType: true,
-              isReversal: true,
-              reversalReason: true,
-              reversedTransactionId: true,
-              notes: true,
-            },
-          },
-        },
-        orderBy: { transaction: { date: 'asc' } },
-      }),
+      Promise.resolve([]),
     ]);
 
     let running = 0;
@@ -182,7 +162,7 @@ export async function GET(request) {
     if (!multiTenant && accountId && accountId !== 'all' && startDate) {
       const openingDate = new Date(startDate);
       openingDate.setHours(0, 0, 0, 0);
-      const [openingJournal, openingTransaction, acc] = await Promise.all([
+      const [openingJournal, acc] = await Promise.all([
         prisma.journalEntryLine.aggregate({
           where: {
             ...journalWhere,
@@ -191,19 +171,12 @@ export async function GET(request) {
           },
           _sum: { debitAmount: true, creditAmount: true },
         }),
-        prisma.transactionLine.aggregate({
-          where: {
-            ...transactionWhere,
-            accountId,
-            transaction: { ...transactionWhere.transaction, date: { lt: openingDate } },
-          },
-          _sum: { debitAmount: true, creditAmount: true },
-        }),
         prisma.account.findUnique({
           where: { id: accountId },
           select: { accountType: true, normalBalance: true },
         }),
       ]);
+      const openingTransaction = { _sum: { debitAmount: 0, creditAmount: 0 } };
       const deb = (openingJournal._sum.debitAmount || 0) + (openingTransaction._sum.debitAmount || 0);
       const cre = (openingJournal._sum.creditAmount || 0) + (openingTransaction._sum.creditAmount || 0);
       const normal = getNormalBalance(acc?.accountType, acc?.normalBalance);

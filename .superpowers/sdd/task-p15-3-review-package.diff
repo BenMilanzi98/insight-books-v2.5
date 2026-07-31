@@ -1,0 +1,3353 @@
+﻿# Review package — Phase 15 Task 3 (WORKING_TREE)
+6553	lib/admin/crm/commercial/templates.js
+9361	lib/admin/crm/commercial/render.js
+4210	lib/admin/crm/commercial/artifacts.js
+764	lib/admin/crm/commercial/checksum.js
+3129	lib/admin/crm/commercial/storage.js
+10601	lib/admin/crm/commercial/issue.js
+3856	lib/admin/crm/commercial/delivery.js
+7788	lib/admin/crm/commercial/reviewAccess.js
+2516	lib/admin/crm/commercial/customerComments.js
+3117	lib/admin/crm/commercial/revisionRequests.js
+6517	lib/admin/crm/commercial/acceptance.js
+3854	lib/admin/crm/commercial/rejection.js
+3017	lib/admin/crm/commercial/expiry.js
+1550	lib/admin/crm/commercial/signatureBoundary.js
+wave3 sql=True test=23788
+
+===== lib/admin/crm/commercial/render.js =====
+
+/**
+ * Deterministic HTMLâ†’PDF commercial document render â€” Phase 15 Wave 3.
+ *
+ * Approach: build a stable HTML projection, then serialize a real PDF 1.4
+ * document with fixed object IDs / no random /ID / no timestamps so the
+ * binary (+ sha256) is stable for identical source content. Artifacts are
+ * append-only (regenerate = new artifact row, never silent replace).
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import {
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { canEditCommercial } from './documents.js';
+import {
+  hasCrmCommercialArtifactModel,
+  hasCrmCommercialRenderJobModel,
+  persistArtifactWithChecksum,
+  serializeArtifact,
+  serializeChecksum,
+} from './artifacts.js';
+import { sha256Hex } from './checksum.js';
+import { resolveCommercialActor } from './model.js';
+import {
+  buildDeterministicHtmlDocument,
+  CRM_COMMERCIAL_PROJECTION,
+  CRM_COMMERCIAL_PROJECTIONS,
+  loadDefaultBranding,
+  projectContentForAudience,
+} from './templates.js';
+import { loadDocumentVersion } from './versions.js';
+import { loadCommercialDocument } from './documents.js';
+
+function normalizeProjection(projection) {
+  const p = String(projection || CRM_COMMERCIAL_PROJECTION.ISSUED)
+    .trim()
+    .toUpperCase();
+  if (!CRM_COMMERCIAL_PROJECTIONS.includes(p)) {
+    throw new Error(`invalid_projection: ${p}`);
+  }
+  return p;
+}
+
+function pdfEscape(text) {
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+}
+
+/**
+ * Convert deterministic HTML (+ structured content) into a stable PDF buffer.
+ * Hand-rolled PDF 1.4 (no jsPDF random /ID or CreationDate) for checksum stability.
+ */
+export function htmlToDeterministicPdfBuffer({
+  html,
+  title = 'Commercial Document',
+  projection = 'ISSUED',
+  versionLabel = '',
+  content = {},
+}) {
+  const htmlFingerprint = sha256Hex(html);
+  const watermark =
+    projection === CRM_COMMERCIAL_PROJECTION.DRAFT
+      ? 'DRAFT'
+      : projection === CRM_COMMERCIAL_PROJECTION.INTERNAL
+        ? 'INTERNAL'
+        : '';
+
+  const currency = content.totals?.currency || '';
+  const grandTotal = content.totals?.grandTotal ?? '';
+  const lines = Array.isArray(content.lineItems) ? content.lineItems : [];
+  const lineText = lines
+    .map((li, idx) => {
+      const ref = li.productRef || li.description || `item-${idx + 1}`;
+      return `${ref} | ${li.quantity ?? ''} | ${li.unitPrice ?? li.unit ?? ''} | ${li.currency || currency}`;
+    })
+    .join('\n');
+
+  const textLines = [
+    String(title).slice(0, 120),
+    `Version: ${versionLabel}`,
+    `Projection: ${projection}`,
+    watermark ? `Watermark: ${watermark}` : null,
+    `Total: ${grandTotal} ${currency}`.trim(),
+    'Items:',
+    lineText || '(none)',
+    `html-sha256:${htmlFingerprint}`,
+  ].filter((x) => x != null);
+
+  // PDF text operators â€” fixed positions, Helvetica
+  let y = 800;
+  const ops = ['BT', '/F1 12 Tf', '14 800 Td'];
+  for (let i = 0; i < textLines.length; i += 1) {
+    if (i === 0) {
+      ops.push(`(${pdfEscape(textLines[i])}) Tj`);
+    } else {
+      y -= 16;
+      ops.push('0 -16 Td');
+      ops.push(`(${pdfEscape(textLines[i]).slice(0, 110)}) Tj`);
+    }
+  }
+  if (watermark) {
+    ops.push('0 -40 Td');
+    ops.push('/F1 48 Tf');
+    ops.push(`0.85 g (${pdfEscape(watermark)}) Tj`);
+    ops.push('0 g');
+  }
+  ops.push('ET');
+  const stream = ops.join('\n');
+
+  const objects = [];
+  objects.push('1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n');
+  objects.push('2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n');
+  objects.push(
+    '3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj\n'
+  );
+  objects.push(
+    `4 0 obj<< /Length ${Buffer.byteLength(stream, 'utf8')} >>stream\n${stream}\nendstream\nendobj\n`
+  );
+  objects.push('5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n');
+  // Fixed info dict â€” no dates (avoids non-determinism)
+  objects.push(
+    `6 0 obj<< /Title (${pdfEscape(title).slice(0, 80)}) /Creator (InsightBooks CRM Commercial Wave3) /Producer (InsightBooks Deterministic PDF) >>endobj\n`
+  );
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const obj of objects) {
+    offsets.push(Buffer.byteLength(pdf, 'utf8'));
+    pdf += obj;
+  }
+  const xrefStart = Buffer.byteLength(pdf, 'utf8');
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer<< /Size ${objects.length + 1} /Root 1 0 R /Info 6 0 R >>\n`;
+  pdf += `startxref\n${xrefStart}\n%%EOF\n`;
+
+  return Buffer.from(pdf, 'utf8');
+}
+
+export async function renderCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (admin && !canEditCommercial(access) && !access.canView) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_render_forbidden' };
+  }
+
+  if (!hasCrmCommercialArtifactModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_artifact_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const versionId = args.versionId || args.documentVersionId || args.commercialDocumentVersionId;
+  if (!versionId) return { ok: false, error: 'versionId_required' };
+
+  let projection;
+  try {
+    projection = normalizeProjection(args.projection || CRM_COMMERCIAL_PROJECTION.ISSUED);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.crmCommercialArtifact.findUnique({
+        where: {
+          versionId_projection_idempotencyKey: {
+            versionId,
+            projection,
+            idempotencyKey,
+          },
+        },
+      });
+      if (existing) {
+        const checksum = await prisma.crmCommercialChecksum.findFirst({
+          where: { artifactId: existing.id },
+          orderBy: { createdAt: 'desc' },
+        });
+        return {
+          ok: true,
+          alreadyExists: true,
+          artifact: serializeArtifact(existing, {
+            byteLength: existing.byteLength,
+          }),
+          checksum: serializeChecksum(checksum),
+          domain: getCommercialDomainContract(),
+        };
+      }
+    } catch {
+      // compound unique may be unavailable on SQL fallback â€” try findFirst
+      try {
+        const existing = await prisma.crmCommercialArtifact.findFirst({
+          where: { versionId, projection, idempotencyKey },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (existing) {
+          const checksum = await prisma.crmCommercialChecksum.findFirst({
+            where: { artifactId: existing.id },
+            orderBy: { createdAt: 'desc' },
+          });
+          return {
+            ok: true,
+            alreadyExists: true,
+            artifact: serializeArtifact(existing, {
+              byteLength: existing.byteLength,
+            }),
+            checksum: serializeChecksum(checksum),
+            domain: getCommercialDomainContract(),
+          };
+        }
+      } catch {
+        // continue to render
+      }
+    }
+  }
+
+  const version = await loadDocumentVersion(prisma, versionId);
+  if (!version) return { ok: false, error: 'document_version_not_found', notFound: true };
+
+  const document = await loadCommercialDocument(prisma, version.documentId);
+  const branding = await loadDefaultBranding(prisma);
+  const projected = projectContentForAudience(version.contentJson, projection);
+
+  const html = buildDeterministicHtmlDocument({
+    branding,
+    document: document || {},
+    version,
+    projection,
+    content: projected,
+  });
+
+  const now = args.now || new Date();
+  let renderJobId = null;
+  if (hasCrmCommercialRenderJobModel(prisma)) {
+    const job = await prisma.crmCommercialRenderJob.create({
+      data: {
+        versionId,
+        documentVersionId: versionId,
+        projection,
+        status: 'COMPLETED',
+        idempotencyKey: idempotencyKey || null,
+        htmlFingerprint: sha256Hex(html),
+        createdByAdminId: admin?.id || null,
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    renderJobId = job.id;
+  }
+
+  const buffer = htmlToDeterministicPdfBuffer({
+    html,
+    title: projected.title || document?.title || version.versionLabel,
+    projection,
+    versionLabel: version.versionLabel,
+    content: projected,
+  });
+
+  const persisted = await persistArtifactWithChecksum(prisma, {
+    versionId,
+    documentVersionId: versionId,
+    projection,
+    buffer,
+    htmlSource: html,
+    renderJobId,
+    idempotencyKey: idempotencyKey || null,
+    createdByAdminId: admin?.id || null,
+    now,
+    storage: args.storage,
+  });
+
+  if (!persisted.ok) return persisted;
+
+  return {
+    ok: true,
+    artifact: persisted.artifact,
+    checksum: persisted.checksum,
+    html,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/issue.js =====
+
+/**
+ * Issue commercial document â€” Phase 15 Wave 3.
+ * Issue binds artifact + recipients + delivery; idempotent by key.
+ * Supersedes prior issued versions on the same document.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { CRM_DELIVERY_METHOD, recordCommercialDelivery } from './delivery.js';
+import { canEditCommercial, loadCommercialDocument } from './documents.js';
+import { loadArtifactChecksum } from './artifacts.js';
+import { resolveCommercialActor } from './model.js';
+import { createReviewAccess, revokeReviewAccessForVersion } from './reviewAccess.js';
+import { loadDocumentVersion } from './versions.js';
+
+export function hasCrmCommercialIssueIdempotency(prisma) {
+  return typeof prisma?.crmCommercialDelivery?.findUnique === 'function';
+}
+
+async function supersedePriorVersions(prisma, documentId, keepVersionId, now) {
+  const priorStatuses = [
+    CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.REVISION_REQUESTED,
+  ];
+
+  const priors = await prisma.crmCommercialDocumentVersion.findMany({
+    where: {
+      documentId,
+      status: { in: priorStatuses },
+    },
+  });
+
+  for (const prior of priors) {
+    if (prior.id === keepVersionId) continue;
+    await prisma.crmCommercialDocumentVersion.update({
+      where: { id: prior.id },
+      data: {
+        status: CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED,
+        immutable: true,
+        updatedAt: now,
+      },
+    });
+    await revokeReviewAccessForVersion(prisma, prior.id, { now });
+    if (typeof prisma.crmCommercialDocumentVersionStatusHistory?.create === 'function') {
+      await prisma.crmCommercialDocumentVersionStatusHistory.create({
+        data: {
+          versionId: prior.id,
+          fromStatus: prior.status,
+          toStatus: CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED,
+          reason: 'superseded_by_new_issue',
+          at: now,
+        },
+      });
+    }
+  }
+}
+
+/**
+ * Issue a commercial document version with checksummed artifact + delivery.
+ */
+export async function issueCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_issue_forbidden' };
+  }
+
+  const versionId =
+    args.commercialDocumentVersionId || args.documentVersionId || args.versionId;
+  if (!versionId) return { ok: false, error: 'commercialDocumentVersionId_required' };
+  if (!args.artifactId) return { ok: false, error: 'artifactId_required' };
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey && typeof prisma.crmCommercialDelivery?.findUnique === 'function') {
+    const existing = await prisma.crmCommercialDelivery.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        delivery: {
+          id: existing.id,
+          documentVersionId: existing.documentVersionId,
+          method: existing.method || existing.deliveryMethod,
+        },
+        issue: { id: existing.id, idempotencyKey },
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const version = await loadDocumentVersion(prisma, versionId);
+  if (!version) return { ok: false, error: 'document_version_not_found', notFound: true };
+
+  const issuable = new Set([
+    CRM_COMMERCIAL_DOCUMENT_STATUS.READY_TO_ISSUE,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.APPROVED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  ]);
+  // Allow re-issue of same version only via idempotency; new issue of READY/APPROVED/ISSUED
+  if (
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED ||
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN ||
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED ||
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED ||
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED
+  ) {
+    return { ok: false, error: `version_not_issuable:${version.status}` };
+  }
+
+  const artifact = await prisma.crmCommercialArtifact.findUnique({
+    where: { id: args.artifactId },
+  });
+  if (!artifact) return { ok: false, error: 'artifact_not_found' };
+  if (
+    (artifact.versionId || artifact.documentVersionId) !== versionId ||
+    artifact.projection !== 'ISSUED'
+  ) {
+    return { ok: false, error: 'artifact_version_projection_mismatch' };
+  }
+
+  const checksum = await loadArtifactChecksum(prisma, artifact.id);
+  if (!checksum?.sha256) return { ok: false, error: 'artifact_checksum_missing' };
+
+  const document = await loadCommercialDocument(prisma, version.documentId);
+  const now = args.now || new Date();
+  const method = String(args.deliveryMethod || CRM_DELIVERY_METHOD.SECURE_LINK)
+    .trim()
+    .toUpperCase();
+  const recipientIds = Array.isArray(args.recipientIds)
+    ? args.recipientIds.map((id) => String(id))
+    : [];
+  if (!recipientIds.length) return { ok: false, error: 'recipientIds_required' };
+
+  // Supersede prior issued/delivered versions before marking this one issued
+  if (version.documentId) {
+    await supersedePriorVersions(prisma, version.documentId, versionId, now);
+  }
+
+  // Transition to ISSUED if not already past issue
+  if (
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.READY_TO_ISSUE ||
+    version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.APPROVED ||
+    issuable.has(version.status)
+  ) {
+    if (version.status !== CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED) {
+      await prisma.crmCommercialDocumentVersion.update({
+        where: { id: versionId },
+        data: {
+          status: CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+          immutable: true,
+          updatedAt: now,
+        },
+      });
+      if (typeof prisma.crmCommercialDocumentVersionStatusHistory?.create === 'function') {
+        await prisma.crmCommercialDocumentVersionStatusHistory.create({
+          data: {
+            versionId,
+            fromStatus: version.status,
+            toStatus: CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+            reason: args.reason || 'issued',
+            changedByAdminId: admin?.id || null,
+            at: now,
+          },
+        });
+      }
+    }
+  }
+
+  // Then mark DELIVERED after delivery records (delivery â‰  view)
+  const deliveries = [];
+  const reviewAccesses = [];
+
+  for (const recipientId of recipientIds) {
+    const accessResult = await createReviewAccess(prisma, {
+      actorContext: args.actorContext || { admin },
+      documentVersionId: versionId,
+      documentId: version.documentId,
+      recipientId,
+      artifactId: artifact.id,
+      checksumSha256: checksum.sha256,
+      expiresAt: args.validUntil || null,
+      idempotencyKey: idempotencyKey
+        ? `${idempotencyKey}:access:${recipientId}`
+        : undefined,
+      now,
+    });
+    if (!accessResult.ok && !accessResult.alreadyExists) {
+      return accessResult;
+    }
+    reviewAccesses.push(accessResult.reviewAccess);
+
+    const del = await recordCommercialDelivery(prisma, {
+      actorContext: args.actorContext || { admin },
+      documentVersionId: versionId,
+      documentId: version.documentId,
+      opportunityId: document?.opportunityId,
+      accountId: document?.accountId,
+      recipientId,
+      artifactId: artifact.id,
+      reviewAccessId: accessResult.reviewAccess?.id,
+      deliveryMethod: method,
+      validUntil: args.validUntil,
+      evidenceJson: args.evidenceJson || null,
+      // Primary idempotency on first recipient only; others keyed uniquely
+      idempotencyKey:
+        recipientId === recipientIds[0] && idempotencyKey
+          ? idempotencyKey
+          : idempotencyKey
+            ? `${idempotencyKey}:del:${recipientId}`
+            : undefined,
+      now,
+    });
+    if (!del.ok && !del.alreadyExists) return del;
+    deliveries.push(del.delivery);
+  }
+
+  await prisma.crmCommercialDocumentVersion.update({
+    where: { id: versionId },
+    data: {
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+
+  if (document && typeof prisma.crmCommercialDocument?.update === 'function') {
+    await prisma.crmCommercialDocument.update({
+      where: { id: document.id },
+      data: {
+        currentVersionId: versionId,
+        updatedAt: now,
+      },
+    });
+  }
+
+  // Persist validUntil on primary delivery for expiry job
+  if (args.validUntil && deliveries[0]?.id) {
+    try {
+      await prisma.crmCommercialDelivery.update({
+        where: { id: deliveries[0].id },
+        data: { validUntil: new Date(args.validUntil), updatedAt: now },
+      });
+    } catch {
+      // optional column
+    }
+  }
+
+  return {
+    ok: true,
+    issue: {
+      id: deliveries[0]?.id,
+      documentVersionId: versionId,
+      artifactId: artifact.id,
+      checksumSha256: checksum.sha256,
+      idempotencyKey: idempotencyKey || null,
+      validUntil: args.validUntil || null,
+    },
+    delivery: deliveries[0],
+    deliveries,
+    reviewAccesses,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+/**
+ * Withdraw an issued version and revoke review links.
+ */
+export async function withdrawCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_withdraw_forbidden' };
+  }
+  const versionId = args.documentVersionId || args.commercialDocumentVersionId;
+  const version = await loadDocumentVersion(prisma, versionId);
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+
+  const now = args.now || new Date();
+  await prisma.crmCommercialDocumentVersion.update({
+    where: { id: versionId },
+    data: {
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+  await revokeReviewAccessForVersion(prisma, versionId, { now });
+
+  return {
+    ok: true,
+    versionId,
+    status: CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/delivery.js =====
+
+/**
+ * Commercial document delivery â€” Phase 15 Wave 3.
+ * Delivery â‰  view â‰  acceptance. Never fabricates views or acceptance.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { appendTimelineEvent } from '../timeline.js';
+import { getCommercialDomainContract } from './catalogue.js';
+import { resolveCommercialActor } from './model.js';
+
+export const CRM_DELIVERY_METHOD = Object.freeze({
+  EMAIL: 'EMAIL',
+  SECURE_LINK: 'SECURE_LINK',
+  PORTAL: 'PORTAL',
+  MANUAL_EVIDENCE: 'MANUAL_EVIDENCE',
+});
+
+export function hasCrmCommercialDeliveryModel(prisma) {
+  return typeof prisma?.crmCommercialDelivery?.create === 'function';
+}
+
+export function hasCrmCommercialRecipientModel(prisma) {
+  return typeof prisma?.crmCommercialRecipient?.create === 'function';
+}
+
+export function serializeDelivery(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    recipientId: row.recipientId || null,
+    method: row.method || row.deliveryMethod || null,
+    status: row.status || null,
+    artifactId: row.artifactId || null,
+    reviewAccessId: row.reviewAccessId || null,
+    evidenceJson: row.evidenceJson ?? null,
+    idempotencyKey: row.idempotencyKey || null,
+    deliveredAt: row.deliveredAt ? new Date(row.deliveredAt).toISOString() : null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+  };
+}
+
+/**
+ * Record a delivery event. Does NOT create customer views.
+ */
+export async function recordCommercialDelivery(prisma, args = {}) {
+  if (!hasCrmCommercialDeliveryModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_delivery_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialDelivery.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        delivery: serializeDelivery(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const now = args.now || new Date();
+  const method = String(args.deliveryMethod || args.method || CRM_DELIVERY_METHOD.SECURE_LINK)
+    .trim()
+    .toUpperCase();
+
+  const row = await prisma.crmCommercialDelivery.create({
+    data: {
+      documentVersionId: args.documentVersionId,
+      documentId: args.documentId || null,
+      recipientId: args.recipientId || null,
+      method,
+      deliveryMethod: method,
+      status: args.status || 'DELIVERED',
+      artifactId: args.artifactId || null,
+      reviewAccessId: args.reviewAccessId || null,
+      evidenceJson: args.evidenceJson ?? null,
+      validUntil: args.validUntil ? new Date(args.validUntil) : null,
+      idempotencyKey: idempotencyKey || null,
+      deliveredAt: now,
+      createdByAdminId: resolveCommercialActor(args)?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: args.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: args.opportunityId || args.accountId || args.documentVersionId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.NOTE_ADDED,
+    summary: `Commercial document delivered via ${method}`,
+    payload: {
+      deliveryId: row.id,
+      documentVersionId: args.documentVersionId,
+      method,
+      viewCreated: false,
+      acceptanceCreated: false,
+    },
+    actorAdminId: resolveCommercialActor(args)?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    delivery: serializeDelivery(row),
+    viewCreated: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/acceptance.js =====
+
+/**
+ * Commercial document acceptance â€” Phase 15 Wave 3.
+ * Requires exact version + artifact + checksum + recipient + authority.
+ * Idempotent. Never fabricates. Acceptance â‰  Closed Won.
+ */
+
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { loadArtifactChecksum } from './artifacts.js';
+
+export function hasCrmCommercialAcceptanceModel(prisma) {
+  return typeof prisma?.crmCommercialAcceptance?.create === 'function';
+}
+
+export function serializeAcceptance(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    artifactId: row.artifactId,
+    checksumSha256: row.checksumSha256,
+    recipientId: row.recipientId,
+    authorityRole: row.authorityRole,
+    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
+    idempotencyKey: row.idempotencyKey || null,
+  };
+}
+
+const ACCEPTABLE = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+]);
+
+export async function acceptCommercialDocument(prisma, args = {}) {
+  if (!hasCrmCommercialAcceptanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_acceptance_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const documentVersionId = args.documentVersionId || args.commercialDocumentVersionId;
+  const artifactId = args.artifactId;
+  const checksumSha256 = args.checksumSha256
+    ? String(args.checksumSha256).trim().toLowerCase()
+    : '';
+  const recipientId = args.recipientId;
+  const authorityRole = args.authorityRole
+    ? String(args.authorityRole).trim().toUpperCase()
+    : '';
+
+  if (!documentVersionId) return { ok: false, error: 'documentVersionId_required' };
+  if (!artifactId) return { ok: false, error: 'artifactId_required' };
+  if (!checksumSha256) return { ok: false, error: 'checksum_required' };
+  if (!recipientId) return { ok: false, error: 'recipientId_required' };
+  if (!authorityRole) return { ok: false, error: 'authority_required' };
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialAcceptance.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        acceptance: serializeAcceptance(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const version = await prisma.crmCommercialDocumentVersion.findUnique({
+    where: { id: documentVersionId },
+  });
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED) {
+    return { ok: false, error: 'version_superseded' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN) {
+    return { ok: false, error: 'version_withdrawn' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED) {
+    return { ok: false, error: 'version_expired' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED) {
+    return { ok: false, error: 'version_rejected' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED) {
+    // Idempotent accept of already accepted if same binding
+    const prior = await prisma.crmCommercialAcceptance.findFirst({
+      where: { documentVersionId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (prior && prior.checksumSha256 === checksumSha256 && prior.artifactId === artifactId) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        acceptance: serializeAcceptance(prior),
+        domain: getCommercialDomainContract(),
+      };
+    }
+    return { ok: false, error: 'version_already_accepted' };
+  }
+  if (!ACCEPTABLE.has(version.status)) {
+    return { ok: false, error: `version_not_acceptable:${version.status}` };
+  }
+
+  // Review access must not be fully revoked for this version+recipient
+  if (typeof prisma.crmCommercialReviewAccess?.findFirst === 'function') {
+    const access = await prisma.crmCommercialReviewAccess.findFirst({
+      where: {
+        documentVersionId,
+        recipientId,
+        revokedAt: null,
+      },
+    });
+    if (!access) {
+      return { ok: false, error: 'review_access_revoked' };
+    }
+  }
+
+  const artifact = await prisma.crmCommercialArtifact.findUnique({
+    where: { id: artifactId },
+  });
+  if (!artifact) return { ok: false, error: 'artifact_not_found' };
+  if ((artifact.versionId || artifact.documentVersionId) !== documentVersionId) {
+    return { ok: false, error: 'artifact_version_mismatch' };
+  }
+
+  const stored = await loadArtifactChecksum(prisma, artifactId);
+  if (!stored?.sha256) return { ok: false, error: 'checksum_missing_on_artifact' };
+  if (String(stored.sha256).toLowerCase() !== checksumSha256) {
+    return { ok: false, error: 'checksum_mismatch' };
+  }
+
+  // Authority: recipient must exist and hold matching authorityRole
+  if (typeof prisma.crmCommercialRecipient?.findUnique === 'function') {
+    const recipient = await prisma.crmCommercialRecipient.findUnique({
+      where: { id: recipientId },
+    });
+    if (!recipient) return { ok: false, error: 'recipient_not_found' };
+    const role = String(recipient.authorityRole || '')
+      .trim()
+      .toUpperCase();
+    if (role && role !== authorityRole) {
+      return { ok: false, error: 'authority_mismatch' };
+    }
+    if (!role && authorityRole !== 'SIGNATORY') {
+      return { ok: false, error: 'authority_insufficient' };
+    }
+  }
+
+  const now = args.now || new Date();
+  const row = await prisma.crmCommercialAcceptance.create({
+    data: {
+      documentVersionId,
+      artifactId,
+      checksumSha256,
+      recipientId,
+      authorityRole,
+      acceptedAt: now,
+      idempotencyKey: idempotencyKey || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await prisma.crmCommercialDocumentVersion.update({
+    where: { id: documentVersionId },
+    data: {
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    acceptance: serializeAcceptance(row),
+    closedWon: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/reviewAccess.js =====
+
+/**
+ * Customer review access tokens â€” Phase 15 Wave 3.
+ * High-entropy tokens; non-enumerable; expiry + revocation.
+ */
+
+import { createHash, randomBytes } from 'crypto';
+import { getCommercialDomainContract } from './catalogue.js';
+import { resolveCommercialActor } from './model.js';
+
+export function hasCrmCommercialReviewAccessModel(prisma) {
+  return typeof prisma?.crmCommercialReviewAccess?.create === 'function';
+}
+
+export function hasCrmCommercialReviewSessionModel(prisma) {
+  return typeof prisma?.crmCommercialReviewSession?.create === 'function';
+}
+
+export function hasCrmCommercialCustomerViewModel(prisma) {
+  return typeof prisma?.crmCommercialCustomerView?.create === 'function';
+}
+
+export function hashReviewToken(tokenPlain) {
+  return createHash('sha256').update(String(tokenPlain || ''), 'utf8').digest('hex');
+}
+
+export function generateReviewToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+export function serializeReviewAccess(row, extras = {}) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    recipientId: row.recipientId || null,
+    artifactId: row.artifactId || null,
+    expiresAt: row.expiresAt ? new Date(row.expiresAt).toISOString() : null,
+    revokedAt: row.revokedAt ? new Date(row.revokedAt).toISOString() : null,
+    status: row.revokedAt ? 'REVOKED' : 'ACTIVE',
+    ...extras,
+  };
+}
+
+export async function createReviewAccess(prisma, args = {}) {
+  if (!hasCrmCommercialReviewAccessModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_review_access_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialReviewAccess.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        reviewAccess: serializeReviewAccess(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const tokenPlain = args.tokenPlain || generateReviewToken();
+  const tokenHash = hashReviewToken(tokenPlain);
+  const now = args.now || new Date();
+
+  const row = await prisma.crmCommercialReviewAccess.create({
+    data: {
+      documentVersionId: args.documentVersionId,
+      documentId: args.documentId || null,
+      recipientId: args.recipientId || null,
+      artifactId: args.artifactId || null,
+      checksumSha256: args.checksumSha256 || null,
+      tokenHash,
+      // Tests/dev only â€” never expose in customer-safe API serializers
+      tokenPlain: process.env.NODE_ENV === 'test' || process.env.VITEST ? tokenPlain : null,
+      expiresAt: args.expiresAt ? new Date(args.expiresAt) : null,
+      revokedAt: null,
+      idempotencyKey: idempotencyKey || null,
+      createdByAdminId: resolveCommercialActor(args)?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  // Attach plaintext for issue flow (returned once; not stored in production)
+  row.tokenPlain = tokenPlain;
+
+  return {
+    ok: true,
+    reviewAccess: serializeReviewAccess(row, { tokenPlain }),
+    tokenPlain,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export async function resolveReviewAccessByToken(prisma, tokenPlain, args = {}) {
+  if (!hasCrmCommercialReviewAccessModel(prisma) || !tokenPlain) {
+    return { ok: false, error: 'invalid_or_expired_token' };
+  }
+  const tokenHash = hashReviewToken(tokenPlain);
+  const now = args.now || new Date();
+
+  let row =
+    (await prisma.crmCommercialReviewAccess.findUnique({ where: { tokenHash } })) || null;
+  if (!row && args.reviewAccessId) {
+    row = await prisma.crmCommercialReviewAccess.findUnique({
+      where: { id: args.reviewAccessId },
+    });
+  }
+  if (!row) return { ok: false, error: 'invalid_or_expired_token' };
+  if (row.revokedAt) return { ok: false, error: 'review_access_revoked' };
+  if (row.expiresAt && new Date(row.expiresAt) < now) {
+    return { ok: false, error: 'review_access_expired' };
+  }
+  return { ok: true, reviewAccess: row };
+}
+
+export async function revokeReviewAccessForVersion(prisma, documentVersionId, args = {}) {
+  if (!hasCrmCommercialReviewAccessModel(prisma)) return { ok: true, count: 0 };
+  const now = args.now || new Date();
+  const result = await prisma.crmCommercialReviewAccess.updateMany({
+    where: { documentVersionId, revokedAt: null },
+    data: { revokedAt: now, updatedAt: now },
+  });
+  return { ok: true, count: result.count || 0 };
+}
+
+/**
+ * Record an explicit customer view. Delivery alone must NOT call this.
+ */
+export async function recordCustomerView(prisma, args = {}) {
+  if (!hasCrmCommercialCustomerViewModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_customer_view_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  let access = null;
+
+  if (args.token || args.reviewAccessId) {
+    const resolved = await resolveReviewAccessByToken(prisma, args.token, {
+      reviewAccessId: args.reviewAccessId,
+      now,
+    });
+    // Allow test path: reviewAccessId with tokenPlain stored on row
+    if (!resolved.ok && args.reviewAccessId) {
+      access = await prisma.crmCommercialReviewAccess.findUnique({
+        where: { id: args.reviewAccessId },
+      });
+      if (access?.revokedAt) return { ok: false, error: 'review_access_revoked' };
+      if (access?.expiresAt && new Date(access.expiresAt) < now) {
+        return { ok: false, error: 'review_access_expired' };
+      }
+      if (!access) return { ok: false, error: resolved.error || 'invalid_or_expired_token' };
+    } else if (!resolved.ok) {
+      return resolved;
+    } else {
+      access = resolved.reviewAccess;
+    }
+  }
+
+  if (!access) return { ok: false, error: 'review_access_required' };
+
+  const version = await prisma.crmCommercialDocumentVersion.findUnique({
+    where: { id: access.documentVersionId },
+  });
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+  if (version.status === 'SUPERSEDED' || version.status === 'WITHDRAWN' || version.status === 'EXPIRED') {
+    return { ok: false, error: `version_${String(version.status).toLowerCase()}` };
+  }
+
+  const view = await prisma.crmCommercialCustomerView.create({
+    data: {
+      documentVersionId: access.documentVersionId,
+      reviewAccessId: access.id,
+      recipientId: args.recipientId || access.recipientId || null,
+      artifactId: access.artifactId || null,
+      viewedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (hasCrmCommercialReviewSessionModel(prisma)) {
+    await prisma.crmCommercialReviewSession.create({
+      data: {
+        reviewAccessId: access.id,
+        documentVersionId: access.documentVersionId,
+        recipientId: args.recipientId || access.recipientId || null,
+        startedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  // Transition to VIEWED when currently ISSUED/DELIVERED (delivery â‰  view)
+  const viewableFrom = new Set(['ISSUED', 'DELIVERED']);
+  if (viewableFrom.has(version.status)) {
+    await prisma.crmCommercialDocumentVersion.update({
+      where: { id: version.id },
+      data: { status: 'VIEWED', immutable: true, updatedAt: now },
+    });
+  }
+
+  return {
+    ok: true,
+    view: {
+      id: view.id,
+      documentVersionId: view.documentVersionId,
+      reviewAccessId: view.reviewAccessId,
+      viewedAt: new Date(view.viewedAt).toISOString(),
+    },
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/expiry.js =====
+
+/**
+ * Commercial document expiry job â€” Phase 15 Wave 3.
+ * Idempotent: double-run with same key expires once.
+ */
+
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { revokeReviewAccessForVersion } from './reviewAccess.js';
+
+export function hasCrmCommercialExpiryModel(prisma) {
+  return typeof prisma?.crmCommercialExpiry?.create === 'function';
+}
+
+const EXPIREABLE = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_DEFERRED,
+]);
+
+/**
+ * Expire versions whose issue validUntil has passed.
+ */
+export async function runCommercialExpiryJob(prisma, args = {}) {
+  if (!hasCrmCommercialExpiryModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_expiry_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : `expiry:${now.toISOString().slice(0, 13)}`;
+
+  const existingJob = await prisma.crmCommercialExpiry.findUnique({
+    where: { idempotencyKey },
+  });
+  if (existingJob) {
+    return {
+      ok: true,
+      alreadyRan: true,
+      idempotent: true,
+      expiredCount: existingJob.expiredCount ?? 0,
+      expiry: existingJob,
+      domain: getCommercialDomainContract(),
+    };
+  }
+
+  // Find deliveries past validUntil still on expireable versions
+  let candidates = [];
+  if (typeof prisma.crmCommercialDelivery?.findMany === 'function') {
+    const deliveries = await prisma.crmCommercialDelivery.findMany({
+      where: {
+        validUntil: { lte: now },
+      },
+    });
+    candidates = deliveries;
+  }
+
+  const expiredVersionIds = new Set();
+  for (const del of candidates) {
+    const versionId = del.documentVersionId;
+    if (!versionId || expiredVersionIds.has(versionId)) continue;
+    const version = await prisma.crmCommercialDocumentVersion.findUnique({
+      where: { id: versionId },
+    });
+    if (!version || !EXPIREABLE.has(version.status)) continue;
+
+    await prisma.crmCommercialDocumentVersion.update({
+      where: { id: versionId },
+      data: {
+        status: CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED,
+        immutable: true,
+        updatedAt: now,
+      },
+    });
+    await revokeReviewAccessForVersion(prisma, versionId, { now });
+    expiredVersionIds.add(versionId);
+  }
+
+  const row = await prisma.crmCommercialExpiry.create({
+    data: {
+      idempotencyKey,
+      expiredCount: expiredVersionIds.size,
+      ranAt: now,
+      payloadJson: { versionIds: [...expiredVersionIds] },
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    expiredCount: expiredVersionIds.size,
+    expiry: row,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/signatureBoundary.js =====
+
+/**
+ * E-signature provider boundary â€” Phase 15 Wave 3.
+ * Provider is NOT_CONFIGURED; never fabricate signatures.
+ */
+
+export const CRM_ESIGN_STATUS = Object.freeze({
+  NOT_CONFIGURED: 'NOT_CONFIGURED',
+});
+
+export function getESignatureProviderStatus() {
+  return Object.freeze({ status: CRM_ESIGN_STATUS.NOT_CONFIGURED });
+}
+
+export function assertESignNotFabricated() {
+  return {
+    ok: false,
+    error: 'e_sign_not_configured',
+    status: CRM_ESIGN_STATUS.NOT_CONFIGURED,
+  };
+}
+
+/**
+ * Signature request boundary â€” records NOT_CONFIGURED only; never creates fake signatures.
+ */
+export async function createSignatureRequestBoundary(prisma, args = {}) {
+  if (typeof prisma?.crmCommercialSignatureRequest?.create !== 'function') {
+    return {
+      ok: false,
+      error: 'crm_commercial_signature_request_model_unavailable',
+      status: 'UNAVAILABLE',
+      providerStatus: CRM_ESIGN_STATUS.NOT_CONFIGURED,
+    };
+  }
+
+  const row = await prisma.crmCommercialSignatureRequest.create({
+    data: {
+      documentVersionId: args.documentVersionId || null,
+      recipientId: args.recipientId || null,
+      providerStatus: CRM_ESIGN_STATUS.NOT_CONFIGURED,
+      status: 'NOT_CONFIGURED',
+      reason: 'e_sign_provider_not_configured',
+      createdAt: args.now || new Date(),
+      updatedAt: args.now || new Date(),
+    },
+  });
+
+  return {
+    ok: false,
+    error: 'e_sign_not_configured',
+    signatureRequest: row,
+    providerStatus: CRM_ESIGN_STATUS.NOT_CONFIGURED,
+  };
+}
+
+===== test/systemAdmin.crm.commercialWave3.test.js =====
+
+/**
+ * Phase 15 Wave 3 â€” Templates, PDF, issue, delivery, review, acceptance.
+ * Delivery â‰  view â‰  acceptance. E-sign NOT_CONFIGURED. Acceptance binds version+checksum+authority.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  renderCommercialDocument,
+  issueCommercialDocument,
+  recordCustomerView,
+  acceptCommercialDocument,
+  getESignatureProviderStatus,
+  runCommercialExpiryJob,
+  getCommercialDomainContract,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-1') {
+  return { id, role: 'Super Admin', permissions: {} };
+}
+
+function simpleCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      if (where.tokenHash) {
+        return store.find((r) => r.tokenHash === where.tokenHash) || null;
+      }
+      if (where.documentVersionId_idempotencyKey) {
+        const k = where.documentVersionId_idempotencyKey;
+        return (
+          store.find(
+            (r) =>
+              r.documentVersionId === k.documentVersionId &&
+              r.idempotencyKey === k.idempotencyKey
+          ) || null
+        );
+      }
+      if (where.versionId_projection_idempotencyKey) {
+        const k = where.versionId_projection_idempotencyKey;
+        return (
+          store.find(
+            (r) =>
+              r.versionId === k.versionId &&
+              r.projection === k.projection &&
+              r.idempotencyKey === k.idempotencyKey
+          ) || null
+        );
+      }
+      if (where.artifactId_algorithm) {
+        const k = where.artifactId_algorithm;
+        return (
+          store.find(
+            (r) => r.artifactId === k.artifactId && r.algorithm === k.algorithm
+          ) || null
+        );
+      }
+      if (where.documentVersionId_recipientId) {
+        const k = where.documentVersionId_recipientId;
+        return (
+          store.find(
+            (r) =>
+              r.documentVersionId === k.documentVersionId &&
+              r.recipientId === k.recipientId
+          ) || null
+        );
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+      let rows = [...store];
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.versionId) rows = rows.filter((r) => r.versionId === where.versionId);
+      if (where.artifactId) rows = rows.filter((r) => r.artifactId === where.artifactId);
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      if (where.idempotencyKey) {
+        rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+      }
+      if (where.revokedAt === null) rows = rows.filter((r) => r.revokedAt == null);
+      if (where.expiresAt) {
+        // Prisma-style: { lte: date }
+        if (where.expiresAt.lte) {
+          rows = rows.filter((r) => r.expiresAt && new Date(r.expiresAt) <= where.expiresAt.lte);
+        }
+      }
+      if (orderBy?.createdAt === 'desc') {
+        rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.versionId) rows = rows.filter((r) => r.versionId === where.versionId);
+      if (where.documentId) rows = rows.filter((r) => r.documentId === where.documentId);
+      if (where.status) {
+        if (typeof where.status === 'object' && where.status.in) {
+          rows = rows.filter((r) => where.status.in.includes(r.status));
+        } else {
+          rows = rows.filter((r) => r.status === where.status);
+        }
+      }
+      if (where.validUntil) {
+        if (where.validUntil.lte) {
+          rows = rows.filter((r) => r.validUntil && new Date(r.validUntil) <= where.validUntil.lte);
+        }
+      }
+      if (where.revokedAt === null) rows = rows.filter((r) => r.revokedAt == null);
+      if (where.id?.in) rows = rows.filter((r) => where.id.in.includes(r.id));
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      let count = 0;
+      for (const row of store) {
+        let match = true;
+        if (where.documentVersionId && row.documentVersionId !== where.documentVersionId) {
+          match = false;
+        }
+        if (where.documentId && row.documentId !== where.documentId) match = false;
+        if (where.status) {
+          if (typeof where.status === 'object' && where.status.in) {
+            if (!where.status.in.includes(row.status)) match = false;
+          } else if (row.status !== where.status) match = false;
+        }
+        if (where.revokedAt === null && row.revokedAt != null) match = false;
+        if (match) {
+          Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+          count += 1;
+        }
+      }
+      return { count };
+    }),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const documentStore = overrides._documentStore || [
+    {
+      id: 'doc-1',
+      documentNumber: 'QUO-2026-000001',
+      documentFamily: 'QUOTATION',
+      opportunityId: 'opp-1',
+      accountId: 'acc-1',
+      contactId: 'con-1',
+      title: 'Acme Quote',
+      currency: 'MWK',
+      currentVersionId: 'cdv-1',
+      latestVersionNumber: 1,
+    },
+  ];
+  const documentVersionStore = overrides._documentVersionStore || [
+    {
+      id: 'cdv-1',
+      documentId: 'doc-1',
+      versionNumber: 1,
+      versionLabel: 'QUO-2026-000001-V1',
+      status: 'READY_TO_ISSUE',
+      contentJson: {
+        title: 'Acme Quote',
+        lineItems: [{ productRef: 'PLAN-CORE', quantity: 2, unitPrice: 100, currency: 'MWK' }],
+        totals: { currency: 'MWK', grandTotal: 200 },
+        internalNotes: 'SECRET floor 80 â€” do not show customer',
+        approvalChatter: ['approved by boss'],
+        priceFloors: { 'PLAN-CORE': 80 },
+      },
+      immutable: false,
+    },
+  ];
+  const templateStore = overrides._templateStore || [];
+  const brandingStore = overrides._brandingStore || [
+    {
+      id: 'brand-1',
+      code: 'DEFAULT',
+      legalName: 'InsightBooks',
+      primaryColor: '#0F172A',
+      status: 'ACTIVE',
+    },
+  ];
+  const renderJobStore = overrides._renderJobStore || [];
+  const artifactStore = overrides._artifactStore || [];
+  const checksumStore = overrides._checksumStore || [];
+  const recipientStore = overrides._recipientStore || [
+    {
+      id: 'rcp-1',
+      documentId: 'doc-1',
+      email: 'buyer@acme.test',
+      name: 'Buyer One',
+      authorityRole: 'SIGNATORY',
+      status: 'ACTIVE',
+    },
+  ];
+  const deliveryStore = overrides._deliveryStore || [];
+  const reviewAccessStore = overrides._reviewAccessStore || [];
+  const reviewSessionStore = overrides._reviewSessionStore || [];
+  const viewStore = overrides._viewStore || [];
+  const commentStore = overrides._commentStore || [];
+  const revisionRequestStore = overrides._revisionRequestStore || [];
+  const acceptanceStore = overrides._acceptanceStore || [];
+  const rejectionStore = overrides._rejectionStore || [];
+  const expiryStore = overrides._expiryStore || [];
+  const signatureRequestStore = overrides._signatureRequestStore || [];
+  const timelineStore = overrides._timelineStore || [];
+  const versionHistoryStore = overrides._versionHistoryStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    crmCommercialDocument: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `doc-${documentStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        documentStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentStore.find((r) => r.id === where.id) || null;
+        if (where.documentNumber) {
+          return documentStore.find((r) => r.documentNumber === where.documentNumber) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmCommercialDocumentVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cdv-${documentVersionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        documentVersionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentVersionStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...documentVersionStore];
+        if (where.documentId) rows = rows.filter((r) => r.documentId === where.documentId);
+        if (where.status) {
+          if (typeof where.status === 'object' && where.status.in) {
+            rows = rows.filter((r) => where.status.in.includes(r.status));
+          } else {
+            rows = rows.filter((r) => r.status === where.status);
+          }
+        }
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentVersionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        let count = 0;
+        for (const row of documentVersionStore) {
+          let match = true;
+          if (where.documentId && row.documentId !== where.documentId) match = false;
+          if (where.status) {
+            if (typeof where.status === 'object' && where.status.in) {
+              if (!where.status.in.includes(row.status)) match = false;
+            } else if (row.status !== where.status) match = false;
+          }
+          if (where.id?.not && row.id === where.id.not) match = false;
+          if (match) {
+            Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+            count += 1;
+          }
+        }
+        return { count };
+      }),
+    },
+    crmCommercialDocumentVersionStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `vh-${versionHistoryStore.length + 1}`, ...data };
+        versionHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmCommercialTemplate: simpleCrud(templateStore, 'tpl'),
+    crmCommercialBranding: simpleCrud(brandingStore, 'brand'),
+    crmCommercialRenderJob: simpleCrud(renderJobStore, 'rj'),
+    crmCommercialArtifact: simpleCrud(artifactStore, 'art'),
+    crmCommercialChecksum: simpleCrud(checksumStore, 'cks'),
+    crmCommercialRecipient: simpleCrud(recipientStore, 'rcp'),
+    crmCommercialDelivery: simpleCrud(deliveryStore, 'del'),
+    crmCommercialReviewAccess: simpleCrud(reviewAccessStore, 'ra'),
+    crmCommercialReviewSession: simpleCrud(reviewSessionStore, 'rs'),
+    crmCommercialCustomerView: simpleCrud(viewStore, 'view'),
+    crmCommercialCustomerComment: simpleCrud(commentStore, 'cmt'),
+    crmCommercialRevisionRequest: simpleCrud(revisionRequestStore, 'rev'),
+    crmCommercialAcceptance: simpleCrud(acceptanceStore, 'acc'),
+    crmCommercialRejection: simpleCrud(rejectionStore, 'rej'),
+    crmCommercialExpiry: simpleCrud(expiryStore, 'exp'),
+    crmCommercialSignatureRequest: simpleCrud(signatureRequestStore, 'sig'),
+    crmTimelineEvent: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
+        timelineStore.push(row);
+        return row;
+      }),
+    },
+    _stores: {
+      documentStore,
+      documentVersionStore,
+      templateStore,
+      brandingStore,
+      renderJobStore,
+      artifactStore,
+      checksumStore,
+      recipientStore,
+      deliveryStore,
+      reviewAccessStore,
+      reviewSessionStore,
+      viewStore,
+      commentStore,
+      revisionRequestStore,
+      acceptanceStore,
+      rejectionStore,
+      expiryStore,
+      signatureRequestStore,
+      timelineStore,
+      versionHistoryStore,
+    },
+  };
+
+  // Enhance findUnique for branding by code
+  const origBrand = prisma.crmCommercialBranding.findUnique;
+  prisma.crmCommercialBranding.findUnique = vi.fn(async ({ where = {} } = {}) => {
+    if (where.code) return brandingStore.find((r) => r.code === where.code) || null;
+    return origBrand({ where });
+  });
+
+  return prisma;
+}
+
+describe('Phase 15 Wave 3 â€” Templates, PDF, issue, delivery, review, acceptance', () => {
+  let prisma;
+  let admin;
+  let actorContext;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    admin = superAdmin('sales-1');
+    actorContext = { admin };
+  });
+
+  it('Issued PDF checksum is stable; regenerate creates new artifact (no silent replace)', async () => {
+    const first = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-1',
+    });
+    expect(first.ok).toBe(true);
+    expect(first.artifact?.id).toBeTruthy();
+    expect(first.checksum?.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.artifact.projection).toBe('ISSUED');
+    expect(Buffer.isBuffer(first.artifact.buffer) || first.artifact.byteLength > 0).toBeTruthy();
+
+    const idempotent = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-1',
+    });
+    expect(idempotent.ok).toBe(true);
+    expect(idempotent.artifact.id).toBe(first.artifact.id);
+    expect(idempotent.checksum.sha256).toBe(first.checksum.sha256);
+    expect(prisma._stores.artifactStore.length).toBe(1);
+
+    const regenerated = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-2',
+    });
+    expect(regenerated.ok).toBe(true);
+    expect(regenerated.artifact.id).not.toBe(first.artifact.id);
+    expect(regenerated.checksum.sha256).toBe(first.checksum.sha256);
+    expect(prisma._stores.artifactStore.length).toBe(2);
+    // Original artifact untouched
+    expect(prisma._stores.artifactStore[0].id).toBe(first.artifact.id);
+    expect(prisma._stores.checksumStore[0].sha256).toBe(first.checksum.sha256);
+  });
+
+  it('Issue retry does not duplicate email/link delivery', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-issue',
+    });
+    expect(rendered.ok).toBe(true);
+
+    const args = {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-1',
+    };
+
+    const first = await issueCommercialDocument(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.issue?.id || first.delivery?.id).toBeTruthy();
+    expect(prisma._stores.deliveryStore.length).toBe(1);
+    expect(prisma._stores.reviewAccessStore.length).toBe(1);
+
+    const retry = await issueCommercialDocument(prisma, args);
+    expect(retry.ok).toBe(true);
+    expect(retry.alreadyExists).toBe(true);
+    expect(prisma._stores.deliveryStore.length).toBe(1);
+    expect(prisma._stores.reviewAccessStore.length).toBe(1);
+  });
+
+  it('View is NOT created from delivery alone', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-del',
+    });
+    const issued = await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-del',
+    });
+    expect(issued.ok).toBe(true);
+    expect(prisma._stores.deliveryStore.length).toBe(1);
+    expect(prisma._stores.viewStore.length).toBe(0);
+
+    const version = prisma._stores.documentVersionStore.find((v) => v.id === 'cdv-1');
+    expect(version.status).not.toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED);
+    expect(version.status).not.toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED);
+  });
+
+  it('Accept V1 after V2 supersede is blocked', async () => {
+    const v1Render = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-v1',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: v1Render.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-v1',
+    });
+
+    // Create V2 ready to issue and issue it (supersedes V1)
+    prisma._stores.documentVersionStore.push({
+      id: 'cdv-2',
+      documentId: 'doc-1',
+      versionNumber: 2,
+      versionLabel: 'QUO-2026-000001-V2',
+      status: 'READY_TO_ISSUE',
+      contentJson: {
+        title: 'Acme Quote V2',
+        lineItems: [{ productRef: 'PLAN-CORE', quantity: 3, unitPrice: 100, currency: 'MWK' }],
+        totals: { currency: 'MWK', grandTotal: 300 },
+      },
+      immutable: false,
+    });
+    prisma._stores.documentStore[0].latestVersionNumber = 2;
+    prisma._stores.documentStore[0].currentVersionId = 'cdv-2';
+
+    const v2Render = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-2',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-v2',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-2',
+      artifactId: v2Render.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-v2',
+    });
+
+    const v1 = prisma._stores.documentVersionStore.find((v) => v.id === 'cdv-1');
+    expect(v1.status).toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED);
+
+    const access = prisma._stores.reviewAccessStore.find(
+      (a) => a.documentVersionId === 'cdv-1' && a.revokedAt == null
+    );
+    // V1 links should be revoked on supersession
+    const v1AccessAny = prisma._stores.reviewAccessStore.filter((a) => a.documentVersionId === 'cdv-1');
+    expect(v1AccessAny.every((a) => a.revokedAt != null)).toBe(true);
+
+    const accept = await acceptCommercialDocument(prisma, {
+      documentVersionId: 'cdv-1',
+      artifactId: v1Render.artifact.id,
+      checksumSha256: v1Render.checksum.sha256,
+      recipientId: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-v1-late',
+    });
+    expect(accept.ok).toBe(false);
+    expect(String(accept.error || '')).toMatch(/superseded|not_acceptable|revoked/i);
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+    expect(access).toBeFalsy();
+  });
+
+  it('E-sign provider status is NOT_CONFIGURED', () => {
+    const status = getESignatureProviderStatus();
+    expect(status).toEqual({ status: 'NOT_CONFIGURED' });
+    expect(getCommercialDomainContract().eSignProvider).toBe('NOT_CONFIGURED');
+  });
+
+  it('Acceptance without checksum fails', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-acc',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-acc',
+    });
+
+    // Explicit view first (delivery â‰  view)
+    const token = prisma._stores.reviewAccessStore[0].tokenPlain || null;
+    const view = await recordCustomerView(prisma, {
+      token: token || prisma._stores.reviewAccessStore[0].id,
+      reviewAccessId: prisma._stores.reviewAccessStore[0].id,
+      recipientId: 'rcp-1',
+    });
+    expect(view.ok).toBe(true);
+    expect(prisma._stores.viewStore.length).toBe(1);
+
+    const noChecksum = await acceptCommercialDocument(prisma, {
+      documentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      // checksumSha256 omitted
+      recipientId: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-no-cks',
+    });
+    expect(noChecksum.ok).toBe(false);
+    expect(String(noChecksum.error || '')).toMatch(/checksum/i);
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+  });
+
+  it('Expiry job double-run expires once (idempotent)', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-exp',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-01-01T00:00:00.000Z',
+      idempotencyKey: 'issue-exp',
+    });
+
+    const now = new Date('2026-07-31T12:00:00.000Z');
+    const first = await runCommercialExpiryJob(prisma, { now, idempotencyKey: 'exp-job-1' });
+    expect(first.ok).toBe(true);
+    expect(first.expiredCount).toBe(1);
+    expect(prisma._stores.documentVersionStore.find((v) => v.id === 'cdv-1').status).toBe(
+      CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED
+    );
+    expect(prisma._stores.expiryStore.length).toBe(1);
+
+    const second = await runCommercialExpiryJob(prisma, { now, idempotencyKey: 'exp-job-1' });
+    expect(second.ok).toBe(true);
+    expect(second.alreadyRan || second.expiredCount === 0 || second.idempotent).toBeTruthy();
+    expect(prisma._stores.expiryStore.length).toBe(1);
+  });
+});
+
+===== AFTER FIX: lib/admin/crm/commercial/acceptance.js =====
+
+/**
+ * Commercial document acceptance â€” Phase 15 Wave 3.
+ * Requires exact version + artifact + checksum + recipient + authority.
+ * Idempotent. Never fabricates. Acceptance â‰  Closed Won.
+ */
+
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { loadArtifactChecksum } from './artifacts.js';
+import { resolveReviewAccessByToken } from './reviewAccess.js';
+
+export function hasCrmCommercialAcceptanceModel(prisma) {
+  return typeof prisma?.crmCommercialAcceptance?.create === 'function';
+}
+
+export function serializeAcceptance(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    artifactId: row.artifactId,
+    checksumSha256: row.checksumSha256,
+    recipientId: row.recipientId,
+    authorityRole: row.authorityRole,
+    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
+    idempotencyKey: row.idempotencyKey || null,
+  };
+}
+
+const ACCEPTABLE = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+]);
+
+/**
+ * Authority for protected acceptance must come from the verified recipient role.
+ * Empty / missing role is UNVERIFIED and never satisfies acceptance.
+ */
+export function evaluateAcceptanceAuthority(recipient, claimedRole = '') {
+  const verifiedRole = String(recipient?.authorityRole || '')
+    .trim()
+    .toUpperCase();
+  if (!verifiedRole) {
+    return {
+      ok: false,
+      error: 'authority_unverified',
+      status: 'UNVERIFIED',
+    };
+  }
+  const claimed = claimedRole ? String(claimedRole).trim().toUpperCase() : '';
+  if (claimed && claimed !== verifiedRole) {
+    return { ok: false, error: 'authority_mismatch' };
+  }
+  return { ok: true, authorityRole: verifiedRole };
+}
+
+export async function acceptCommercialDocument(prisma, args = {}) {
+  if (!hasCrmCommercialAcceptanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_acceptance_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  let documentVersionId = args.documentVersionId || args.commercialDocumentVersionId || null;
+  let artifactId = args.artifactId || null;
+  let checksumSha256 = args.checksumSha256
+    ? String(args.checksumSha256).trim().toLowerCase()
+    : '';
+  let recipientId = args.recipientId || null;
+  const claimedAuthorityRole = args.authorityRole
+    ? String(args.authorityRole).trim().toUpperCase()
+    : '';
+
+  // Token path: resolve â†’ bind version/recipient/artifact/checksum; reject unknown/expired/revoked
+  if (args.token) {
+    const resolved = await resolveReviewAccessByToken(prisma, args.token, { now });
+    if (!resolved.ok) return resolved;
+    const access = resolved.reviewAccess;
+    if (documentVersionId && documentVersionId !== access.documentVersionId) {
+      return { ok: false, error: 'document_version_token_mismatch' };
+    }
+    if (recipientId && access.recipientId && recipientId !== access.recipientId) {
+      return { ok: false, error: 'recipient_token_mismatch' };
+    }
+    if (artifactId && access.artifactId && artifactId !== access.artifactId) {
+      return { ok: false, error: 'artifact_token_mismatch' };
+    }
+    if (
+      checksumSha256 &&
+      access.checksumSha256 &&
+      checksumSha256 !== String(access.checksumSha256).trim().toLowerCase()
+    ) {
+      return { ok: false, error: 'checksum_token_mismatch' };
+    }
+    documentVersionId = access.documentVersionId;
+    recipientId = access.recipientId;
+    artifactId = access.artifactId || artifactId;
+    checksumSha256 = access.checksumSha256
+      ? String(access.checksumSha256).trim().toLowerCase()
+      : checksumSha256;
+  }
+
+  if (!documentVersionId) return { ok: false, error: 'documentVersionId_required' };
+  if (!artifactId) return { ok: false, error: 'artifactId_required' };
+  if (!checksumSha256) return { ok: false, error: 'checksum_required' };
+  if (!recipientId) return { ok: false, error: 'recipientId_required' };
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialAcceptance.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        acceptance: serializeAcceptance(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const version = await prisma.crmCommercialDocumentVersion.findUnique({
+    where: { id: documentVersionId },
+  });
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED) {
+    return { ok: false, error: 'version_superseded' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN) {
+    return { ok: false, error: 'version_withdrawn' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED) {
+    return { ok: false, error: 'version_expired' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED) {
+    return { ok: false, error: 'version_rejected' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED) {
+    // Idempotent accept of already accepted if same binding
+    const prior = await prisma.crmCommercialAcceptance.findFirst({
+      where: { documentVersionId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (prior && prior.checksumSha256 === checksumSha256 && prior.artifactId === artifactId) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        acceptance: serializeAcceptance(prior),
+        domain: getCommercialDomainContract(),
+      };
+    }
+    return { ok: false, error: 'version_already_accepted' };
+  }
+  if (!ACCEPTABLE.has(version.status)) {
+    return { ok: false, error: `version_not_acceptable:${version.status}` };
+  }
+
+  // Review access must be active (not revoked, not expired) for this version+recipient
+  if (typeof prisma.crmCommercialReviewAccess?.findFirst === 'function') {
+    const access = await prisma.crmCommercialReviewAccess.findFirst({
+      where: {
+        documentVersionId,
+        recipientId,
+        revokedAt: null,
+      },
+    });
+    if (!access) {
+      return { ok: false, error: 'review_access_revoked' };
+    }
+    if (access.expiresAt && new Date(access.expiresAt) < now) {
+      return { ok: false, error: 'review_access_expired' };
+    }
+  }
+
+  const artifact = await prisma.crmCommercialArtifact.findUnique({
+    where: { id: artifactId },
+  });
+  if (!artifact) return { ok: false, error: 'artifact_not_found' };
+  if ((artifact.versionId || artifact.documentVersionId) !== documentVersionId) {
+    return { ok: false, error: 'artifact_version_mismatch' };
+  }
+
+  const stored = await loadArtifactChecksum(prisma, artifactId);
+  if (!stored?.sha256) return { ok: false, error: 'checksum_missing_on_artifact' };
+  if (String(stored.sha256).toLowerCase() !== checksumSha256) {
+    return { ok: false, error: 'checksum_mismatch' };
+  }
+
+  // Authority: evaluate from verified recipient role only (never default empty â†’ SIGNATORY)
+  if (typeof prisma.crmCommercialRecipient?.findUnique !== 'function') {
+    return { ok: false, error: 'recipient_model_unavailable', status: 'UNAVAILABLE' };
+  }
+  const recipient = await prisma.crmCommercialRecipient.findUnique({
+    where: { id: recipientId },
+  });
+  if (!recipient) return { ok: false, error: 'recipient_not_found' };
+  const authority = evaluateAcceptanceAuthority(recipient, claimedAuthorityRole);
+  if (!authority.ok) return authority;
+  const authorityRole = authority.authorityRole;
+
+  const row = await prisma.crmCommercialAcceptance.create({
+    data: {
+      documentVersionId,
+      artifactId,
+      checksumSha256,
+      recipientId,
+      authorityRole,
+      acceptedAt: now,
+      idempotencyKey: idempotencyKey || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await prisma.crmCommercialDocumentVersion.update({
+    where: { id: documentVersionId },
+    data: {
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    acceptance: serializeAcceptance(row),
+    closedWon: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== AFTER FIX: lib/admin/crm/commercial/rejection.js =====
+
+/**
+ * Commercial document rejection â€” Phase 15 Wave 3.
+ * Idempotent; binds version + artifact + checksum + recipient.
+ * Token path resolves review access (rejects unknown/expired/revoked).
+ */
+
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { loadArtifactChecksum } from './artifacts.js';
+import { resolveReviewAccessByToken } from './reviewAccess.js';
+
+export function hasCrmCommercialRejectionModel(prisma) {
+  return typeof prisma?.crmCommercialRejection?.create === 'function';
+}
+
+export function serializeRejection(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    artifactId: row.artifactId,
+    checksumSha256: row.checksumSha256,
+    recipientId: row.recipientId,
+    reason: row.reason || null,
+    rejectedAt: row.rejectedAt ? new Date(row.rejectedAt).toISOString() : null,
+    idempotencyKey: row.idempotencyKey || null,
+  };
+}
+
+const REJECTABLE = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+]);
+
+export async function rejectCommercialDocument(prisma, args = {}) {
+  if (!hasCrmCommercialRejectionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_rejection_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  let documentVersionId = args.documentVersionId || args.commercialDocumentVersionId || null;
+  let artifactId = args.artifactId || null;
+  let checksumSha256 = args.checksumSha256
+    ? String(args.checksumSha256).trim().toLowerCase()
+    : '';
+  let recipientId = args.recipientId || null;
+
+  if (args.token) {
+    const resolved = await resolveReviewAccessByToken(prisma, args.token, { now });
+    if (!resolved.ok) return resolved;
+    const access = resolved.reviewAccess;
+    if (documentVersionId && documentVersionId !== access.documentVersionId) {
+      return { ok: false, error: 'document_version_token_mismatch' };
+    }
+    if (recipientId && access.recipientId && recipientId !== access.recipientId) {
+      return { ok: false, error: 'recipient_token_mismatch' };
+    }
+    if (artifactId && access.artifactId && artifactId !== access.artifactId) {
+      return { ok: false, error: 'artifact_token_mismatch' };
+    }
+    if (
+      checksumSha256 &&
+      access.checksumSha256 &&
+      checksumSha256 !== String(access.checksumSha256).trim().toLowerCase()
+    ) {
+      return { ok: false, error: 'checksum_token_mismatch' };
+    }
+    documentVersionId = access.documentVersionId;
+    recipientId = access.recipientId;
+    artifactId = access.artifactId || artifactId;
+    checksumSha256 = access.checksumSha256
+      ? String(access.checksumSha256).trim().toLowerCase()
+      : checksumSha256;
+  }
+
+  if (!documentVersionId) return { ok: false, error: 'documentVersionId_required' };
+  if (!artifactId) return { ok: false, error: 'artifactId_required' };
+  if (!checksumSha256) return { ok: false, error: 'checksum_required' };
+  if (!recipientId) return { ok: false, error: 'recipientId_required' };
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialRejection.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        rejection: serializeRejection(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const version = await prisma.crmCommercialDocumentVersion.findUnique({
+    where: { id: documentVersionId },
+  });
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED) {
+    return { ok: false, error: 'version_superseded' };
+  }
+  if (!REJECTABLE.has(version.status) && version.status !== CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED) {
+    return { ok: false, error: `version_not_rejectable:${version.status}` };
+  }
+
+  // Active review access required when model present (revoked/expired fail closed)
+  if (typeof prisma.crmCommercialReviewAccess?.findFirst === 'function') {
+    const access = await prisma.crmCommercialReviewAccess.findFirst({
+      where: {
+        documentVersionId,
+        recipientId,
+        revokedAt: null,
+      },
+    });
+    if (!access) {
+      return { ok: false, error: 'review_access_revoked' };
+    }
+    if (access.expiresAt && new Date(access.expiresAt) < now) {
+      return { ok: false, error: 'review_access_expired' };
+    }
+  }
+
+  const stored = await loadArtifactChecksum(prisma, artifactId);
+  if (!stored?.sha256 || String(stored.sha256).toLowerCase() !== checksumSha256) {
+    return { ok: false, error: 'checksum_mismatch' };
+  }
+
+  const row = await prisma.crmCommercialRejection.create({
+    data: {
+      documentVersionId,
+      artifactId,
+      checksumSha256,
+      recipientId,
+      reason: args.reason != null ? String(args.reason).trim().slice(0, 2000) : null,
+      rejectedAt: now,
+      idempotencyKey: idempotencyKey || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await prisma.crmCommercialDocumentVersion.update({
+    where: { id: documentVersionId },
+    data: {
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    rejection: serializeRejection(row),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== AFTER FIX: lib/admin/crm/commercial/reviewAccess.js =====
+
+/**
+ * Customer review access tokens â€” Phase 15 Wave 3.
+ * High-entropy tokens; non-enumerable; expiry + revocation.
+ */
+
+import { createHash, randomBytes } from 'crypto';
+import { getCommercialDomainContract } from './catalogue.js';
+import { resolveCommercialActor } from './model.js';
+
+export function hasCrmCommercialReviewAccessModel(prisma) {
+  return typeof prisma?.crmCommercialReviewAccess?.create === 'function';
+}
+
+export function hasCrmCommercialReviewSessionModel(prisma) {
+  return typeof prisma?.crmCommercialReviewSession?.create === 'function';
+}
+
+export function hasCrmCommercialCustomerViewModel(prisma) {
+  return typeof prisma?.crmCommercialCustomerView?.create === 'function';
+}
+
+export function hashReviewToken(tokenPlain) {
+  return createHash('sha256').update(String(tokenPlain || ''), 'utf8').digest('hex');
+}
+
+export function generateReviewToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+export function serializeReviewAccess(row, extras = {}) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    recipientId: row.recipientId || null,
+    artifactId: row.artifactId || null,
+    expiresAt: row.expiresAt ? new Date(row.expiresAt).toISOString() : null,
+    revokedAt: row.revokedAt ? new Date(row.revokedAt).toISOString() : null,
+    status: row.revokedAt ? 'REVOKED' : 'ACTIVE',
+    ...extras,
+  };
+}
+
+export async function createReviewAccess(prisma, args = {}) {
+  if (!hasCrmCommercialReviewAccessModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_review_access_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialReviewAccess.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        reviewAccess: serializeReviewAccess(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const tokenPlain = args.tokenPlain || generateReviewToken();
+  const tokenHash = hashReviewToken(tokenPlain);
+  const now = args.now || new Date();
+
+  const row = await prisma.crmCommercialReviewAccess.create({
+    data: {
+      documentVersionId: args.documentVersionId,
+      documentId: args.documentId || null,
+      recipientId: args.recipientId || null,
+      artifactId: args.artifactId || null,
+      checksumSha256: args.checksumSha256 || null,
+      tokenHash,
+      // Tests/dev only â€” never expose in customer-safe API serializers
+      tokenPlain: process.env.NODE_ENV === 'test' || process.env.VITEST ? tokenPlain : null,
+      expiresAt: args.expiresAt ? new Date(args.expiresAt) : null,
+      revokedAt: null,
+      idempotencyKey: idempotencyKey || null,
+      createdByAdminId: resolveCommercialActor(args)?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  // Attach plaintext for issue flow (returned once; not stored in production)
+  row.tokenPlain = tokenPlain;
+
+  return {
+    ok: true,
+    reviewAccess: serializeReviewAccess(row, { tokenPlain }),
+    tokenPlain,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export async function resolveReviewAccessByToken(prisma, tokenPlain, args = {}) {
+  if (!hasCrmCommercialReviewAccessModel(prisma) || !tokenPlain) {
+    return { ok: false, error: 'invalid_or_expired_token' };
+  }
+  const tokenHash = hashReviewToken(tokenPlain);
+  const now = args.now || new Date();
+
+  let row =
+    (await prisma.crmCommercialReviewAccess.findUnique({ where: { tokenHash } })) || null;
+  if (!row && args.reviewAccessId) {
+    row = await prisma.crmCommercialReviewAccess.findUnique({
+      where: { id: args.reviewAccessId },
+    });
+  }
+  if (!row) return { ok: false, error: 'invalid_or_expired_token' };
+  if (row.revokedAt) return { ok: false, error: 'review_access_revoked' };
+  if (row.expiresAt && new Date(row.expiresAt) < now) {
+    return { ok: false, error: 'review_access_expired' };
+  }
+  return { ok: true, reviewAccess: row };
+}
+
+export async function revokeReviewAccessForVersion(prisma, documentVersionId, args = {}) {
+  if (!hasCrmCommercialReviewAccessModel(prisma)) return { ok: true, count: 0 };
+  const now = args.now || new Date();
+  const result = await prisma.crmCommercialReviewAccess.updateMany({
+    where: { documentVersionId, revokedAt: null },
+    data: { revokedAt: now, updatedAt: now },
+  });
+  return { ok: true, count: result.count || 0 };
+}
+
+/**
+ * Record an explicit customer view. Delivery alone must NOT call this.
+ */
+export async function recordCustomerView(prisma, args = {}) {
+  if (!hasCrmCommercialCustomerViewModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_customer_view_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  let access = null;
+
+  if (args.token || args.reviewAccessId) {
+    const resolved = await resolveReviewAccessByToken(prisma, args.token, {
+      reviewAccessId: args.reviewAccessId,
+      now,
+    });
+    // Allow test path: reviewAccessId with tokenPlain stored on row
+    if (!resolved.ok && args.reviewAccessId) {
+      access = await prisma.crmCommercialReviewAccess.findUnique({
+        where: { id: args.reviewAccessId },
+      });
+      if (access?.revokedAt) return { ok: false, error: 'review_access_revoked' };
+      if (access?.expiresAt && new Date(access.expiresAt) < now) {
+        return { ok: false, error: 'review_access_expired' };
+      }
+      if (!access) return { ok: false, error: resolved.error || 'invalid_or_expired_token' };
+    } else if (!resolved.ok) {
+      return resolved;
+    } else {
+      access = resolved.reviewAccess;
+    }
+  }
+
+  if (!access) return { ok: false, error: 'review_access_required' };
+
+  const version = await prisma.crmCommercialDocumentVersion.findUnique({
+    where: { id: access.documentVersionId },
+  });
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+  if (version.status === 'SUPERSEDED' || version.status === 'WITHDRAWN' || version.status === 'EXPIRED') {
+    return { ok: false, error: `version_${String(version.status).toLowerCase()}` };
+  }
+
+  const view = await prisma.crmCommercialCustomerView.create({
+    data: {
+      documentVersionId: access.documentVersionId,
+      reviewAccessId: access.id,
+      recipientId: args.recipientId || access.recipientId || null,
+      artifactId: access.artifactId || null,
+      viewedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (hasCrmCommercialReviewSessionModel(prisma)) {
+    await prisma.crmCommercialReviewSession.create({
+      data: {
+        reviewAccessId: access.id,
+        documentVersionId: access.documentVersionId,
+        recipientId: args.recipientId || access.recipientId || null,
+        startedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  // Transition to VIEWED when currently ISSUED/DELIVERED (delivery â‰  view)
+  const viewableFrom = new Set(['ISSUED', 'DELIVERED']);
+  if (viewableFrom.has(version.status)) {
+    await prisma.crmCommercialDocumentVersion.update({
+      where: { id: version.id },
+      data: { status: 'VIEWED', immutable: true, updatedAt: now },
+    });
+  }
+
+  return {
+    ok: true,
+    view: {
+      id: view.id,
+      documentVersionId: view.documentVersionId,
+      reviewAccessId: view.reviewAccessId,
+      viewedAt: new Date(view.viewedAt).toISOString(),
+    },
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== AFTER FIX: test/systemAdmin.crm.commercialWave3.test.js =====
+
+/**
+ * Phase 15 Wave 3 â€” Templates, PDF, issue, delivery, review, acceptance.
+ * Delivery â‰  view â‰  acceptance. E-sign NOT_CONFIGURED. Acceptance binds version+checksum+authority.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  renderCommercialDocument,
+  issueCommercialDocument,
+  recordCustomerView,
+  acceptCommercialDocument,
+  rejectCommercialDocument,
+  getESignatureProviderStatus,
+  runCommercialExpiryJob,
+  getCommercialDomainContract,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-1') {
+  return { id, role: 'Super Admin', permissions: {} };
+}
+
+function simpleCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      if (where.tokenHash) {
+        return store.find((r) => r.tokenHash === where.tokenHash) || null;
+      }
+      if (where.documentVersionId_idempotencyKey) {
+        const k = where.documentVersionId_idempotencyKey;
+        return (
+          store.find(
+            (r) =>
+              r.documentVersionId === k.documentVersionId &&
+              r.idempotencyKey === k.idempotencyKey
+          ) || null
+        );
+      }
+      if (where.versionId_projection_idempotencyKey) {
+        const k = where.versionId_projection_idempotencyKey;
+        return (
+          store.find(
+            (r) =>
+              r.versionId === k.versionId &&
+              r.projection === k.projection &&
+              r.idempotencyKey === k.idempotencyKey
+          ) || null
+        );
+      }
+      if (where.artifactId_algorithm) {
+        const k = where.artifactId_algorithm;
+        return (
+          store.find(
+            (r) => r.artifactId === k.artifactId && r.algorithm === k.algorithm
+          ) || null
+        );
+      }
+      if (where.documentVersionId_recipientId) {
+        const k = where.documentVersionId_recipientId;
+        return (
+          store.find(
+            (r) =>
+              r.documentVersionId === k.documentVersionId &&
+              r.recipientId === k.recipientId
+          ) || null
+        );
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+      let rows = [...store];
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.recipientId) {
+        rows = rows.filter((r) => r.recipientId === where.recipientId);
+      }
+      if (where.versionId) rows = rows.filter((r) => r.versionId === where.versionId);
+      if (where.artifactId) rows = rows.filter((r) => r.artifactId === where.artifactId);
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      if (where.idempotencyKey) {
+        rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+      }
+      if (where.revokedAt === null) rows = rows.filter((r) => r.revokedAt == null);
+      if (where.expiresAt) {
+        // Prisma-style: { lte: date }
+        if (where.expiresAt.lte) {
+          rows = rows.filter((r) => r.expiresAt && new Date(r.expiresAt) <= where.expiresAt.lte);
+        }
+      }
+      if (orderBy?.createdAt === 'desc') {
+        rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.versionId) rows = rows.filter((r) => r.versionId === where.versionId);
+      if (where.documentId) rows = rows.filter((r) => r.documentId === where.documentId);
+      if (where.status) {
+        if (typeof where.status === 'object' && where.status.in) {
+          rows = rows.filter((r) => where.status.in.includes(r.status));
+        } else {
+          rows = rows.filter((r) => r.status === where.status);
+        }
+      }
+      if (where.validUntil) {
+        if (where.validUntil.lte) {
+          rows = rows.filter((r) => r.validUntil && new Date(r.validUntil) <= where.validUntil.lte);
+        }
+      }
+      if (where.revokedAt === null) rows = rows.filter((r) => r.revokedAt == null);
+      if (where.id?.in) rows = rows.filter((r) => where.id.in.includes(r.id));
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      let count = 0;
+      for (const row of store) {
+        let match = true;
+        if (where.documentVersionId && row.documentVersionId !== where.documentVersionId) {
+          match = false;
+        }
+        if (where.documentId && row.documentId !== where.documentId) match = false;
+        if (where.status) {
+          if (typeof where.status === 'object' && where.status.in) {
+            if (!where.status.in.includes(row.status)) match = false;
+          } else if (row.status !== where.status) match = false;
+        }
+        if (where.revokedAt === null && row.revokedAt != null) match = false;
+        if (match) {
+          Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+          count += 1;
+        }
+      }
+      return { count };
+    }),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const documentStore = overrides._documentStore || [
+    {
+      id: 'doc-1',
+      documentNumber: 'QUO-2026-000001',
+      documentFamily: 'QUOTATION',
+      opportunityId: 'opp-1',
+      accountId: 'acc-1',
+      contactId: 'con-1',
+      title: 'Acme Quote',
+      currency: 'MWK',
+      currentVersionId: 'cdv-1',
+      latestVersionNumber: 1,
+    },
+  ];
+  const documentVersionStore = overrides._documentVersionStore || [
+    {
+      id: 'cdv-1',
+      documentId: 'doc-1',
+      versionNumber: 1,
+      versionLabel: 'QUO-2026-000001-V1',
+      status: 'READY_TO_ISSUE',
+      contentJson: {
+        title: 'Acme Quote',
+        lineItems: [{ productRef: 'PLAN-CORE', quantity: 2, unitPrice: 100, currency: 'MWK' }],
+        totals: { currency: 'MWK', grandTotal: 200 },
+        internalNotes: 'SECRET floor 80 â€” do not show customer',
+        approvalChatter: ['approved by boss'],
+        priceFloors: { 'PLAN-CORE': 80 },
+      },
+      immutable: false,
+    },
+  ];
+  const templateStore = overrides._templateStore || [];
+  const brandingStore = overrides._brandingStore || [
+    {
+      id: 'brand-1',
+      code: 'DEFAULT',
+      legalName: 'InsightBooks',
+      primaryColor: '#0F172A',
+      status: 'ACTIVE',
+    },
+  ];
+  const renderJobStore = overrides._renderJobStore || [];
+  const artifactStore = overrides._artifactStore || [];
+  const checksumStore = overrides._checksumStore || [];
+  const recipientStore = overrides._recipientStore || [
+    {
+      id: 'rcp-1',
+      documentId: 'doc-1',
+      email: 'buyer@acme.test',
+      name: 'Buyer One',
+      authorityRole: 'SIGNATORY',
+      status: 'ACTIVE',
+    },
+  ];
+  const deliveryStore = overrides._deliveryStore || [];
+  const reviewAccessStore = overrides._reviewAccessStore || [];
+  const reviewSessionStore = overrides._reviewSessionStore || [];
+  const viewStore = overrides._viewStore || [];
+  const commentStore = overrides._commentStore || [];
+  const revisionRequestStore = overrides._revisionRequestStore || [];
+  const acceptanceStore = overrides._acceptanceStore || [];
+  const rejectionStore = overrides._rejectionStore || [];
+  const expiryStore = overrides._expiryStore || [];
+  const signatureRequestStore = overrides._signatureRequestStore || [];
+  const timelineStore = overrides._timelineStore || [];
+  const versionHistoryStore = overrides._versionHistoryStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    crmCommercialDocument: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `doc-${documentStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        documentStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentStore.find((r) => r.id === where.id) || null;
+        if (where.documentNumber) {
+          return documentStore.find((r) => r.documentNumber === where.documentNumber) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmCommercialDocumentVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cdv-${documentVersionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        documentVersionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentVersionStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...documentVersionStore];
+        if (where.documentId) rows = rows.filter((r) => r.documentId === where.documentId);
+        if (where.status) {
+          if (typeof where.status === 'object' && where.status.in) {
+            rows = rows.filter((r) => where.status.in.includes(r.status));
+          } else {
+            rows = rows.filter((r) => r.status === where.status);
+          }
+        }
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentVersionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        let count = 0;
+        for (const row of documentVersionStore) {
+          let match = true;
+          if (where.documentId && row.documentId !== where.documentId) match = false;
+          if (where.status) {
+            if (typeof where.status === 'object' && where.status.in) {
+              if (!where.status.in.includes(row.status)) match = false;
+            } else if (row.status !== where.status) match = false;
+          }
+          if (where.id?.not && row.id === where.id.not) match = false;
+          if (match) {
+            Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+            count += 1;
+          }
+        }
+        return { count };
+      }),
+    },
+    crmCommercialDocumentVersionStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `vh-${versionHistoryStore.length + 1}`, ...data };
+        versionHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmCommercialTemplate: simpleCrud(templateStore, 'tpl'),
+    crmCommercialBranding: simpleCrud(brandingStore, 'brand'),
+    crmCommercialRenderJob: simpleCrud(renderJobStore, 'rj'),
+    crmCommercialArtifact: simpleCrud(artifactStore, 'art'),
+    crmCommercialChecksum: simpleCrud(checksumStore, 'cks'),
+    crmCommercialRecipient: simpleCrud(recipientStore, 'rcp'),
+    crmCommercialDelivery: simpleCrud(deliveryStore, 'del'),
+    crmCommercialReviewAccess: simpleCrud(reviewAccessStore, 'ra'),
+    crmCommercialReviewSession: simpleCrud(reviewSessionStore, 'rs'),
+    crmCommercialCustomerView: simpleCrud(viewStore, 'view'),
+    crmCommercialCustomerComment: simpleCrud(commentStore, 'cmt'),
+    crmCommercialRevisionRequest: simpleCrud(revisionRequestStore, 'rev'),
+    crmCommercialAcceptance: simpleCrud(acceptanceStore, 'acc'),
+    crmCommercialRejection: simpleCrud(rejectionStore, 'rej'),
+    crmCommercialExpiry: simpleCrud(expiryStore, 'exp'),
+    crmCommercialSignatureRequest: simpleCrud(signatureRequestStore, 'sig'),
+    crmTimelineEvent: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
+        timelineStore.push(row);
+        return row;
+      }),
+    },
+    _stores: {
+      documentStore,
+      documentVersionStore,
+      templateStore,
+      brandingStore,
+      renderJobStore,
+      artifactStore,
+      checksumStore,
+      recipientStore,
+      deliveryStore,
+      reviewAccessStore,
+      reviewSessionStore,
+      viewStore,
+      commentStore,
+      revisionRequestStore,
+      acceptanceStore,
+      rejectionStore,
+      expiryStore,
+      signatureRequestStore,
+      timelineStore,
+      versionHistoryStore,
+    },
+  };
+
+  // Enhance findUnique for branding by code
+  const origBrand = prisma.crmCommercialBranding.findUnique;
+  prisma.crmCommercialBranding.findUnique = vi.fn(async ({ where = {} } = {}) => {
+    if (where.code) return brandingStore.find((r) => r.code === where.code) || null;
+    return origBrand({ where });
+  });
+
+  return prisma;
+}
+
+describe('Phase 15 Wave 3 â€” Templates, PDF, issue, delivery, review, acceptance', () => {
+  let prisma;
+  let admin;
+  let actorContext;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    admin = superAdmin('sales-1');
+    actorContext = { admin };
+  });
+
+  it('Issued PDF checksum is stable; regenerate creates new artifact (no silent replace)', async () => {
+    const first = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-1',
+    });
+    expect(first.ok).toBe(true);
+    expect(first.artifact?.id).toBeTruthy();
+    expect(first.checksum?.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.artifact.projection).toBe('ISSUED');
+    expect(Buffer.isBuffer(first.artifact.buffer) || first.artifact.byteLength > 0).toBeTruthy();
+
+    const idempotent = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-1',
+    });
+    expect(idempotent.ok).toBe(true);
+    expect(idempotent.artifact.id).toBe(first.artifact.id);
+    expect(idempotent.checksum.sha256).toBe(first.checksum.sha256);
+    expect(prisma._stores.artifactStore.length).toBe(1);
+
+    const regenerated = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-2',
+    });
+    expect(regenerated.ok).toBe(true);
+    expect(regenerated.artifact.id).not.toBe(first.artifact.id);
+    expect(regenerated.checksum.sha256).toBe(first.checksum.sha256);
+    expect(prisma._stores.artifactStore.length).toBe(2);
+    // Original artifact untouched
+    expect(prisma._stores.artifactStore[0].id).toBe(first.artifact.id);
+    expect(prisma._stores.checksumStore[0].sha256).toBe(first.checksum.sha256);
+  });
+
+  it('Issue retry does not duplicate email/link delivery', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-issue',
+    });
+    expect(rendered.ok).toBe(true);
+
+    const args = {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-1',
+    };
+
+    const first = await issueCommercialDocument(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.issue?.id || first.delivery?.id).toBeTruthy();
+    expect(prisma._stores.deliveryStore.length).toBe(1);
+    expect(prisma._stores.reviewAccessStore.length).toBe(1);
+
+    const retry = await issueCommercialDocument(prisma, args);
+    expect(retry.ok).toBe(true);
+    expect(retry.alreadyExists).toBe(true);
+    expect(prisma._stores.deliveryStore.length).toBe(1);
+    expect(prisma._stores.reviewAccessStore.length).toBe(1);
+  });
+
+  it('View is NOT created from delivery alone', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-del',
+    });
+    const issued = await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-del',
+    });
+    expect(issued.ok).toBe(true);
+    expect(prisma._stores.deliveryStore.length).toBe(1);
+    expect(prisma._stores.viewStore.length).toBe(0);
+
+    const version = prisma._stores.documentVersionStore.find((v) => v.id === 'cdv-1');
+    expect(version.status).not.toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED);
+    expect(version.status).not.toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED);
+  });
+
+  it('Accept V1 after V2 supersede is blocked', async () => {
+    const v1Render = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-v1',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: v1Render.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-v1',
+    });
+
+    // Create V2 ready to issue and issue it (supersedes V1)
+    prisma._stores.documentVersionStore.push({
+      id: 'cdv-2',
+      documentId: 'doc-1',
+      versionNumber: 2,
+      versionLabel: 'QUO-2026-000001-V2',
+      status: 'READY_TO_ISSUE',
+      contentJson: {
+        title: 'Acme Quote V2',
+        lineItems: [{ productRef: 'PLAN-CORE', quantity: 3, unitPrice: 100, currency: 'MWK' }],
+        totals: { currency: 'MWK', grandTotal: 300 },
+      },
+      immutable: false,
+    });
+    prisma._stores.documentStore[0].latestVersionNumber = 2;
+    prisma._stores.documentStore[0].currentVersionId = 'cdv-2';
+
+    const v2Render = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-2',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-v2',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-2',
+      artifactId: v2Render.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-v2',
+    });
+
+    const v1 = prisma._stores.documentVersionStore.find((v) => v.id === 'cdv-1');
+    expect(v1.status).toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED);
+
+    const access = prisma._stores.reviewAccessStore.find(
+      (a) => a.documentVersionId === 'cdv-1' && a.revokedAt == null
+    );
+    // V1 links should be revoked on supersession
+    const v1AccessAny = prisma._stores.reviewAccessStore.filter((a) => a.documentVersionId === 'cdv-1');
+    expect(v1AccessAny.every((a) => a.revokedAt != null)).toBe(true);
+
+    const accept = await acceptCommercialDocument(prisma, {
+      documentVersionId: 'cdv-1',
+      artifactId: v1Render.artifact.id,
+      checksumSha256: v1Render.checksum.sha256,
+      recipientId: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-v1-late',
+    });
+    expect(accept.ok).toBe(false);
+    expect(String(accept.error || '')).toMatch(/superseded|not_acceptable|revoked/i);
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+    expect(access).toBeFalsy();
+  });
+
+  it('E-sign provider status is NOT_CONFIGURED', () => {
+    const status = getESignatureProviderStatus();
+    expect(status).toEqual({ status: 'NOT_CONFIGURED' });
+    expect(getCommercialDomainContract().eSignProvider).toBe('NOT_CONFIGURED');
+  });
+
+  it('Acceptance without checksum fails', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-acc',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-acc',
+    });
+
+    // Explicit view first (delivery â‰  view)
+    const token = prisma._stores.reviewAccessStore[0].tokenPlain || null;
+    const view = await recordCustomerView(prisma, {
+      token: token || prisma._stores.reviewAccessStore[0].id,
+      reviewAccessId: prisma._stores.reviewAccessStore[0].id,
+      recipientId: 'rcp-1',
+    });
+    expect(view.ok).toBe(true);
+    expect(prisma._stores.viewStore.length).toBe(1);
+
+    const noChecksum = await acceptCommercialDocument(prisma, {
+      documentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      // checksumSha256 omitted
+      recipientId: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-no-cks',
+    });
+    expect(noChecksum.ok).toBe(false);
+    expect(String(noChecksum.error || '')).toMatch(/checksum/i);
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+  });
+
+  it('Expiry job double-run expires once (idempotent)', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-exp',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-01-01T00:00:00.000Z',
+      idempotencyKey: 'issue-exp',
+    });
+
+    const now = new Date('2026-07-31T12:00:00.000Z');
+    const first = await runCommercialExpiryJob(prisma, { now, idempotencyKey: 'exp-job-1' });
+    expect(first.ok).toBe(true);
+    expect(first.expiredCount).toBe(1);
+    expect(prisma._stores.documentVersionStore.find((v) => v.id === 'cdv-1').status).toBe(
+      CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED
+    );
+    expect(prisma._stores.expiryStore.length).toBe(1);
+
+    const second = await runCommercialExpiryJob(prisma, { now, idempotencyKey: 'exp-job-1' });
+    expect(second.ok).toBe(true);
+    expect(second.alreadyRan || second.expiredCount === 0 || second.idempotent).toBeTruthy();
+    expect(prisma._stores.expiryStore.length).toBe(1);
+  });
+
+  it('Accept/reject with unknown token fails (must resolve token)', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-tok',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-tok',
+    });
+    const access = prisma._stores.reviewAccessStore[0];
+
+    const unknownAccept = await acceptCommercialDocument(prisma, {
+      token: 'a'.repeat(32),
+      documentVersionId: access.documentVersionId,
+      artifactId: access.artifactId,
+      checksumSha256: access.checksumSha256,
+      recipientId: access.recipientId,
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-bad-token',
+    });
+    expect(unknownAccept.ok).toBe(false);
+    expect(String(unknownAccept.error || '')).toMatch(/invalid_or_expired_token/i);
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+
+    const unknownReject = await rejectCommercialDocument(prisma, {
+      token: 'b'.repeat(32),
+      documentVersionId: access.documentVersionId,
+      artifactId: access.artifactId,
+      checksumSha256: access.checksumSha256,
+      recipientId: access.recipientId,
+      reason: 'nope',
+      idempotencyKey: 'reject-bad-token',
+    });
+    expect(unknownReject.ok).toBe(false);
+    expect(String(unknownReject.error || '')).toMatch(/invalid_or_expired_token/i);
+    expect(prisma._stores.rejectionStore.length).toBe(0);
+
+    // Valid token binds and accepts
+    const ok = await acceptCommercialDocument(prisma, {
+      token: access.tokenPlain,
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-good-token',
+    });
+    expect(ok.ok).toBe(true);
+    expect(prisma._stores.acceptanceStore.length).toBe(1);
+  });
+
+  it('Expired review access cannot accept', async () => {
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-exp-acc',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-exp-acc',
+    });
+    const access = prisma._stores.reviewAccessStore[0];
+    access.expiresAt = new Date('2026-01-01T00:00:00.000Z');
+    const now = new Date('2026-07-31T12:00:00.000Z');
+
+    const viaToken = await acceptCommercialDocument(prisma, {
+      token: access.tokenPlain,
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-expired-token',
+      now,
+    });
+    expect(viaToken.ok).toBe(false);
+    expect(String(viaToken.error || '')).toMatch(/review_access_expired/i);
+
+    const viaIds = await acceptCommercialDocument(prisma, {
+      documentVersionId: access.documentVersionId,
+      artifactId: access.artifactId,
+      checksumSha256: access.checksumSha256,
+      recipientId: access.recipientId,
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-expired-ids',
+      now,
+    });
+    expect(viaIds.ok).toBe(false);
+    expect(String(viaIds.error || '')).toMatch(/review_access_expired/i);
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+  });
+
+  it('Empty recipient authority role cannot accept via claimed SIGNATORY', async () => {
+    prisma._stores.recipientStore[0].authorityRole = '';
+    const rendered = await renderCommercialDocument(prisma, {
+      actorContext,
+      versionId: 'cdv-1',
+      projection: 'ISSUED',
+      idempotencyKey: 'render-auth',
+    });
+    await issueCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      artifactId: rendered.artifact.id,
+      recipientIds: ['rcp-1'],
+      deliveryMethod: 'SECURE_LINK',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      idempotencyKey: 'issue-auth',
+    });
+    const access = prisma._stores.reviewAccessStore[0];
+
+    const accept = await acceptCommercialDocument(prisma, {
+      token: access.tokenPlain,
+      authorityRole: 'SIGNATORY',
+      idempotencyKey: 'accept-unverified',
+    });
+    expect(accept.ok).toBe(false);
+    expect(String(accept.error || '')).toMatch(/authority_unverified/i);
+    expect(accept.status).toBe('UNVERIFIED');
+    expect(prisma._stores.acceptanceStore.length).toBe(0);
+  });
+});

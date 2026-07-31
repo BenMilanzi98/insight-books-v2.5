@@ -1,0 +1,1311 @@
+{
+  "common": {
+    "refresh": "Tsitsanimanso",
+    "loading": "Ikukweza…",
+    "retry": "Yesaninso",
+    "save": "Sungani",
+    "cancel": "Letsani",
+    "create": "Pangani",
+    "edit": "Sintrani",
+    "export": "Export",
+    "back": "Bwererani",
+    "unavailable": "Sikupezeka"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "description": "Mwachidule wa control-tower",
+    "unavailable": "Dashboard sikupezeka",
+    "loading": "Ikukweza control tower",
+    "mrr": "MRR yoyerekeza",
+    "mrrHint": "Yachokera ku ma AccountSubscription ogwira ntchito",
+    "tenants": "Ma Tenant",
+    "users": "Ogwiritsa ntchito",
+    "activeSubs": "Ma subscription ogwira",
+    "paymentsPeriod": "Zomwe zinalipidwa nthawi ino",
+    "outstanding": "Zotsala (mainvoice a platform)"
+  },
+  "tenants": {
+    "title": "Kuwongolera Tenants",
+    "description": "Pangani, yambitsani, imitsani, bwezerani, ndi kusunga ma tenant"
+  },
+  "users": {
+    "title": "Kuwongolera Ogwiritsa Ntchito",
+    "description": "Wongolerani ogwiritsa ntchito a platform"
+  },
+  "billing": {
+    "overview": {
+      "title": "Mwachidule wa Malipiro",
+      "description": "Malipiro a InsightBooks SaaS — osati AR ya tenant"
+    },
+    "plans": {
+      "title": "Mapulani a Subscription",
+      "description": "Mapulani a bizinesi"
+    },
+    "mraEisPlans": {
+      "title": "Mapulani a MRA EIS",
+      "description": "Mapulani a malipiro a MRA EIS"
+    },
+    "subscriptions": {
+      "title": "Kuwongolera Ma Subscription",
+      "description": "Ma subscription a tenant"
+    },
+    "invoices": {
+      "title": "Mainvoice a platform",
+      "description": "Mainvoice a platform"
+    },
+    "payments": {
+      "title": "Malipiro a platform",
+      "description": "Malipiro a platform"
+    },
+    "credits": {
+      "title": "Ma Credit ndi Refunds",
+      "description": "Ma credit ndi refunds"
+    },
+    "reconciliation": {
+      "title": "Kuwerengera Malipiro",
+      "description": "Kuwerengera malipiro"
+    }
+  },
+  "mraEis": {
+    "title": "MRA EIS entitlement",
+    "description": "Ma entitlement a compliance",
+    "centre": {
+      "title": "Mwachidule wa MRA EIS",
+      "description": "Centre ya EIS"
+    },
+    "terminals": {
+      "title": "Ma Terminal a MRA EIS",
+      "description": "Registry ya ma terminal"
+    },
+    "configuration": {
+      "title": "Kakonzedwe ka MRA EIS",
+      "description": "Kakonzedwe ka EIS"
+    },
+    "mappings": {
+      "title": "Ma Mapping a MRA EIS",
+      "description": "Ma mapping a katalogi"
+    },
+    "catalogue": {
+      "title": "Katalogi ya MRA EIS",
+      "description": "Kukonzeka kwa katalogi"
+    },
+    "tenantDetail": {
+      "back": "Bwererani ku ma entitlement a EIS"
+    }
+  },
+  "email": {
+    "title": "Kuwongolera Email",
+    "description": "Ntchito za email za platform",
+    "templates": {
+      "title": "Ma template a email",
+      "description": "Wongolerani ma template"
+    },
+    "suppression": {
+      "title": "Email suppression",
+      "description": "Mndandanda wa suppression"
+    }
+  },
+  "affiliate": {
+    "title": "Kuwongolera Affiliates",
+    "description": "Anzathu ndi ma commission",
+    "commissions": {
+      "title": "Ma commission a affiliate",
+      "description": "Zolemba za commission"
+    },
+    "payouts": {
+      "title": "Malipiro a affiliate",
+      "description": "Zolemba za malipiro"
+    }
+  },
+  "audit": {
+    "title": "Audit ndi chitetezo",
+    "description": "Zochitika za audit"
+  },
+  "security": {
+    "title": "Zokonda zachitetezo",
+    "description": "Mwachidule wa chitetezo",
+    "monitoring": {
+      "title": "Kuwunika Chitetezo",
+      "description": "Zizindikiro za chitetezo"
+    },
+    "compliance": {
+      "title": "Compliance ya Chitetezo",
+      "description": "Zizindikiro za compliance"
+    }
+  },
+  "health": {
+    "title": "Thanzi la Dongosolo",
+    "description": "Thanzi la ntchito"
+  },
+  "settings": {
+    "title": "Zokonda Zapadziko Lonse",
+    "description": "Zokonda za platform"
+  },
+  "features": {
+    "title": "Feature Entitlements",
+    "description": "Ma feature flag ndi entitlements"
+  },
+  "mobile": {
+    "title": "Pulogalamu ya Android",
+    "description": "Ma release a app"
+  },
+  "reports": {
+    "title": "Malipoti a Platform",
+    "description": "Malipoti a platform"
+  },
+  "imports": {
+    "title": "Import dry-run",
+    "description": "Ma import a dry-run"
+  },
+  "login": {
+    "title": "Lowani ngati admin",
+    "submit": "Lowani"
+  },
+  "stubs": {
+    "subscriptionAnalytics": {
+      "title": "Analytics ya subscription",
+      "description": "Gwiritsani ntchito dashboard ndi billing overview."
+    },
+    "subscriptionGrowth": {
+      "title": "Kukula kwa subscription",
+      "description": "Gwiritsani ntchito dashboard ndi billing overview."
+    },
+    "systemLogs": {
+      "title": "Ma log a dongosolo",
+      "description": "Gwiritsani ntchito Audit & Security."
+    },
+    "systemPerformance": {
+      "title": "Ntchito ya dongosolo",
+      "description": "Gwiritsani ntchito System Health."
+    },
+    "userAnalytics": {
+      "title": "Analytics ya ogwiritsa ntchito",
+      "description": "Gwiritsani ntchito dashboard."
+    },
+    "revenueOverview": {
+      "title": "Mwachidule wa ndalama",
+      "description": "Gwiritsani ntchito Billing Overview ya SaaS."
+    }
+  },
+  "analyticsPipeline": {
+    "title": "Njira ya analytics",
+    "description": "Outbox, zochitika, facts, reconciliation — maziko a analytics (osati KPI za executive)"
+  },
+  "intelligence": {
+    "title": "Nzeru za Executive",
+    "description": "KPI zowonetsetsedwa za platform — malipiro a SaaS, tenants, ndi maops. Osati magulitsidwe a tenant GL.",
+    "forbidden": "Mulibe chilolezo chowona nzeru za executive.",
+    "loadFailed": "Kulephera kutenga pack ya KPI",
+    "catalogue": "Katalogi",
+    "generated": "Yapangidwa",
+    "attentionTitle": "Zofunika chidwi",
+    "attentionEmpty": "Palibe zofunika chidwi",
+    "attentionEmptyHint": "Palibe zolakwika za stale, query, kapena reconciliation.",
+    "viewAll": "Onani zonse",
+    "open": "Tsegulani",
+    "emptySection": "Palibe ma metric mu gawo ili",
+    "emptySectionHint": "Ma metric angakhale osapezeka kapena oletsedwa ndi chilolezo.",
+    "exportTitle": "Kutulutsa kwa executive",
+    "exportHint": "Tulutsani pack ya KPI (JSON kapena CSV). Zochitika zimalembedwa.",
+    "exportJson": "Tulutsani JSON",
+    "exportCsv": "Tulutsani CSV",
+    "areas": {
+      "financial": "Zachuma",
+      "customers": "Makasitomala ndi ma subscription",
+      "productOps": "Product, engagement ndi operations"
+    },
+    "sections": {
+      "financial": "Nzeru zachuma",
+      "customers": "Nzeru za makasitomala",
+      "subscriptions": "Nzeru za subscriptions",
+      "engagement": "Engagement",
+      "products": "Kugwiritsa ntchito product",
+      "mraEis": "MRA EIS",
+      "operations": "Operations",
+      "security": "Zizindikiro za chitetezo",
+      "attention": "Chidwi cha management",
+      "reports": "Malipoti a executive"
+    },
+    "sectionHints": {
+      "financial": "MRR/ARR ndi malipiro a platform kuchokera ku SaaS billing kokha.",
+      "customers": "Ziwerengero za tenants ndi ogwiritsa ntchito.",
+      "subscriptions": "Ma subscription a malipiro ndi trial.",
+      "engagement": "DAU ya ogwiritsa ntchito sinakhazikitsidwe — imawonetsedwa ngati unavailable.",
+      "products": "Feature adoption imafuna FEATURE_USED events.",
+      "mraEis": "Ziwerengero za entitlement za MRA EIS.",
+      "operations": "Thanzi la process ndi freshness ya analytics pipeline.",
+      "security": "Chizindikiro chachidule — gwiritsani Audit & Security.",
+      "attention": "Pipeline yochedwa, reconciliation mismatches, ndi zolephera za query.",
+      "reports": "Maziko otulutsa pack ya KPI (malipoti a nthawi ina pambuyo pake)."
+    }
+  },
+  "revenue": {
+    "title": "Nzeru za Ndalama",
+    "description": "Workbench ya ndalama za SaaS — MRR yoyerekeza, zizindikiro za billing, ndi ma metric oletsedwa ndi matrix. Osati magulitsidwe a tenant GL.",
+    "forbidden": "Mulibe chilolezo chowona nzeru za ndalama.",
+    "loadFailed": "Kulephera kutenga pack ya KPI ya ndalama",
+    "catalogue": "Katalogi",
+    "generated": "Yapangidwa",
+    "currency": "Ndalama",
+    "sectionNavLabel": "Magawo a nzeru za ndalama",
+    "emptySection": "Palibe ma metric mu gawo ili",
+    "emptySectionHint": "Ma metric angakhale UNAVAILABLE, oletsedwa ndi readiness matrix, kapena oletsedwa ndi chilolezo.",
+    "stubTitle": "Metric sichokonzeka",
+    "stubHint": "UNAVAILABLE mu wave iyi — ikubwera mu wave ina potsata readiness matrix.",
+    "reconStatusTitle": "Mkhalidwe wa reconciliation",
+    "reconStatusHint": "Snapshot keys ndi attention za pack zowerenga kokha. Reconstruct ndi ntchito ina.",
+    "reconAttention": "Zofunika chidwi",
+    "snapshotKeys": "Makiyi a snapshot",
+    "exportJson": "Tulutsa JSON",
+    "exportCsv": "Tulutsa CSV",
+    "exportFailed": "Kutulutsa kwalephera",
+    "forecastDisclaimer": "Renewal exposure yotsimikizika kuchokera ku expiresAt + MRR. Ma scenario (0.9 / 1.0 / 1.1) ndi zolembedwa — si predictive kapena ML.",
+    "contributor": "Wopereka",
+    "masked": "chobisika",
+    "settingsReadOnly": "Zokonda za revenue workbench ndi zowerenga kokha mu gawo ili.",
+    "settingsDefaultCurrency": "Ndalama yoyambira",
+    "settingsFx": "FX consolidation",
+    "settingsForecast": "Mtundu wa forecast",
+    "areas": {
+      "recurring": "Zobwerezabwereza (estimated contracted)",
+      "movements": "Kusuntha kwa MRR / bridge",
+      "commercial": "Zizindikiro za malipiro"
+    },
+    "sections": {
+      "overview": "Mwachidule",
+      "recurring": "Ndalama zobwerezabwereza",
+      "mrr": "MRR",
+      "arr": "ARR",
+      "movements": "Kusuntha kwa MRR",
+      "billing": "Billing",
+      "collections": "Collections",
+      "receivables": "Receivables",
+      "paymentPerformance": "Ntchito ya malipiro",
+      "creditsRefunds": "Ma credit ndi refunds",
+      "mraEis": "MRA EIS commercial",
+      "customers": "Makasitomala",
+      "segments": "Magawo",
+      "concentration": "Concentration",
+      "retention": "Retention",
+      "cohorts": "Cohorts",
+      "subscriptions": "Ma subscription",
+      "plans": "Mapulani",
+      "forecast": "Forecast",
+      "reconciliation": "Reconciliation",
+      "reports": "Malipoti",
+      "definitions": "Matanthauzo",
+      "settings": "Zokonda"
+    },
+    "sectionHints": {
+      "recurring": "MRR/ARR yoyerekeza ndi bridge kuchokera ku ma subscription a platform kokha.",
+      "mrr": "MRR ya nthawi ino — CORE / MRA EIS; osapanga zero zabodza.",
+      "arr": "ARR yoyerekeza = MRR × 12 (si engine ina ya ARR).",
+      "movements": "Opening/closing ndi bridge — UNAVAILABLE ngati reconstruct sichokwanira.",
+      "billing": "Zowerengera za PlatformInvoice za nthawi (void/cancelled sizaphatikizidwa).",
+      "collections": "Malipiro a PlatformPayment opambana pa nthawi (ndalama yake; reconcile ndi ma invoice).",
+      "receivables": "Outstanding PlatformInvoice ageing — due ndi periodEnd, kapena createdAt (palibe dueDate).",
+      "paymentPerformance": "Ziwerengero za malipiro opambana/olephera. Retry analytics ndi NOT_SUPPORTED.",
+      "creditsRefunds": "Ma credit otseguka, omwe adapangidwa, ndi ma refund a PlatformRefund pa nthawi.",
+      "mraEis": "MRR ya MRA EIS commercial ndi billed/collected pamene plan imadziwika — osati fiscal EISInvoice.",
+      "customers": "Ma tenant apamwamba ndi MRR yoyerekeza. Mayina amabisika popanda tenants.view.",
+      "segments": "Industry / region / acquisition ndi NOT_SUPPORTED. Plan split imagwiritsa MRR ndi plan code.",
+      "concentration": "Gawo la top-10 ndi Herfindahl wa MRR yoyerekeza (pa ndalama).",
+      "retention": "Retention ya cohort (chiwerengero ndi MRR) pamene reconstruct ikufika window.",
+      "cohorts": "Ma cohort a mwezi woyamba. UNAVAILABLE ngati reconstruct kapena mbiri sichokwanira.",
+      "subscriptions": "Ziwerengero za ma subscription ndi ma tenant ndi MRR (platform billing).",
+      "plans": "MRR yoyerekeza yogawidwa ndi plan code.",
+      "forecast": "Renewal exposure yotsimikizika — MRR yomwe imatha mu horizon; ma scenario 0.9 / 1.0 / 1.1.",
+      "reconciliation": "Mkhalidwe wa pack, snapshot keys, ndi attention (GET sichita write).",
+      "reports": "Tulutsa revenue KPIs ngati JSON kapena CSV (audit). XLSX/PDF sizikugwira.",
+      "definitions": "Matanthauzo a catalogue, readiness, ndi ma multiplier a forecast.",
+      "settings": "Zokonda zowerenga kokha — ndalama MWK; FX consolidation UNAVAILABLE."
+    }
+  },
+  "customers": {
+    "title": "Nzeru za Makasitomala",
+    "description": "Workbench ya makasitomala a platform (ma tenant) — identity, lifecycle, ubale wa malipiro, ndi zizindikiro zoletsedwa ndi readiness. Osati magulitsidwe a tenant GL.",
+    "forbidden": "Mulibe chilolezo chowona nzeru za makasitomala.",
+    "loadFailed": "Kulephera kutenga nzeru za makasitomala",
+    "catalogue": "Katalogi",
+    "generated": "Yapangidwa",
+    "currency": "Ndalama",
+    "sectionNavLabel": "Magawo a nzeru za makasitomala",
+    "emptySection": "Palibe ma metric mu gawo ili",
+    "emptySectionHint": "Ma metric angakhale UNAVAILABLE, oletsedwa ndi readiness matrix, kapena oletsedwa ndi chilolezo.",
+    "stubTitle": "Gawo silikonzeka",
+    "stubHint": "UNAVAILABLE kapena oletsedwa mu wave iyi — tsegulani customer 360 kuchokera ku Directory, kapena dikirani wave ina.",
+    "unavailableTitle": "Sikupezeka",
+    "notInstrumentedTitle": "Sichinalembedwe",
+    "signalsEmptyTitle": "Palibe ma signal otseguka",
+    "portfoliosEmptyTitle": "Palibe ma portfolio",
+    "limitations": "Zolepheretsa",
+    "masked": "chobisika",
+    "areas": {
+      "adoption": "Kugwiritsa ntchito",
+      "support": "Thandizo ndi service"
+    },
+    "signals": {
+      "loadFailed": "Kulephera kutenga mndandanda wa ma signal",
+      "actionFailed": "Kulephera kusintha signal",
+      "ackOk": "Signal yavomerezedwa.",
+      "dismissOk": "Signal yachotsedwa.",
+      "acknowledge": "Vomereza",
+      "dismiss": "Chotsani",
+      "dismissReason": "Chifukwa chochotsa (chofunikira)",
+      "queue": "Mndandanda",
+      "ruleVersion": "Malamulo a signal",
+      "emptyHint": "Palibe ma signal otsimikizika mu scope ya mndandanda uwu.",
+      "queues": {
+        "attention": "Attention",
+        "risk": "Risk",
+        "opportunity": "Opportunity",
+        "all": "Zonse"
+      },
+      "columns": {
+        "customer": "Kasitomala",
+        "code": "Signal",
+        "severity": "Kukwera",
+        "status": "Mkhalidwe",
+        "detected": "Yapezeka komaliza",
+        "actions": "Zochita"
+      }
+    },
+    "reconciliation": {
+      "loadFailed": "Kulephera kutenga customer reconciliation"
+    },
+    "reports": {
+      "exportTitle": "Kutumiza (export)",
+      "exportHint": "JSON kapena CSV ya directory (yochepa) kapena overview. Imawalembedwa. Osati Tenant Sale.",
+      "dataset": "Dataset",
+      "datasets": {
+        "directory": "Mndandanda",
+        "overview": "Mwachidule"
+      },
+      "exportJson": "Tumizani JSON",
+      "exportCsv": "Tumizani CSV",
+      "exportOk": "Export yatsitsidwa.",
+      "exportFailed": "Export yalephera"
+    },
+    "portfolios": {
+      "listTitle": "Ma portfolio",
+      "emptyHint": "Pangani portfolio ya Customer Success, kenako perekani ma tenant kwa mwini.",
+      "createTitle": "Panga portfolio",
+      "createAction": "Panga",
+      "createOk": "Portfolio yapangidwa.",
+      "createFailed": "Kulephera kupanga portfolio",
+      "loadFailed": "Kulephera kutenga ma portfolio",
+      "membersTitle": "Mamembala a portfolio",
+      "membersLabel": "ma assignment",
+      "membersFailed": "Kulephera kutenga mamembala",
+      "noMembers": "Palibe mamembala okhala ACTIVE mu portfolio iyi.",
+      "assignTitle": "Perekani / sinthani ownership",
+      "assignAction": "Perekani mwini",
+      "assignOk": "Ownership yaperekedwa.",
+      "assignFailed": "Kulephera kupereka ownership",
+      "tenantId": "Tenant id",
+      "ownerAdminId": "Admin id ya mwini",
+      "ownerAdminHint": "Ngati musiye opanda, mudzagwiritsidwa ntchito inu",
+      "reason": "Chifukwa (osafunika)",
+      "code": "Khodi",
+      "name": "Dzina",
+      "description": "Kufotokoza",
+      "primary": "Wamkulu",
+      "unassignedTitle": "Osapatsidwa mwini",
+      "unassignedEmpty": "Palibe makasitomala osapatsidwa mu scan yaposachedwa.",
+      "manageHint": "Kupanga ndi kupereka kumafuna systemAdmin.intel.customers.managePortfolios (Super Admin amaloledwa nthawi zonse)."
+    },
+    "sections": {
+      "overview": "Mwachidule",
+      "directory": "Mndandanda",
+      "lifecycle": "Lifecycle",
+      "engagement": "Engagement",
+      "commercial": "Commercial",
+      "renewals": "Renewals",
+      "mraEis": "MRA EIS",
+      "adoption": "Adoption",
+      "support": "Thandizo",
+      "signals": "Ma signal",
+      "portfolios": "Ma portfolio",
+      "reconciliation": "Reconciliation",
+      "reports": "Malipoti",
+      "definitions": "Matanthauzo",
+      "settings": "Zokonda"
+    },
+    "sectionHints": {
+      "overview": "Ziwerengero za makasitomala kuchokera ku Tenant ndi AccountSubscription — osapanga zero zabodza.",
+      "directory": "Mndandanda wofufuza ndi pagination. Tsegulani mzere kuti muwone 360.",
+      "lifecycle": "Lifecycle imapezeka pa customer 360. Gwiritsani Directory.",
+      "engagement": "Ma proxy a login kokha — si unique-user DAU. Tsegulani 360.",
+      "commercial": "MRR/ARR ndi billing envelopes zili pa customer 360 (platform billing).",
+      "renewals": "Tsiku la renewal limapezeka pa commercial ya 360. Mndandanda wa renewals ukubwera.",
+      "mraEis": "Entitlement ya MRA EIS ndi commercial plan zili pa 360 — osati fiscal EIS.",
+      "adoption": "UNAVAILABLE mpaka FEATURE_USED yatulutsidwa. Palibe adoption rate zabodza.",
+      "support": "Support, onboarding, ndi training ndi NOT_INSTRUMENTED mu gawo ili.",
+      "signals": "Mndandanda wa ma signal otsimikizika — login inactivity, renewals, outstanding platform billing, suspended tenants, MRA EIS pending, missing owner. Palibe probability kapena health score.",
+      "portfolios": "Ma portfolio a Customer Success ndi ownership. Ma agent omwe ali ndi ownership amaona ma tenant awo okha; ma manager opanda ownership amaona onse.",
+      "reconciliation": "Kuwerengera kwa Tenant vs directory ndi ownership orphans. UNAVAILABLE imakhala null — osapanga zero zabodza.",
+      "reports": "Export ya directory kapena overview (JSON/CSV) ndi audit log. XLSX/PDF sichinakonzedwe.",
+      "definitions": "Katalogi, lifecycle rule version, ndi readiness classes.",
+      "settings": "Zokonda za customer workbench ndi zowerenga / zoletsedwa mu wave iyi."
+    },
+    "directory": {
+      "searchPlaceholder": "Fufuzani dzina, subdomain, kapena tenant id…",
+      "pageSize": "Kukula kwa tsamba",
+      "emptyTitle": "Palibe makasitomala",
+      "emptyHint": "Yesani kufufuza kwina, kapena chotsani zosefera.",
+      "showing": "Kuonetsa {{count}} mwa {{total}} · tsamba {{page}}/{{totalPages}}",
+      "prev": "M'mbuyo",
+      "next": "Patsogolo",
+      "columns": {
+        "name": "Kasitomala",
+        "reference": "Reference",
+        "lifecycle": "Lifecycle",
+        "plan": "Pulani",
+        "mrr": "MRR",
+        "outstanding": "Outstanding",
+        "status": "Mkhalidwe"
+      }
+    },
+    "detail": {
+      "title": "Customer 360",
+      "description": "Magawo otsimikizika a kasitomala — zina zingakhale; zosapezeka zimakhala zoona.",
+      "missingId": "Customer id ikufunika.",
+      "notFound": "Kasitomala sapezeka.",
+      "identity": "Identity",
+      "hierarchy": "Hierarchy",
+      "commercial": "Commercial",
+      "engagement": "Engagement",
+      "adoption": "Adoption",
+      "mraEis": "MRA EIS",
+      "support": "Thandizo ndi service",
+      "signals": "Ma signal",
+      "ownership": "Ownership ndi ma portfolio",
+      "signalsEmpty": "Palibe ma signal",
+      "unavailableValue": "Sikupezeka",
+      "displayName": "Dzina",
+      "reference": "Customer reference",
+      "tenantId": "Tenant id",
+      "lifecycle": "Lifecycle stage",
+      "status": "Mkhalidwe",
+      "customerSince": "Kuyambira",
+      "branches": "Nthambi",
+      "users": "Ogwiritsa",
+      "activeUsers": "Ogwiritsa omwe akugwira",
+      "plan": "Pulani",
+      "subscriptionStatus": "Mkhalidwe wa subscription",
+      "renewalDate": "Tsiku la renewal",
+      "lastLogin": "Login yomaliza",
+      "lastActivity": "Ntchito yomaliza yofunikira",
+      "activeUsersProxy": "Ogwiritsa (proxy)",
+      "entitlementStatus": "Mkhalidwe wa entitlement",
+      "commercialPlan": "Pulani ya commercial",
+      "operationalReadiness": "Kukonzeka kwa ntchito",
+      "portfolioId": "Portfolio",
+      "primaryOwner": "Mwini wamkulu"
+    }
+  },
+  "customerHealth": {
+    "title": "Thanzi la Makasitomala",
+    "description": "Score yofotokozedwa, band, ndi confidence — si churn kapena renewal probability. Ma dimension osapezeka amawonetsedwa ngati N/A, osati 0.",
+    "forbidden": "Mulibe chilolezo chowona thanzi la makasitomala.",
+    "loadFailed": "Kulephera kutenga thanzi la makasitomala",
+    "sectionNavLabel": "Magawo a thanzi la makasitomala",
+    "definitionVersion": "Definition",
+    "disclaimer": "Thanzi ndi umboni wofotokozedwa — si churn kapena renewal probability.",
+    "bandCounts": "Kugawa kwa ma band",
+    "tenantsWithSnapshots": "Ma tenant omwe ali ndi snapshots",
+    "limitations": "Zolepheretsa",
+    "inspectTitle": "Yang'anani thanzi la kasitomala",
+    "inspectHint": "Lowetsani tenant id kuti muone score, band, confidence, ndi ma driver.",
+    "tenantId": "Tenant id",
+    "inspectAction": "Evaluate",
+    "score": "Score",
+    "band": "Band",
+    "confidence": "Confidence",
+    "drivers": "Ma driver",
+    "dimensions": "Ma dimension",
+    "overrides": "Ma override",
+    "naLabel": "N/A",
+    "weightLabel": "weight",
+    "noDrivers": "Palibe ma driver owerengedwa pa evaluation iyi.",
+    "emptySnapshots": "Palibe ma snapshot a thanzi mu portfolio scope.",
+    "emptySnapshotsHint": "Pangani rebuild (privileged) kapena dikirani evaluation. Band counts zimakhala zopanda — osapanga ma score abodza.",
+    "stubTitle": "Gawo silikonzeka",
+    "sections": {
+      "overview": "Mwachidule",
+      "definitions": "Matanthauzo",
+      "snapshots": "Ma Snapshot",
+      "reconciliation": "Kuwerengera",
+      "reports": "Malipoti"
+    },
+    "sectionHints": {
+      "overview": "Ma band kuchokera ku snapshots komanso inspect ya tenant. Ma dim osapezeka ndi N/A.",
+      "definitions": "Definition yogwira ntchito, ma weight, ma band, ndi missing-data policy.",
+      "snapshots": "Ma snapshot osasintha mu portfolio scope.",
+      "reconciliation": "Kuwunika kwa weight renormalise ndi snapshot inventory.",
+      "reports": "Export ya ma snapshot (JSON/CSV) — audited; osati Tenant Sale."
+    },
+    "definitions": {
+      "loadFailed": "Kulephera kutenga definition ya thanzi",
+      "weights": "Ma weight oyambira",
+      "bands": "Ma range a band",
+      "missingPolicy": "Policy ya ma dimension osapezeka",
+      "naDimensions": "Ma dimension osagwira (sangawerengedwe ngati 0)"
+    },
+    "snapshots": {
+      "loadFailed": "Kulephera kutenga ma snapshot",
+      "columns": {
+        "customer": "Kasitomala",
+        "score": "Score",
+        "band": "Band",
+        "confidence": "Confidence",
+        "created": "Yapangidwa"
+      }
+    },
+    "reconciliation": {
+      "loadFailed": "Kulephera kutenga kuwerengera kwa thanzi"
+    },
+    "reports": {
+      "exportTitle": "Maziko a export",
+      "exportHint": "JSON kapena CSV ya ma snapshot a thanzi mu portfolio scope. Audited. Osati Tenant Sale / churn probability.",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "Export yatsitsidwa.",
+      "exportFailed": "Export yalephera"
+    }
+  },
+  "customerSuccess": {
+    "title": "Customer Success",
+    "description": "Command Centre ya portfolio. Ma case, task, renewal, playbook, plan ndi handoff agwira; onboarding/training/survey ndi source-gated. Osapanga progress ya adoption kapena support.",
+    "forbidden": "Mulibe chilolezo chowona Customer Success.",
+    "loadFailed": "Kulephera kutenga Customer Success",
+    "sectionNavLabel": "Magawo a Customer Success",
+    "portfolioFilter": "Filtara ya portfolio",
+    "portfolioAll": "Zonse mu scope",
+    "portfolioLoadFailed": "Kulephera kutenga ma portfolio",
+    "noPortfolios": "Palibe ma portfolio — pangani ku Customer Intelligence → Portfolios.",
+    "sectionCards": "Magawo a ops",
+    "gated": "Chilolezo chofunikira",
+    "readiness": {
+      "live": "Yagwira",
+      "stub": "Stub",
+      "unavailable": "Sikupezeka"
+    },
+    "stubTitle": "Gawo silikonzeka",
+    "stubHint": "Yoletsedwa ndi matrix mpaka wave ina. Palibe ma case/task/progress opangidwa.",
+    "unavailableTitle": "Sichinalembedwe",
+    "unavailableHint": "UNAVAILABLE mpaka ma fact a onboarding/training/survey alipo. Osapanga progress.",
+    "sections": {
+      "commandCentre": "Command Centre",
+      "cases": "Ma Case",
+      "tasks": "Ma Task",
+      "interventions": "Ma Intervention",
+      "renewals": "Ma Renewal",
+      "playbooks": "Ma Playbook",
+      "successPlans": "Ma Success plan",
+      "onboarding": "Onboarding",
+      "training": "Training",
+      "surveys": "Ma Survey",
+      "handoffs": "Ma Expansion handoff",
+      "reports": "Malipoti"
+    },
+    "sectionHints": {
+      "commandCentre": "Filtara ya portfolio ndi ma card a magawo oletsedwa.",
+      "cases": "Case queue ya portfolio. Kutsegula ndi signal/health ndi idempotent; si support ticket.",
+      "tasks": "Ma task a CS okhudzana ndi ma case (assignee ndi System Admin).",
+      "interventions": "Ma intervention olembedwa ndi agent (manageCases). Si support tickets.",
+      "renewals": "Renewal workspace — zotsatira zimaona umboni wa AccountSubscription.",
+      "playbooks": "Ma playbook a version amapanga ma task kuchokera ku ma step.",
+      "successPlans": "Ma success plan ndi goals a portfolio — osapanga progress %.",
+      "onboarding": "NOT_INSTRUMENTED mpaka ma row a onboarding alipo — osapanga % complete.",
+      "training": "NOT_INSTRUMENTED mpaka ma row a training alipo — osapanga progress.",
+      "surveys": "NOT_INSTRUMENTED mpaka ma survey response alipo — osapanga NPS.",
+      "handoffs": "Expansion handoffs ndi zolemba zokha — palibe CRM opportunity kapena auto upgrade.",
+      "reports": "Maziko a CS export (JSON/CSV) a portfolio."
+    },
+    "cases": {
+      "loadFailed": "Kulephera kutenga ma case",
+      "updateFailed": "Kulephera kusintha case",
+      "notFound": "Case siipezeka",
+      "emptyTitle": "Palibe ma case mu scope",
+      "emptyHint": "Tsegulani kuchokera ku ma signal ovomerezeka kapena health AT_RISK/CRITICAL. Portfolio scope imagwira.",
+      "status": "Status",
+      "statusAll": "Ma status onse",
+      "colTitle": "Mutu",
+      "colTenant": "Tenant",
+      "colTrigger": "Choyambitsa",
+      "colPriority": "Priority",
+      "detailHint": "Tsatanetsatane wa case ndi ma task ndi interventions. Source facts sizimasinthidwa pano.",
+      "backToQueue": "Bwerera ku ma case"
+    },
+    "tasks": {
+      "loadFailed": "Kulephera kutenga ma task",
+      "createFailed": "Kulephera kupanga task",
+      "emptyTitle": "Palibe ma task mu scope",
+      "emptyHint": "Pangani ma task kuchokera ku tsatanetsatane wa case.",
+      "colTitle": "Task",
+      "titlePlaceholder": "Mutu wa task",
+      "add": "Onjezani task"
+    },
+    "interventions": {
+      "loadFailed": "Kulephera kutenga ma intervention",
+      "createFailed": "Kulephera kulemba intervention",
+      "emptyTitle": "Palibe ma intervention",
+      "emptyHint": "Lembani ma call, note, kapena misonkhano kuchokera ku case. Osapanga support tickets.",
+      "notTicket": "Ma intervention ndi zolemba za CS — si support tickets.",
+      "notesPlaceholder": "Zolemba",
+      "add": "Lembani intervention"
+    },
+    "renewals": {
+      "loadFailed": "Kulephera kutenga ma renewal workspace",
+      "openFailed": "Kulephera kutsegula renewal workspace",
+      "openOk": "Renewal workspace yakonzeka",
+      "outcomeFailed": "Outcome yakana — umboni wa subscription ukufunika",
+      "outcomeOk": "Renewal outcome yalembedwa",
+      "emptyTitle": "Palibe ma renewal workspace",
+      "emptyHint": "Tsegulani workspace ya nthawi ya tenant. Outcomes zimafuna umboni wa AccountSubscription.",
+      "evidenceHint": "RENEWED/EXTENDED zimafuna subscription yogwira ndi expiresAt yamtsogolo. Outcomes sizilemba ma subscription row.",
+      "period": "Nthawi",
+      "outcome": "Outcome",
+      "actions": "Zochita",
+      "open": "Tsegulani workspace"
+    },
+    "playbooks": {
+      "loadFailed": "Kulephera kutenga ma playbook",
+      "executeFailed": "Kulephera kuyendetsa playbook",
+      "executeOk": "Playbook yayendetsedwa — ma task apangidwa",
+      "executeIdempotent": "Playbook yayendetsedwa kale pa tenant/case iyi",
+      "emptyTitle": "Palibe ma playbook",
+      "emptyHint": "Pangani playbook ya version kudzera ku API; kuyendetsa kumapanga task pa step iliyonse.",
+      "tenantId": "Tenant ID",
+      "tenantRequired": "Lowetsani tenant ID mu portfolio scope musanayendetse.",
+      "colName": "Playbook",
+      "colVersion": "Version",
+      "colSteps": "Ma step",
+      "colStatus": "Status",
+      "actions": "Zochita",
+      "execute": "Yendetani",
+      "running": "Ikuyenda…"
+    },
+    "plans": {
+      "loadFailed": "Kulephera kutenga ma success plan",
+      "emptyTitle": "Palibe ma success plan mu scope",
+      "emptyHint": "Pangani ma plan kudzera ku API. Ma goal ndi ovomerezeka — osapanga % ya completion.",
+      "colTitle": "Plan"
+    },
+    "handoffs": {
+      "loadFailed": "Kulephera kutenga ma expansion handoff",
+      "emptyTitle": "Palibe ma expansion handoff",
+      "emptyHint": "Zolemba zokha za expansion. Sizimasintha plan yokha.",
+      "recordOnlyHint": "Zolemba zokha: palibe CRM opportunity ndipo AccountSubscription sisinasinthidwe.",
+      "colReason": "Chifukwa",
+      "colAction": "Zochita zovomerezeka"
+    },
+    "foundations": {
+      "loadFailed": "Kulephera kutenga foundation status",
+      "notInstrumentedHint": "NOT_INSTRUMENTED — ma row a source kulibe. Osapanga progress kuchokera ku login.",
+      "status": "Status",
+      "noPercent": "Progress % siyipangidwa.",
+      "colKey": "Key"
+    },
+    "reports": {
+      "foundationHint": "Maziko a export — cases/tasks/plans/handoffs a portfolio. Osati Tenant Sale.",
+      "dataset": "Dataset",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "CSV export yayamba",
+      "exportJsonOk": "JSON export yakonzeka",
+      "exportFailed": "Export yalephera"
+    },
+    "onboardingHub": {
+      "title": "Customer Onboarding",
+      "overview": "Mwachidule",
+      "myWork": "Ntchito yanga",
+      "queues": "Mizere",
+      "reports": "Malipoti a onboarding",
+      "contextBar": "Context bar — population, watermark, freshness, recon, DQ, permission scope, timezone",
+      "progressNotReadiness": "Percent ya progress si readiness",
+      "progressNotCompletion": "Percent ya progress si completion",
+      "completionNotAdoption": "Kumaliza onboarding si adoption"
+    },
+    "trainingHub": {
+      "title": "Customer Training",
+      "overview": "Mwachidule",
+      "myWork": "Ntchito yanga",
+      "queues": "Mizere",
+      "reports": "Malipoti a training",
+      "contextBar": "Context bar — population, watermark, freshness, recon, DQ, permission scope, timezone",
+      "progressNotQuality": "Percent ya progress si quality",
+      "progressNotCompletion": "Percent ya progress si completion",
+      "completionNotAdoption": "Kumaliza training si adoption",
+      "trainingNotMarketingAttribution": "Training si marketing attribution kapena acquisition"
+    },
+    "adoptionHub": {
+      "title": "Customer Adoption",
+      "overview": "Mwachidule",
+      "myWork": "Ntchito yanga",
+      "queues": "Mizere",
+      "reports": "Malipoti a adoption",
+      "contextBar": "Context bar — population, watermark, freshness, recon, DQ, permission scope, timezone"
+    }
+  },
+
+  "productAnalytics": {
+    "title": "Nzeru za Product",
+    "description": "Kugwiritsa ntchito product kotsimikiziridwa ndi server — activation, first value, ndi adoption. Ma moduli osakhazikitsidwa amawonetsedwa NOT_INSTRUMENTED / N/A, osati zero zabodza.",
+    "forbidden": "Mulibe chilolezo chowona nzeru za product.",
+    "loadFailed": "Kulephera kutenga nzeru za product",
+    "sectionNavLabel": "Magawo a nzeru za product",
+    "catalogue": "Katalogi",
+    "generated": "Zapangidwa",
+    "commerceMetrics": "Ma metric a commerce okhazikitsidwa",
+    "moduleSnapshot": "Chithunzi cha instrumentation ya moduli",
+    "naHint": "Ma moduli ndi ma feature osakhazikitsidwa amalemekedwa N/A — osadzasinthidwa kukhala 0.",
+    "naLabel": "N/A",
+    "limitations": "Zolepheretsa",
+    "emptyMetrics": "Palibe ma envelope a metric a commerce",
+    "emptyMetricsHint": "Overview imakhala yopanda china m'malo mopanga zero zabodza.",
+    "emptyCatalogue": "Katalogi yopanda",
+    "emptyCatalogueHint": "Katalogi ya product yobwerera kuchokera ku repo ilibe ma row.",
+    "stubTitle": "Gawo silikonzeka",
+    "honestUnavailable": "UNAVAILABLE / NOT_INSTRUMENTED yoona — value siwonetsedwa ngati zero.",
+    "tenantId": "Tenant id",
+    "featureCode": "Feature code",
+    "inspectAction": "Unikani",
+    "columns": {
+      "code": "Code",
+      "name": "Dzina",
+      "module": "Moduli",
+      "area": "Area",
+      "status": "Status",
+      "value": "Value"
+    },
+    "sections": {
+      "overview": "Overview",
+      "modules": "Ma moduli",
+      "features": "Ma feature",
+      "adoption": "Adoption",
+      "activation": "Activation",
+      "firstValue": "First value",
+      "funnels": "Funnels",
+      "cohorts": "Cohorts",
+      "signals": "Signals",
+      "definitions": "Definitions",
+      "reconciliation": "Reconciliation",
+      "reports": "Malipoti"
+    },
+    "sectionHints": {
+      "overview": "Ma metric a Invoice / POS / MRA kuchokera ku usage facts ndi reliability envelopes. Malo osakhazikitsidwa amakhala NOT_INSTRUMENTED.",
+      "modules": "Ma moduli a product a repo. Osakhazikitsidwa amawonetsa N/A — osati 0.",
+      "features": "Ma feature a katalogi ndi status ya instrumentation. Commerce trio yokha ndi yokhazikitsidwa mu Wave 1–3.",
+      "adoption": "Unikani adoption state ya tenant + feature yokhazikitsidwa. Features osakhazikitsidwa amabweza NOT_INSTRUMENTED.",
+      "activation": "Unikani activation ya tenant + feature. Entitlement / login yokha siyiyambitsa activation.",
+      "firstValue": "Tengani first-value fact ya tenant + feature. Facts zosowa zimakhala UNAVAILABLE — osapanga first value.",
+      "funnels": "Funnels za Invoice / POS / EIS. Zochitika zosowa → incomplete, osati zero conversion yabodza.",
+      "cohorts": "Cohorts za first-value pokhapokha facts zilipo. Miyezi yosowa sichidzazidwa ndi zero. Association ≠ causation.",
+      "signals": "Ma signal a product otsimikizika. Palibe probability kapena expected revenue yopangidwa.",
+      "definitions": "Browser ya definitions yachedwa — version ya katalogi iwonekera pa overview.",
+      "reconciliation": "Kuwerengera kwa katalogi ↔ events ↔ facts kwa commerce trio. Recon yolephera imatseka metrics zabodza.",
+      "reports": "Maziko a export a JSON/CSV — permission ndi portfolio."
+    },
+    "funnelCode": "Funnel code",
+    "exportDataset": "Export dataset",
+    "definitionVersion": "Version ya definition",
+    "emptyCohorts": "Palibe ma period a first-value cohort",
+    "emptyCohortsHint": "Cohorts zimawonekera pokhapokha first-value facts zilipo — miyezi yosowa sichidzazidwa ndi zero.",
+    "emptySignals": "Palibe ma signal a tenant uyu",
+    "emptySignalsHint": "Lowani tenant id kuti muwone ma signal a product a features zokhazikitsidwa.",
+    "reconBlocked": "Reconciliation yalephera kapena UNAVAILABLE — metrics zimakhala incomplete (osati READY yabodza)."
+  },
+
+  "support": {
+    "title": "Support",
+    "description": "Ma ticket a Support, My Work, ndi ma SLA clock. Osati Customer Success cases.",
+    "forbidden": "Mulibe chilolezo chowona Support.",
+    "loadFailed": "Kulephera kutenga Support",
+    "sectionNavLabel": "Magawo a Support",
+    "gated": "Chilolezo chofunika",
+    "channelNotAvailable": "NOT_AVAILABLE",
+    "sections": {
+      "myWork": "Ntchito Yangayi",
+      "tickets": "Ma Ticket",
+      "handoffs": "Ma Handoff",
+      "reports": "Malipoti",
+      "foundations": "Maziko"
+    },
+    "sectionHints": {
+      "myWork": "Ma ticket omwe mwapatsidwa, komanso GENERAL_SUPPORT yopanda assignee. Empty states ndi zoona.",
+      "tickets": "Mndandanda wa ma ticket ndi ma filter a status. Si CsCase queue.",
+      "handoffs": "Ma link okha ku CS / Product / Finance / Billing / MRA. Osasintha subscriptions, GL, MRA fiscal, kapena CsCase status.",
+      "reports": "Export ya ma ticket (JSON/CSV) ndi reconciliation. Empty ≠ invent rows; failed recon ≠ false zeroes.",
+      "foundations": "Knowledge Base, Problem Management, CSAT, ndi Automation — NOT_AVAILABLE / FOUNDATION; palibe CSAT scores zabodza."
+    },
+    "handoffs": {
+      "loadFailed": "Kulephera kutenga ma support handoff",
+      "emptyTitle": "Palibe ma handoff",
+      "emptyHint": "Pangani handoff ya link kuchokera ku ticket API. Palibe CsCase kapena billing side-effects.",
+      "recordOnlyHint": "Ma link okha — Support Ticket ≠ CsCase. Palibe mutation ya subscription, Tenant GL, MRA, kapena CsCase status.",
+      "colTarget": "Target",
+      "colSummary": "Chidule"
+    },
+    "foundations": {
+      "loadFailed": "Kulephera kutenga maziko a Support",
+      "emptyTitle": "Palibe ma contract a foundation",
+      "emptyHint": "Foundations API sinabweretse zinthu.",
+      "noCsatHint": "CSAT score nthawi zonse ndi null — osapanga average zabodza.",
+      "scoreLabel": "Score"
+    },
+    "reports": {
+      "exportHint": "Export ya ma ticket (JSON/CSV). Ikufuna systemAdmin.support.export. XLSX/PDF sichilipo.",
+      "exportJson": "Tumizani JSON",
+      "exportCsv": "Tumizani CSV",
+      "exportOk": "Export yatsitsidwa.",
+      "exportFailed": "Export yalephera",
+      "runRecon": "Yendetsani reconciliation",
+      "reconOk": "Reconciliation yatha.",
+      "reconFailed": "Reconciliation yalephera",
+      "reconStatus": "Mkhalidwe wa recon",
+      "noFalseZero": "ma KPI olepheretsedwa (osapanga zero zabodza)"
+    },
+    "myWork": {
+      "emptyTitle": "Palibe ma ticket mu My Work",
+      "emptyHint": "Palibe zomwe mwapatsidwa ndipo palibe GENERAL_SUPPORT yopanda assignee panopa."
+    },
+    "tickets": {
+      "status": "Status",
+      "statusAll": "Ma status onse",
+      "colNumber": "Ticket",
+      "colTitle": "Mutu",
+      "colTenant": "Tenant",
+      "colPriority": "Priority",
+      "colQueue": "Queue",
+      "colChannel": "Channel",
+      "emptyTitle": "Palibe ma support ticket",
+      "emptyHint": "Pangani ticket kudzera Support API, kapena sinthani ma filter. Palibe mizere yabodza.",
+      "loadFailed": "Kulephera kutenga ma ticket",
+      "notFound": "Ticket sinapezeke",
+      "updateFailed": "Kulephera kusintha status",
+      "assignFailed": "Kulephera kupereka ticket",
+      "messageFailed": "Kulephera kutumiza message",
+      "prev": "M'mbuyo",
+      "next": "Lotsatira",
+      "pageOffset": "Offset",
+      "backToList": "Bwerera ku ma ticket",
+      "transition": "Kusinthira status",
+      "selectStatus": "Sankhani status…",
+      "resolutionCategory": "Resolution category",
+      "applyStatus": "Ikani status",
+      "assign": "Kupereka",
+      "assigneeAdminId": "Assignee admin id",
+      "queueCode": "Queue code",
+      "applyAssign": "Ikani assignment",
+      "messages": "Mauthenga",
+      "noMessages": "Palibe mauthenga",
+      "publicReply": "Yankho la public agent",
+      "sendReply": "Tumizani yankho la public",
+      "internalNote": "Internal note",
+      "addNote": "Onjezani internal note"
+    },
+    "sla": {
+      "title": "Ma SLA clock",
+      "unavailable": "Ma SLA clock ndi UNAVAILABLE — matebulo kapena client sichinakonzeke. Breach rate siikuwonetsedwa (osapanga 0% yabodza).",
+      "empty": "Palibe ma SLA clock pa ticket iyi.",
+      "dueAt": "Due at",
+      "policyVersion": "Policy version",
+      "calendarVersion": "Calendar version"
+    }
+  },
+
+  "crm": {
+    "title": "CRM",
+    "description": "Ma Lead, Account, ndi Contact a CRM. Osati Customers, Support tickets, kapena CsCase.",
+    "forbidden": "Mulibe chilolezo chowona CRM.",
+    "loadFailed": "Kulephera kutenga CRM",
+    "sectionNavLabel": "Magawo a CRM",
+    "gated": "Chilolezo chofunika",
+    "channelNotAvailable": "NOT_AVAILABLE",
+    "sections": {
+      "myWork": "Ntchito Yangayi",
+      "leads": "Ma Lead",
+      "pipeline": "Pipeline",
+      "pipelineBoard": "Board ya Pipeline",
+      "myPipeline": "Pipeline Yangayi",
+      "opportunities": "Ma Opportunity",
+      "activities": "Ma Activity",
+      "activitiesMyWork": "Ma Activity Anga",
+      "activitiesList": "Ma Activity Onse",
+      "activityDetail": "Activity",
+      "tasks": "Ma Task",
+      "followUps": "Ma Follow-Up",
+      "calls": "Ma Call",
+      "emails": "Ma Email",
+      "emailCompose": "Lemba email",
+      "meetings": "Ma Meeting",
+      "demos": "Ma Demo",
+      "demosMyDemos": "Ma Demo anga",
+      "demosList": "Ma Demo onse",
+      "demoDetail": "Demo",
+      "demoAgenda": "Agenda ya Demo",
+      "demoScript": "Script ya Demo",
+      "demoContent": "Content ya Demo",
+      "demoEnvironment": "Environment ya Demo",
+      "demoChecklist": "Checklist ya Demo",
+      "demoEnvironments": "Ma Environment a Demo",
+      "demoDataPacks": "Ma Data Pack a Demo",
+      "demoDelivery": "Kupereka Demo",
+      "demoAttendance": "Attendance ya Demo",
+      "demoRecording": "Recording ya Demo",
+      "demoOutcome": "Zotsatira za Demo",
+      "demoFeedbackForms": "Ma Form a Feedback",
+      "demoReports": "Malipoti a Demo",
+      "demoRequests": "Zopempha Demo",
+      "calendar": "Kalendala",
+      "calendarDay": "Kalendala — Tsiku",
+      "calendarWeek": "Kalendala — Sabata",
+      "calendarMonth": "Kalendala — Mwezi",
+      "calendarAgenda": "Kalendala — Agenda",
+      "reminders": "Ma Reminder",
+      "templates": "Ma Template",
+      "rules": "Ma rule a automation",
+      "activityReports": "Malipoti a Activity",
+      "accounts": "Ma Account",
+      "contacts": "Ma Contact",
+      "duplicates": "Ma Duplicate",
+      "imports": "Imports",
+      "reports": "Malipoti",
+      "settings": "Zokonda",
+      "foundations": "Maziko",
+      "conversionsOverview": "Chidziwitso cha Conversion",
+      "conversionsMyWork": "Conversion My Work",
+      "conversionsQueues": "Mizere ya Conversion",
+      "conversionsRequests": "Zopempha za Conversion",
+      "conversionsDetail": "Tsatanetsatane wa Conversion",
+      "closedWon": "Closed-Won"
+    },
+    "conversionHub": {
+      "title": "Lead Conversion / Closed-Won",
+      "overview": "Chidziwitso — ma card a conversion okhala ndi reliability gate (osapanga zeroes zabodza)",
+      "myWork": "Ntchito Yanga",
+      "queues": "Mizere",
+      "reports": "Malipoti a Conversion",
+      "acceptedValueNotRevenue": "Mtengo wovomerezedwa si collected kapena recognised Revenue",
+      "closedWonNotCollectedRevenue": "Mtengo wa Closed-Won si collected kapena recognised Revenue",
+      "closedWonAliasHint": "Alias yopyapyala ya Closed-Won kupita ku mizere ya conversion — si domain ina"
+    },
+    "conversionsOverview": {
+      "emptyTitle": "Palibe ma card a conversion overview",
+      "emptyHint": "Gate fail → UNAVAILABLE / null — osapanga zeroes. Accepted ≠ Revenue."
+    },
+    "conversionsMyWork": {
+      "emptyTitle": "Palibe ma conversion mu My Work",
+      "emptyHint": "Sales-team / territory / customer / tenant scope fail-closed — osawona fleet yonse."
+    },
+    "conversionsQueues": {
+      "emptyTitle": "Palibe zinthu mu mizere ya conversion",
+      "emptyHint": "Mizere imakhala yopanda kanthu m’malo mopanga kuchuluka kwa zabodza."
+    },
+    "sectionHints": {
+      "myWork": "Ma lead omwe muli nawo ndi ma task a CRM. Empty states ndi zoona.",
+      "leads": "Mndandanda wa CrmLead wokhala ndi pagination. Lead ≠ Opportunity ≠ Support Ticket ≠ CsCase.",
+      "leadDetail": "Status, score (osati probability), qualification, consent, ndi opportunity readiness.",
+      "pipeline": "Board ndi mndandanda wa NEW_BUSINESS Pipeline. Kusintha stage kumayenda pa server.",
+      "pipelineBoard": "Ma column olemekezeka; chisankho cha stage (accessible). Drag siyosunga yokha.",
+      "myPipeline": "Ma opportunity omwe muli nawo — malamulo omwewo a board.",
+      "opportunities": "Mndandanda wa CrmOpportunity. Opportunity ≠ Lead ≠ Customer ≠ Subscription.",
+      "activities": "Mzere wa CrmActivity (ACT-YYYY-######). Activity ≠ Audit ≠ Analytics. Waves 1–4: channels, reminders, templates, automation, malipoti.",
+      "activitiesMyWork": "Ma activity omwe muli nawo. Empty ndi yoona — osapanga engagement yabodza.",
+      "activitiesList": "Mndandanda wa Activity wokhala ndi pagination. Activity imodzi; ma projection ambiri.",
+      "activityDetail": "Chidule cha Activity — ma Task/Follow-Up/Call/Email/Meeting ndi timeline.",
+      "tasks": "Ma Task a CRM pansi pa Activity (osati CsTask). TODO → COMPLETED; due date ≠ complete.",
+      "followUps": "Ma Follow-Up + Next-Action. Zotsekedwa ndi consent siziyenda zokha.",
+      "calls": "Ma Call a manual/planned (CALL-YYYY-######). Telephony + recording NOT_AVAILABLE. DNC ikugwiritsidwa ntchito.",
+      "emails": "CRM Email Activity kudzera SMTP. Accept ≠ delivered; palibe opens/replies zabodza; palibe tracking pixels.",
+      "emailCompose": "Compose stub — ma API a draft + eligibility + send-request ali okonzeka.",
+      "meetings": "Ma Meeting (MEET-YYYY-######). Timezone yofunikira; RSVP ≠ attendance; Google/Outlook NOT_CONNECTED.",
+      "demos": "Kuwongolera Demo (DEMO-YYYY-######). Demo ≠ Meeting; schedule ifuna Meeting + Calendar; readiness ndi honesty-gated.",
+      "demosMyDemos": "Ma Demo omwe muli nawo. Empty ndi yowona — osapanga engagement yabodza.",
+      "demosList": "Mndandanda wa Demo. Convert Demo Request ≠ kupanga Opportunity.",
+      "demoDetail": "Demo detail stub — schedule, participants, readiness, pinned Agenda/Script/Content.",
+      "demoAgenda": "Agenda ya Demo yokhala ndi version. ACTIVE sangathe kusinthidwa mwachindunji — pangani version yatsopano. SoD ifunika.",
+      "demoScript": "Script ya Demo yokhala ndi version. RESTRICTED sayiwoneka pa invitation/Customer APIs. Maziko a en/ny.",
+      "demoContent": "Scenario/Content library yokhala ndi version. Pin ACTIVE ku Demo; ma pin a mbiri amasungidwa.",
+      "demoEnvironment": "Logical Demo Environment (DENV). READY kokha pambuyo pa approve + health. ≠ MRA EIS sandbox. DEMO banner ifunika.",
+      "demoChecklist": "Checklist + rehearsal ya Demo. Critical fails zimatseka READY_TO_DELIVER ngati zakonzedwa.",
+      "demoEnvironments": "Hub ya ma Environment a Demo. Expiry ifunika; provision/reset/deprovision ndi idempotent; cloud NOT_AVAILABLE.",
+      "demoDataPacks": "Ma data pack otetezeka. Production Tenant/data/credentials zimakanidwa. Checksums zimasungidwa.",
+      "demoDelivery": "Session ya kupereka, agenda coverage, nkhani, mafunso. Meeting COMPLETED ≠ Demo DELIVERED.",
+      "demoAttendance": "Attendance yotsimikizika. RSVP ACCEPTED ≠ ATTENDED. Osapanga attendance yabodza.",
+      "demoRecording": "Governance ya recording (request/consent/approve/deny). Provider NOT_AVAILABLE — palibe mafayilo.",
+      "demoOutcome": "Zotsatira + completeness (≠ success). Sipasintha Opportunity stage/probability/close date yokha.",
+      "demoFeedbackForms": "Ma form a feedback. Osapanga scores. Completeness ≠ success.",
+      "demoReports": "Malipoti a Demo + schedules. Gate fail → EMPTY/UNAVAILABLE — osapanga zeroes.",
+      "demoRequests": "Zopempha Demo (DMR-YYYY-######). Qualify → convert idempotent. Sipanga Opportunity/Proposal/Tenant yokha.",
+      "calendar": "Kalendala ya CRM (day/week/month/agenda) + ICS. External sync NOT_CONNECTED.",
+      "reminders": "Ma Reminder a Activity ndi dedupe. Delivery ≠ Activity complete; ≠ Sales contact; ≠ billing reminders.",
+      "templates": "Ma template a Activity/Task okhala ndi version. ACTIVE sangathe kusinthidwa mwachindunji — pangani version yatsopano.",
+      "rules": "Maziko a automation okha — SoD, ma trigger ololedwa, idempotent. Palibe ma sequence athunthu.",
+      "activityReports": "Malipoti a Activity + schedules. Gate ilephera → EMPTY/UNAVAILABLE — osapanga zeroes zabodza.",
+      "accounts": "Maziko a CrmAccount. CRM Account ≠ Customer billing truth.",
+      "contacts": "Maziko a CrmContact. Contact ≠ Platform User.",
+      "duplicates": "Kuunikanso ma duplicate. Merge imafuna SoD — palibe silent merge.",
+      "imports": "Opportunity bulk import preview + confirm. Ma idempotency key; palibe success rate yabodza.",
+      "reports": "Export ya ma lead + Pipeline + Activity reporting. Empty ≠ invent zeroes. Weighted dark mpaka Phase 16.",
+      "settings": "Zokonda za CRM zachedwa — ma definition a catalogue kudzera ma API.",
+      "foundations": "Import, reporting, Email/WhatsApp ingest, Opportunity pipeline, ndi Activity spine contracts.",
+      "conversionsOverview": "Conversion Overview hub. Reliability gate siyipanga zeroes. Accepted / Closed-Won ≠ Revenue.",
+      "conversionsMyWork": "Ma conversion mu sales-team / territory / customer / tenant scope yanu.",
+      "conversionsQueues": "Mizere ya conversion readiness ndi zopempha — fail-closed ngati scope ilibe."
+    },
+    "activities": {
+      "emptyTitle": "Palibe ma activity",
+      "emptyHint": "Ma Task, Follow-Up, Call, Email, ndi Meeting amapanga ma Activity.",
+      "detailEmptyTitle": "Maziko a chidule cha Activity",
+      "detailEmptyHint": "Wave 1 stub — gwiritsani ntchito ma API a get/status."
+    },
+    "tasks": {
+      "emptyTitle": "Palibe ma task a CRM",
+      "emptyHint": "Ma Task amalumikizidwa ku CrmActivity. Osati Support kapena CsTask."
+    },
+    "followUps": {
+      "emptyTitle": "Palibe ma follow-up",
+      "emptyHint": "Ma Follow-Up otsekedwa ndi consent amakhala BLOCKED_BY_CONSENT — osayenda okha."
+    },
+    "calls": {
+      "emptyTitle": "Palibe ma call",
+      "emptyHint": "Konzani kapena lembani ma Call a manual pansi pa CrmActivity. Telephony CONNECTED ndi recording zimakhala NOT_AVAILABLE."
+    },
+    "emails": {
+      "emptyTitle": "Palibe ma email a CRM",
+      "emptyHint": "Draft → eligibility → SMTP send-request. Osati Support threads. Accept ≠ delivered.",
+      "composeEmptyTitle": "Maziko a compose",
+      "composeEmptyHint": "Gwiritsani POST /api/admin/crm/emails kenako /send. Ma retry ndi idempotent."
+    },
+    "meetings": {
+      "emptyTitle": "Palibe ma meeting",
+      "emptyHint": "Konzani ma Meeting pansi pa CrmActivity. RSVP ACCEPTED ≠ ATTENDED. Google/Outlook zimakhala NOT_CONNECTED."
+    },
+    "demos": {
+      "emptyTitle": "Palibe ma demo",
+      "emptyHint": "Qualify Demo Request kenako convert, kapena pangani Demo. Schedule ifuna Meeting + Calendar. RSVP ≠ attendance.",
+      "detailEmptyTitle": "Demo detail foundation",
+      "detailEmptyHint": "Wave 1–4 stub — gwiritsani ma API a schedule / delivery / attendance / outcome / handoffs.",
+      "agendaEmptyTitle": "Maziko a Agenda ya Demo",
+      "agendaEmptyHint": "Pangani ma version kudzera /api/admin/crm/demo-agendas; pin ACTIVE ndi POST .../demos/{id}/pin-agenda. ACTIVE ndi immutable.",
+      "scriptEmptyTitle": "Maziko a Script ya Demo",
+      "scriptEmptyHint": "Ma script okhala ndi version ndi SoD. RESTRICTED sayiwoneka pa Customer/invitation projections.",
+      "contentEmptyTitle": "Maziko a Content ya Demo",
+      "contentEmptyHint": "Scenario + content packs ndi versioned. Pin ACTIVE; ma pin a Demo amasungidwa.",
+      "environmentEmptyTitle": "Logical Demo Environment",
+      "environmentEmptyHint": "Request → approve (SoD) → provision (logical). READY pambuyo pa health. Expiry + DEMO banner. Osati MRA EIS.",
+      "checklistEmptyTitle": "Checklist / rehearsal ya Demo",
+      "checklistEmptyHint": "Chitani checklist; lembani rehearsal. Critical fails zimatseka readiness ngati zakonzedwa.",
+      "environmentsEmptyTitle": "Hub ya ma Environment",
+      "environmentsEmptyHint": "Ma Environment a DENV-YYYY-######. Cloud/container provision ndi NOT_AVAILABLE.",
+      "dataPacksEmptyTitle": "Ma Data Pack a Demo",
+      "dataPacksEmptyHint": "Ma pack a synthetic/fixture okha. Production data ndi credentials zimakanidwa.",
+      "deliveryEmptyTitle": "Kupereka Demo",
+      "deliveryEmptyHint": "Yambani/malizani session; lembani agenda coverage, nkhani, ndi mafunso. Meeting COMPLETED ≠ DELIVERED.",
+      "attendanceEmptyTitle": "Attendance ya Demo",
+      "attendanceEmptyHint": "Chitsimikizo chovomerezeka kapena projection ya Meeting attendance. RSVP yokha sichiika ATTENDED.",
+      "recordingEmptyTitle": "Governance ya recording",
+      "recordingEmptyHint": "Request / consent / approve / deny. Provider NOT_AVAILABLE — palibe mafayilo a recording.",
+      "outcomeEmptyTitle": "Zotsatira za Demo",
+      "outcomeEmptyHint": "Lembani outcome + completeness. Completeness ≠ success. Sipasintha Opportunity yokha.",
+      "feedbackFormsEmptyTitle": "Ma Form a Feedback",
+      "feedbackFormsEmptyHint": "Ma form/response. Scores sizimapangidwa. Feedback siykakamiza outcome.",
+      "reportsEmptyTitle": "Malipoti a Demo",
+      "reportsEmptyHint": "KPIs zowona + schedules. Empty ≠ invent zeroes. DEMO_REQUEST sizikhala volume ya Demo."
+    },
+    "demoRequests": {
+      "emptyTitle": "Palibe zopempha demo",
+      "emptyHint": "DEMO_REQUEST / REQUEST_DEMO → DMR. Convert ndi idempotent ndipo sipanga Opportunity."
+    },
+    "calendar": {
+      "emptyTitle": "Palibe ma event a kalendala",
+      "emptyHint": "Kalendala ya mkati (day/week/month/agenda) + ICS. External sync ndi NOT_CONNECTED."
+    },
+    "reminders": {
+      "emptyTitle": "Palibe ma reminder",
+      "emptyHint": "Konzani ma Reminder pa ma Activity. Delivery sayimaliza Activity. Dedupe: rule+activity+recipient+occurrence+channel."
+    },
+    "templates": {
+      "emptyTitle": "Palibe ma template a activity",
+      "emptyHint": "Ma template okhala ndi version. ACTIVE sangathe kusinthidwa mwachindunji — tumizani version yatsopano."
+    },
+    "rules": {
+      "emptyTitle": "Palibe ma rule a automation",
+      "emptyHint": "Maziko okha: Lead assigned → first-contact Task; stage entry → checklist; no-next-action warning. SoD yofunikira."
+    },
+    "activityReports": {
+      "emptyTitle": "Palibe data ya malipoti a activity",
+      "emptyHint": "Ma metric a Activity okhala ndi honesty + schedules. Gate ilephera sipanga zeroes zabodza."
+    },
+    "pipeline": {
+      "loadFailed": "Kulephera kutenga pipeline board",
+      "emptyTitle": "Palibe ma opportunity pa board",
+      "emptyHint": "Pangani kuchokera ku READY lead handoff. Palibe ma card abodza.",
+      "boardHint": "Kusintha stage kumapita ku server. Ngati zilephera, card imabwezeredwa ndipo missing criteria ziwonetsedwa.",
+      "boardLabel": "Ma column a pipeline stage",
+      "boardView": "Board",
+      "listView": "Mndandanda",
+      "moveStage": "Suntha stage",
+      "transitionFailed": "Kusintha stage kwakanidwa",
+      "truncated": "zodulidwa",
+      "weightedDark": "Weighted pipeline amounts zikadali zakuda mpaka Phase 16."
+    },
+    "opportunities": {
+      "loadFailed": "Kulephera kutenga ma opportunity",
+      "notFound": "Opportunity sinapezeke",
+      "emptyTitle": "Palibe ma opportunity",
+      "emptyHint": "Pangani kuchokera ku Phase 11 READY handoff. Palibe mizere yabodza.",
+      "new": "Opportunity yatsopano",
+      "newHint": "Imapanga kuchokera ku READY CRM_OPPORTUNITY_HANDOFF. Simapanga Tenant kapena Subscription.",
+      "create": "Panga opportunity",
+      "createFailed": "Kulephera kupanga opportunity",
+      "leadId": "Lead id",
+      "idempotencyKey": "Idempotency key (mwachisankho)",
+      "colNumber": "Opportunity",
+      "colTitle": "Mutu",
+      "stage": "Stage",
+      "stageAll": "Ma stage onse",
+      "status": "Status",
+      "amount": "Ndalama",
+      "prev": "M'mbuyo",
+      "next": "Patsogolo",
+      "pageOffset": "Offset",
+      "backToList": "Bwerera ku ma opportunity",
+      "summary": "Chidule",
+      "closeTitle": "Kutseka kugunda / kutayika",
+      "closeHint": "Closed Won imafuna evidence, win reason, ndi decision date. Simapanga Tenant, Subscription, kapena Invoice.",
+      "winReason": "Chifukwa cha kugunda",
+      "lossReason": "Chifukwa cha kutayika",
+      "decisionDate": "Tsiku la chiganizo",
+      "evidence": "Evidence (reference imodzi pa mzere)",
+      "evidenceHint": "Contract ref, email id, meeting notes…",
+      "closeWon": "Tseka kugunda",
+      "closeLost": "Tseka kutayika",
+      "closeFailed": "Kutseka kunalephera",
+      "closedWonOk": "Closed won yalembedwa (palibe provision).",
+      "closedLostOk": "Closed lost yalembedwa.",
+      "risks": "Ma risk signal",
+      "noRisks": "Palibe ma risk otseguka.",
+      "tasks": "Ma task",
+      "taskTitle": "Mutu wa task",
+      "addTask": "Onjezani task",
+      "timeline": "Timeline",
+      "noTimeline": "Palibe ma timeline event.",
+      "readiness": "Proposal / conversion readiness",
+      "readinessHint": "Handoff payloads zokha — sizipanga Proposal kapena kuchita conversion.",
+      "evalProposal": "Unikani proposal readiness",
+      "evalConversion": "Unikani conversion readiness"
+    },
+    "myWork": {
+      "emptyTitle": "Palibe ma lead mu My Work",
+      "emptyHint": "Palibe omwe mwapatsidwa panopa. Ownership imagwiritsa ownerAdminId.",
+      "openTasks": "Ma task otseguka"
+    },
+    "leads": {
+      "status": "Status",
+      "statusAll": "Ma status onse",
+      "colNumber": "Lead",
+      "colTitle": "Mutu",
+      "colSource": "Source",
+      "colChannel": "Channel",
+      "emptyTitle": "Palibe ma CRM lead",
+      "emptyHint": "Pangani lead kudzera CRM API kapena public capture. Palibe mizere yabodza.",
+      "loadFailed": "Kulephera kutenga ma lead",
+      "notFound": "Lead sinapezeke",
+      "prev": "M'mbuyo",
+      "next": "Patsogolo",
+      "pageOffset": "Offset",
+      "backToList": "Bwerera ku ma lead",
+      "account": "Account",
+      "contact": "Primary contact",
+      "owner": "Mwini",
+      "qualification": "Qualification",
+      "qualifiedYes": "Qualified (kapena opportunity-ready)",
+      "qualifiedNo": "Sichinali QUALIFIED",
+      "scoreSection": "Lead fit score",
+      "scoreNeverProbability": "Score ndi fit score yokhazikika ndi confidence — si probability, conversion chance, kapena expected revenue.",
+      "scoreRunHint": "Thamangitsani scoring kudzera API, kenako evaluate readiness kuti muwone score version.",
+      "scoreConfidence": "Confidence",
+      "scoreDimensions": "Ma dimension",
+      "scoreInsufficient": "Score ndiyosakwanira kapena kulibe — palibe evaluation yomangidwa. Sipanga score version yosakhazikika.",
+      "scoreUnavailable": "Score model silikupezeka — sangathe kutenga evaluation.",
+      "fitScoreLabel": "Lead fit score",
+      "consent": "Consent ndi eligibility",
+      "consentHint": "Consent sayerekezedwa. UNKNOWN imalepheretsa READY. Konza kudzera consent API.",
+      "notes": "Ma note",
+      "noNotes": "Palibe ma note (restricted notes zimachotsedwa popanda chilolezo).",
+      "noteRedacted": "[RESTRICTED — yachotsedwa]",
+      "timeline": "Timeline",
+      "noTimeline": "Palibe zochitika pa timeline."
+    },
+    "readiness": {
+      "title": "Opportunity readiness",
+      "evaluate": "Unikani readiness",
+      "markReady": "Ikani OPPORTUNITY_READY",
+      "failed": "Kulephera kuunika readiness",
+      "noOpportunity": "Sipanga Opportunity, Pipeline, kapena Revenue — handoff payload yokha ku Phase 12."
+    },
+    "foundations": {
+      "loadFailed": "Kulephera kutenga maziko a CRM",
+      "deferredTo": "Zachedwa mpaka"
+    },
+    "imports": {
+      "hint": "Ikani ma Opportunity row monga JSON. Amafunikira importIdempotencyKey, title, pipelineCode, stageCode. Ma amount amafunikira currency + amountBasis. Palibe success % yopangidwa.",
+      "jsonLabel": "Ma import row (JSON array)",
+      "rowsMustBeArray": "Ma row ayenera kukhala JSON array",
+      "preview": "Preview import",
+      "confirm": "Confirm import",
+      "previewOk": "Preview yatha.",
+      "previewFailed": "Import preview yalephera",
+      "confirmOk": "Import confirm yatha.",
+      "confirmFailed": "Import confirm yalephera",
+      "honesty": "Honesty",
+      "noSuccessRate": "successRate nthawi zonse null — siyopangidwa"
+    },
+    "reports": {
+      "exportHint": "Export ya ma lead (JSON/CSV) ndi Pipeline reporting centre. Amafunikira systemAdmin.crm.export / pipeline view. Weighted totals zakuda mpaka Phase 16.",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "Export yatsitsidwa.",
+      "exportFailed": "Export yalephera",
+      "runRecon": "Thamangitsani reconciliation",
+      "reconOk": "Reconciliation yatha.",
+      "reconFailed": "Reconciliation yalephera",
+      "reconStatus": "Status ya recon",
+      "noFalseZero": "ma KPI a nambala aletsedwa (palibe false zeroes)",
+      "loadPipeline": "Tengani pipeline report",
+      "pipelineOk": "Pipeline report yadzedwa.",
+      "pipelineFailed": "Pipeline report yalephera",
+      "pipelineStatus": "Status ya pipeline report",
+      "emptyEnvelope": "Empty / unavailable envelope — ma count sapangidwa monga zeroes.",
+      "loadSchedules": "Mndandanda wa report schedules",
+      "schedulesOk": "Ma schedule adzedwa.",
+      "schedulesFailed": "Kulephera kutenga ma schedule",
+      "createSchedule": "Panga schedule",
+      "scheduleCreateOk": "Schedule yapangidwa.",
+      "scheduleCreateFailed": "Kupanga schedule kunalephera"
+    },
+    "stubs": {
+      "accountsTitle": "Accounts UI stub",
+      "accountsHint": "Ma API a account alipo; UI yathunthu yachedwa. Palibe ma KPI abodza.",
+      "contactsTitle": "Contacts UI stub",
+      "contactsHint": "Ma API a contact alipo; UI yathunthu yachedwa.",
+      "duplicatesTitle": "Duplicates UI stub",
+      "duplicatesHint": "Gwiritsani ntchito duplicates + merge APIs. SoD yofunika — requester ≠ approver.",
+      "importsTitle": "Opportunity import",
+      "importsHint": "Gwiritsani import surface — idempotent preview/confirm. Palibe ma metric abodza.",
+      "settingsTitle": "CRM settings stub",
+      "settingsHint": "Ma definition a catalogue ndi ma version mu code/APIs mu gawo ili."
+    }
+  },
+
+  "placeholder": {
+    "notInPhase": "Moduli iyi sinakhazikitsidwe mu Phase 2.",
+    "plannedPhase": "Ikukonzekera gawo lotsatira.",
+    "noFakeData": "Palibe ma metric ochita sample a production."
+  }
+}
+

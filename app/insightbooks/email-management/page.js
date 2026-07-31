@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import EnhancedEmailManagement from '@/components/EnhancedEmailManagement';
@@ -14,6 +17,7 @@ const btnPrimary =
   'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white';
 
 export default function AdminEmailManagementPage() {
+  const { t } = useI18n();
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,7 +29,7 @@ export default function AdminEmailManagementPage() {
 
   const checkAdminAuth = async () => {
     try {
-      const response = await fetch('/api/admin/auth/me');
+      const response = await adminFetch('/api/admin/auth/me');
       const data = await response.json();
 
       if (response.ok) {
@@ -71,7 +75,7 @@ export default function AdminEmailManagementPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Email Management"
+        title={t('admin-pages.email.title')}
         description="Send emails to users across all tenants"
         actions={
           <span className="text-sm text-[var(--admin-text-muted)]">

@@ -33,6 +33,8 @@ import RefundInvoiceModal from "@/components/RefundInvoiceModal";
 import PartialPaymentModal from "@/components/PartialPaymentModal";
 import PaymentHistory from "@/components/PaymentHistory";
 import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
+import PageHeader from "@/components/shell/PageHeader";
+
 import { 
   fetchInvoices, 
   createInvoice,
@@ -736,46 +738,46 @@ const InvoicingPage = () => {
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
-            <p className="text-gray-500 mt-1">Manage and track all your invoices</p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {/* Template selector dropdown */}
-            <div className="relative">
-              <select
-                className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white text-sm appearance-none pr-10 hover:border-gray-300 transition-colors cursor-pointer"
-                value={selectedTemplate?.id || ""}
-                onChange={(e) => {
-                  const selected = invoiceTemplates.find(t => t.id === e.target.value);
-                  setSelectedTemplate(selected || null);
-                }}
-              >
-                <option value="" disabled>Select Template</option>
-                {invoiceTemplates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name} {template.isDefault ? '(Default)' : ''}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                <ChevronDown size={16} className="text-gray-500" />
+        <PageHeader
+          title="Invoices"
+          description="Manage and track all your invoices"
+          actions={
+            <>
+              <div className="relative">
+                <select
+                  className="cursor-pointer appearance-none rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-4 py-2.5 pr-10 text-sm transition-colors hover:border-[var(--border-strong)]"
+                  value={selectedTemplate?.id || ""}
+                  onChange={(e) => {
+                    const selected = invoiceTemplates.find(t => t.id === e.target.value);
+                    setSelectedTemplate(selected || null);
+                  }}
+                  aria-label="Invoice template"
+                >
+                  <option value="" disabled>Select Template</option>
+                  {invoiceTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} {template.isDefault ? '(Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <ChevronDown size={16} className="text-[var(--text-muted)]" aria-hidden="true" />
+                </div>
               </div>
-            </div>
-            
-            {pagePermissions.canCreateInvoices && (
-              <button 
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium flex items-center hover:bg-blue-700 transition-colors shadow-sm"
-                onClick={openCreateInvoiceModal}
-              >
-                <PlusCircle size={18} className="mr-2" />
-                New Invoice
-              </button>
-            )}
-          </div>
-        </div>
+              {pagePermissions.canCreateInvoices && (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-[var(--radius-sm)] bg-[var(--action-primary)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[var(--action-primary-hover)]"
+                  onClick={openCreateInvoiceModal}
+                >
+                  <PlusCircle size={18} className="mr-2" aria-hidden="true" />
+                  New Invoice
+                </button>
+              )}
+            </>
+          }
+        />
+
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

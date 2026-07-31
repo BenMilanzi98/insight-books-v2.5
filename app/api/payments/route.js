@@ -1,21 +1,14 @@
 // app/api/payments/route.js
+// Phase 11 architecture guard: customer payments update AR/Cash only.
+// They MUST NOT import or call MraEis sales bridge / fiscalization commands.
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
-import {
-  createInvoicePaymentJournalEntry,
-  getPaymentAccount,
-  getStandardAccounts
-} from '@/lib/transactionJournalHelpers';
-import { generateReferenceNumber } from '@/lib/journalService';
-import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
-import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
-import { resolvePostableExpenseAccount } from '@/lib/accountingMappingRules';
-import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
+import { postCustomerPaymentAccounting } from '@/lib/accountingV2/adapters';
 import {
   postPaymentAdjustmentGlEntry,
   postPaymentTransferGlEntry,
@@ -55,6 +48,12 @@ const formatPaymentResponse = (payment) => {
   };
 };
 
+function legacyPostingRemoved(message) {
+  const err = new Error(message);
+  err.code = 'LEGACY_POSTING_REMOVED';
+  throw err;
+}
+
 async function recordPaymentTransaction({
   tenantId,
   userId,
@@ -76,141 +75,77 @@ async function recordPaymentTransaction({
   }
 
   const methodKey = paymentMethod || sourceAccount || 'cash';
+  const entryDate = paymentDate ? new Date(paymentDate) : new Date();
+  const description = notes?.trim() || undefined;
 
-  try {
-    if (type === 'invoice' && invoice) {
-      await createInvoicePaymentJournalEntry({
-        tenantId,
-        userId,
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        paymentDate,
-        paymentAmount: numericAmount,
-        paymentMethod: methodKey
-      });
-      return;
-    }
-
-    let lines = [];
-    let sourceType = 'Payment';
-    const entryDate = paymentDate ? new Date(paymentDate) : new Date();
-    const description = notes?.trim() || undefined;
-
-    if (type === 'expense') {
-      const paymentAccount = await getPaymentAccount(tenantId, methodKey);
-      if (!expenseAccountId) {
-        throw new Error('Expense payments require an expenseAccountId.');
-      }
-      let expenseAccount = null;
-      try {
-        expenseAccount = await resolvePostableExpenseAccount(tenantId, expenseAccountId, prisma);
-      } catch (accountError) {
-        throw new Error(accountError.message || 'Invalid expense account.');
-      }
-      if (!paymentAccount || !expenseAccount) {
-        throw new Error('Invalid payment or expense account.');
-      }
-      sourceType = 'ExpensePayment';
-      lines = [
-        {
-          accountId: expenseAccount.id,
-          debitAmount: numericAmount,
-          creditAmount: 0,
-          description: description || 'Expense'
-        },
-        {
-          accountId: paymentAccount.id,
-          debitAmount: 0,
-          creditAmount: numericAmount,
-          description: 'Cash outflow'
-        }
-      ];
-    } else if (type === 'sale') {
-      if (!revenueAccountId) {
-        return NextResponse.json(
-          { error: 'Sale payments require a revenueAccountId.' },
-          { status: 400 }
-        );
-      }
-      const revenueAccount = await prisma.account.findFirst({
-        where: { id: revenueAccountId, tenantId, isActive: true, accountType: 'Income' }
-      });
-      const paymentAccount = await getPaymentAccount(tenantId, methodKey);
-      if (!revenueAccount || !paymentAccount) {
-        return NextResponse.json(
-          { error: 'Invalid payment or revenue account.' },
-          { status: 400 }
-        );
-      }
-      sourceType = 'SalePayment';
-      lines = [
-        {
-          accountId: paymentAccount.id,
-          debitAmount: numericAmount,
-          creditAmount: 0,
-          description: 'Cash received'
-        },
-        {
-          accountId: revenueAccount.id,
-          debitAmount: 0,
-          creditAmount: numericAmount,
-          description: 'Revenue'
-        }
-      ];
-    } else if (type === 'transfer') {
-      await postPaymentTransferGlEntry({
-        tenantId,
-        userId,
-        paymentId,
-        amount: numericAmount,
-        paymentDate: entryDate,
-        sourceAccount,
-        destinationAccount,
-        notes: description,
-      });
-      return;
-    } else if (type === 'adjustment') {
-      await postPaymentAdjustmentGlEntry({
-        tenantId,
-        userId,
-        paymentId,
-        amount: numericAmount,
-        paymentDate: entryDate,
-        paymentMethod: methodKey,
-        notes: description,
-      });
-      return;
-    } else {
-      return;
-    }
-
-    const balanceValidation = validateTransactionBalance(lines);
-    if (!balanceValidation.isValid) {
-      console.error('Payment transaction not balanced:', balanceValidation.error);
-      return;
-    }
-
-    await assertPeriodOpen(tenantId, entryDate, prisma);
-    const reference = await generateReferenceNumber(prisma, tenantId, entryDate);
-
-    await postGlEntry({
+  if (type === 'invoice' && invoice) {
+    await postCustomerPaymentAccounting({
+      db: prisma,
       tenantId,
       userId,
-      entryDate,
-      description: description || 'Payment transaction',
-      reference,
-      sourceType,
-      sourceId: paymentId,
-      lines: lines.map((line, index) => ({
-        lineNumber: index + 1,
-        accountId: line.accountId,
-        debitAmount: line.debitAmount,
-        creditAmount: line.creditAmount,
-        description: line.description,
-      })),
+      paymentId,
+      invoiceId: invoice.id,
+      paymentAmount: numericAmount,
+      paymentDate,
+      paymentMethod: methodKey,
     });
-  } catch (error) {
-    console.error('Failed to record payment transaction:', error);
+    return;
+  }
+
+  if (type === 'bank_charge') {
+    const { postBankChargeAccounting } = await import('@/lib/accountingV2/adapters/bankingAdapter.js');
+    await postBankChargeAccounting({
+      db: prisma,
+      tenantId,
+      userId,
+      paymentId,
+    });
+    return;
+  }
+
+  if (type === 'interest_income') {
+    const { postInterestIncomeAccounting } = await import('@/lib/accountingV2/adapters/bankingAdapter.js');
+    await postInterestIncomeAccounting({
+      db: prisma,
+      tenantId,
+      userId,
+      paymentId,
+    });
+    return;
+  }
+
+  if (type === 'transfer') {
+    await postPaymentTransferGlEntry({
+      tenantId,
+      userId,
+      paymentId,
+      amount: numericAmount,
+      paymentDate: entryDate,
+      sourceAccount,
+      destinationAccount,
+      notes: description,
+    });
+    return;
+  }
+
+  if (type === 'adjustment') {
+    await postPaymentAdjustmentGlEntry({
+      tenantId,
+      userId,
+      paymentId,
+      amount: numericAmount,
+      paymentDate: entryDate,
+      paymentMethod: methodKey,
+      notes: description,
+    });
+    return;
+  }
+
+  if (type === 'expense' || type === 'sale') {
+    legacyPostingRemoved(
+      `Payment type "${type}" legacy postGlEntry path is removed (LEGACY_POSTING_REMOVED). ` +
+        'Use V2 adapters (postExpenseAccounting / postPosSaleAccounting / postTaxSettlementAccounting) instead of /api/payments direct GL.'
+    );
   }
 }
 

@@ -96,15 +96,31 @@ export async function POST(request) {
         case 'lock':
           adminUpdate = { isActive: false };
           break;
-        case 'changeRole':
+        case 'changeRole': {
           if (!additionalData?.role) {
             return NextResponse.json(
               { success: false, error: 'Role is required' },
               { status: 400 }
             );
           }
+          const { assertRoleChangeSafe } = await import(
+            '@/lib/admin/authorization/assertRoleChangeSafe'
+          );
+          const roleSafe = assertRoleChangeSafe({
+            actor: admin,
+            targetAdminId: userId,
+            newRole: String(additionalData.role),
+            dualControlApproved: Boolean(additionalData?.dualControlApproved),
+          });
+          if (!roleSafe.ok) {
+            return NextResponse.json(
+              { success: false, error: roleSafe.error },
+              { status: 403 }
+            );
+          }
           adminUpdate = { role: String(additionalData.role) };
           break;
+        }
         default:
           return NextResponse.json(
             { success: false, error: 'Action not supported for platform admins' },

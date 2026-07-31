@@ -17,11 +17,11 @@ const TaxRulesManager = () => {
     { 
       id: 1, 
       name: "Standard VAT", 
-      rate: 16.5, 
+      rate: 17.5, 
       isDefault: true, 
       type: "percentage", 
       applies_to: "all",
-      code: "VAT16.5"
+      code: "VAT17.5"
     },
     { 
       id: 2, 

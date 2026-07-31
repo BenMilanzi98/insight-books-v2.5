@@ -22,6 +22,7 @@ import { formatPeriodRange, stripEmbeddedPeriodFromReportLabel } from '@/lib/dat
 import { getPermission } from '@/lib/permissions';
 import { buildCoaAccountSourceHref } from '@/lib/coaReportAccountLinks';
 import { ReportReconciliationBadge, extractReportReconciliationMeta } from '@/components/ReportReconciliationBadge';
+import ReportAccountTable from '@/components/reports/ReportAccountTable';
 /**
  * Generic FinancialReport component that displays a report with a header and content
  */
@@ -586,6 +587,14 @@ export const ProfitLossReport = ({
                   </tbody>
                 </table>
               </div>
+
+          {data.accountLines?.length > 0 && (
+            <ReportAccountTable
+              lines={data.accountLines}
+              title="P&L Accounts — General Ledger Detail"
+              showOpeningClosing
+            />
+          )}
 
           {/* Drill-down Modal */}
           {drillDownData && (
@@ -1302,6 +1311,14 @@ export const BalanceSheetReport = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {data.accountLines?.length > 0 && (
+            <ReportAccountTable
+              lines={data.accountLines}
+              title="Balance Sheet Accounts — General Ledger Detail"
+              showOpeningClosing
+            />
           )}
 
           {/* Drill-down Modal */}

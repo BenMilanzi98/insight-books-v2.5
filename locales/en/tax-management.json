@@ -1,0 +1,13 @@
+{
+  "title": "Tax Management",
+  "taxCodes": "Tax codes",
+  "taxAccounts": "Tax accounts",
+  "periods": "Periods",
+  "returns": "Returns",
+  "payments": "Payments",
+  "refunds": "Refunds",
+  "credits": "Credits",
+  "withholding": "Withholding",
+  "reconciliation": "Reconciliation",
+  "transactions": "Transactions"
+}

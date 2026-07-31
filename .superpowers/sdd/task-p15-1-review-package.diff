@@ -1,0 +1,2646 @@
+﻿# Review package — Phase 15 Task 1 (WORKING_TREE; no commits)
+# Base: 7d9709a897bc0d4609ce8a6725aad7d9cf1cb835
+
+## Stat (new/changed commercial Wave 1 paths)
+12192	lib\admin\crm\commercial\catalogue.js
+12150	lib\admin\crm\commercial\documents.js
+2309	lib\admin\crm\commercial\index.js
+6199	lib\admin\crm\commercial\model.js
+1198	lib\admin\crm\commercial\numbering.js
+879	lib\admin\crm\commercial\proposals.js
+1119	lib\admin\crm\commercial\quotations.js
+20455	lib\admin\crm\commercial\requests.js
+5878	lib\admin\crm\commercial\status.js
+5255	lib\admin\crm\commercial\versions.js
+7551	crm-commercial-phase15-wave1.sql
+18519	systemAdmin.crm.commercialWave1.test.js
+3250	app\api\admin\crm\proposal-requests\route.js
+2879	app\api\admin\crm\proposal-requests\[id]\[action]\route.js
+3214	app\api\admin\crm\proposals\route.js
+3347	app\api\admin\crm\quotations\route.js
+2954	app\api\admin\crm\commercial\route.js
+425	app\insightbooks\crm\proposal-requests\page.js
+390	app\insightbooks\crm\proposals\page.js
+395	app\insightbooks\crm\quotations\page.js
+435	app\insightbooks\crm\commercial\overview\page.js
+
+## git diff --stat (tracked modifications)
+
+ prisma/schema.prisma | 3393 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 3390 insertions(+), 3 deletions(-)
+
+## Untracked commercial-related
+
+app/api/admin/crm/commercial/route.js
+app/api/admin/crm/proposal-requests/[id]/[action]/route.js
+app/api/admin/crm/proposal-requests/route.js
+app/api/admin/crm/proposals/route.js
+app/api/admin/crm/quotations/route.js
+app/insightbooks/crm/commercial/overview/page.js
+app/insightbooks/crm/proposal-requests/page.js
+app/insightbooks/crm/proposals/page.js
+app/insightbooks/crm/quotations/page.js
+lib/admin/crm/commercial/catalogue.js
+lib/admin/crm/commercial/documents.js
+lib/admin/crm/commercial/index.js
+lib/admin/crm/commercial/model.js
+lib/admin/crm/commercial/numbering.js
+lib/admin/crm/commercial/proposals.js
+lib/admin/crm/commercial/quotations.js
+lib/admin/crm/commercial/requests.js
+lib/admin/crm/commercial/status.js
+lib/admin/crm/commercial/versions.js
+scripts/sql/crm-commercial-phase15-wave1.sql
+test/systemAdmin.crm.commercialWave1.test.js
+
+## Full diff for lib/admin/crm/commercial (if tracked) + key new files via Get-Content samples
+
+
+===== lib/admin/crm/commercial/index.js =====
+
+/**
+ * CRM Commercial Documents â€” Phase 15 Wave 1 public surface.
+ * CrmCommercialDocument spine; Proposal/Quotation typed extensions.
+ * Tenant Quotation = WRONG_DOMAIN. No Opp auto-mutation. No PDF/Price Book yet.
+ */
+
+export {
+  CRM_PROPOSAL_REQUEST_STATUS,
+  CRM_PROPOSAL_REQUEST_STATUSES,
+  CRM_PROPOSAL_REQUEST_TRANSITION_TABLE,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  CRM_COMMERCIAL_DOCUMENT_STATUSES,
+  CRM_COMMERCIAL_DOCUMENT_TRANSITION_TABLE,
+  CRM_COMMERCIAL_DOCUMENT_FAMILY,
+  CRM_COMMERCIAL_DOCUMENT_FAMILIES,
+  CRM_REQUESTED_DOCUMENT_TYPE,
+  CRM_PROPOSAL_REQUEST_SOURCE,
+  isValidCommercialDocumentStatus,
+  isValidProposalRequestStatus,
+  canTransitionCommercialDocumentStatus,
+  canTransitionProposalRequestStatus,
+  isIssuedOrBeyond,
+  getCommercialDomainContract,
+} from './catalogue.js';
+
+export {
+  allocateProposalRequestNumber,
+  allocateProposalNumber,
+  allocateQuotationNumber,
+  formatDocumentVersionLabel,
+  CRM_PROPOSAL_REQUEST_NUMBER_RE,
+  CRM_PROPOSAL_NUMBER_RE,
+  CRM_QUOTATION_NUMBER_RE,
+} from './numbering.js';
+
+export {
+  hasCrmProposalRequestModel,
+  hasCrmProposalRequestStatusHistoryModel,
+  hasCrmCommercialDocumentModel,
+  hasCrmCommercialDocumentVersionModel,
+  hasCrmCommercialDocumentVersionStatusHistoryModel,
+  hasCrmProposalModel,
+  hasCrmQuotationModel,
+  resolveCommercialActor,
+  serializeProposalRequest,
+  serializeCommercialDocument,
+  serializeDocumentVersion,
+  serializeProposal,
+  serializeQuotation,
+} from './model.js';
+
+export {
+  createProposalRequest,
+  createProposalRequestFromDemoHandoff,
+  seedProposalRequestFromOpportunityReadiness,
+  qualifyProposalRequest,
+  rejectProposalRequest,
+  convertProposalRequest,
+  listProposalRequests,
+} from './requests.js';
+
+export {
+  createCommercialDocument,
+  getCommercialDocument,
+  listCommercialDocuments,
+  loadCommercialDocument,
+} from './documents.js';
+
+export { createProposal, getProposal } from './proposals.js';
+
+export { createQuotation, getQuotation } from './quotations.js';
+
+export {
+  createDocumentVersion,
+  updateDocumentVersionContent,
+  assertVersionMutable,
+  loadDocumentVersion,
+} from './versions.js';
+
+export {
+  transitionDocumentStatus,
+  transitionProposalRequestStatus,
+} from './status.js';
+
+===== lib/admin/crm/commercial/requests.js =====
+
+/**
+ * Proposal Requests â€” Phase 15 Wave 1.
+ * Convert â†’ CommercialDocument + Proposal and/or Quotation draft V1 (idempotent).
+ * Never mutates Opportunity stage/probability/close date.
+ * Never reuses tenant Quotation domain.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  CRM_PROPOSAL_REQUEST_SOURCE,
+  CRM_PROPOSAL_REQUEST_STATUS,
+  CRM_REQUESTED_DOCUMENT_TYPE,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { createProposal } from './proposals.js';
+import { createQuotation } from './quotations.js';
+import { allocateProposalRequestNumber } from './numbering.js';
+import {
+  hasCrmCommercialDocumentModel,
+  hasCrmProposalRequestModel,
+  resolveCommercialActor,
+  serializeCommercialDocument,
+  serializeProposalRequest,
+} from './model.js';
+import { canEditCommercial, canViewCommercial } from './documents.js';
+
+async function loadRequest(prisma, requestId) {
+  const id = requestId ? String(requestId).trim() : '';
+  if (!id || !hasCrmProposalRequestModel(prisma)) return null;
+  try {
+    if (/^PRQ-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.crmProposalRequest.findUnique({ where: { requestNumber: id } });
+    }
+    return await prisma.crmProposalRequest.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create a Proposal Request (PRQ-YYYY-######).
+ */
+export async function createProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_create_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.crmProposalRequest.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return {
+          ok: true,
+          request: serializeProposalRequest(existing),
+          alreadyExists: true,
+          proposalCreated: false,
+          domain: getCommercialDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  const allocated = await allocateProposalRequestNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'proposal_request_number_allocation_failed',
+    };
+  }
+
+  const requestedDocumentType = String(
+    args.requestedDocumentType || CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL
+  )
+    .trim()
+    .toUpperCase();
+  const title =
+    args.title != null ? String(args.title).trim().slice(0, 500) : 'Proposal request';
+
+  let row;
+  try {
+    row = await prisma.crmProposalRequest.create({
+      data: {
+        requestNumber: allocated.number,
+        status: CRM_PROPOSAL_REQUEST_STATUS.NEW,
+        source: args.source ? String(args.source).trim().slice(0, 80) : null,
+        sourceRef: args.sourceRef != null ? String(args.sourceRef).trim().slice(0, 200) : null,
+        opportunityId: args.opportunityId ? String(args.opportunityId).trim() : null,
+        accountId: args.accountId ? String(args.accountId).trim() : null,
+        contactId: args.contactId ? String(args.contactId).trim() : null,
+        demoId: args.demoId ? String(args.demoId).trim() : null,
+        leadId: args.leadId ? String(args.leadId).trim() : null,
+        requestedDocumentType,
+        currency: args.currency ? String(args.currency).trim().slice(0, 12) : null,
+        title,
+        notes: args.notes != null ? String(args.notes).trim().slice(0, 4000) : null,
+        ownerAdminId: args.ownerAdminId || admin?.id || null,
+        createdByAdminId: admin?.id || null,
+        idempotencyKey,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    if (idempotencyKey) {
+      try {
+        const raced = await prisma.crmProposalRequest.findUnique({
+          where: { idempotencyKey },
+        });
+        if (raced) {
+          return {
+            ok: true,
+            request: serializeProposalRequest(raced),
+            alreadyExists: true,
+            proposalCreated: false,
+            domain: getCommercialDomainContract(),
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return { ok: false, error: err?.message || 'proposal_request_create_failed' };
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: row.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : row.demoId
+        ? CRM_SUBJECT_TYPE.DEMO
+        : CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: row.opportunityId || row.demoId || row.accountId || row.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_CREATED,
+    summary: `Proposal request ${row.requestNumber} created`,
+    payload: {
+      requestId: row.id,
+      requestNumber: row.requestNumber,
+      proposalCreated: false,
+    },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    request: serializeProposalRequest(row),
+    proposalCreated: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+/**
+ * Consume Demo proposal handoff â†’ create PRQ idempotently by handoff identity.
+ * Does NOT create Proposal/Quotation until convert.
+ */
+export async function createProposalRequestFromDemoHandoff(prisma, args = {}) {
+  const payload = args.handoffPayload || args.payload || {};
+  const handoffKey =
+    args.idempotencyKey ||
+    payload.idempotencyKey ||
+    (payload.demoId ? `demo-proposal-handoff:${payload.demoId}` : null);
+
+  if (!handoffKey) {
+    return { ok: false, error: 'demo_handoff_idempotency_key_required' };
+  }
+
+  return createProposalRequest(prisma, {
+    ...args,
+    source: CRM_PROPOSAL_REQUEST_SOURCE.DEMO_HANDOFF,
+    sourceRef: handoffKey,
+    demoId: payload.demoId || args.demoId,
+    opportunityId: payload.opportunityId || args.opportunityId,
+    accountId: payload.accountId || args.accountId,
+    contactId: payload.contactId || args.contactId,
+    leadId: payload.leadId || args.leadId,
+    currency: args.currency || payload.currency || null,
+    requestedDocumentType:
+      args.requestedDocumentType || CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL,
+    title:
+      args.title ||
+      (payload.demoNumber
+        ? `Proposal request from ${payload.demoNumber}`
+        : 'Proposal request from Demo handoff'),
+    idempotencyKey: `prq-from-handoff:${handoffKey}`,
+  });
+}
+
+/**
+ * Seed PRQ from Opp proposal readiness without creating Proposal document.
+ */
+export async function seedProposalRequestFromOpportunityReadiness(prisma, args = {}) {
+  const readiness = args.readiness || args.handoffPayload || {};
+  const opportunityId = args.opportunityId || readiness.opportunityId;
+  if (!opportunityId) return { ok: false, error: 'opportunity_id_required' };
+
+  const idempotencyKey =
+    args.idempotencyKey ||
+    readiness.idempotencyKey ||
+    `prq-from-opp-readiness:${opportunityId}`;
+
+  return createProposalRequest(prisma, {
+    ...args,
+    source: CRM_PROPOSAL_REQUEST_SOURCE.OPPORTUNITY_READINESS,
+    sourceRef: idempotencyKey,
+    opportunityId,
+    accountId: args.accountId || readiness.accountId,
+    contactId: args.contactId || readiness.contactId,
+    leadId: args.leadId || readiness.leadId,
+    currency: args.currency || readiness.currency || null,
+    requestedDocumentType:
+      args.requestedDocumentType || CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL,
+    title:
+      args.title ||
+      (readiness.opportunityNumber
+        ? `Proposal request for ${readiness.opportunityNumber}`
+        : 'Proposal request from opportunity readiness'),
+    idempotencyKey: `prq-seed:${idempotencyKey}`,
+  });
+}
+
+export async function qualifyProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_qualify_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const row = await loadRequest(prisma, args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED) {
+    return {
+      ok: true,
+      request: serializeProposalRequest(row),
+      alreadyQualified: true,
+    };
+  }
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    return { ok: false, error: 'proposal_request_already_converted' };
+  }
+  if (
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.NEW &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.UNDER_REVIEW &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.INFORMATION_REQUIRED
+  ) {
+    return {
+      ok: false,
+      error: 'proposal_request_not_qualifiable',
+      status: row.status,
+    };
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmProposalRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED,
+      qualifiedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (typeof prisma.crmProposalRequestStatusHistory?.create === 'function') {
+    await prisma.crmProposalRequestStatusHistory.create({
+      data: {
+        requestId: row.id,
+        fromStatus: row.status,
+        toStatus: CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED,
+        reason: args.reason || 'qualified',
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: updated.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.DEMO,
+    subjectId: updated.opportunityId || updated.demoId || updated.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_QUALIFIED,
+    summary: `Proposal request ${updated.requestNumber} qualified`,
+    payload: { requestId: updated.id },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return { ok: true, request: serializeProposalRequest(updated) };
+}
+
+export async function rejectProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_reject_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const row = await loadRequest(prisma, args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.REJECTED) {
+    return {
+      ok: true,
+      request: serializeProposalRequest(row),
+      alreadyRejected: true,
+    };
+  }
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    return { ok: false, error: 'proposal_request_already_converted' };
+  }
+
+  const now = args.now || new Date();
+  const reason =
+    args.reason != null ? String(args.reason).trim().slice(0, 1000) : null;
+
+  const updated = await prisma.crmProposalRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_PROPOSAL_REQUEST_STATUS.REJECTED,
+      rejectedReason: reason,
+      rejectedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (typeof prisma.crmProposalRequestStatusHistory?.create === 'function') {
+    await prisma.crmProposalRequestStatusHistory.create({
+      data: {
+        requestId: row.id,
+        fromStatus: row.status,
+        toStatus: CRM_PROPOSAL_REQUEST_STATUS.REJECTED,
+        reason,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: updated.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.DEMO,
+    subjectId: updated.opportunityId || updated.demoId || updated.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_REJECTED,
+    summary: `Proposal request ${updated.requestNumber} rejected`,
+    payload: { requestId: updated.id, reason },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return { ok: true, request: serializeProposalRequest(updated) };
+}
+
+/**
+ * Convert QUALIFIED/APPROVED Proposal Request â†’ CommercialDocument(s) + typed drafts.
+ * Exact retry returns same documents. Never mutates Opportunity.
+ */
+export async function convertProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_convert_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma) || !hasCrmCommercialDocumentModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const row = await loadRequest(prisma, args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  const convertKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : `prq-convert:${row.id}`;
+
+  const wantProposal =
+    args.createProposal !== false &&
+    (args.createProposal === true ||
+      row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL ||
+      row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.BOTH ||
+      !row.requestedDocumentType);
+  const wantQuotation =
+    args.createQuotation === true ||
+    row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.QUOTATION ||
+    row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.BOTH;
+
+  // Idempotent replay
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    let proposalDoc = null;
+    let quotationDoc = null;
+    if (row.convertedProposalDocumentId) {
+      proposalDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { id: row.convertedProposalDocumentId },
+      });
+    }
+    if (row.convertedQuotationDocumentId) {
+      quotationDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { id: row.convertedQuotationDocumentId },
+      });
+    }
+    if (!proposalDoc) {
+      proposalDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { convertIdempotencyKey: `${convertKey}:PROP` },
+      });
+    }
+    if (!quotationDoc) {
+      quotationDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { convertIdempotencyKey: `${convertKey}:QUO` },
+      });
+    }
+    if (proposalDoc || quotationDoc) {
+      return {
+        ok: true,
+        request: serializeProposalRequest(row),
+        proposal: proposalDoc ? serializeCommercialDocument(proposalDoc) : undefined,
+        quotation: quotationDoc ? serializeCommercialDocument(quotationDoc) : undefined,
+        alreadyExists: true,
+        proposalCreated: Boolean(proposalDoc),
+        quotationCreated: Boolean(quotationDoc),
+        opportunityMutated: false,
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  if (
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.APPROVED &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.CONVERTED
+  ) {
+    return {
+      ok: false,
+      error: 'proposal_request_must_be_qualified',
+      status: row.status,
+    };
+  }
+
+  if (!wantProposal && !wantQuotation) {
+    return { ok: false, error: 'convert_requires_proposal_or_quotation' };
+  }
+
+  const now = args.now || new Date();
+  let proposalResult = null;
+  let quotationResult = null;
+  let alreadyExists = false;
+
+  if (wantProposal) {
+    proposalResult = await createProposal(prisma, {
+      actorContext: args.actorContext,
+      admin,
+      title: args.title || row.title || `Proposal from ${row.requestNumber}`,
+      opportunityId: row.opportunityId,
+      accountId: row.accountId,
+      contactId: row.contactId,
+      demoId: row.demoId,
+      leadId: row.leadId,
+      requestId: row.id,
+      currency: row.currency,
+      ownerAdminId: args.ownerAdminId || row.ownerAdminId || admin?.id,
+      convertIdempotencyKey: `${convertKey}:PROP`,
+      idempotencyKey: `${convertKey}:PROP`,
+      now,
+    });
+    if (!proposalResult.ok && !proposalResult.alreadyExists) return proposalResult;
+    if (proposalResult.alreadyExists) alreadyExists = true;
+  }
+
+  if (wantQuotation) {
+    quotationResult = await createQuotation(prisma, {
+      actorContext: args.actorContext,
+      admin,
+      title: args.quotationTitle || `Quotation from ${row.requestNumber}`,
+      opportunityId: row.opportunityId,
+      accountId: row.accountId,
+      contactId: row.contactId,
+      demoId: row.demoId,
+      leadId: row.leadId,
+      requestId: row.id,
+      currency: row.currency || args.currency,
+      ownerAdminId: args.ownerAdminId || row.ownerAdminId || admin?.id,
+      convertIdempotencyKey: `${convertKey}:QUO`,
+      idempotencyKey: `${convertKey}:QUO`,
+      now,
+    });
+    if (!quotationResult.ok && !quotationResult.alreadyExists) return quotationResult;
+    if (quotationResult.alreadyExists) alreadyExists = true;
+  }
+
+  const proposalDoc = proposalResult?.document || null;
+  const quotationDoc = quotationResult?.document || null;
+
+  const updated = await prisma.crmProposalRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_PROPOSAL_REQUEST_STATUS.CONVERTED,
+      convertedProposalDocumentId: proposalDoc?.id || row.convertedProposalDocumentId || null,
+      convertedQuotationDocumentId:
+        quotationDoc?.id || row.convertedQuotationDocumentId || null,
+      convertIdempotencyKey: convertKey,
+      convertedAt: row.convertedAt || now,
+      updatedAt: now,
+    },
+  });
+
+  if (!alreadyExists) {
+    await appendTimelineEvent(prisma, {
+      subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
+      subjectId: updated.opportunityId || updated.id,
+      eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_CONVERTED,
+      summary: `Proposal request ${updated.requestNumber} converted`,
+      payload: {
+        requestId: updated.id,
+        proposalDocumentId: proposalDoc?.id || null,
+        quotationDocumentId: quotationDoc?.id || null,
+        opportunityMutated: false,
+      },
+      actorAdminId: admin?.id || null,
+      at: now,
+    });
+  }
+
+  return {
+    ok: true,
+    request: serializeProposalRequest(updated),
+    proposal: proposalDoc || undefined,
+    quotation: quotationDoc || undefined,
+    proposalVersion: proposalResult?.version,
+    quotationVersion: quotationResult?.version,
+    alreadyExists,
+    proposalCreated: Boolean(proposalDoc),
+    quotationCreated: Boolean(quotationDoc),
+    opportunityMutated: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export async function listProposalRequests(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canViewCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_view_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const where = {};
+  if (args.status) where.status = String(args.status).trim().toUpperCase();
+  if (args.opportunityId) where.opportunityId = String(args.opportunityId).trim();
+  if (args.ownerAdminId) where.ownerAdminId = String(args.ownerAdminId).trim();
+
+  const rows = await prisma.crmProposalRequest.findMany({ where });
+  return {
+    ok: true,
+    requests: rows.map(serializeProposalRequest),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+===== lib/admin/crm/commercial/documents.js =====
+
+/**
+ * CrmCommercialDocument create/get/list â€” Phase 15 Wave 1 spine.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  CRM_COMMERCIAL_DOCUMENT_FAMILY,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import {
+  allocateProposalNumber,
+  allocateQuotationNumber,
+  formatDocumentVersionLabel,
+} from './numbering.js';
+import {
+  hasCrmCommercialDocumentModel,
+  hasCrmCommercialDocumentVersionModel,
+  hasCrmProposalModel,
+  hasCrmQuotationModel,
+  resolveCommercialActor,
+  serializeCommercialDocument,
+  serializeDocumentVersion,
+  serializeProposal,
+  serializeQuotation,
+} from './model.js';
+
+function canEditCommercial(access) {
+  return access.canEditOpportunities || access.canEditLeads || access.canCreateLeads;
+}
+
+function canViewCommercial(access) {
+  return (
+    access.canViewOpportunities ||
+    access.canViewLeads ||
+    access.canView ||
+    access.canViewActivities
+  );
+}
+
+export async function loadCommercialDocument(prisma, documentId) {
+  const id = documentId ? String(documentId).trim() : '';
+  if (!id || !hasCrmCommercialDocumentModel(prisma)) return null;
+  try {
+    if (/^(PROP|QUO)-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.crmCommercialDocument.findUnique({
+        where: { documentNumber: id },
+      });
+    }
+    return await prisma.crmCommercialDocument.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Internal create of commercial document + draft V1 + typed extension.
+ */
+export async function createCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_document_create_forbidden' };
+  }
+  if (
+    !hasCrmCommercialDocumentModel(prisma) ||
+    !hasCrmCommercialDocumentVersionModel(prisma)
+  ) {
+    return {
+      ok: false,
+      error: 'crm_commercial_document_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const family = String(args.documentFamily || '')
+    .trim()
+    .toUpperCase();
+  if (
+    family !== CRM_COMMERCIAL_DOCUMENT_FAMILY.PROPOSAL &&
+    family !== CRM_COMMERCIAL_DOCUMENT_FAMILY.QUOTATION
+  ) {
+    return { ok: false, error: 'invalid_document_family' };
+  }
+
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.crmCommercialDocument.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        const version = existing.currentVersionId
+          ? await prisma.crmCommercialDocumentVersion.findUnique({
+              where: { id: existing.currentVersionId },
+            })
+          : await prisma.crmCommercialDocumentVersion.findFirst({
+              where: { documentId: existing.id },
+              orderBy: { versionNumber: 'desc' },
+            });
+        return {
+          ok: true,
+          document: serializeCommercialDocument(existing),
+          version: serializeDocumentVersion(version),
+          alreadyExists: true,
+          domain: getCommercialDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  if (args.convertIdempotencyKey) {
+    try {
+      const byConvert = await prisma.crmCommercialDocument.findUnique({
+        where: { convertIdempotencyKey: String(args.convertIdempotencyKey).trim() },
+      });
+      if (byConvert) {
+        const version = byConvert.currentVersionId
+          ? await prisma.crmCommercialDocumentVersion.findUnique({
+              where: { id: byConvert.currentVersionId },
+            })
+          : await prisma.crmCommercialDocumentVersion.findFirst({
+              where: { documentId: byConvert.id },
+              orderBy: { versionNumber: 'desc' },
+            });
+        return {
+          ok: true,
+          document: serializeCommercialDocument(byConvert),
+          version: serializeDocumentVersion(version),
+          alreadyExists: true,
+          domain: getCommercialDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  const now = args.now || new Date();
+  const allocated =
+    family === CRM_COMMERCIAL_DOCUMENT_FAMILY.PROPOSAL
+      ? await allocateProposalNumber(prisma, { now })
+      : await allocateQuotationNumber(prisma, { now });
+  if (!allocated.ok) {
+    return { ok: false, error: allocated.error || 'commercial_number_allocation_failed' };
+  }
+
+  const title =
+    args.title != null
+      ? String(args.title).trim().slice(0, 500)
+      : family === CRM_COMMERCIAL_DOCUMENT_FAMILY.PROPOSAL
+        ? 'Proposal'
+        : 'Quotation';
+
+  let document;
+  try {
+    document = await prisma.crmCommercialDocument.create({
+      data: {
+        documentNumber: allocated.number,
+        documentFamily: family,
+        requestId: args.requestId ? String(args.requestId).trim() : null,
+        opportunityId: args.opportunityId ? String(args.opportunityId).trim() : null,
+        accountId: args.accountId ? String(args.accountId).trim() : null,
+        contactId: args.contactId ? String(args.contactId).trim() : null,
+        demoId: args.demoId ? String(args.demoId).trim() : null,
+        leadId: args.leadId ? String(args.leadId).trim() : null,
+        title,
+        currency: args.currency ? String(args.currency).trim().slice(0, 12) : null,
+        ownerAdminId: args.ownerAdminId || admin?.id || null,
+        createdByAdminId: admin?.id || null,
+        latestVersionNumber: 1,
+        convertIdempotencyKey: args.convertIdempotencyKey
+          ? String(args.convertIdempotencyKey).trim()
+          : null,
+        idempotencyKey,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    if (idempotencyKey || args.convertIdempotencyKey) {
+      const raced = idempotencyKey
+        ? await prisma.crmCommercialDocument.findUnique({ where: { idempotencyKey } })
+        : await prisma.crmCommercialDocument.findUnique({
+            where: {
+              convertIdempotencyKey: String(args.convertIdempotencyKey).trim(),
+            },
+          });
+      if (raced) {
+        return {
+          ok: true,
+          document: serializeCommercialDocument(raced),
+          alreadyExists: true,
+          domain: getCommercialDomainContract(),
+        };
+      }
+    }
+    return { ok: false, error: err?.message || 'commercial_document_create_failed' };
+  }
+
+  const versionLabel = formatDocumentVersionLabel(document.documentNumber, 1);
+  const version = await prisma.crmCommercialDocumentVersion.create({
+    data: {
+      documentId: document.id,
+      versionNumber: 1,
+      versionLabel,
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.DRAFT,
+      contentJson: args.contentJson ?? null,
+      revisionReason: args.revisionReason || 'initial',
+      immutable: false,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  document = await prisma.crmCommercialDocument.update({
+    where: { id: document.id },
+    data: {
+      currentVersionId: version.id,
+      latestVersionNumber: 1,
+      updatedAt: now,
+    },
+  });
+
+  let proposal = null;
+  let quotation = null;
+
+  if (family === CRM_COMMERCIAL_DOCUMENT_FAMILY.PROPOSAL && hasCrmProposalModel(prisma)) {
+    proposal = await prisma.crmProposal.create({
+      data: {
+        documentId: document.id,
+        title,
+        narrativeJson: args.narrativeJson ?? null,
+        scopesJson: args.scopesJson ?? null,
+        assumptionsJson: args.assumptionsJson ?? null,
+        exclusionsJson: args.exclusionsJson ?? null,
+        responsibilitiesJson: args.responsibilitiesJson ?? null,
+        milestonesJson: args.milestonesJson ?? null,
+        pinnedQuotationVersionIds: args.pinnedQuotationVersionIds ?? null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  if (family === CRM_COMMERCIAL_DOCUMENT_FAMILY.QUOTATION && hasCrmQuotationModel(prisma)) {
+    quotation = await prisma.crmQuotation.create({
+      data: {
+        documentId: document.id,
+        currency: args.currency ? String(args.currency).trim().slice(0, 12) : null,
+        lineItemsJson: args.lineItemsJson ?? null,
+        pricingSnapshotJson: null,
+        totalsJson: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: document.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: document.opportunityId || document.accountId || document.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_DOCUMENT_CREATED,
+    summary: `Commercial document ${document.documentNumber} created (V1 draft)`,
+    payload: {
+      documentId: document.id,
+      documentNumber: document.documentNumber,
+      documentFamily: family,
+      versionId: version.id,
+    },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    document: serializeCommercialDocument(document),
+    version: serializeDocumentVersion(version),
+    proposal: proposal ? serializeProposal(proposal) : undefined,
+    quotation: quotation ? serializeQuotation(quotation) : undefined,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export async function getCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canViewCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_document_view_forbidden' };
+  }
+  const document = await loadCommercialDocument(prisma, args.documentId);
+  if (!document) return { ok: false, notFound: true, error: 'commercial_document_not_found' };
+
+  let version = null;
+  if (document.currentVersionId) {
+    version = await prisma.crmCommercialDocumentVersion.findUnique({
+      where: { id: document.currentVersionId },
+    });
+  }
+
+  let proposal = null;
+  let quotation = null;
+  if (
+    document.documentFamily === CRM_COMMERCIAL_DOCUMENT_FAMILY.PROPOSAL &&
+    hasCrmProposalModel(prisma)
+  ) {
+    proposal = await prisma.crmProposal.findUnique({ where: { documentId: document.id } });
+  }
+  if (
+    document.documentFamily === CRM_COMMERCIAL_DOCUMENT_FAMILY.QUOTATION &&
+    hasCrmQuotationModel(prisma)
+  ) {
+    quotation = await prisma.crmQuotation.findUnique({ where: { documentId: document.id } });
+  }
+
+  return {
+    ok: true,
+    document: serializeCommercialDocument(document),
+    version: serializeDocumentVersion(version),
+    proposal: proposal ? serializeProposal(proposal) : undefined,
+    quotation: quotation ? serializeQuotation(quotation) : undefined,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export async function listCommercialDocuments(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canViewCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_document_view_forbidden' };
+  }
+  if (!hasCrmCommercialDocumentModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_document_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const where = {};
+  if (args.documentFamily) where.documentFamily = String(args.documentFamily).trim().toUpperCase();
+  if (args.requestId) where.requestId = String(args.requestId).trim();
+  if (args.opportunityId) where.opportunityId = String(args.opportunityId).trim();
+
+  const rows = await prisma.crmCommercialDocument.findMany({ where });
+  return {
+    ok: true,
+    documents: rows.map(serializeCommercialDocument),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export { canEditCommercial, canViewCommercial };
+
+===== lib/admin/crm/commercial/status.js =====
+
+/**
+ * Commercial document + proposal request status transitions â€” Phase 15 Wave 1.
+ * Invalid document transitions throw (visible failure).
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  canTransitionCommercialDocumentStatus,
+  canTransitionProposalRequestStatus,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+  isIssuedOrBeyond,
+  isValidCommercialDocumentStatus,
+} from './catalogue.js';
+import { canEditCommercial } from './documents.js';
+import {
+  hasCrmCommercialDocumentVersionStatusHistoryModel,
+  hasCrmProposalRequestStatusHistoryModel,
+  resolveCommercialActor,
+  serializeDocumentVersion,
+  serializeProposalRequest,
+} from './model.js';
+import { loadDocumentVersion } from './versions.js';
+
+/**
+ * Transition document version status. Invalid â†’ throw.
+ * Marks immutable when entering ISSUED-or-beyond.
+ */
+export async function transitionDocumentStatus(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    const err = new Error('crm_commercial_status_forbidden');
+    err.forbidden = true;
+    throw err;
+  }
+
+  const version = await loadDocumentVersion(prisma, args.documentVersionId);
+  if (!version) {
+    throw new Error('document_version_not_found');
+  }
+
+  const toStatus = String(args.toStatus || '')
+    .trim()
+    .toUpperCase();
+  if (!isValidCommercialDocumentStatus(toStatus)) {
+    throw new Error(`invalid_document_status: ${toStatus}`);
+  }
+
+  if (version.status === toStatus) {
+    return {
+      ok: true,
+      version: serializeDocumentVersion(version),
+      alreadyInStatus: true,
+      domain: getCommercialDomainContract(),
+    };
+  }
+
+  if (!canTransitionCommercialDocumentStatus(version.status, toStatus)) {
+    throw new Error(
+      `invalid_status_transition: cannot transition from ${version.status} to ${toStatus}`
+    );
+  }
+
+  const now = args.now || new Date();
+  const fromStatus = version.status;
+  const immutable = isIssuedOrBeyond(toStatus);
+
+  const updated = await prisma.crmCommercialDocumentVersion.update({
+    where: { id: version.id },
+    data: {
+      status: toStatus,
+      immutable,
+      updatedAt: now,
+    },
+  });
+
+  if (hasCrmCommercialDocumentVersionStatusHistoryModel(prisma)) {
+    await prisma.crmCommercialDocumentVersionStatusHistory.create({
+      data: {
+        versionId: version.id,
+        fromStatus,
+        toStatus,
+        reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  const document = await prisma.crmCommercialDocument.findUnique({
+    where: { id: version.documentId },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: document?.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: document?.opportunityId || document?.accountId || version.documentId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_DOCUMENT_STATUS_CHANGED,
+    summary: `Document version ${version.versionLabel}: ${fromStatus} â†’ ${toStatus}`,
+    payload: {
+      versionId: version.id,
+      fromStatus,
+      toStatus,
+      approvedEqualsIssued: false,
+      immutable,
+    },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    version: serializeDocumentVersion(updated),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+/**
+ * Soft request-status helper (returns result objects; used by qualify/reject).
+ */
+export async function transitionProposalRequestStatus(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_status_forbidden' };
+  }
+
+  const id = args.requestId ? String(args.requestId).trim() : '';
+  if (!id) return { ok: false, error: 'request_id_required' };
+
+  let row;
+  try {
+    if (/^PRQ-\d{4}-\d{6}$/.test(id)) {
+      row = await prisma.crmProposalRequest.findUnique({ where: { requestNumber: id } });
+    } else {
+      row = await prisma.crmProposalRequest.findUnique({ where: { id } });
+    }
+  } catch {
+    row = null;
+  }
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  const toStatus = String(args.toStatus || '')
+    .trim()
+    .toUpperCase();
+  if (row.status === toStatus) {
+    return {
+      ok: true,
+      request: serializeProposalRequest(row),
+      alreadyInStatus: true,
+    };
+  }
+  if (!canTransitionProposalRequestStatus(row.status, toStatus)) {
+    return {
+      ok: false,
+      error: 'invalid_request_status_transition',
+      fromStatus: row.status,
+      toStatus,
+    };
+  }
+
+  const now = args.now || new Date();
+  const fromStatus = row.status;
+  const data = {
+    status: toStatus,
+    updatedAt: now,
+    ...(args.patch || {}),
+  };
+
+  const updated = await prisma.crmProposalRequest.update({
+    where: { id: row.id },
+    data,
+  });
+
+  if (hasCrmProposalRequestStatusHistoryModel(prisma)) {
+    await prisma.crmProposalRequestStatusHistory.create({
+      data: {
+        requestId: row.id,
+        fromStatus,
+        toStatus,
+        reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    request: serializeProposalRequest(updated),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export { CRM_COMMERCIAL_DOCUMENT_STATUS };
+
+===== lib/admin/crm/commercial/versions.js =====
+
+/**
+ * Commercial document versioning + issued immutability foundation â€” Phase 15 Wave 1.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+  isIssuedOrBeyond,
+} from './catalogue.js';
+import { canEditCommercial, loadCommercialDocument } from './documents.js';
+import { formatDocumentVersionLabel } from './numbering.js';
+import {
+  hasCrmCommercialDocumentVersionModel,
+  resolveCommercialActor,
+  serializeDocumentVersion,
+} from './model.js';
+
+export async function loadDocumentVersion(prisma, documentVersionId) {
+  const id = documentVersionId ? String(documentVersionId).trim() : '';
+  if (!id || !hasCrmCommercialDocumentVersionModel(prisma)) return null;
+  try {
+    return await prisma.crmCommercialDocumentVersion.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create next draft version. Prior issued versions remain immutable.
+ */
+export async function createDocumentVersion(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_version_create_forbidden' };
+  }
+  if (!hasCrmCommercialDocumentVersionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_document_version_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const document = await loadCommercialDocument(prisma, args.documentId);
+  if (!document) return { ok: false, notFound: true, error: 'commercial_document_not_found' };
+
+  const now = args.now || new Date();
+  const latest =
+    (await prisma.crmCommercialDocumentVersion.findFirst({
+      where: { documentId: document.id },
+      orderBy: { versionNumber: 'desc' },
+    })) || null;
+  const nextNumber = (latest?.versionNumber || document.latestVersionNumber || 0) + 1;
+  const versionLabel = formatDocumentVersionLabel(document.documentNumber, nextNumber);
+
+  let contentJson = args.contentJson ?? null;
+  if (contentJson == null && latest?.contentJson != null) {
+    contentJson = latest.contentJson;
+  }
+
+  const version = await prisma.crmCommercialDocumentVersion.create({
+    data: {
+      documentId: document.id,
+      versionNumber: nextNumber,
+      versionLabel,
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.DRAFT,
+      contentJson,
+      revisionReason:
+        args.revisionReason != null
+          ? String(args.revisionReason).trim().slice(0, 1000)
+          : null,
+      immutable: false,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await prisma.crmCommercialDocument.update({
+    where: { id: document.id },
+    data: {
+      currentVersionId: version.id,
+      latestVersionNumber: nextNumber,
+      updatedAt: now,
+    },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: document.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: document.opportunityId || document.accountId || document.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_DOCUMENT_VERSION_CREATED,
+    summary: `Commercial document version ${versionLabel} created`,
+    payload: {
+      documentId: document.id,
+      versionId: version.id,
+      versionNumber: nextNumber,
+    },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    version: serializeDocumentVersion(version),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+/**
+ * Mutate draft/non-issued version content. Issued â†’ throws.
+ */
+export async function updateDocumentVersionContent(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_version_edit_forbidden' };
+  }
+
+  const version = await loadDocumentVersion(prisma, args.documentVersionId);
+  if (!version) return { ok: false, notFound: true, error: 'document_version_not_found' };
+
+  if (version.immutable === true || isIssuedOrBeyond(version.status)) {
+    throw new Error(
+      `issued_version_immutable: cannot mutate content of ${version.versionLabel || version.id} (status=${version.status})`
+    );
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmCommercialDocumentVersion.update({
+    where: { id: version.id },
+    data: {
+      contentJson: args.contentJson ?? version.contentJson,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    version: serializeDocumentVersion(updated),
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export function assertVersionMutable(version) {
+  if (!version) throw new Error('document_version_not_found');
+  if (version.immutable === true || isIssuedOrBeyond(version.status)) {
+    throw new Error(
+      `issued_version_immutable: version ${version.versionLabel || version.id} is issued/immutable`
+    );
+  }
+  return true;
+}
+
+===== lib/admin/crm/commercial/numbering.js =====
+
+/**
+ * Commercial numbering â€” PRQ / PROP / QUO-YYYY-###### (UTC year).
+ * Reuses CrmNumberSeq CAS via allocateCrmNumber.
+ */
+
+import { allocateCrmNumber, formatCrmNumber, utcYearOf } from '../numbering.js';
+import {
+  CRM_NUMBER_PREFIX,
+  CRM_PROPOSAL_NUMBER_RE,
+  CRM_PROPOSAL_REQUEST_NUMBER_RE,
+  CRM_QUOTATION_NUMBER_RE,
+} from '../catalogue.js';
+
+export async function allocateProposalRequestNumber(prisma, opts = {}) {
+  return allocateCrmNumber(prisma, {
+    prefix: CRM_NUMBER_PREFIX.PRQ,
+    now: opts.now,
+  });
+}
+
+export async function allocateProposalNumber(prisma, opts = {}) {
+  return allocateCrmNumber(prisma, {
+    prefix: CRM_NUMBER_PREFIX.PROP,
+    now: opts.now,
+  });
+}
+
+export async function allocateQuotationNumber(prisma, opts = {}) {
+  return allocateCrmNumber(prisma, {
+    prefix: CRM_NUMBER_PREFIX.QUO,
+    now: opts.now,
+  });
+}
+
+export function formatDocumentVersionLabel(documentNumber, versionNumber) {
+  return `${documentNumber}-V${Number(versionNumber) || 1}`;
+}
+
+export {
+  formatCrmNumber,
+  utcYearOf,
+  CRM_PROPOSAL_REQUEST_NUMBER_RE,
+  CRM_PROPOSAL_NUMBER_RE,
+  CRM_QUOTATION_NUMBER_RE,
+  CRM_NUMBER_PREFIX,
+};
+
+===== test/systemAdmin.crm.commercialWave1.test.js =====
+
+/**
+ * Phase 15 Wave 1 â€” Proposal Request + CrmCommercialDocument spine.
+ * Proposal â‰  Quotation; convert idempotent; issued immutable; no Opp auto-mutation.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  CRM_PROPOSAL_REQUEST_NUMBER_RE,
+  CRM_PROPOSAL_NUMBER_RE,
+  CRM_QUOTATION_NUMBER_RE,
+  CRM_PROPOSAL_REQUEST_STATUS,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  CRM_COMMERCIAL_DOCUMENT_FAMILY,
+  allocateProposalRequestNumber,
+  allocateProposalNumber,
+  allocateQuotationNumber,
+  createProposalRequest,
+  qualifyProposalRequest,
+  rejectProposalRequest,
+  convertProposalRequest,
+  createProposalRequestFromDemoHandoff,
+  createProposal,
+  createQuotation,
+  createDocumentVersion,
+  transitionDocumentStatus,
+  updateDocumentVersionContent,
+  getCommercialDomainContract,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-1') {
+  return { id, role: 'Super Admin', permissions: {} };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const requestStore = overrides._requestStore || [];
+  const requestHistoryStore = overrides._requestHistoryStore || [];
+  const documentStore = overrides._documentStore || [];
+  const versionStore = overrides._versionStore || [];
+  const versionHistoryStore = overrides._versionHistoryStore || [];
+  const proposalStore = overrides._proposalStore || [];
+  const quotationStore = overrides._quotationStore || [];
+  const timelineStore = overrides._timelineStore || [];
+  const opportunityStore = overrides._opportunityStore || [
+    {
+      id: 'opp-1',
+      opportunityNumber: 'OPP-2026-000001',
+      stageCode: 'PROPOSAL_READY',
+      accountId: 'acc-1',
+      contactId: 'con-1',
+      currency: 'MWK',
+      amount: 1000,
+      amountBasis: 'ESTIMATE',
+      version: 1,
+    },
+  ];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmProposalRequest: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `prq-${requestStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        requestStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return requestStore.find((r) => r.id === where.id) || null;
+        if (where.requestNumber) {
+          return requestStore.find((r) => r.requestNumber === where.requestNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return requestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.convertIdempotencyKey) {
+          return (
+            requestStore.find((r) => r.convertIdempotencyKey === where.convertIdempotencyKey) ||
+            null
+          );
+        }
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = requestStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmProposalRequestStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `prqh-${requestHistoryStore.length + 1}`, ...data };
+        requestHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmCommercialDocument: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `doc-${documentStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        documentStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentStore.find((r) => r.id === where.id) || null;
+        if (where.documentNumber) {
+          return documentStore.find((r) => r.documentNumber === where.documentNumber) || null;
+        }
+        if (where.convertIdempotencyKey) {
+          return (
+            documentStore.find((r) => r.convertIdempotencyKey === where.convertIdempotencyKey) ||
+            null
+          );
+        }
+        if (where.idempotencyKey) {
+          return documentStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...documentStore];
+        if (where.documentFamily) {
+          rows = rows.filter((r) => r.documentFamily === where.documentFamily);
+        }
+        if (where.requestId) rows = rows.filter((r) => r.requestId === where.requestId);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmCommercialDocumentVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `ver-${versionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        versionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return versionStore.find((r) => r.id === where.id) || null;
+        if (where.documentId_versionNumber) {
+          const k = where.documentId_versionNumber;
+          return (
+            versionStore.find(
+              (r) => r.documentId === k.documentId && r.versionNumber === k.versionNumber
+            ) || null
+          );
+        }
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...versionStore];
+        if (where.documentId) rows = rows.filter((r) => r.documentId === where.documentId);
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...versionStore];
+        if (where.documentId) rows = rows.filter((r) => r.documentId === where.documentId);
+        if (orderBy?.versionNumber === 'desc') {
+          rows.sort((a, b) => b.versionNumber - a.versionNumber);
+        }
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = versionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmCommercialDocumentVersionStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `dvh-${versionHistoryStore.length + 1}`, ...data };
+        versionHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmProposal: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `prop-${proposalStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        proposalStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return proposalStore.find((r) => r.id === where.id) || null;
+        if (where.documentId) {
+          return proposalStore.find((r) => r.documentId === where.documentId) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = proposalStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmQuotation: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `quo-${quotationStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        quotationStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return quotationStore.find((r) => r.id === where.id) || null;
+        if (where.documentId) {
+          return quotationStore.find((r) => r.documentId === where.documentId) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = quotationStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmOpportunity: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return opportunityStore.find((r) => r.id === where.id) || null;
+        if (where.opportunityNumber) {
+          return (
+            opportunityStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null
+          );
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = opportunityStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data);
+        return row;
+      }),
+    },
+    crmTimelineEvent: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
+        timelineStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...timelineStore]),
+    },
+    _stores: {
+      seqStore,
+      requestStore,
+      documentStore,
+      versionStore,
+      proposalStore,
+      quotationStore,
+      opportunityStore,
+      timelineStore,
+    },
+  };
+
+  return prisma;
+}
+
+describe('Phase 15 Wave 1 â€” Proposal Request + commercial document spine', () => {
+  let prisma;
+  let admin;
+  let actorContext;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    admin = superAdmin();
+    actorContext = { admin };
+  });
+
+  it('allocates unique PRQ / PROP / QUO numbers', async () => {
+    const prq = await allocateProposalRequestNumber(prisma);
+    const prop = await allocateProposalNumber(prisma);
+    const quo = await allocateQuotationNumber(prisma);
+    expect(prq.ok).toBe(true);
+    expect(prop.ok).toBe(true);
+    expect(quo.ok).toBe(true);
+    expect(prq.number).toMatch(CRM_PROPOSAL_REQUEST_NUMBER_RE);
+    expect(prop.number).toMatch(CRM_PROPOSAL_NUMBER_RE);
+    expect(quo.number).toMatch(CRM_QUOTATION_NUMBER_RE);
+
+    const prq2 = await allocateProposalRequestNumber(prisma);
+    const prop2 = await allocateProposalNumber(prisma);
+    expect(prq2.number).not.toBe(prq.number);
+    expect(prop2.number).not.toBe(prop.number);
+  });
+
+  it('Demo handoff retry returns the same PRQ (idempotent by handoff identity)', async () => {
+    const handoffPayload = {
+      type: 'CRM_DEMO_PROPOSAL_HANDOFF',
+      demoId: 'demo-1',
+      demoNumber: 'DEMO-2026-000001',
+      opportunityId: 'opp-1',
+      accountId: 'acc-1',
+      contactId: 'con-1',
+      idempotencyKey: 'demo-proposal-handoff:demo-1',
+      proposalCreated: false,
+    };
+
+    const first = await createProposalRequestFromDemoHandoff(prisma, {
+      actorContext,
+      handoffPayload,
+    });
+    expect(first.ok).toBe(true);
+    expect(first.request.requestNumber).toMatch(CRM_PROPOSAL_REQUEST_NUMBER_RE);
+    expect(first.request.source).toBe('DEMO_HANDOFF');
+    expect(first.proposalCreated).toBe(false);
+
+    const second = await createProposalRequestFromDemoHandoff(prisma, {
+      actorContext,
+      handoffPayload,
+    });
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists).toBe(true);
+    expect(second.request.id).toBe(first.request.id);
+    expect(second.request.requestNumber).toBe(first.request.requestNumber);
+    expect(prisma._stores.requestStore.length).toBe(1);
+  });
+
+  it('convert creates PROP and/or QUO once; exact retry returns same', async () => {
+    const created = await createProposalRequest(prisma, {
+      actorContext,
+      source: 'OPPORTUNITY',
+      opportunityId: 'opp-1',
+      accountId: 'acc-1',
+      contactId: 'con-1',
+      requestedDocumentType: 'BOTH',
+      currency: 'MWK',
+    });
+    expect(created.ok).toBe(true);
+    expect(created.request.status).toBe(CRM_PROPOSAL_REQUEST_STATUS.NEW);
+
+    await qualifyProposalRequest(prisma, {
+      actorContext,
+      requestId: created.request.id,
+    });
+
+    const first = await convertProposalRequest(prisma, {
+      actorContext,
+      requestId: created.request.id,
+      createProposal: true,
+      createQuotation: true,
+    });
+    expect(first.ok).toBe(true);
+    expect(first.alreadyExists).toBeFalsy();
+    expect(first.request.status).toBe(CRM_PROPOSAL_REQUEST_STATUS.CONVERTED);
+    expect(first.proposal.documentNumber).toMatch(CRM_PROPOSAL_NUMBER_RE);
+    expect(first.quotation.documentNumber).toMatch(CRM_QUOTATION_NUMBER_RE);
+    expect(first.proposal.documentFamily).toBe(CRM_COMMERCIAL_DOCUMENT_FAMILY.PROPOSAL);
+    expect(first.quotation.documentFamily).toBe(CRM_COMMERCIAL_DOCUMENT_FAMILY.QUOTATION);
+    expect(first.proposal.id).not.toBe(first.quotation.id);
+
+    const second = await convertProposalRequest(prisma, {
+      actorContext,
+      requestId: created.request.id,
+      createProposal: true,
+      createQuotation: true,
+    });
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists).toBe(true);
+    expect(second.proposal.id).toBe(first.proposal.id);
+    expect(second.quotation.id).toBe(first.quotation.id);
+    expect(prisma._stores.documentStore.length).toBe(2);
+    expect(prisma._stores.proposalStore.length).toBe(1);
+    expect(prisma._stores.quotationStore.length).toBe(1);
+
+    // Opportunity stage/probability/close date never auto-mutated
+    expect(prisma.crmOpportunity.update).not.toHaveBeenCalled();
+    expect(getCommercialDomainContract().autoOpportunityStageMutationForbidden).toBe(true);
+    expect(getCommercialDomainContract().tenantQuotationDomain).toBe('WRONG_DOMAIN');
+  });
+
+  it('invalid document status transition throws', async () => {
+    const prop = await createProposal(prisma, {
+      actorContext,
+      opportunityId: 'opp-1',
+      title: 'Acme proposal',
+    });
+    expect(prop.ok).toBe(true);
+    const versionId = prop.version.id;
+
+    await expect(
+      transitionDocumentStatus(prisma, {
+        actorContext,
+        documentVersionId: versionId,
+        toStatus: CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+        reason: 'skip ahead',
+      })
+    ).rejects.toThrow(/invalid.*transition|transition/i);
+  });
+
+  it('issued version content mutation is blocked (immutability foundation)', async () => {
+    const prop = await createProposal(prisma, {
+      actorContext,
+      opportunityId: 'opp-1',
+      title: 'Lock me',
+    });
+    const versionId = prop.version.id;
+
+    // Walk legal path to ISSUED (Wave 1 foundation path)
+    const path = [
+      CRM_COMMERCIAL_DOCUMENT_STATUS.INTERNAL_REVIEW,
+      CRM_COMMERCIAL_DOCUMENT_STATUS.PENDING_APPROVAL,
+      CRM_COMMERCIAL_DOCUMENT_STATUS.APPROVED,
+      CRM_COMMERCIAL_DOCUMENT_STATUS.READY_TO_ISSUE,
+      CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+    ];
+    for (const toStatus of path) {
+      await transitionDocumentStatus(prisma, {
+        actorContext,
+        documentVersionId: versionId,
+        toStatus,
+        reason: `to_${toStatus}`,
+      });
+    }
+
+    await expect(
+      updateDocumentVersionContent(prisma, {
+        actorContext,
+        documentVersionId: versionId,
+        contentJson: { narrative: 'mutated after issue' },
+      })
+    ).rejects.toThrow(/immutable|issued/i);
+
+    // New version still allowed
+    const next = await createDocumentVersion(prisma, {
+      actorContext,
+      documentId: prop.document.id,
+      revisionReason: 'post-issue revision',
+    });
+    expect(next.ok).toBe(true);
+    expect(next.version.versionNumber).toBe(2);
+    expect(next.version.status).toBe(CRM_COMMERCIAL_DOCUMENT_STATUS.DRAFT);
+    expect(next.version.versionLabel).toMatch(/-V2$/);
+  });
+
+  it('reject proposal request and createQuotation are distinct from Proposal', async () => {
+    const created = await createProposalRequest(prisma, {
+      actorContext,
+      source: 'SALES',
+      opportunityId: 'opp-1',
+    });
+    const rejected = await rejectProposalRequest(prisma, {
+      actorContext,
+      requestId: created.request.id,
+      reason: 'Not ready',
+    });
+    expect(rejected.ok).toBe(true);
+    expect(rejected.request.status).toBe(CRM_PROPOSAL_REQUEST_STATUS.REJECTED);
+
+    const quo = await createQuotation(prisma, {
+      actorContext,
+      opportunityId: 'opp-1',
+      currency: 'USD',
+    });
+    expect(quo.ok).toBe(true);
+    expect(quo.document.documentFamily).toBe(CRM_COMMERCIAL_DOCUMENT_FAMILY.QUOTATION);
+    expect(quo.quotation).toBeTruthy();
+    expect(quo.proposal).toBeUndefined();
+  });
+});
+
+## ===== AFTER FIX WAVE: lib/admin/crm/commercial/requests.js =====
+/**
+ * Proposal Requests â€” Phase 15 Wave 1.
+ * Convert â†’ CommercialDocument + Proposal and/or Quotation draft V1 (idempotent).
+ * Never mutates Opportunity stage/probability/close date.
+ * Never reuses tenant Quotation domain.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  CRM_PROPOSAL_REQUEST_SOURCE,
+  CRM_PROPOSAL_REQUEST_STATUS,
+  CRM_REQUESTED_DOCUMENT_TYPE,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { createProposal } from './proposals.js';
+import { createQuotation } from './quotations.js';
+import { allocateProposalRequestNumber } from './numbering.js';
+import {
+  hasCrmCommercialDocumentModel,
+  hasCrmProposalRequestModel,
+  resolveCommercialActor,
+  serializeCommercialDocument,
+  serializeProposalRequest,
+} from './model.js';
+import { canEditCommercial, canViewCommercial } from './documents.js';
+import { transitionProposalRequestStatus } from './status.js';
+
+async function loadRequest(prisma, requestId) {
+  const id = requestId ? String(requestId).trim() : '';
+  if (!id || !hasCrmProposalRequestModel(prisma)) return null;
+  try {
+    if (/^PRQ-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.crmProposalRequest.findUnique({ where: { requestNumber: id } });
+    }
+    return await prisma.crmProposalRequest.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create a Proposal Request (PRQ-YYYY-######).
+ */
+export async function createProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_create_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.crmProposalRequest.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return {
+          ok: true,
+          request: serializeProposalRequest(existing),
+          alreadyExists: true,
+          proposalCreated: false,
+          domain: getCommercialDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  const allocated = await allocateProposalRequestNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'proposal_request_number_allocation_failed',
+    };
+  }
+
+  const requestedDocumentType = String(
+    args.requestedDocumentType || CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL
+  )
+    .trim()
+    .toUpperCase();
+  const title =
+    args.title != null ? String(args.title).trim().slice(0, 500) : 'Proposal request';
+
+  let row;
+  try {
+    row = await prisma.crmProposalRequest.create({
+      data: {
+        requestNumber: allocated.number,
+        status: CRM_PROPOSAL_REQUEST_STATUS.NEW,
+        source: args.source ? String(args.source).trim().slice(0, 80) : null,
+        sourceRef: args.sourceRef != null ? String(args.sourceRef).trim().slice(0, 200) : null,
+        opportunityId: args.opportunityId ? String(args.opportunityId).trim() : null,
+        accountId: args.accountId ? String(args.accountId).trim() : null,
+        contactId: args.contactId ? String(args.contactId).trim() : null,
+        demoId: args.demoId ? String(args.demoId).trim() : null,
+        leadId: args.leadId ? String(args.leadId).trim() : null,
+        requestedDocumentType,
+        currency: args.currency ? String(args.currency).trim().slice(0, 12) : null,
+        title,
+        notes: args.notes != null ? String(args.notes).trim().slice(0, 4000) : null,
+        ownerAdminId: args.ownerAdminId || admin?.id || null,
+        createdByAdminId: admin?.id || null,
+        idempotencyKey,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    if (idempotencyKey) {
+      try {
+        const raced = await prisma.crmProposalRequest.findUnique({
+          where: { idempotencyKey },
+        });
+        if (raced) {
+          return {
+            ok: true,
+            request: serializeProposalRequest(raced),
+            alreadyExists: true,
+            proposalCreated: false,
+            domain: getCommercialDomainContract(),
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return { ok: false, error: err?.message || 'proposal_request_create_failed' };
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: row.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : row.demoId
+        ? CRM_SUBJECT_TYPE.DEMO
+        : CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: row.opportunityId || row.demoId || row.accountId || row.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_CREATED,
+    summary: `Proposal request ${row.requestNumber} created`,
+    payload: {
+      requestId: row.id,
+      requestNumber: row.requestNumber,
+      proposalCreated: false,
+    },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    request: serializeProposalRequest(row),
+    proposalCreated: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+/**
+ * Consume Demo proposal handoff â†’ create PRQ idempotently by handoff identity.
+ * Does NOT create Proposal/Quotation until convert.
+ */
+export async function createProposalRequestFromDemoHandoff(prisma, args = {}) {
+  const payload = args.handoffPayload || args.payload || {};
+  const handoffKey =
+    args.idempotencyKey ||
+    payload.idempotencyKey ||
+    (payload.demoId ? `demo-proposal-handoff:${payload.demoId}` : null);
+
+  if (!handoffKey) {
+    return { ok: false, error: 'demo_handoff_idempotency_key_required' };
+  }
+
+  return createProposalRequest(prisma, {
+    ...args,
+    source: CRM_PROPOSAL_REQUEST_SOURCE.DEMO_HANDOFF,
+    sourceRef: handoffKey,
+    demoId: payload.demoId || args.demoId,
+    opportunityId: payload.opportunityId || args.opportunityId,
+    accountId: payload.accountId || args.accountId,
+    contactId: payload.contactId || args.contactId,
+    leadId: payload.leadId || args.leadId,
+    currency: args.currency || payload.currency || null,
+    requestedDocumentType:
+      args.requestedDocumentType || CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL,
+    title:
+      args.title ||
+      (payload.demoNumber
+        ? `Proposal request from ${payload.demoNumber}`
+        : 'Proposal request from Demo handoff'),
+    idempotencyKey: `prq-from-handoff:${handoffKey}`,
+  });
+}
+
+/**
+ * Seed PRQ from Opp proposal readiness without creating Proposal document.
+ */
+export async function seedProposalRequestFromOpportunityReadiness(prisma, args = {}) {
+  const readiness = args.readiness || args.handoffPayload || {};
+  const opportunityId = args.opportunityId || readiness.opportunityId;
+  if (!opportunityId) return { ok: false, error: 'opportunity_id_required' };
+
+  const idempotencyKey =
+    args.idempotencyKey ||
+    readiness.idempotencyKey ||
+    `prq-from-opp-readiness:${opportunityId}`;
+
+  return createProposalRequest(prisma, {
+    ...args,
+    source: CRM_PROPOSAL_REQUEST_SOURCE.OPPORTUNITY_READINESS,
+    sourceRef: idempotencyKey,
+    opportunityId,
+    accountId: args.accountId || readiness.accountId,
+    contactId: args.contactId || readiness.contactId,
+    leadId: args.leadId || readiness.leadId,
+    currency: args.currency || readiness.currency || null,
+    requestedDocumentType:
+      args.requestedDocumentType || CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL,
+    title:
+      args.title ||
+      (readiness.opportunityNumber
+        ? `Proposal request for ${readiness.opportunityNumber}`
+        : 'Proposal request from opportunity readiness'),
+    idempotencyKey: `prq-seed:${idempotencyKey}`,
+  });
+}
+
+export async function qualifyProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_qualify_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const row = await loadRequest(prisma, args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED) {
+    return {
+      ok: true,
+      request: serializeProposalRequest(row),
+      alreadyQualified: true,
+    };
+  }
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    return { ok: false, error: 'proposal_request_already_converted' };
+  }
+  if (
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.NEW &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.UNDER_REVIEW &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.INFORMATION_REQUIRED
+  ) {
+    return {
+      ok: false,
+      error: 'proposal_request_not_qualifiable',
+      status: row.status,
+    };
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmProposalRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED,
+      qualifiedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (typeof prisma.crmProposalRequestStatusHistory?.create === 'function') {
+    await prisma.crmProposalRequestStatusHistory.create({
+      data: {
+        requestId: row.id,
+        fromStatus: row.status,
+        toStatus: CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED,
+        reason: args.reason || 'qualified',
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: updated.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.DEMO,
+    subjectId: updated.opportunityId || updated.demoId || updated.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_QUALIFIED,
+    summary: `Proposal request ${updated.requestNumber} qualified`,
+    payload: { requestId: updated.id },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return { ok: true, request: serializeProposalRequest(updated) };
+}
+
+export async function rejectProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_reject_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const row = await loadRequest(prisma, args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.REJECTED) {
+    return {
+      ok: true,
+      request: serializeProposalRequest(row),
+      alreadyRejected: true,
+    };
+  }
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    return { ok: false, error: 'proposal_request_already_converted' };
+  }
+
+  const now = args.now || new Date();
+  const reason =
+    args.reason != null ? String(args.reason).trim().slice(0, 1000) : null;
+
+  const transitioned = await transitionProposalRequestStatus(prisma, {
+    actorContext: args.actorContext,
+    admin,
+    requestId: row.id,
+    toStatus: CRM_PROPOSAL_REQUEST_STATUS.REJECTED,
+    reason,
+    now,
+    patch: {
+      rejectedReason: reason,
+      rejectedAt: now,
+    },
+  });
+  if (!transitioned.ok) return transitioned;
+
+  const updated = transitioned.request;
+  await appendTimelineEvent(prisma, {
+    subjectType: updated.opportunityId
+      ? CRM_SUBJECT_TYPE.OPPORTUNITY
+      : CRM_SUBJECT_TYPE.DEMO,
+    subjectId: updated.opportunityId || updated.demoId || updated.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_REJECTED,
+    summary: `Proposal request ${updated.requestNumber} rejected`,
+    payload: { requestId: updated.id, reason },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return { ok: true, request: updated };
+}
+
+/**
+ * Convert QUALIFIED/APPROVED Proposal Request â†’ CommercialDocument(s) + typed drafts.
+ * Exact retry returns same documents. Never mutates Opportunity.
+ */
+export async function convertProposalRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_convert_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma) || !hasCrmCommercialDocumentModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const row = await loadRequest(prisma, args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'proposal_request_not_found' };
+
+  const convertKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : `prq-convert:${row.id}`;
+
+  const wantProposal =
+    args.createProposal !== false &&
+    (args.createProposal === true ||
+      row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.PROPOSAL ||
+      row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.BOTH ||
+      !row.requestedDocumentType);
+  const wantQuotation =
+    args.createQuotation === true ||
+    row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.QUOTATION ||
+    row.requestedDocumentType === CRM_REQUESTED_DOCUMENT_TYPE.BOTH;
+
+  // Idempotent replay
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    let proposalDoc = null;
+    let quotationDoc = null;
+    if (row.convertedProposalDocumentId) {
+      proposalDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { id: row.convertedProposalDocumentId },
+      });
+    }
+    if (row.convertedQuotationDocumentId) {
+      quotationDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { id: row.convertedQuotationDocumentId },
+      });
+    }
+    if (!proposalDoc) {
+      proposalDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { convertIdempotencyKey: `${convertKey}:PROP` },
+      });
+    }
+    if (!quotationDoc) {
+      quotationDoc = await prisma.crmCommercialDocument.findUnique({
+        where: { convertIdempotencyKey: `${convertKey}:QUO` },
+      });
+    }
+    if (proposalDoc || quotationDoc) {
+      return {
+        ok: true,
+        request: serializeProposalRequest(row),
+        proposal: proposalDoc ? serializeCommercialDocument(proposalDoc) : undefined,
+        quotation: quotationDoc ? serializeCommercialDocument(quotationDoc) : undefined,
+        alreadyExists: true,
+        proposalCreated: Boolean(proposalDoc),
+        quotationCreated: Boolean(quotationDoc),
+        opportunityMutated: false,
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  if (
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.QUALIFIED &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.APPROVED &&
+    row.status !== CRM_PROPOSAL_REQUEST_STATUS.CONVERTED
+  ) {
+    return {
+      ok: false,
+      error: 'proposal_request_must_be_qualified',
+      status: row.status,
+    };
+  }
+
+  if (!wantProposal && !wantQuotation) {
+    return { ok: false, error: 'convert_requires_proposal_or_quotation' };
+  }
+
+  const now = args.now || new Date();
+  let proposalResult = null;
+  let quotationResult = null;
+  let alreadyExists = false;
+
+  if (wantProposal) {
+    proposalResult = await createProposal(prisma, {
+      actorContext: args.actorContext,
+      admin,
+      title: args.title || row.title || `Proposal from ${row.requestNumber}`,
+      opportunityId: row.opportunityId,
+      accountId: row.accountId,
+      contactId: row.contactId,
+      demoId: row.demoId,
+      leadId: row.leadId,
+      requestId: row.id,
+      currency: row.currency,
+      ownerAdminId: args.ownerAdminId || row.ownerAdminId || admin?.id,
+      convertIdempotencyKey: `${convertKey}:PROP`,
+      idempotencyKey: `${convertKey}:PROP`,
+      now,
+    });
+    if (!proposalResult.ok && !proposalResult.alreadyExists) return proposalResult;
+    if (proposalResult.alreadyExists) alreadyExists = true;
+  }
+
+  if (wantQuotation) {
+    quotationResult = await createQuotation(prisma, {
+      actorContext: args.actorContext,
+      admin,
+      title: args.quotationTitle || `Quotation from ${row.requestNumber}`,
+      opportunityId: row.opportunityId,
+      accountId: row.accountId,
+      contactId: row.contactId,
+      demoId: row.demoId,
+      leadId: row.leadId,
+      requestId: row.id,
+      currency: row.currency || args.currency,
+      ownerAdminId: args.ownerAdminId || row.ownerAdminId || admin?.id,
+      convertIdempotencyKey: `${convertKey}:QUO`,
+      idempotencyKey: `${convertKey}:QUO`,
+      now,
+    });
+    if (!quotationResult.ok && !quotationResult.alreadyExists) return quotationResult;
+    if (quotationResult.alreadyExists) alreadyExists = true;
+  }
+
+  const proposalDoc = proposalResult?.document || null;
+  const quotationDoc = quotationResult?.document || null;
+  const convertPatch = {
+    convertedProposalDocumentId: proposalDoc?.id || row.convertedProposalDocumentId || null,
+    convertedQuotationDocumentId:
+      quotationDoc?.id || row.convertedQuotationDocumentId || null,
+    convertIdempotencyKey: convertKey,
+    convertedAt: row.convertedAt || now,
+  };
+
+  let updated;
+  if (row.status === CRM_PROPOSAL_REQUEST_STATUS.CONVERTED) {
+    // Already terminal: patch document links only (no status transition / history).
+    updated = serializeProposalRequest(
+      await prisma.crmProposalRequest.update({
+        where: { id: row.id },
+        data: { ...convertPatch, updatedAt: now },
+      })
+    );
+  } else {
+    const transitioned = await transitionProposalRequestStatus(prisma, {
+      actorContext: args.actorContext,
+      admin,
+      requestId: row.id,
+      toStatus: CRM_PROPOSAL_REQUEST_STATUS.CONVERTED,
+      reason: args.reason || 'converted',
+      now,
+      patch: convertPatch,
+    });
+    if (!transitioned.ok) return transitioned;
+    updated = transitioned.request;
+  }
+
+  if (!alreadyExists) {
+    await appendTimelineEvent(prisma, {
+      subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
+      subjectId: updated.opportunityId || updated.id,
+      eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_REQUEST_CONVERTED,
+      summary: `Proposal request ${updated.requestNumber} converted`,
+      payload: {
+        requestId: updated.id,
+        proposalDocumentId: proposalDoc?.id || null,
+        quotationDocumentId: quotationDoc?.id || null,
+        opportunityMutated: false,
+      },
+      actorAdminId: admin?.id || null,
+      at: now,
+    });
+  }
+
+  return {
+    ok: true,
+    request: updated,
+    proposal: proposalDoc || undefined,
+    quotation: quotationDoc || undefined,
+    proposalVersion: proposalResult?.version,
+    quotationVersion: quotationResult?.version,
+    alreadyExists,
+    proposalCreated: Boolean(proposalDoc),
+    quotationCreated: Boolean(quotationDoc),
+    opportunityMutated: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+export async function listProposalRequests(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canViewCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_proposal_request_view_forbidden' };
+  }
+  if (!hasCrmProposalRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_proposal_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const where = {};
+  if (args.status) where.status = String(args.status).trim().toUpperCase();
+  if (args.opportunityId) where.opportunityId = String(args.opportunityId).trim();
+  if (args.ownerAdminId) where.ownerAdminId = String(args.ownerAdminId).trim();
+
+  const rows = await prisma.crmProposalRequest.findMany({ where });
+  return {
+    ok: true,
+    requests: rows.map(serializeProposalRequest),
+    domain: getCommercialDomainContract(),
+  };
+}

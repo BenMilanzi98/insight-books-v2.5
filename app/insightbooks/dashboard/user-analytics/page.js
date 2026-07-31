@@ -1,14 +1,16 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AdminPageContainer, AdminPageHeader } from '@/components/admin';
 
 export default function UserAnalyticsPage() {
+  const { t } = useI18n();
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="User analytics"
+        title={t('admin-pages.stubs.userAnalytics.title')}
         description="Standalone user analytics for this route are not maintained separately. Live platform metrics live on the main System Administration dashboard."
         actions={
           <Link

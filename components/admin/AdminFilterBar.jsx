@@ -21,7 +21,7 @@ export default function AdminFilterBar({
   return (
     <div
       className={cn(
-        'mb-4 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-3 sm:p-4',
+        'mb-4 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-gradient-to-br from-white to-sky-50/70 p-3 shadow-[var(--admin-shadow-card)] sm:p-4',
         className
       )}
     >

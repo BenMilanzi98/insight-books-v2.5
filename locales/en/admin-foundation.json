@@ -1,0 +1,52 @@
+{
+  "errors": {
+    "forbidden": "You do not have permission for this action.",
+    "unauthorized": "Your admin session has expired. Please sign in again.",
+    "network": "Network error. Try again.",
+    "generic": "Something went wrong.",
+    "correlation": "Reference: {{id}}"
+  },
+  "loading": "Loading…",
+  "empty": {
+    "title": "Nothing here yet",
+    "description": "There is no data to show."
+  },
+  "confirm": {
+    "title": "Confirm",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "export": {
+    "title": "Export",
+    "description": "Choose an export format. Business export rules apply in later phases.",
+    "formatCsv": "CSV",
+    "formatXlsx": "Excel",
+    "start": "Start export",
+    "notConfigured": "Export is not configured for this view yet."
+  },
+  "import": {
+    "title": "Import",
+    "description": "Upload a file for dry-run validation where supported.",
+    "chooseFile": "Choose file",
+    "start": "Start import",
+    "notConfigured": "Import is not configured for this view yet."
+  },
+  "dateRange": {
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "clear": "Clear"
+  },
+  "money": {
+    "missingContext": "Amount display requires sourceContext"
+  },
+  "scope": {
+    "label": "Scope: {{scope}}"
+  },
+  "tabs": {
+    "listAria": "Tabs"
+  },
+  "permission": {
+    "denied": "Permission required"
+  }
+}

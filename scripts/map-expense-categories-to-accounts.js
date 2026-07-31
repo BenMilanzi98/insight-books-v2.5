@@ -111,7 +111,7 @@ const run = async () => {
         },
       });
 
-      await prisma.budgetItem.updateMany({
+      await prisma.legacyBudgetItem.updateMany({
         where: {
           budget: { tenantId: tenant.id },
           accountId: null,

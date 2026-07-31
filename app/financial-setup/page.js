@@ -27,7 +27,7 @@ const FinancialSetupPage = () => {
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState("tax");
   const [taxRules, setTaxRules] = useState([
-    { id: 1, name: "Standard VAT", rate: 16.5, isDefault: true },
+    { id: 1, name: "Standard VAT", rate: 17.5, isDefault: true },
     { id: 2, name: "Zero-rated", rate: 0, isDefault: false }
   ]);
   const [invoiceTemplates, setInvoiceTemplates] = useState([

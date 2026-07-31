@@ -1,0 +1,10 @@
+{
+  "invoice": "Invoice",
+  "receipt": "Receipt",
+  "quotation": "Quotation",
+  "total": "Total",
+  "subtotal": "Subtotal",
+  "tax": "Tax",
+  "date": "Date",
+  "preparedBy": "Prepared by"
+}

@@ -1,5 +1,8 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -32,6 +35,7 @@ function statusTone(status) {
 }
 
 export default function AdminMraEisTenantDetailPage() {
+  const { t } = useI18n();
   const params = useParams();
   const tenantId = params.tenantId;
   const [data, setData] = useState(null);
@@ -44,7 +48,7 @@ export default function AdminMraEisTenantDetailPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/mra-eis/entitlements/${tenantId}`);
+      const res = await adminFetch(`/api/admin/mra-eis/entitlements/${tenantId}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Failed to load');
       setData(json);
@@ -66,7 +70,7 @@ export default function AdminMraEisTenantDetailPage() {
       setError('Reason is required.');
       return;
     }
-    const res = await fetch(`/api/admin/mra-eis/entitlements/${tenantId}`, {
+    const res = await adminFetch(`/api/admin/mra-eis/entitlements/${tenantId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({
@@ -98,7 +102,7 @@ export default function AdminMraEisTenantDetailPage() {
       <AdminPageHeader
         breadcrumb={
           <Link href="/insightbooks/mra-eis" className="underline">
-            ← Back to EIS entitlements
+            ← {t('admin-pages.mraEis.tenantDetail.back')}
           </Link>
         }
         title={data?.tenant?.name || tenantId}

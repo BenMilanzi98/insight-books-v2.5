@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
@@ -58,6 +61,7 @@ function scoreTone(score) {
 }
 
 export default function SecurityCompliancePage() {
+  const { t } = useI18n();
   const [complianceData, setComplianceData] = useState({
     overallScore: null,
     policies: [],
@@ -74,8 +78,7 @@ export default function SecurityCompliancePage() {
     try {
       setIsLoading(true);
       setLoadError('');
-      const response = await fetch(
-        `/api/admin/security/compliance?framework=${selectedFramework}`,
+      const response = await adminFetch(`/api/admin/security/compliance?framework=${selectedFramework}`,
         { credentials: 'include' }
       );
       const data = await response.json().catch(() => ({}));
@@ -140,7 +143,7 @@ export default function SecurityCompliancePage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Security Compliance"
+        title={t('admin-pages.security.compliance.title')}
         description="Compliance signals and policy adherence from the compliance API. Scores and lists are shown only when returned by the server."
         actions={
           <div className="flex flex-wrap items-center gap-2">

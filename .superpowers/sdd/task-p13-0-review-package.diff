@@ -1,0 +1,994 @@
+﻿# Review package — Phase 13 Task 0 Wave 0 (WORKING_TREE docs)
+
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_DATA_QUALITY_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_DATA_QUALITY_AUDIT.md"
+new file mode 100644
+index 0000000..ad53081
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_DATA_QUALITY_AUDIT.md"
+@@ -0,0 +1,15 @@
++# Activity Data Quality Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Activity DQ rules engine | NOT_FOUND | No Activity-specific DQ |
++| Lead/Opportunity DQ adjacent | PARTIAL | Opportunity readiness / risk / recon patterns exist ΓÇö not engagement DQ |
++| Orphan tasks (subject missing) | NOT_INSTRUMENTED | CrmTask has no FK to Lead/Opportunity ΓÇö soft subject refs |
++| Completed without completedAt | NOT_INSTRUMENTED | Service sets completedAt on complete; no recon card |
++| Planned-as-completed Calls/Emails | N/A today | Models absent ΓÇö Wave 2 must block future-as-completed |
++| Duplicate timeline noise risk | PARTIAL | Timeline appends per task/note ΓÇö Activity spine must avoid duplicate Activity rows per view |
++
++**Implication:** Wave 4 DQ rules + Wave 1 schema FKs/guards where needed; honesty over invented cleanliness scores.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_DOMAIN_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_DOMAIN_MATRIX.md"
+new file mode 100644
+index 0000000..6da49e3
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_DOMAIN_MATRIX.md"
+@@ -0,0 +1,22 @@
++# Activity Domain Matrix
++
++| Concept | CRM Sales plane | Other plane | Class |
++|---------|-----------------|-------------|-------|
++| CrmActivity | Target Wave 1 | ΓÇö | NOT_FOUND ΓåÆ build |
++| CrmTask | `lib/admin/crm/tasks.js` | CsTask | EXTEND vs WRONG_DOMAIN |
++| CrmNote | `notes.js` | Support messages | EXTEND vs WRONG_DOMAIN |
++| CrmTimelineEvent | `timeline.js` | Analytics events | EXTEND vs WRONG_DOMAIN |
++| Follow-Up / Next-Action | Target Wave 1 | CS playbook steps | NOT_FOUND vs WRONG_DOMAIN |
++| Call Activity | Target Wave 2 | Support phone / CS intervention | NOT_FOUND vs WRONG_DOMAIN |
++| Email Activity | Target Wave 2 | Transactional `lib/email*` | NOT_FOUND vs WRONG_DOMAIN |
++| Meeting | Target Wave 3 | Demo (Phase 14) | NOT_FOUND; Demo handoff only |
++| Calendar | Target Wave 3 | SupportSlaCalendar | NOT_FOUND vs WRONG_DOMAIN |
++| Reminder | Target Wave 4 | Subscription email reminders | NOT_FOUND vs WRONG_DOMAIN |
++| Consent / DNC / eligibility | `consent.js` / `eligibility.js` | ΓÇö | CORRECT_AND_REUSABLE |
++| Pipeline Opportunity | Phase 12 | ΓÇö | CORRECT_AND_REUSABLE relation target |
++| Lead / Account / Contact | Phases 11 | ΓÇö | CORRECT_AND_REUSABLE relation targets |
++| Audit Event | ΓÇö | System audit | Γëá Activity |
++| Analytics Event | ΓÇö | Product/platform analytics | Γëá Activity |
++
++**Rule:** Extend `lib/admin/crm/*` only. Do not alias Support/CS/analytics/POS as Sales Activity.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_PERFORMANCE_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_PERFORMANCE_AUDIT.md"
+new file mode 100644
+index 0000000..667fbdf
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_PERFORMANCE_AUDIT.md"
+@@ -0,0 +1,15 @@
++# Activity Performance Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Task list pagination | FOUNDATION | limit/offset with CRM_LIST_MAX_LIMIT |
++| Timeline pagination | FOUNDATION | Same pattern in `timeline.js` |
++| Activity hub unbounded queries | N/A | Hubs not built ΓÇö Wave 1ΓÇô3 must bound calendar/agenda queries |
++| Calendar range queries | NOT_FOUND | Must be bounded (day/week/month) in Wave 3 |
++| N+1 risk on entity panels | PARTIAL | Opportunity get may compose risks/tasks/timeline ΓÇö watch Activity expansions |
++| Index coverage (tasks) | FOUNDATION | Indexes on subjectType+subjectId+status; assignee+status; status+dueAt |
++
++**Implication:** Enforce server pagination/filter/sort; bound calendar windows; avoid loading Support/CS threads into CRM timelines.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_PRIVACY_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_PRIVACY_AUDIT.md"
+new file mode 100644
+index 0000000..c9cefcd
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_PRIVACY_AUDIT.md"
+@@ -0,0 +1,17 @@
++# Activity Privacy Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Restricted note redaction | CORRECT_AND_REUSABLE | `projectNotesForViewer` omit/redact |
++| Consent source-traceable | CORRECT_AND_REUSABLE | `recordConsent` requires source; never infer GRANTED |
++| DNC flags | CORRECT_AND_REUSABLE | Per-channel + DO_NOT_CONTACT_ALL |
++| Comm prefs | FOUNDATION | `CrmCommunicationPreference` channel preference UNKNOWN default |
++| Cross-Tenant Activity links | CORRECT_AND_REUSABLE (policy) | CRM is System Admin plane ΓÇö must not link Tenant POS entities as Activity subjects |
++| Customer API Activity leak | NOT_FOUND (good) | No Customer-facing Activity APIs today |
++| Tracking pixels / undisclosed tracking | FORBIDDEN | Must not introduce |
++| Call recording privacy stack | NOT_AVAILABLE | Default OFF |
++
++**Implication:** Preserve consent/DNC/restricted-note rules on all outbound Waves; persist eligibility decisions.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_RECONCILIATION_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_RECONCILIATION_AUDIT.md"
+new file mode 100644
+index 0000000..f081301
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_RECONCILIATION_AUDIT.md"
+@@ -0,0 +1,13 @@
++# Activity Reconciliation Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Activity reconciliation run | NOT_FOUND | `runCrmReconciliation` covers Lead/capture/status-history style cards ΓÇö not Activities |
++| CrmReconciliationRun model | FOUNDATION | Reusable audit persistence pattern |
++| Honesty helper | CORRECT_AND_REUSABLE | `applyCrmReconHonesty` ΓÇö failed gate ΓåÆ null KPIs, never false zeroes |
++| Activity count cards | NOT_FOUND | ΓÇö |
++
++**Implication:** Wave 4 extend reconciliation with Activity cards; reuse honesty helper; gate failures must nullify metrics.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_RELIABILITY_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_RELIABILITY_MATRIX.md"
+new file mode 100644
+index 0000000..8bff7b2
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_RELIABILITY_MATRIX.md"
+@@ -0,0 +1,15 @@
++# Activity Reliability Matrix
++
++| Signal | Status today | Honesty rule | Class |
++|--------|--------------|--------------|-------|
++| Activity counts | NOT_INSTRUMENTED | Never fabricate zeroes | NOT_FOUND |
++| Task TODO/COMPLETED counts | PARTIAL (list only) | Empty list OK; no fake KPIs | FOUNDATION |
++| Email open/reply rates | Absent | FORBIDDEN invent | FORBIDDEN |
++| Call connect rates (telephony) | NOT_AVAILABLE | Boundary | NOT_AVAILABLE |
++| Calendar sync health | NOT_CONNECTED | Typed contract | NOT_CONNECTED |
++| Pipeline report metrics | READY (Pipeline domain) | Currency-separated; EMPTY/UNAVAILABLE | CORRECT_AND_REUSABLE pattern |
++| CRM recon KPI safety | FOUNDATION | `applyCrmReconHonesty` | CORRECT_AND_REUSABLE |
++| Scope stub bias | PARTIAL | My Work may over-include until scope hardened | CARRY |
++
++**Statuses:** AVAILABLE / PARTIAL_HISTORY / RECONCILIATION_FAILED / NOT_INSTRUMENTED / PERMISSION_RESTRICTED / UNAVAILABLE / NOT_CONNECTED / NOT_AVAILABLE.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SECURITY_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SECURITY_AUDIT.md"
+new file mode 100644
+index 0000000..f6099a4
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SECURITY_AUDIT.md"
+@@ -0,0 +1,16 @@
++# Activity Security Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CRM authz resolution | EXTEND | `resolveCrmAccess` ΓÇö notes/tasks/consent/export/opportunity keys |
++| Scope filtering | PARTIAL / CARRY | `resolveCrmScope` returns `mode: 'all', stub: true` |
++| Task/note create authz | FOUNDATION | Edit leads/opportunities gates |
++| Eligibility API | FOUNDATION | `app/api/admin/crm/eligibility` |
++| SoD merge (not automation yet) | CORRECT_AND_REUSABLE pattern | Requester Γëá approver for merges |
++| CoA / GL / payment secrets on Activity | FORBIDDEN | Must not attach |
++| Support ticket ACL as CRM ACL | WRONG_DOMAIN / FORBIDDEN | Separate permission planes |
++
++**Implication:** Wave 1+ must FLS Activity APIs; harden scope for My Work / portfolio lists; automation SoD in Wave 4.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SECURITY_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SECURITY_MATRIX.md"
+new file mode 100644
+index 0000000..330a731
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SECURITY_MATRIX.md"
+@@ -0,0 +1,15 @@
++# Activity Security Matrix
++
++| Control | Today | Wave need | Class |
++|---------|-------|-----------|-------|
++| FLS Activity APIs | N/A (absent) | All waves | NOT_FOUND ΓåÆ require |
++| Task/Note authz | Present | Keep + Activity keys | FOUNDATION / EXTEND |
++| Restricted notes | Present | Preserve under Activity | CORRECT_AND_REUSABLE |
++| Consent manage permission | Present | Outbound Waves | CORRECT_AND_REUSABLE |
++| Owner/team/territory scope | Stub `mode: 'all'` | Harden for lists | PARTIAL / CARRY |
++| Automation SoD | Absent | Wave 4 | NOT_FOUND |
++| Export permission recheck | Lead export | Activity export later | FOUNDATION pattern |
++| Cross-Tenant subjects | Must block | All waves | FORBIDDEN if attempted |
++| CoA / payment / MRA secrets | Removed/forbidden | Keep off Activity | FORBIDDEN |
++| Support ACL reuse | Separate | Never | WRONG_DOMAIN |
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SOURCE_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SOURCE_MATRIX.md"
+new file mode 100644
+index 0000000..a10a214
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\ACTIVITY_SOURCE_MATRIX.md"
+@@ -0,0 +1,24 @@
++# Activity Source Matrix
++
++| Source | Producer today | Creates CrmActivity | Wave | Class |
++|--------|----------------|---------------------|------|-------|
++| Manual admin Task create | `createTask` / Opportunity tasks | No (CrmTask only) | 1 migrate | EXTEND |
++| Manual Note create | `createNote` | No (CrmNote only) | 1 link | EXTEND |
++| Timeline projection | `appendTimelineEvent` | No (event Γëá Activity) | 1 clarify | CORRECT_AND_REUSABLE boundary |
++| Follow-Up create | ΓÇö | No | 1 | NOT_FOUND |
++| Call plan / manual log | ΓÇö | No | 2 | NOT_FOUND |
++| Email draft / SMTP send | ΓÇö | No | 2 | NOT_FOUND |
++| Meeting create | ΓÇö | No | 3 | NOT_FOUND |
++| Calendar internal event | ΓÇö | No | 3 | NOT_FOUND |
++| Reminder fire | ΓÇö | No (must not) | 4 | NOT_FOUND ΓÇö reminder Γëá Activity |
++| Automation trigger | ΓÇö | No | 4 foundations | NOT_FOUND |
++| Lead assignment | `assignment.js` | No auto Task today | 4 optional trigger | PARTIAL |
++| Opportunity stage entry | `transitionOpportunityStage` | No checklist Task today | 4 optional trigger | PARTIAL |
++| CS playbook / CsTask | CS plane | No | ΓÇö | WRONG_DOMAIN / FORBIDDEN |
++| Support ticket / SLA calendar | Support plane | No | ΓÇö | WRONG_DOMAIN / FORBIDDEN |
++| Email / WhatsApp inbound Lead | Foundations | No | ΓÇö | NOT_AVAILABLE |
++| Analytics events / POS sales | Ops / Tenant | No | ΓÇö | WRONG_DOMAIN |
++| Fabricated engagement import | ΓÇö | No | ΓÇö | FORBIDDEN |
++
++**Rule:** One Activity record; many timeline projections. Never invent Activity volume from NOT_AVAILABLE or WRONG_DOMAIN sources.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CALENDAR_INTEGRATION_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\CALENDAR_INTEGRATION_MATRIX.md"
+new file mode 100644
+index 0000000..734baa6
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CALENDAR_INTEGRATION_MATRIX.md"
+@@ -0,0 +1,13 @@
++# Calendar Integration Matrix
++
++| Integration | Status | Wave | Class |
++|-------------|--------|------|-------|
++| Internal CrmCalendarEvent | Absent | 3 | NOT_FOUND ΓåÆ build |
++| ICS export | Absent | 3 | NOT_FOUND ΓåÆ build |
++| Google Calendar sync | Absent | Contract only | NOT_CONNECTED |
++| Outlook sync | Absent | Contract only | NOT_CONNECTED |
++| SupportSlaCalendar | Present (Support) | ΓÇö | WRONG_DOMAIN / FORBIDDEN |
++| Fabricated external sync | ΓÇö | ΓÇö | FORBIDDEN |
++
++**API contract target:** `getCalendarIntegrationStatus` ΓåÆ Google/Outlook `NOT_CONNECTED`.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CALL_STATE_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\CALL_STATE_MATRIX.md"
+new file mode 100644
+index 0000000..61097b5
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CALL_STATE_MATRIX.md"
+@@ -0,0 +1,13 @@
++# Call State Matrix
++
++| State / transition | Today | Wave 2 target | Class |
++|--------------------|-------|---------------|-------|
++| PLANNED | NOT_FOUND | YES | Greenfield |
++| LOGGED / COMPLETED (manual) | NOT_FOUND | YES | Manual outcomes |
++| CONNECTED (telephony) | NOT_AVAILABLE | Boundary only | Do not fabricate |
++| RECORDING_AVAILABLE | NOT_AVAILABLE | OFF | Legal stack absent |
++| Future timestamp as COMPLETED | N/A | BLOCK | Fail-closed |
++| Eligibility BLOCKED | Gate exists | Persist decision | CORRECT_AND_REUSABLE gate |
++
++**Rule:** Manual + planned only until telephony leaves NOT_AVAILABLE.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CONSENT_ELIGIBILITY_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\CONSENT_ELIGIBILITY_MATRIX.md"
+new file mode 100644
+index 0000000..7ce78f1
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CONSENT_ELIGIBILITY_MATRIX.md"
+@@ -0,0 +1,19 @@
++# Consent & Eligibility Matrix
++
++| Input | Blocking? | Evidence | Class |
++|-------|-----------|----------|-------|
++| Consent UNKNOWN | YES block | `BLOCKING_CONSENT` in `eligibility.js` | CORRECT_AND_REUSABLE |
++| Consent DENIED / WITHDRAWN / EXPIRED / PENDING | YES block | Same | CORRECT_AND_REUSABLE |
++| Consent GRANTED + source | Allow (if no DNC) | `recordConsent` requires source | CORRECT_AND_REUSABLE |
++| Inferred GRANTED | FORBIDDEN | `consent_inferred_forbidden` | CORRECT_AND_REUSABLE |
++| DO_NOT_CONTACT_ALL | YES block | DNC flags | CORRECT_AND_REUSABLE |
++| DO_NOT_EMAIL / CALL / WHATSAPP / SMS | Channel block | CHANNEL_TO_DNC map | CORRECT_AND_REUSABLE |
++| Email/phone presence alone | Never grants | Consent docs + service | CORRECT_AND_REUSABLE |
++| Outbound Email Activity | No consumer yet | Wave 2 must call gate + persist | PARTIAL |
++| Outbound Call Activity | No consumer yet | Wave 2 | PARTIAL |
++| Meeting invitation | No consumer yet | Wave 3 | PARTIAL |
++| Follow-Up auto-execute when blocked | Must not | Wave 1 policy | NOT_FOUND ΓåÆ enforce |
++| Quiet hours / Contact TZ | Not checked | Wave 1ΓÇô3 extend | NOT_FOUND |
++
++**Rule:** Persist eligibility decision on outbound Actions. UNKNOWN Γëá granted.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_ARCHITECTURE_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_ARCHITECTURE_AUDIT.md"
+new file mode 100644
+index 0000000..7c32b5d
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_ARCHITECTURE_AUDIT.md"
+@@ -0,0 +1,20 @@
++# Current Activity Architecture Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Canonical CrmActivity parent | NOT_FOUND | No `CrmActivity` / `ACT-` numbering in Prisma or `lib/admin/crm` |
++| Typed Activity children plane | NOT_FOUND | No CrmCall / CrmFollowUp / CrmEmailActivity / CrmMeeting / CrmCalendarEvent |
++| Lead/Account/Contact/Opportunity subject tasks | FOUNDATION / EXTEND | `CrmTask` polymorphic `subjectType`+`subjectId` ΓÇö LEAD/ACCOUNT/CONTACT/OPPORTUNITY (`catalogue.js` CRM_SUBJECT_TYPE) |
++| Opportunity task bridge | EXTEND | `lib/admin/crm/opportunities/tasks.js` ΓÇö `subjectType: OPPORTUNITY`; no Lead auto-clone |
++| Timeline projection | FOUNDATION / EXTEND | `CrmTimelineEvent` + `lib/admin/crm/timeline.js`; Opportunity events in `opportunities/timeline.js` |
++| Notes as Activity-adjacent | FOUNDATION / EXTEND | `CrmNote` INTERNAL/RESTRICTED; not outbound |
++| Activity hub UI | NOT_FOUND | No `/insightbooks/crm/activities` (or tasks/calls/emails/meetings/calendar hubs) under `app/insightbooks/crm` |
++| Activity APIs | NOT_FOUND | No `app/api/admin/crm/activities/**`; tasks/notes/timeline/consent/eligibility APIs exist |
++| Support/CS as Activity | WRONG_DOMAIN / FORBIDDEN | `CsTask` (`lib/admin/customerSuccess/tasks.js`); Support tickets/messages |
++| Analytics / POS as Activity | WRONG_DOMAIN | analytics-pipeline; Tenant POS `sales.*` |
++| One Activity / many projections rule | NOT_FOUND | Design locked; not implemented ΓÇö Wave 1 |
++
++**Implication:** Wave 1 introduces `CrmActivity` spine and migrates Task/Note under it. Do not invent Activity volume from Support/CS or analytics.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_AUTOMATION_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_AUTOMATION_AUDIT.md"
+new file mode 100644
+index 0000000..697b383
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_AUTOMATION_AUDIT.md"
+@@ -0,0 +1,15 @@
++# Current Activity Automation Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CRM automation rule engine | NOT_FOUND | No `lib/admin/crm/automation/*` |
++| SoD automation approval | NOT_FOUND | Merge SoD exists for Lead/Opportunity ΓÇö not automation rules |
++| Idempotent automation execution | NOT_FOUND | ΓÇö |
++| Approved trigger set (Lead assigned ΓåÆ Task, etc.) | NOT_FOUND | Assignment exists (`assignment.js`) but no auto Task create from assignment |
++| Full sales sequences | NOT_FOUND / FORBIDDEN invent | Explicitly out of scope |
++| CS playbook execution | WRONG_DOMAIN | Deterministic CsTask expansion ΓÇö not Sales automation |
++
++**Implication:** Wave 4 automation foundations only ΓÇö small trigger set, SoD, idempotency; no arbitrary code / sequences.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_EXPORT_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_EXPORT_AUDIT.md"
+new file mode 100644
+index 0000000..2692334
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_EXPORT_AUDIT.md"
+@@ -0,0 +1,14 @@
++# Current Activity Export Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Activity export dataset | NOT_FOUND | `buildCrmExportPack` datasets = `leads` only |
++| Export audit model | FOUNDATION | `CrmExportAudit` ΓÇö reusable pattern for Activity exports later |
++| Restricted notes in export | CORRECT_AND_REUSABLE (policy) | Must never default-export RESTRICTED note bodies |
++| Formula injection safety | CORRECT_AND_REUSABLE | `preventFormulaInjection` used in export.js |
++| XLSX/PDF Activity packs | NOT_FOUND / deferred | Lead export forbids XLSX/PDF ΓÇö keep same for Activity unless explicitly approved |
++
++**Implication:** Wave 4 may add Activity export with permission recheck + restricted-body exclusion; no Tenant GL/payment secrets.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_REPORT_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_REPORT_AUDIT.md"
+new file mode 100644
+index 0000000..6e9b21f
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_REPORT_AUDIT.md"
+@@ -0,0 +1,15 @@
++# Current Activity Report Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Activity reporting centre | NOT_FOUND | No activity reports module |
++| Activity report schedules | NOT_FOUND | ΓÇö |
++| Pipeline reports (related) | CORRECT_AND_REUSABLE (different domain) | `opportunities/reports.js` + schedules ΓÇö Pipeline truth, not Activity engagement metrics |
++| Lead export as Activity report | WRONG_DOMAIN / PARTIAL | `export.js` leads JSON/CSV ΓÇö not Activity metrics |
++| Honesty gates (no false zeroes) | CORRECT_AND_REUSABLE (pattern) | Pipeline + recon honesty patterns to copy for Activity Wave 4 |
++| Foundations REPORTING | PARTIAL for Activity | READY for Pipeline; Activity plane not yet instrumented |
++
++**Implication:** Wave 4 Activity reporting centre + schedules; never invent engagement counts; empty ΓåÆ EMPTY/UNAVAILABLE.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_TEMPLATE_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_TEMPLATE_AUDIT.md"
+new file mode 100644
+index 0000000..9a3368c
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_ACTIVITY_TEMPLATE_AUDIT.md"
+@@ -0,0 +1,14 @@
++# Current Activity Template Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Activity / task templates (CRM) | NOT_FOUND | No template models under CRM Prisma |
++| Versioned template governance | NOT_FOUND | ΓÇö |
++| Email template governance (Sales) | NOT_FOUND | Platform `emailService` templates are transactional WRONG_DOMAIN for Sales Activity templates |
++| CS playbook step templates | WRONG_DOMAIN | Expand to CsTask ΓÇö forbidden as Sales templates |
++| Active-not-directly-editable rule | NOT_FOUND (design locked) | Wave 4 |
++
++**Implication:** Wave 4 introduces versioned Activity/task (+ email template foundations in Wave 2); no executable expressions.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_AVAILABILITY_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_AVAILABILITY_AUDIT.md"
+new file mode 100644
+index 0000000..e0db891
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_AVAILABILITY_AUDIT.md"
+@@ -0,0 +1,14 @@
++# Current Availability Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CRM working hours model | NOT_FOUND | No admin working-hours entity in CRM |
++| Availability query (privacy-safe) | NOT_FOUND | No `getAvailability` in `lib/admin/crm` |
++| Conflict detect (BLOCK/WARN/ALLOW_WITH_REASON) | NOT_FOUND | ΓÇö |
++| Channel availability (capture) | CORRECT_AND_REUSABLE (different sense) | `channelAvailability` in `catalogue.js` / `capture.js` = Email/WhatsApp ingest AVAILABLE vs NOT_AVAILABLE ΓÇö not meeting-slot availability |
++| Support SLA working hours | WRONG_DOMAIN | `SupportSlaCalendar.definitionJson` workingHours |
++
++**Implication:** Wave 3 introduces Sales working hours + conflict policy; do not reuse Support SLA calendars.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CALENDAR_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CALENDAR_AUDIT.md"
+new file mode 100644
+index 0000000..5e996fa
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CALENDAR_AUDIT.md"
+@@ -0,0 +1,16 @@
++# Current Calendar Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmCalendarEvent model | NOT_FOUND | Absent from Prisma |
++| Internal calendar queries (day/week/month/agenda) | NOT_FOUND | No `lib/admin/crm/calendar/*` |
++| ICS export | NOT_FOUND | No CRM ICS exporter |
++| Google Calendar sync | NOT_CONNECTED / NOT_FOUND | No CRM Google integration |
++| Outlook sync | NOT_CONNECTED / NOT_FOUND | No CRM Outlook integration |
++| SupportSlaCalendar | WRONG_DOMAIN / FORBIDDEN | `SupportSlaCalendar` ΓÇö SLA business calendar for ticket clocks (`prisma` + `lib/admin/support/sla`); timezone/workingHours for Support SLA only |
++| UI/API | NOT_FOUND | No `/insightbooks/crm/calendar` |
++
++**Implication:** Wave 3 builds internal CRM calendar + ICS; expose Google/Outlook status as NOT_CONNECTED; never reuse SupportSlaCalendar as Sales calendar.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CALL_MANAGEMENT_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CALL_MANAGEMENT_AUDIT.md"
+new file mode 100644
+index 0000000..3e039a7
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CALL_MANAGEMENT_AUDIT.md"
+@@ -0,0 +1,17 @@
++# Current Call Management Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmCall model | NOT_FOUND | Absent from Prisma |
++| Call plan / log / complete services | NOT_FOUND | No `lib/admin/crm/calls/*` |
++| Telephony provider adapter | NOT_AVAILABLE | Design-locked boundary; no dialer / CTI integration in CRM |
++| Call recording | NOT_AVAILABLE / FORBIDDEN invent | No recording stack; legal/consent retention not present |
++| DNC for CALL channel | CORRECT_AND_REUSABLE | `CRM_DNC_FLAG.DO_NOT_CALL` + eligibility CHANNEL_TO_DNC |
++| Call eligibility consumer | PARTIAL | `checkCommunicationEligibility` supports CALL but no Call Activity caller |
++| UI/API | NOT_FOUND | No `/calls` CRM hubs |
++| Support phone / CS intervention channel | WRONG_DOMAIN | Support/CS channels Γëá Sales Call Activity |
++
++**Implication:** Wave 2 builds manual/planned Call Activity; telephony + recording stay typed NOT_AVAILABLE.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CRM_NOTE_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CRM_NOTE_AUDIT.md"
+new file mode 100644
+index 0000000..9e8e848
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_CRM_NOTE_AUDIT.md"
+@@ -0,0 +1,17 @@
++# Current CRM Note Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmNote model | FOUNDATION / EXTEND | `CrmNote` ΓÇö subjectType/Id, body, visibility INTERNAL/RESTRICTED |
++| Note service | EXTEND | `lib/admin/crm/notes.js` ΓÇö createNote, listNotes, projectNotesForViewer, hasCrmNoteModel |
++| Restricted projection | CORRECT_AND_REUSABLE | Fail-closed omit/redact without `canViewRestrictedNotes` |
++| Authz | CORRECT_AND_REUSABLE | `canAddInternalNotes` / `canAddRestrictedNotes` in `authz.js` |
++| Timeline NOTE_ADDED | EXTEND | Appended on create |
++| Activity parent link | NOT_FOUND | No activityId; Note Γëá outbound communication (preserve) |
++| Customer API exposure | CORRECT_AND_REUSABLE (absent) | Notes are admin CRM APIs only ΓÇö keep off Customer APIs / invitations / default exports |
++| UI | PARTIAL | Notes via APIs; no dedicated `/notes` hub page under crm |
++
++**Implication:** Wave 1 links Notes under Activity type NOTE; preserve INTERNAL/RESTRICTED security; never treat Note as Email/Call.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_EMAIL_ACTIVITY_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_EMAIL_ACTIVITY_AUDIT.md"
+new file mode 100644
+index 0000000..4093dbb
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_EMAIL_ACTIVITY_AUDIT.md"
+@@ -0,0 +1,17 @@
++# Current Email Activity Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmEmailActivity model | NOT_FOUND | Absent from Prisma |
++| Email draft / send-request / delivery events | NOT_FOUND | No `lib/admin/crm/emails/*` |
++| Email ΓåÆ Lead ingest | NOT_AVAILABLE | `foundations.js` EMAIL_INGEST status NOT_AVAILABLE |
++| Outbound Sales email from CRM | NOT_FOUND | No CRM compose/send path |
++| Eligibility for EMAIL | CORRECT_AND_REUSABLE | Purpose/channel gate + DO_NOT_EMAIL |
++| Fabricated opens/replies | FORBIDDEN (absent = good) | No tracking pixel / reply sync in CRM |
++| Platform transactional email | WRONG_DOMAIN for Activity truth | OTP, welcome, affiliate, subscription reminders via `lib/email*.js` ΓÇö not CrmEmailActivity |
++| UI/API | NOT_FOUND | No `/emails` CRM hubs |
++
++**Implication:** Wave 2 introduces Email Activity with eligibility ΓåÆ SMTP send-request ΓåÆ idempotent callbacks; never invent inbound Lead volume or opens.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_EMAIL_INFRASTRUCTURE_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_EMAIL_INFRASTRUCTURE_AUDIT.md"
+new file mode 100644
+index 0000000..4976e28
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_EMAIL_INFRASTRUCTURE_AUDIT.md"
+@@ -0,0 +1,16 @@
++# Current Email Infrastructure Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| SMTP transporter | FOUNDATION / EXTEND | `lib/email.js` ΓÇö nodemailer; Hostinger SMTP via EMAIL_HOST/USER/PASSWORD; Ethereal fallback in dev |
++| emailService templates | FOUNDATION / EXTEND (adapter only) | `lib/emailService.js` ΓÇö welcome/affiliate/etc. HTML templates; not CRM Sales templates |
++| sendMail evidence | PARTIAL | Functions return nodemailer `info`; no CRM delivery-event persistence |
++| Provider accept Γëá delivered | CORRECT_AND_REUSABLE (policy) | Nodemailer accept Γëá mailbox delivered ΓÇö Wave 2 must map ACCEPTED_BY_PROVIDER/SENT/FAILED; DELIVERED only with evidence |
++| CRM email template governance | NOT_FOUND | No versioned Sales email templates under `lib/admin/crm` |
++| Tracking pixels | NOT_FOUND / FORBIDDEN invent | Must not add undisclosed pixels in Phase 13 |
++| Google / Outlook mail sync | NOT_CONNECTED / NOT_FOUND | No CRM mailbox sync |
++
++**Implication:** Reuse SMTP libs as send adapter only. Persist CrmEmailActivity + send requests; do not treat transactional emails as Sales Activity.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_FOLLOW_UP_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_FOLLOW_UP_AUDIT.md"
+new file mode 100644
+index 0000000..2efc413
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_FOLLOW_UP_AUDIT.md"
+@@ -0,0 +1,17 @@
++# Current Follow-Up Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmFollowUp model | NOT_FOUND | No Prisma model / lib module |
++| Follow-Up CRUD service | NOT_FOUND | No `lib/admin/crm/followUps.js` |
++| Next-Action evaluator | NOT_FOUND | No `evaluateNextAction` / `listNoNextActionOpportunities` in CRM |
++| Opportunity next-action field | NOT_FOUND | Opportunity model has risks/tasks/timeline ΓÇö no dedicated next-action entity |
++| Consent-blocked Follow-Up policy | NOT_FOUND | Eligibility exists but no Follow-Up consumer |
++| UI/API hubs | NOT_FOUND | No `/follow-ups` routes |
++| Marketing "follow up" copy | WRONG_DOMAIN | Landing/start-trial marketing strings ΓÇö not CRM Follow-Up |
++| CS playbook follow-up steps | WRONG_DOMAIN | `lib/admin/customerSuccess/playbooks.js` expands to CsTask |
++
++**Implication:** Wave 1 greenfield Follow-Up + Next-Action; do not promote CsTask playbook steps as Sales Follow-Ups.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_MEETING_MANAGEMENT_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_MEETING_MANAGEMENT_AUDIT.md"
+new file mode 100644
+index 0000000..7527693
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_MEETING_MANAGEMENT_AUDIT.md"
+@@ -0,0 +1,16 @@
++# Current Meeting Management Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmMeeting model | NOT_FOUND | Absent from Prisma |
++| Meeting service (create/reschedule/cancel/attendance) | NOT_FOUND | No `lib/admin/crm/meetings/*` |
++| Participants / RSVP | NOT_FOUND | ΓÇö |
++| RSVP Γëá attendance rule | NOT_FOUND (design locked) | Must implement in Wave 3 |
++| DEMO_REQUEST handoff | CORRECT_AND_REUSABLE (boundary) | Demo remains Phase 14; Meeting Γëá Demo |
++| UI/API | NOT_FOUND | No `/meetings` CRM hubs |
++| Support appointment / CS kickoff | WRONG_DOMAIN | Not Sales Meeting Activity |
++
++**Implication:** Wave 3 greenfield Meetings under Activity; never alias Demo management.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_REMINDER_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_REMINDER_AUDIT.md"
+new file mode 100644
+index 0000000..8f6f13a
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_REMINDER_AUDIT.md"
+@@ -0,0 +1,14 @@
++# Current Reminder Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmReminder model | NOT_FOUND | Absent from Prisma |
++| Reminder dedupe keys / snooze | NOT_FOUND | No `lib/admin/crm/reminders.js` |
++| Reminder delivery Γëá Activity complete | NOT_FOUND (design locked) | Must enforce in Wave 4 |
++| Subscription expiry reminder emails | WRONG_DOMAIN | `sendSubscriptionExpiryReminderEmail` in `lib/email.js` ΓÇö billing/ops, not Sales Activity Reminder |
++| UI/API | NOT_FOUND | No `/reminders` CRM hubs |
++
++**Implication:** Wave 4 greenfield Reminders with dedupe; do not treat billing reminder emails as CRM Reminders.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_TASK_MODEL_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_TASK_MODEL_AUDIT.md"
+new file mode 100644
+index 0000000..f55b1fe
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_TASK_MODEL_AUDIT.md"
+@@ -0,0 +1,20 @@
++# Current Task Model Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmTask Prisma model | FOUNDATION / EXTEND | `prisma/schema.prisma` `CrmTask` ΓÇö subjectType/Id, title, status TODO/COMPLETED, dueAt, assignee, completedAt |
++| Task service | EXTEND | `lib/admin/crm/tasks.js` ΓÇö createTask, completeTask (idempotent alreadyCompleted), listTasks, hasCrmTaskModel |
++| Status machine | PARTIAL | TODO ΓåÆ COMPLETED only (`CRM_TASK_STATUS`); no CANCELLED / IN_PROGRESS / reopen |
++| Checklist / deps / recurrence | NOT_FOUND | No fields or modules under `lib/admin/crm` |
++| Activity FK / ACT number | NOT_FOUND | No activityId on CrmTask |
++| Opportunity-scoped tasks | EXTEND | `opportunities/tasks.js` + API `app/api/admin/crm/opportunities/[id]/tasks` |
++| Lead/general tasks API | FOUNDATION | `app/api/admin/crm/tasks` + complete route |
++| My-work filter | FOUNDATION | `listTasks({ myWork: true })` filters assigneeAdminId |
++| Overdue auto-complete | CORRECT_AND_REUSABLE (absent = good) | Due date pass does not complete ΓÇö service only completes on explicit completeTask |
++| Sales sequences / cadences | NOT_FOUND / FORBIDDEN invent | Explicitly out of Phase 11 foundations |
++| CsTask reuse | WRONG_DOMAIN / FORBIDDEN | `CsTask` OPEN-status tenant CS plane ΓÇö never alias as CrmTask |
++
++**Implication:** Wave 1 links CrmTask ΓåÆ CrmActivity; extend statuses carefully; keep CsTask strictly out of domain.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\CURRENT_TIMEZONE_AUDIT.md" "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_TIMEZONE_AUDIT.md"
+new file mode 100644
+index 0000000..97aa5fe
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\CURRENT_TIMEZONE_AUDIT.md"
+@@ -0,0 +1,15 @@
++# Current Timezone Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Activity timezone fields (UTC + display + original) | NOT_FOUND | CrmTask.dueAt is bare DateTime ΓÇö no zone metadata |
++| Contact preferred timezone | NOT_FOUND | `CrmCommunicationPreference` has channel/preference only ΓÇö no timezone column |
++| Admin working timezone | NOT_FOUND | No CRM admin TZ preference for scheduling |
++| Eligibility timezone check | NOT_FOUND | `eligibility.js` checks consent/DNC only ΓÇö not quiet hours / TZ |
++| Support SLA timezone | WRONG_DOMAIN | `SupportSlaCalendar.timezone` for ticket clocks |
++| Demo-request locale formatting | WRONG_DOMAIN | `app/api/contact/demo-request` uses `timeZoneName: 'short'` for email copy ΓÇö not CRM Activity TZ |
++
++**Implication:** Wave 1ΓÇô3 must store explicit timezones on Activities/Meetings; end-before-start blocked; never silently assume server local TZ as Contact TZ.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\EMAIL_STATE_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\EMAIL_STATE_MATRIX.md"
+new file mode 100644
+index 0000000..821efff
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\EMAIL_STATE_MATRIX.md"
+@@ -0,0 +1,14 @@
++# Email State Matrix
++
++| State | Today | Wave 2 target | Notes |
++|-------|-------|---------------|-------|
++| DRAFT | NOT_FOUND | YES | |
++| ELIGIBILITY_CHECKED | Gate exists (no persist on email) | Persist on send-request | |
++| SEND_REQUESTED | NOT_FOUND | YES idempotent | |
++| ACCEPTED_BY_PROVIDER | NOT_FOUND | Map from SMTP accept | Γëá delivered |
++| SENT | NOT_FOUND | YES | |
++| FAILED | NOT_FOUND | YES | |
++| DELIVERED | NOT_FOUND | Only with evidence | Never invent |
++| OPENED / REPLIED | NOT_FOUND | FORBIDDEN invent | No pixels / reply sync |
++| Email ΓåÆ Lead ingest | NOT_AVAILABLE | Stay NOT_AVAILABLE | foundations.js |
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\FINAL_READINESS_DECISION.md" "b/docs\\admin-intelligence-crm\\phase-13\\FINAL_READINESS_DECISION.md"
+new file mode 100644
+index 0000000..3fd0710
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\FINAL_READINESS_DECISION.md"
+@@ -0,0 +1,45 @@
++# Final Readiness Decision ΓÇö Enter Phase 13 Wave 1
++
++**Decision:** CONDITIONAL GO (Wave 1)
++
++**Date:** 2026-07-30
++
++## Rationale
++
++Phase 12 exited `READY_FOR_PHASE_13_WITH_BLOCKERS`. Forensic Wave 0 confirms there is **no** canonical `CrmActivity` plane today: no Activity parent/children models, no `/insightbooks/crm/activities` (or calls/emails/meetings/calendar/follow-ups/reminders) hubs, and no Follow-Up / Call / Email Activity / Meeting / Calendar / Reminder / automation / Activity reporting modules under `lib/admin/crm`.
++
++Phase 11/12 **do** supply a reusable foundation: polymorphic `CrmTask` (Lead + Opportunity), `CrmNote` with INTERNAL/RESTRICTED projection, `CrmTimelineEvent`, source-traceable consent/DNC/preferences, fail-closed `checkCommunicationEligibility`, SMTP via `lib/email.js` / `lib/emailService.js` (adapter-only for Wave 2), and honesty patterns from Pipeline reports/recon.
++
++WRONG_DOMAIN boundaries are clear and must stay enforced: `CsTask` / CS playbooks, Support tickets, `SupportSlaCalendar`, analytics-pipeline, Tenant POS `sales.*`, transactional platform emails, billing subscription reminders.
++
++Locked design (Activity parent + typed children; Approach B; SMTP email; Google/Outlook NOT_CONNECTED; telephony NOT_AVAILABLE; automation foundations; reporting centre in-phase) is approved and unblocked for Wave 1 spine work. No identity/consent **blocker** prevents starting Activity + Task/Note migration.
++
++## Conditions
++
++1. Activity Γëá Audit Event Γëá Analytics Event; Task Γëá Call Γëá Meeting Γëá Demo; Note Γëá outbound communication.
++2. One Activity; many timeline projections ΓÇö no duplicate Activity rows per Lead/Opportunity/Account view.
++3. Migrate/link existing CrmTask/CrmNote under Activity ΓÇö do not create a second competing task domain; never alias CsTask.
++4. Planned Γëá completed; due-date pass Γëá complete; reminder Γëá Sales contact; RSVP Γëá attendance; SMTP accept Γëá delivered.
++5. Outbound Call/Email/invitation requires server eligibility + persisted decision; UNKNOWN consent Γëá granted.
++6. No fabricated Activities, deliveries, replies, Meetings, attendance, or external calendar sync.
++7. Telephony + Call recording remain NOT_AVAILABLE; Google/Outlook remain NOT_CONNECTED (typed contracts only).
++8. Automation foundations only ΓÇö SoD, idempotent, small approved triggers; no full sequences; no AI communications; no undisclosed tracking pixels.
++9. Activity reports honesty-gated ΓÇö never false zeroes; empty ΓåÆ EMPTY/UNAVAILABLE.
++10. Owner/team/territory scope enforced server-side as hardened; no Cross-Tenant links; restricted Notes never on Customer APIs/default exports.
++11. No Tenant/Subscription/Invoice/Payment provisioning from Activity or Closed Won; CoA admin stays removed.
++12. SupportSlaCalendar / analytics-pipeline / POS sales must never authorize or alias Sales Activity/Calendar.
++13. Expected phase exit: **READY_FOR_PHASE_14_WITH_BLOCKERS** (external providers + Demo + ingest may remain blockers).
++
++## Wave 0 completion checklist
++
++- [x] Input validation vs Phase 12 handoff + READY_FOR_PHASE_13_WITH_BLOCKERS exit
++- [x] CURRENT_* audits (architecture through export)
++- [x] Quality / recon / privacy / security / performance audits
++- [x] Source / domain / task/call/email/meeting state / calendar / reminder / consent / reliability / security matrices
++- [x] Gap register + implementation plan pointer
++- [x] This decision recorded ΓÇö **CONDITIONAL GO**
++
++**Next:** User chooses **Subagent-Driven** or **Inline** execution for Waves 1ΓÇô4.  
++**Stop:** No Wave 1 application code until user continues.  
++**Skip:** `PHASE_14_READINESS_CHECKLIST.md` until Wave 4.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\IMPLEMENTATION_PLAN.md" "b/docs\\admin-intelligence-crm\\phase-13\\IMPLEMENTATION_PLAN.md"
+new file mode 100644
+index 0000000..9af7aed
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\IMPLEMENTATION_PLAN.md"
+@@ -0,0 +1,20 @@
++# Phase 13 Implementation Plan (pointer)
++
++**Authoritative plan:** [`docs/superpowers/plans/2026-07-30-sales-activity-phase-13.md`](../../superpowers/plans/2026-07-30-sales-activity-phase-13.md)
++
++**Design:** [`docs/superpowers/specs/2026-07-30-sales-activity-phase-13-design.md`](../../superpowers/specs/2026-07-30-sales-activity-phase-13-design.md)
++
++| Wave | Deliverable |
++|------|-------------|
++| 0 | This forensic pack (done 2026-07-30) |
++| 1 | Canonical Activity + numbering + relations; migrate Task/Note; Follow-Up + Next-Action; timeline/notes security |
++| 2 | Call (manual/planned + telephony NOT_AVAILABLE); Email Activity SMTP; email template foundations |
++| 3 | Meeting + internal Calendar + working hours/availability/conflict + ICS; Google/Outlook NOT_CONNECTED |
++| 4 | Reminders; templates; automation foundations; reporting centre + schedules; entity integrations; Phase 14 pack |
++
++**Expected exit:** `READY_FOR_PHASE_14_WITH_BLOCKERS`  
++(Telephony, Google/Outlook sync, WhatsApp/Email ingest, full sequences, Demo management, weighted Pipeline UI may remain deferred)
++
++**Execution:** User chooses Subagent-Driven or Inline after Wave 0 GO. **No application code in Wave 0.**  
++**Skip:** `PHASE_14_READINESS_CHECKLIST.md` until Wave 4.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\MEETING_STATE_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\MEETING_STATE_MATRIX.md"
+new file mode 100644
+index 0000000..128391a
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\MEETING_STATE_MATRIX.md"
+@@ -0,0 +1,12 @@
++# Meeting State Matrix
++
++| State / concept | Today | Wave 3 target | Notes |
++|-----------------|-------|---------------|-------|
++| SCHEDULED | NOT_FOUND | YES | Explicit TZ |
++| RESCHEDULED | NOT_FOUND | History required | |
++| CANCELLED | NOT_FOUND | YES | |
++| RSVP accepted | NOT_FOUND | Γëá attendance | |
++| ATTENDED / NO_SHOW | NOT_FOUND | Authorised record only | Never from RSVP alone |
++| Demo Meeting | FORBIDDEN alias | DEMO_REQUEST handoff ref only | Phase 14 |
++| End before start | N/A | BLOCK | |
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\PHASE_13_GAP_REGISTER.md" "b/docs\\admin-intelligence-crm\\phase-13\\PHASE_13_GAP_REGISTER.md"
+new file mode 100644
+index 0000000..716d06c
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\PHASE_13_GAP_REGISTER.md"
+@@ -0,0 +1,35 @@
++# Phase 13 Gap Register
++
++**Audited:** 2026-07-30  
++**Inputs:** Phase 12 `PHASE_13_INPUTS.md`, `FINAL_PHASE_12_REPORT.md`, Wave 0 audits, design/plan
++
++| ID | Gap | Severity | Wave | Notes |
++|----|-----|----------|------|-------|
++| G13-01 | No CrmActivity parent / ACT numbering | BLOCKER | 1 | Greenfield under `lib/admin/crm/activities/*` |
++| G13-02 | CrmTask/CrmNote not linked to Activity | BLOCKER | 1 | Migrate/link; no competing domains |
++| G13-03 | No Follow-Up / Next-Action / no-next-action | BLOCKER | 1 | Lead + Opportunity |
++| G13-04 | No Activity hub UI/APIs | HIGH | 1 stubs ΓåÆ later | `/activities`, my-work, detail |
++| G13-05 | Timeline lacks Activity-typed events | MEDIUM | 1 | Extend event types; one Activity many projections |
++| G13-06 | No CrmCall + telephony boundary contract | BLOCKER | 2 | Manual/planned; telephony NOT_AVAILABLE |
++| G13-07 | No CrmEmailActivity + SMTP send-request | BLOCKER | 2 | Adapter over `lib/email*`; accept Γëá delivered |
++| G13-08 | No Sales email template governance | HIGH | 2 foundations | Versioned; no executable expressions |
++| G13-09 | No CrmMeeting / participants / attendance | BLOCKER | 3 | RSVP Γëá attendance; Meeting Γëá Demo |
++| G13-10 | No internal CRM calendar + ICS | BLOCKER | 3 | Google/Outlook NOT_CONNECTED |
++| G13-11 | No working hours / availability / conflict | HIGH | 3 | Do not reuse SupportSlaCalendar |
++| G13-12 | No Activity timezone model | HIGH | 1ΓÇô3 | UTC + display + original |
++| G13-13 | No CrmReminder dedupe/snooze | HIGH | 4 | Reminder Γëá contact / Γëá complete |
++| G13-14 | No Activity/task templates | MEDIUM | 4 | Active not directly editable |
++| G13-15 | No automation foundations | HIGH | 4 | SoD + small triggers; no sequences |
++| G13-16 | No Activity reports + schedules | HIGH | 4 | Honesty gates; no false zeroes |
++| G13-17 | Eligibility not persisted on outbound Actions | HIGH | 2ΓÇô3 | Gate exists; consumers missing |
++| G13-18 | resolveCrmScope stub | CARRY | Harden in-phase | `mode: 'all'` |
++| G13-19 | Email/WhatsApp Lead ingest | CARRY | Orthogonal | NOT_AVAILABLE |
++| G13-20 | Weighted Pipeline UI | DEFERRED | Phase 16 | Unrelated to Activity core |
++| G13-21 | Account/Contact merge | CARRY | ΓÇö | NOT_AVAILABLE |
++| G13-22 | Conversion Γëá Closed Won provision | CARRY | ΓÇö | Do not provision from Activity |
++| G13-23 | CsTask / SupportSlaCalendar alias risk | PROCESS | All | WRONG_DOMAIN docs + guards |
++| G13-24 | Prisma EPERM on Windows | CARRY | All | SQL + hasCrm*Model guards |
++| G13-25 | Task checklist/deps/recurrence depth | MEDIUM | 1 foundations / later | Per plan scope |
++
++**No TBD blocking Wave 1 after CONDITIONAL GO** ΓÇö Task/Note/timeline/consent/eligibility + approved design are sufficient to start Activity spine; channels/calendar/automation/reports follow Waves 2ΓÇô4.
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\PHASE_13_SCOPE.md" "b/docs\\admin-intelligence-crm\\phase-13\\PHASE_13_SCOPE.md"
+new file mode 100644
+index 0000000..d25607c
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\PHASE_13_SCOPE.md"
+@@ -0,0 +1,53 @@
++# Phase 13 Scope
++
++**Date:** 2026-07-30  
++**Approach:** B (Wave 0 forensic ΓåÆ spine ΓåÆ channels ΓåÆ calendar ΓåÆ ops)
++
++## In scope
++
++1. Canonical `CrmActivity` parent (`ACT-YYYY-######`) + typed children: Task, Follow-Up, Call, Email Activity, Meeting, Calendar Event, Note relation
++2. Migrate existing Phase 11/12 `CrmTask` / `CrmNote` under Activity (no competing task domains)
++3. Follow-Up + Next-Action / no-next-action detection (Lead + Opportunity)
++4. Manual + planned Calls; telephony provider typed **NOT_AVAILABLE**; recording **NOT_AVAILABLE**
++5. Email Activity with real SMTP send via `lib/email.js` / `lib/emailService.js`; accept Γëá delivered; no fabricated opens/replies
++6. Meetings + internal Calendar (day/week/month/agenda), working hours, availability, conflict policy, ICS export
++7. Google / Outlook calendar sync contracts ΓåÆ **NOT_CONNECTED** (no fabricated sync)
++8. Reminders (dedupe); activity/task templates (versioned); automation foundations (SoD + small trigger set)
++9. Activity reporting centre + schedules with honesty gates
++10. Consent / DNC / eligibility enforcement on outbound channels; timezone-explicit scheduling
++11. Entity panels: Lead / Account / Contact / Opportunity activities
++12. Exit pack: `READY_FOR_PHASE_14_WITH_BLOCKERS` + Phase 14 inputs/checklist
++
++## Out of scope (explicit)
++
++- Complete Demo Management (Phase 14)
++- Proposal / Quotation / e-sign / contracts
++- Tenant / Customer / Subscription / Invoice / Payment creation (Closed Won Γëá provision)
++- Full sales sequences / cadences
++- AI-generated emails / scripts / summaries / next-actions
++- Live telephony / dialer / call recording stack
++- Google / Outlook live sync
++- WhatsApp provider / EmailΓåÆLead ingest (remain NOT_AVAILABLE)
++- Undisclosed tracking pixels
++- Sales quotas / commissions
++- Accounting / billing / MRA fiscal changes; System CoA admin
++- Weighted Pipeline UI (Phase 16)
++
++## Carry blockers (from Phase 12 ΓÇö document, do not silently clear)
++
++| Carry | Status |
++|-------|--------|
++| Weighted Pipeline UI/reports | Phase 16 ΓÇö dark |
++| `resolveCrmScope` owner/team/territory stub (`mode: 'all'`) | Harden in-phase where Activity lists need it |
++| Account / Contact merge | NOT_AVAILABLE |
++| Email / WhatsApp Lead ingest | NOT_AVAILABLE |
++| Lead/Opportunity ΓåÆ Tenant conversion transaction | CARRY (Closed Won Γëá provision) |
++| Windows Prisma EPERM | SQL + `hasCrm*Model` guards |
++| Competitor / partner Opportunity depth | Optional / deferred |
++
++## Surfaces (target)
++
++- UI hubs under `/insightbooks/crm/{activities,tasks,follow-ups,calls,emails,meetings,calendar,notes,reminders}`
++- APIs under `app/api/admin/crm/{activities,tasks,follow-ups,calls,emails,meetings,calendar,reminders,ΓÇª}`
++- Libs under `lib/admin/crm/{activities,followUps,calls,emails,meetings,calendar,reminders,automation,ΓÇª}`
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\PHASE_INPUT_VALIDATION.md" "b/docs\\admin-intelligence-crm\\phase-13\\PHASE_INPUT_VALIDATION.md"
+new file mode 100644
+index 0000000..f6e0635
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\PHASE_INPUT_VALIDATION.md"
+@@ -0,0 +1,54 @@
++# Phase 13 Input Validation
++
++**Validated:** 2026-07-30  
++**Upstream exit:** `READY_FOR_PHASE_13_WITH_BLOCKERS` (Phase 12 `FINAL_PHASE_12_REPORT.md`)
++
++## Sources checked
++
++| Source | Path | Result |
++|--------|------|--------|
++| Phase 13 inputs | `docs/admin-intelligence-crm/phase-12/PHASE_13_INPUTS.md` | PRESENT ΓÇö Opportunity/Pipeline consume contracts listed |
++| Readiness checklist | `docs/admin-intelligence-crm/phase-12/PHASE_13_READINESS_CHECKLIST.md` | PRESENT ΓÇö must-be-true items checked; carry blockers listed |
++| Final Phase 12 report | `docs/admin-intelligence-crm/phase-12/FINAL_PHASE_12_REPORT.md` | PRESENT ΓÇö exit `READY_FOR_PHASE_13_WITH_BLOCKERS` |
++| Design | `docs/superpowers/specs/2026-07-30-sales-activity-phase-13-design.md` | APPROVED 2026-07-30 |
++| Plan | `docs/superpowers/plans/2026-07-30-sales-activity-phase-13.md` | PRESENT ΓÇö Approach B waves |
++
++## Phase 12 must-be-true (consumed honestly)
++
++| Gate | Evidence class |
++|------|----------------|
++| ACTIVE Pipelines NEW_BUSINESS / EXPANSION / MRA_EIS | CORRECT_AND_REUSABLE ΓÇö `lib/admin/crm/pipeline/*` |
++| Idempotent Opportunity create from READY handoff | CORRECT_AND_REUSABLE ΓÇö `createOpportunityFromHandoff` |
++| Server stage transitions + immutable history | CORRECT_AND_REUSABLE |
++| Closed Won evidence; no provision | CORRECT_AND_REUSABLE |
++| Proposal / conversion readiness payloads only | CORRECT_AND_REUSABLE |
++| Opportunity merge SoD | CORRECT_AND_REUSABLE |
++| Import + Pipeline reports + schedules | CORRECT_AND_REUSABLE |
++| Weighted UI dark | CORRECT_AND_REUSABLE ΓÇö `WEIGHTED_PIPELINE_UI_ENABLED === false` |
++| Email / WhatsApp ingest NOT_AVAILABLE | CORRECT_AND_REUSABLE ΓÇö `foundations.js` |
++
++## Phase 13 reuse plane (pre-Wave-1)
++
++| Asset | Path | Class for Activity |
++|-------|------|-------------------|
++| CrmTask | `prisma` + `lib/admin/crm/tasks.js` | EXTEND ΓÇö migrate under Activity |
++| Opportunity tasks bridge | `lib/admin/crm/opportunities/tasks.js` | EXTEND |
++| CrmNote + restricted projection | `lib/admin/crm/notes.js` | EXTEND ΓÇö preserve security |
++| CrmTimelineEvent | `lib/admin/crm/timeline.js` + Opportunity timeline | EXTEND |
++| Consent / DNC / prefs | `lib/admin/crm/consent.js` | CORRECT_AND_REUSABLE |
++| Eligibility gate | `lib/admin/crm/eligibility.js` | CORRECT_AND_REUSABLE ΓÇö wire to outbound |
++| Foundations honesty | `lib/admin/crm/foundations.js` | EXTEND ΓÇö Activity plane later |
++| SMTP libs | `lib/email.js`, `lib/emailService.js` | FOUNDATION ΓÇö send-request adapter only |
++| CsTask / CS playbooks | `lib/admin/customerSuccess/*` | WRONG_DOMAIN |
++| SupportSlaCalendar | `prisma SupportSlaCalendar` + support SLA | WRONG_DOMAIN |
++| analytics-pipeline | `/insightbooks/analytics-pipeline` | WRONG_DOMAIN |
++| CrmActivity / Call / Meeting / FollowUp / EmailActivity | ΓÇö | NOT_FOUND |
++
++## Identity / consent blockers?
++
++**None** that block Wave 1 Activity spine. Consent/eligibility services exist and fail-closed on UNKNOWN. Outbound send is not yet wired (Wave 2) ΓÇö expected.
++
++## Validation verdict
++
++**PASS** ΓÇö Phase 12 exit is honest; design/plan locked; reuse plane identified; no identity blocker. Proceed to Wave 0 readiness decision (**CONDITIONAL GO** expected).
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\README.md" "b/docs\\admin-intelligence-crm\\phase-13\\README.md"
+new file mode 100644
+index 0000000..cf36b28
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\README.md"
+@@ -0,0 +1,53 @@
++# Phase 13 ΓÇö Sales Activity & Engagement
++
++**Surface:** `/insightbooks/crm/activities` (+ tasks, follow-ups, calls, emails, meetings, calendar, notes, reminders, activity-reports)  
++**Architecture:** Extend `lib/admin/crm/*` ΓÇö canonical `CrmActivity` parent + typed children  
++**Design:** `docs/superpowers/specs/2026-07-30-sales-activity-phase-13-design.md`  
++**Plan:** `docs/superpowers/plans/2026-07-30-sales-activity-phase-13.md`  
++**Handoff in:** `docs/admin-intelligence-crm/phase-12/PHASE_13_INPUTS.md`  
++**Phase 12 exit:** `READY_FOR_PHASE_13_WITH_BLOCKERS`
++
++## Wave status
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices + CONDITIONAL GO | Complete (2026-07-30) |
++| 1 | Canonical Activity + Task/Note migrate; Follow-Up + Next-Action; timeline | Pending |
++| 2 | Call (manual/planned) + Email SMTP Activity + email template foundations | Pending |
++| 3 | Meeting + internal Calendar + availability/conflict + ICS; Google/Outlook NOT_CONNECTED | Pending |
++| 4 | Reminders; templates; automation foundations; reporting centre + schedules; Phase 14 pack | Pending |
++
++**Phase exit (expected):** `READY_FOR_PHASE_14_WITH_BLOCKERS`  
++**Skip until Wave 4:** `PHASE_14_READINESS_CHECKLIST.md`
++
++## Hard rules
++
++- Activity Γëá Audit Event Γëá Analytics Event
++- Task Γëá Call Γëá Meeting Γëá Demo; Note Γëá outbound communication; Meeting Γëá Demo
++- One Activity record; many timeline projections ΓÇö do not duplicate Activities per entity view
++- Planned Γëá completed; due-date pass Γëá complete; reminder Γëá Sales contact; RSVP Γëá attendance; SMTP accept Γëá delivered
++- Outbound Call / Email / invitation requires server eligibility + persisted decision; UNKNOWN consent Γëá granted
++- No fabricated Activities, deliveries, replies, Meetings, attendance, or external calendar Events
++- No AI communications; Call recording NOT_AVAILABLE; no undisclosed tracking pixels
++- Telephony provider boundary NOT_AVAILABLE; Google / Outlook NOT_CONNECTED
++- Automation foundations only ΓÇö no full sales sequences; no arbitrary code
++- Owner / team / territory scope server-side; restricted Notes never on Customer APIs / default exports
++- CoA admin route stays removed; no Tenant GL / payment / MRA secret exposure
++- Support/CS tasks, SupportSlaCalendar, analytics-pipeline, Tenant POS `sales.*` are WRONG_DOMAIN
++
++## Classification legend
++
++| Class | Meaning |
++|-------|---------|
++| READY | Usable as-designed for Phase 13 consumption |
++| PARTIAL | Exists but incomplete / not Activity-shaped |
++| FOUNDATION | Thin foundations present; needs Wave work |
++| NOT_FOUND | Absent in codebase / schema |
++| WRONG_DOMAIN | Exists but belongs to another plane |
++| NOT_AVAILABLE | Explicitly deferred with contract |
++| NOT_CONNECTED | External integration contract present; sync not live |
++| BLOCKED | Cannot proceed until dependency cleared |
++| CORRECT_AND_REUSABLE | Keep as boundary / input; do not redefine |
++| EXTEND | Reuse and extend under Activity spine |
++| FORBIDDEN | Must not be reused as Sales Activity truth |
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\REMINDER_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\REMINDER_MATRIX.md"
+new file mode 100644
+index 0000000..5b5198c
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\REMINDER_MATRIX.md"
+@@ -0,0 +1,11 @@
++# Reminder Matrix
++
++| Concern | Today | Wave 4 target | Class |
++|---------|-------|---------------|-------|
++| CrmReminder entity | Absent | YES | NOT_FOUND |
++| Dedupe key | Absent | Required | NOT_FOUND |
++| Snooze | Absent | YES | NOT_FOUND |
++| Delivery channel | Absent | In-app / email optional | Must not fabricate Activity complete |
++| Reminder Γëá Sales contact | Design | Enforce | Reminder delivery is not outbound engagement Activity |
++| Billing subscription reminders | `lib/email.js` | Stay separate | WRONG_DOMAIN |
++
+diff --git "a/docs\\admin-intelligence-crm\\phase-13\\TASK_STATE_MATRIX.md" "b/docs\\admin-intelligence-crm\\phase-13\\TASK_STATE_MATRIX.md"
+new file mode 100644
+index 0000000..4140441
+--- /dev/null
++++ "b/docs\\admin-intelligence-crm\\phase-13\\TASK_STATE_MATRIX.md"
+@@ -0,0 +1,13 @@
++# Task State Matrix
++
++| From ΓåÆ To | Allowed today | Wave 1+ target | Notes |
++|-----------|---------------|----------------|-------|
++| (create) ΓåÆ TODO | YES | YES | `createTask` |
++| TODO ΓåÆ COMPLETED | YES | YES | `completeTask`; idempotent if already COMPLETED |
++| COMPLETED ΓåÆ TODO (reopen) | NO | Wave 1 if scoped | Not implemented |
++| * ΓåÆ CANCELLED | NO | Optional later | NOT_FOUND |
++| Due past ΓåÆ COMPLETED | NO (correct) | NO | Due Γëá complete |
++| CsTask OPEN ΓåÆ ΓÇª | WRONG_DOMAIN | Never map | Separate status vocabulary |
++
++**Compatibility:** Fail-closed on unknown status. Activity parent status transitions are separate (Wave 1 catalogue).
++

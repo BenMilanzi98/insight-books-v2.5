@@ -1,31 +1,17 @@
+/** @deprecated Use /api/budget-forecast/forecasts */
 import { NextResponse } from 'next/server';
-import { getUserFromSession, hasPermission } from '@/lib/auth';
-import { requireStandardAccess } from '@/lib/accessControl';
-import { replaceRevenueForecastLines, listPeriodKeysInRange } from '@/lib/bfService';
 
-export async function PUT(request, { params }) {
-  try {
-    const accessError = await requireStandardAccess(request);
-    if (accessError) return accessError;
+const GONE = {
+  error: 'Deprecated. Use /api/budget-forecast/forecasts.',
+  code: 'LEGACY_BUDGET_API_DISABLED',
+  migrateTo: '/api/budget-forecast/forecasts',
+  use: '/api/budget-forecast/forecasts',
+};
 
-    const user = await getUserFromSession(request);
-    if (!user?.tenantId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-    if (!hasPermission(user, 'budgets.update')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+export async function GET() {
+  return NextResponse.json(GONE, { status: 410 });
+}
 
-    const body = await request.json();
-    const lines = body.lines ?? body;
-    const row = await replaceRevenueForecastLines(params.id, user.tenantId, lines);
-    if (!row) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    }
-    const periodKeys = listPeriodKeysInRange(row.startDate, row.endDate, row.periodType);
-    return NextResponse.json({ success: true, data: row, periodKeys });
-  } catch (error) {
-    console.error('bf revenue-forecast lines PUT:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save lines' }, { status: 400 });
-  }
+export async function PUT() {
+  return NextResponse.json(GONE, { status: 410 });
 }

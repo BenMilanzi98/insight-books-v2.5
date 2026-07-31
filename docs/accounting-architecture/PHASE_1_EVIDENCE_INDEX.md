@@ -1,0 +1,34 @@
+# Phase 1 Evidence Index
+
+Maps every Phase 1 finding class to the architectural control that answers it, and the phase
+responsible for full remediation. Finding sources: `docs/accounting-audit/RISK_REGISTER.md`
+(R-01..R-25), rule codes from `docs/accounting-audit/AUDIT_RULE_CATALOGUE.md`, data findings in
+`artifacts/accounting-audit/findings-latest.csv` (15 findings: 8 critical, 5 high, 2 medium).
+
+| Finding | Severity | Module | Confirmed root cause | Required architectural control | Remediation phase | Phase 2 direct? | Evidence |
+|---|---|---|---|---|---|---|---|
+| R-22 / JRN-009 — dual ledgers, header-amount journals | Critical | Journals | Legacy `JournalEntry` header amounts + parallel `Transaction` ledger | Single canonical journal identity; architecture version tagging; legacy access only via adapters | 5 (ledger), 6 (data) | Partially — adapters + `architectureVersion` | `JOURNAL_INTEGRITY_REPORT.md` |
+| R-23 / JRN-006 — duplicate postings (wrong-table idempotency, shared COGS keys, unstable payment keys, TOCTOU) | Critical | Posting | App-level duplicate check, no DB constraint, inconsistent source keys | **DB-enforced accounting event identity** (`AcctV2EventRegistry` unique key) + canonical idempotency-key derivation | 4 (activation) | **Yes — implemented** | `DUPLICATE_POSTING_ANALYSIS.md` |
+| R-24 — payroll dual posting path | Critical | Payroll | Two independent posting triggers with different source keys | One event identity per business event (`eventType` catalogue) | 4, 9 | Contract only | `ACCOUNTING_POSTING_MATRIX.md` |
+| R-25 — balance-only money movements (POS deposits, capital transfer) | Critical | POS/Capital | `AccountBalance` writes with no journal | Rule: no financial effect without a journal; boundary tests forbid direct balance writes in new code | 4, 9 | Boundary tests | posting matrix |
+| R-19 / TEN-001 — `postGlEntry` accepts foreign account IDs | Critical | Security | `assertAccountsAllowDirectPosting` has no tenant filter | Mandatory business-scoped `AccountingContext`; tenant validation in journal validation contract; strict-tenant flag | 4 (engine), **hotfix advisable now** | Contract + tests; legacy engine untouched by design | `MULTI_TENANT_AND_SECURITY_AUDIT.md` SEC-1 |
+| R-20 / TEN-003 — supplier routes take `tenantId` from query string | Critical | Security | No session auth in handler | API contract rule: tenant only from session context; permission matrix | 9 (route rework), hotfix advisable | Documented control; not a Phase 2 code change (legacy route) | SEC-2 |
+| R-21 — reversal/capital endpoints lack RBAC | High | Security | Session-only checks | `accounting.*` permission catalogue + authorization matrix | 9, 11 | **Yes — permissions defined** | SEC-3/4 |
+| R-04 / GL-002 — stored `Account.balance` drift | High | GL | Incremental float read-modify-write, two rebuild fns disagree | GL read model derived from posted lines only; ledger query contract; stored balances demoted to cache | 5, 7 | Contracts + legacy adapter | `GENERAL_LEDGER_AUDIT.md` |
+| R-05 / CAP-005 — capital double-count (header journals + `ownerContributedCapital` counter) | Critical | Capital | Two independent balance surfaces | Equity events through journals only; owner dimension; capital summary from ledger contract | 6 (repair), 11 | Event types + dimension policy | `CAPITAL_AND_EQUITY_AUDIT.md` |
+| R-07 / AP-004 — unsupported liability balances | Critical | Payables | Direct balance writes + CoA `legacy_account_balance` fallback | Reports read posted lines only (ADR-012); lineage tagging | 6, 7 | ADR + contracts | `PAYABLES_AUDIT.md` |
+| AR-001 — AR control ≠ subledger (−15,000) | Critical | Receivables | Aging from operational tables, control account never read | Receivables subledger contract reconciled to control account | 7, 9 | Contract | `RECEIVABLES_AUDIT.md` |
+| R-09 / PER-* — fail-open period control, no period FK, gaps/overlaps, no year-end close | High | Periods | Date-inferred periods; `assertPeriodOpen` fail-open; closed-only checks in journalService | Period-resolution contract with explicit deny-by-default policy; period linkage on V2 event registry | 8, 12 | Contract + legacy adapter + `periodRef` on registry | `ACCOUNTING_PERIODS_AUDIT.md` |
+| R-11 / REV-* — reversal status divergence, weaker checks in direct branches | High | Reversals | Direct `transaction.create` branches; `posted` status retained | Reversal service contract; `ReversalStatus` enum; duplicate-reversal prevention via event identity | 5, 9 | Contract + enum | `REVERSALS_AUDIT.md` |
+| R-13 / TB-003 — TB includes group headers; parent+child double-count | High | Trial Balance | TB module lacks header skip | TB query contract with explicit hierarchy presentation rules | 7 | Contract | `TRIAL_BALANCE_FORENSIC_REPORT.md` |
+| R-14 — Float money fields (48 models) | High | Schema | Historical schema choices | All V2 tables use `Decimal`; money contract uses minor-unit integers/decimal strings; no JS float for authoritative amounts | 5, 6 | **Yes — V2 schema decimal-only** | `DATABASE_SCHEMA_AUDIT.md` |
+| R-15 — hardcoded account codes / name-based lookups | High | Mappings | Scattered resolver constants with auto-create | Account-mapping service contract; missing mapping = explicit `MissingAccountMappingError`, never fallback | 3 | Contract + error types | `CHART_OF_ACCOUNTS_FORENSIC_REPORT.md` |
+| R-16 — reports on operational tables / silent basis switch | Critical | Reporting | Dashboards fallback, aging operational, mislabeled sources | ADR-001/ADR-012; report lineage tagging; boundary tests forbid new statements on operational totals | 7 | ADRs + tests | `FINANCIAL_REPORT_LINEAGE.md` |
+| R-17 — nullable `tenantId` on `JournalEntry`/`Account`; tenant cascade deletes | High | Schema | Legacy schema | V2 tables: `tenantId` NOT NULL, `onDelete: Restrict` semantics; legacy fix deferred | 5, 6 | **Yes — V2 schema** | schema audit W4/W5 |
+| R-18 — dead `ReversalAudit` table | Low | Reversals | `@@ignore` stub | V2 audit trail via posting attempts + audit log extension | 5 | Superseded by V2 design | schema audit W10 |
+| Swallowed GL errors (payments, gratuity, liabilities) | High | Posting | try/catch around GL writes | Atomic transaction boundary: journal + source update commit or roll back together | 4, 9 | **Yes — boundary implemented** | posting matrix |
+| No outbox / retry duplicates | Medium | Infrastructure | Ad-hoc retries | Transactional outbox + posting-attempt log | 4 | **Yes — implemented** | `DUPLICATE_POSTING_ANALYSIS.md` |
+
+Missing evidence (documented, not blocking): exact production rows for the MK1M→MK2M capital
+figure and any production TB imbalance — Phase 1 ran against a QA copy. Architecture decisions
+do not depend on the specific rows; Phase 6 data repair does.

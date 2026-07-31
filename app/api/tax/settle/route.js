@@ -1,7 +1,9 @@
 // app/api/tax/settle/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
+
+
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { postTaxPayment } from '@/lib/taxCalculationService';
 import { applyPayeSettlementToExpenses, isPayeTaxType } from '@/lib/payeExpenseSettlement';
@@ -18,7 +20,12 @@ export async function POST(request) {
       );
     }
 
+    // Prefer tax.settle; allow tax.update during dual-run for roles that already settle.
+    const perm = await requireAnyPermission(request, ['tax.settle', 'tax.update']);
+    if (perm) return perm;
+
     const body = await request.json();
+
     
     // Validate required fields
     if (!body.amount || !body.date || !body.paymentMethod) {
@@ -174,6 +181,35 @@ export async function POST(request) {
       return { expense, payment, taxTransaction, payeExpenseSettlement };
     });
 
+    // Wave 4 — dual-write settlement into TaxPayment register (best-effort).
+    let taxPaymentRegister = null;
+    try {
+      const { recordTaxPaymentFromSettlement } = await import(
+        '@/lib/taxManagement/taxPaymentRegister'
+      );
+      taxPaymentRegister = await recordTaxPaymentFromSettlement({
+        tenantId: user.tenantId,
+        userId: user.id,
+        amount,
+        paymentDate: body.date,
+        paymentMethod: body.paymentMethod,
+        paymentAccountId: result.payment?.sourceAccount || null,
+        taxTypeId: body.taxTypeId || null,
+        taxPeriodId: body.taxPeriodId || null,
+        expenseId: result.expense.id,
+        paymentId: result.payment.id,
+        journalEntryId: result.taxTransaction?.id || null,
+        description: result.expense.description,
+        notes: body.notes || null,
+        allocationJson: result.payeExpenseSettlement || null,
+      });
+    } catch (regErr) {
+      console.warn(
+        '[tax-payment-register] dual-write skipped:',
+        regErr instanceof Error ? regErr.message : String(regErr)
+      );
+    }
+
     // Format response
     return NextResponse.json({
       message: 'Tax settlement recorded successfully',
@@ -188,6 +224,7 @@ export async function POST(request) {
         paymentMethod: result.expense.paymentMethod,
         status: result.expense.status,
         paymentId: result.payment.id,
+        taxPaymentId: taxPaymentRegister?.id || null,
         payeExpenseSettlement: result.payeExpenseSettlement || null
       }
     }, { status: 201 });

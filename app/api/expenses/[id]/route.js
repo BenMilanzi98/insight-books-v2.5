@@ -1,13 +1,19 @@
 // app/api/expenses/[id]/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
 import { resolveExpenseAccountSelection } from '@/lib/accountingMappingRules';
 import {
   GL_POSTED_STATUSES,
+  hasPostedExpenseGlTransaction,
   postApprovedExpenseJournalIfMissing
 } from '@/lib/expenseGlPosting';
+import {
+  assertExpenseTransition,
+  canEditDraft,
+  normalizeExpenseStatus,
+} from '@/lib/expenses/expenseStateMachine';
 
 // Helper function to get expense by ID with validation
 async function getExpenseWithValidation(id, userId, tenantId) {
@@ -149,16 +155,13 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Cannot update a removed expense.' }, { status: 400 });
     }
 
-    const postedExpenseJournal = await prisma.transaction.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        sourceType: 'Expense',
-        sourceId: expenseId,
-        status: GL_POSTED_STATUSES,
-        isReversal: false
-      },
-      select: { id: true }
-    });
+    const postedExpenseJournal = (await hasPostedExpenseGlTransaction(
+      prisma,
+      user.tenantId,
+      expenseId
+    ))
+      ? { id: 'v2' }
+      : null;
 
     // Parse amount - convert string to number if needed
     let amount = body.amount;
@@ -230,8 +233,43 @@ export async function PUT(request, { params }) {
     if (body.date !== undefined) updateData.date = new Date(body.date);
     if (body.category !== undefined && !updateData.category) updateData.category = body.category;
     if (body.merchant !== undefined) updateData.merchant = body.merchant;
-    if (body.status !== undefined) updateData.status = body.status;
+    if (body.status !== undefined) {
+      try {
+        const from = normalizeExpenseStatus(rawExisting.status) || 'Draft';
+        const to = normalizeExpenseStatus(body.status);
+        assertExpenseTransition(from, to);
+        if (to === 'Approved' && from !== 'Approved') {
+          const approvePerm = await requirePermission(request, 'expenses.approve');
+          if (approvePerm) return approvePerm;
+        }
+        updateData.status = to;
+      } catch (smErr) {
+        return NextResponse.json(
+          { error: smErr.message, code: smErr.code || 'EXPENSE_INVALID_TRANSITION' },
+          { status: 409 }
+        );
+      }
+    }
     if (body.notes !== undefined) updateData.notes = body.notes;
+
+    // Block material field edits unless expense is in an editable approval state
+    if (
+      !postedExpenseJournal &&
+      !canEditDraft(rawExisting.status) &&
+      normalizeExpenseStatus(rawExisting.status) !== 'Approved' &&
+      (body.amount !== undefined ||
+        body.expenseAccountId !== undefined ||
+        body.taxAmount !== undefined ||
+        body.date !== undefined)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Expense in status "${rawExisting.status}" cannot be edited. Request changes or reverse if posted.`,
+          code: 'EXPENSE_NOT_EDITABLE',
+        },
+        { status: 409 }
+      );
+    }
     // Payment status fields
     if (body.paymentStatus !== undefined) updateData.paymentStatus = body.paymentStatus;
     if (body.paidAmount !== undefined) updateData.paidAmount = body.paidAmount;

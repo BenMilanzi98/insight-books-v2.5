@@ -1,5 +1,8 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
@@ -19,6 +22,7 @@ const btnGhost =
  * Phase 18 — System Administrator EIS Administration Centre.
  */
 export default function SystemMraEisAdminCentrePage() {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,9 +31,15 @@ export default function SystemMraEisAdminCentrePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/mra-eis/admin?action=platform-overview&environment=PRODUCTION');
+      const res = await adminFetch('/api/admin/mra-eis/centre?environment=PRODUCTION',
+        { credentials: 'include' }
+      );
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || json.error || 'Failed to load');
+      if (!res.ok) {
+        throw new Error(
+          json.error?.message || json.error || 'Failed to load platform overview'
+        );
+      }
       setData(json);
     } catch (e) {
       setError(e.message);
@@ -57,8 +67,8 @@ export default function SystemMraEisAdminCentrePage() {
             Administration Centre
           </>
         }
-        title="Platform EIS Administration"
-        description="Cross-tenant aggregation requires platform role. Drill-down into a tenant never exposes credentials. Sandbox and Production remain visually distinct."
+        title={t('admin-pages.mraEis.centre.title')}
+        description={t('admin-pages.mraEis.centre.description')}
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
             <RefreshCw className="h-4 w-4" aria-hidden />
@@ -86,18 +96,6 @@ export default function SystemMraEisAdminCentrePage() {
 
       {!loading && !error ? (
         <>
-          <nav className="mb-6 flex flex-wrap gap-2" aria-label="Platform EIS sections">
-            {(data?.sections || []).map((s) => (
-              <Link
-                key={s.id}
-                href={s.href}
-                className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-1.5 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]"
-              >
-                {s.label}
-              </Link>
-            ))}
-          </nav>
-
           {overview ? (
             <section aria-labelledby="plat-overview">
               <h2

@@ -1,0 +1,3870 @@
+﻿# Review package — Phase 15 Task 2 (WORKING_TREE)
+# Base: 7d9709a
+
+## Wave 2 commercial lib files
+11481	lib/admin/crm/commercial/priceBooks.js
+1394	lib/admin/crm/commercial/productConfig.js
+1450	lib/admin/crm/commercial/lineItems.js
+8901	lib/admin/crm/commercial/pricing.js
+2680	lib/admin/crm/commercial/pricingSnapshot.js
+4305	lib/admin/crm/commercial/currencyFx.js
+1975	lib/admin/crm/commercial/tax.js
+6141	lib/admin/crm/commercial/discounts.js
+2077	lib/admin/crm/commercial/exceptions.js
+2030	lib/admin/crm/commercial/terms.js
+2064	lib/admin/crm/commercial/clauses.js
+12985	lib/admin/crm/commercial/approvals.js
+scripts/sql: True size=10758
+test: 21612
+
+===== lib/admin/crm/commercial/pricing.js =====
+
+/**
+ * Deterministic calculateCommercialDocument â€” Phase 15 Wave 2.
+ * Immutable pricing snapshots; currency-explicit totals; idempotent by key.
+ * No silent FX; no Tenant tax posting; no MRA EIS fiscal; Opp estimates unused.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  assertCurrencyPricingGate,
+  convertAmount,
+  resolveFxContext,
+  roundMoney,
+} from './currencyFx.js';
+import { resolveDiscountApplication } from './discounts.js';
+import { filterApprovedExceptions } from './exceptions.js';
+import { collectLineCurrencies, normalizeLineItems } from './lineItems.js';
+import {
+  hasCrmPriceBookEntryModel,
+  hasCrmPriceBookVersionModel,
+  hasCrmPricingSnapshotModel,
+  resolveCommercialActor,
+} from './model.js';
+import { findPriceBookEntryForProduct } from './productConfig.js';
+import {
+  buildCurrencyExplicitTotals,
+  buildPricingSnapshotPayload,
+} from './pricingSnapshot.js';
+import { computeTaxTotal, resolveTaxContext } from './tax.js';
+
+function canEdit(access) {
+  return (
+    access.canEditOpportunities ||
+    access.canEditLeads ||
+    access.canCreateLeads ||
+    access.isSuperAdmin
+  );
+}
+
+async function loadPriceBookEntries(prisma, priceBookVersionId) {
+  if (!hasCrmPriceBookEntryModel(prisma)) return [];
+  return prisma.crmPriceBookEntry.findMany({
+    where: { priceBookVersionId: String(priceBookVersionId) },
+  });
+}
+
+/**
+ * calculateCommercialDocument({
+ *   actorContext, commercialDocumentVersionId, priceBookVersionId, currency,
+ *   lineItems, taxContext, discountRequests, pricingExceptions,
+ *   calculationDate, idempotencyKey, fxContext
+ * }) â†’ { calculationId, snapshot, totals }
+ */
+export async function calculateCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_pricing_calculate_forbidden' };
+  }
+  if (!hasCrmPricingSnapshotModel(prisma) || !hasCrmPriceBookVersionModel(prisma)) {
+    return { ok: false, error: 'crm_pricing_snapshot_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const documentVersionId = String(args.commercialDocumentVersionId || '').trim();
+  const priceBookVersionId = String(args.priceBookVersionId || '').trim();
+  const currency = args.currency ? String(args.currency).trim().toUpperCase() : null;
+  const idempotencyKey = args.idempotencyKey != null ? String(args.idempotencyKey).trim() : '';
+
+  if (!documentVersionId || !priceBookVersionId || !currency) {
+    return { ok: false, error: 'pricing_required_fields_missing' };
+  }
+
+  if (idempotencyKey) {
+    const existing = await prisma.crmPricingSnapshot.findUnique({
+      where: {
+        documentVersionId_idempotencyKey: {
+          documentVersionId,
+          idempotencyKey,
+        },
+      },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        calculationId: existing.id,
+        snapshot: existing.snapshotJson,
+        totals: existing.totalsJson,
+      };
+    }
+    // also try findFirst for mocks without compound unique
+    const existingAlt = await prisma.crmPricingSnapshot.findFirst({
+      where: { documentVersionId, idempotencyKey },
+    });
+    if (existingAlt) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        calculationId: existingAlt.id,
+        snapshot: existingAlt.snapshotJson,
+        totals: existingAlt.totalsJson,
+      };
+    }
+  }
+
+  const pbVersion = await prisma.crmPriceBookVersion.findUnique({
+    where: { id: priceBookVersionId },
+  });
+  if (!pbVersion) {
+    return { ok: false, notFound: true, error: 'price_book_version_not_found' };
+  }
+
+  const normalized = normalizeLineItems(args.lineItems);
+  if (!normalized.ok) return normalized;
+
+  const lineCurrencies = collectLineCurrencies(normalized.lineItems, currency);
+  const fxGate = assertCurrencyPricingGate({
+    documentCurrency: currency,
+    lineCurrencies,
+    fxContext: args.fxContext,
+    calculationDate: args.calculationDate,
+    now: args.now,
+  });
+  if (!fxGate.ok) {
+    return {
+      ok: false,
+      error: fxGate.error,
+      reliability: fxGate.reliability,
+      reason: fxGate.reason,
+    };
+  }
+
+  const taxResolved = resolveTaxContext(args.taxContext);
+  if (!taxResolved.ok) {
+    return { ok: false, error: taxResolved.error, reason: taxResolved.reason };
+  }
+
+  const entries = await loadPriceBookEntries(prisma, priceBookVersionId);
+  const discounts = await resolveDiscountApplication(prisma, args.discountRequests || []);
+  const approvedExceptions = filterApprovedExceptions(args.pricingExceptions || []);
+
+  const lineSnapshots = [];
+  let listSubtotal = 0;
+  let netSubtotal = 0;
+  let fxSnapshot = null;
+
+  for (const item of normalized.lineItems) {
+    const entry = findPriceBookEntryForProduct(entries, item.productRef);
+    if (!entry) {
+      return {
+        ok: false,
+        error: 'price_book_entry_not_found',
+        productRef: item.productRef,
+      };
+    }
+
+    const entryCurrency = String(entry.currency || currency).trim().toUpperCase();
+    const lineCurrency = item.currency || entryCurrency;
+    let unitList = Number(entry.listPrice);
+    let unitNet = unitList;
+
+    // Approved exception may override unit price
+    const ex = approvedExceptions.find(
+      (e) => e.productRef === item.productRef || e.lineKey === item.lineKey
+    );
+    if (ex && ex.unitPrice != null) {
+      unitNet = Number(ex.unitPrice);
+    }
+
+    if (lineCurrency !== currency) {
+      const fx = resolveFxContext({
+        sourceCurrency: lineCurrency,
+        targetCurrency: currency,
+        fxContext: args.fxContext,
+        calculationDate: args.calculationDate,
+        now: args.now,
+      });
+      if (!fx.ok) {
+        return { ok: false, error: fx.error, reliability: fx.reliability };
+      }
+      unitList = convertAmount(unitList, fx.rate);
+      unitNet = convertAmount(unitNet, fx.rate);
+      fxSnapshot = fx.snapshot;
+    }
+
+    const lineList = roundMoney(unitList * item.quantity);
+    let lineNet = roundMoney(unitNet * item.quantity);
+    if (discounts.appliedDiscountPercent > 0) {
+      lineNet = roundMoney(lineNet * (1 - discounts.appliedDiscountPercent / 100));
+    }
+
+    listSubtotal += lineList;
+    netSubtotal += lineNet;
+
+    lineSnapshots.push({
+      productRef: item.productRef,
+      quantity: item.quantity,
+      unit: item.unit || entry.unit,
+      currency,
+      sourceCurrency: lineCurrency,
+      listUnitPrice: unitList,
+      netUnitPrice: roundMoney(lineNet / item.quantity),
+      listAmount: lineList,
+      netAmount: lineNet,
+      billingFrequency: item.billingFrequency || entry.billingFrequency || 'MONTHLY',
+      priceBookEntryId: entry.id,
+    });
+  }
+
+  listSubtotal = roundMoney(listSubtotal);
+  netSubtotal = roundMoney(netSubtotal);
+
+  const { taxTotal } = computeTaxTotal(netSubtotal, taxResolved);
+  const totals = buildCurrencyExplicitTotals({
+    currency,
+    listSubtotal,
+    netSubtotal,
+    taxTotal,
+    lineSnapshots,
+  });
+
+  const calculationDate = args.calculationDate || new Date().toISOString().slice(0, 10);
+  const snapshot = buildPricingSnapshotPayload({
+    documentVersionId,
+    priceBookVersionId,
+    currency,
+    calculationDate,
+    lineSnapshots,
+    totals,
+    tax: {
+      jurisdiction: taxResolved.jurisdiction,
+      ratePercent: taxResolved.ratePercent,
+      inclusive: taxResolved.inclusive,
+      overridden: taxResolved.overridden,
+      tenantGlPosting: false,
+      mraEisFiscal: false,
+    },
+    discounts,
+    fx: fxSnapshot,
+    pricingExceptions: approvedExceptions,
+  });
+
+  const now = args.now || new Date();
+  const row = await prisma.crmPricingSnapshot.create({
+    data: {
+      documentVersionId,
+      priceBookVersionId,
+      currency,
+      calculationDate: new Date(calculationDate),
+      idempotencyKey: idempotencyKey || null,
+      snapshotJson: snapshot,
+      totalsJson: totals,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: documentVersionId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_PRICING_CALCULATED,
+    summary: `Commercial pricing calculated ${totals.grandTotal} ${currency}`,
+    payload: { calculationId: row.id, documentVersionId, currency },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    calculationId: row.id,
+    snapshot,
+    totals,
+  };
+}
+
+===== lib/admin/crm/commercial/priceBooks.js =====
+
+/**
+ * CRM Price Books â€” Phase 15 Wave 2.
+ * ACTIVE versions/entries immutable; approve + activate with SoD on approve.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import { CRM_PRICE_BOOK_TYPE, CRM_PRICE_BOOK_VERSION_STATUS } from './catalogue.js';
+import { allocatePriceBookNumber } from './numbering.js';
+import {
+  hasCrmPriceBookEntryModel,
+  hasCrmPriceBookModel,
+  hasCrmPriceBookVersionModel,
+  resolveCommercialActor,
+  serializePriceBook,
+  serializePriceBookEntry,
+  serializePriceBookVersion,
+} from './model.js';
+
+function canEdit(access) {
+  return access.canEditOpportunities || access.canEditLeads || access.canCreateLeads;
+}
+
+function canApprove(access) {
+  return access.canApproveMerge || access.canEditOpportunities || access.isSuperAdmin;
+}
+
+function isActiveOrImmutable(version) {
+  return (
+    version?.immutable === true ||
+    String(version?.status || '').toUpperCase() === CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE
+  );
+}
+
+export async function createPriceBook(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_price_book_create_forbidden' };
+  }
+  if (
+    !hasCrmPriceBookModel(prisma) ||
+    !hasCrmPriceBookVersionModel(prisma) ||
+    !hasCrmPriceBookEntryModel(prisma)
+  ) {
+    return { ok: false, error: 'crm_price_book_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const now = args.now || new Date();
+  const allocated = await allocatePriceBookNumber(prisma, { now });
+  if (!allocated.ok) {
+    return { ok: false, error: allocated.error || 'price_book_number_allocation_failed' };
+  }
+
+  const bookType = String(args.bookType || CRM_PRICE_BOOK_TYPE.STANDARD)
+    .trim()
+    .toUpperCase();
+  const currency = args.currency ? String(args.currency).trim().toUpperCase() : null;
+
+  const book = await prisma.crmPriceBook.create({
+    data: {
+      bookNumber: allocated.number,
+      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
+      bookType,
+      currency,
+      status: 'DRAFT',
+      latestVersionNumber: 1,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  const version = await prisma.crmPriceBookVersion.create({
+    data: {
+      priceBookId: book.id,
+      versionNumber: 1,
+      status: CRM_PRICE_BOOK_VERSION_STATUS.DRAFT,
+      immutable: false,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  const entryInputs = Array.isArray(args.entries) ? args.entries : [];
+  const entries = [];
+  for (const e of entryInputs) {
+    const row = await prisma.crmPriceBookEntry.create({
+      data: {
+        priceBookVersionId: version.id,
+        productRef: String(e.productRef || '').trim(),
+        unit: e.unit != null ? String(e.unit).trim() : null,
+        listPrice: Number(e.listPrice),
+        minPrice: e.minPrice != null ? Number(e.minPrice) : Number(e.listPrice),
+        currency: e.currency
+          ? String(e.currency).trim().toUpperCase()
+          : currency,
+        billingFrequency: e.billingFrequency
+          ? String(e.billingFrequency).trim().toUpperCase()
+          : 'MONTHLY',
+        taxCategory: e.taxCategory != null ? String(e.taxCategory).trim() : null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    entries.push(row);
+  }
+
+  await prisma.crmPriceBook.update({
+    where: { id: book.id },
+    data: { currentVersionId: version.id, updatedAt: now },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: book.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PRICE_BOOK_CREATED,
+    summary: `Price Book ${book.bookNumber} created`,
+    payload: { priceBookId: book.id, versionId: version.id },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    priceBook: serializePriceBook({ ...book, currentVersionId: version.id }),
+    version: serializePriceBookVersion(version),
+    entries: entries.map(serializePriceBookEntry),
+  };
+}
+
+export async function approvePriceBookVersion(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canApprove(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_price_book_approve_forbidden' };
+  }
+  if (!hasCrmPriceBookVersionModel(prisma)) {
+    return { ok: false, error: 'crm_price_book_version_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const version = await prisma.crmPriceBookVersion.findUnique({
+    where: { id: String(args.priceBookVersionId || '').trim() },
+  });
+  if (!version) return { ok: false, notFound: true, error: 'price_book_version_not_found' };
+
+  const approverId = admin?.id ? String(admin.id) : '';
+  const authorId = version.createdByAdminId ? String(version.createdByAdminId) : '';
+  if (authorId && approverId && authorId === approverId) {
+    return {
+      ok: false,
+      error: 'price_book_self_approval_blocked',
+      reason: 'sod_author_must_differ_from_approver',
+    };
+  }
+
+  const status = String(version.status || '').toUpperCase();
+  if (status === CRM_PRICE_BOOK_VERSION_STATUS.APPROVED || status === CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE) {
+    return { ok: true, alreadyExists: true, version: serializePriceBookVersion(version) };
+  }
+  if (
+    status !== CRM_PRICE_BOOK_VERSION_STATUS.DRAFT &&
+    status !== CRM_PRICE_BOOK_VERSION_STATUS.PENDING_APPROVAL
+  ) {
+    return { ok: false, error: 'price_book_version_not_approvable', status };
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmPriceBookVersion.update({
+    where: { id: version.id },
+    data: {
+      status: CRM_PRICE_BOOK_VERSION_STATUS.APPROVED,
+      approvedByAdminId: approverId || null,
+      approvedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return { ok: true, version: serializePriceBookVersion(updated) };
+}
+
+export async function activatePriceBookVersion(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canApprove(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_price_book_activate_forbidden' };
+  }
+  if (!hasCrmPriceBookVersionModel(prisma) || !hasCrmPriceBookEntryModel(prisma)) {
+    return { ok: false, error: 'crm_price_book_version_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const version = await prisma.crmPriceBookVersion.findUnique({
+    where: { id: String(args.priceBookVersionId || '').trim() },
+  });
+  if (!version) return { ok: false, notFound: true, error: 'price_book_version_not_found' };
+
+  const status = String(version.status || '').toUpperCase();
+  if (status === CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE) {
+    const entries = await prisma.crmPriceBookEntry.findMany({
+      where: { priceBookVersionId: version.id },
+    });
+    return {
+      ok: true,
+      alreadyExists: true,
+      version: serializePriceBookVersion(version),
+      entries: entries.map(serializePriceBookEntry),
+    };
+  }
+  if (status !== CRM_PRICE_BOOK_VERSION_STATUS.APPROVED) {
+    return { ok: false, error: 'price_book_version_must_be_approved', status };
+  }
+
+  const now = args.now || new Date();
+  await prisma.crmPriceBookVersion.updateMany({
+    where: {
+      priceBookId: version.priceBookId,
+      status: CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE,
+    },
+    data: {
+      status: CRM_PRICE_BOOK_VERSION_STATUS.RETIRED,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+
+  const activated = await prisma.crmPriceBookVersion.update({
+    where: { id: version.id },
+    data: {
+      status: CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE,
+      immutable: true,
+      activatedAt: now,
+      activatedByAdminId: admin?.id || null,
+      updatedAt: now,
+    },
+  });
+
+  if (hasCrmPriceBookModel(prisma)) {
+    await prisma.crmPriceBook.update({
+      where: { id: version.priceBookId },
+      data: {
+        currentVersionId: activated.id,
+        status: CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE,
+        updatedAt: now,
+      },
+    });
+  }
+
+  const entries = await prisma.crmPriceBookEntry.findMany({
+    where: { priceBookVersionId: activated.id },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: version.priceBookId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.PRICE_BOOK_VERSION_ACTIVATED,
+    summary: `Price Book version ${activated.versionNumber} activated`,
+    payload: { priceBookId: version.priceBookId, versionId: activated.id },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    version: serializePriceBookVersion(activated),
+    entries: entries.map(serializePriceBookEntry),
+  };
+}
+
+/**
+ * Mutate a Price Book entry â€” blocked when parent version is ACTIVE/immutable.
+ */
+export async function updatePriceBookEntry(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_price_book_entry_update_forbidden' };
+  }
+  if (!hasCrmPriceBookEntryModel(prisma) || !hasCrmPriceBookVersionModel(prisma)) {
+    return { ok: false, error: 'crm_price_book_entry_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const entry = await prisma.crmPriceBookEntry.findUnique({
+    where: { id: String(args.priceBookEntryId || '').trim() },
+  });
+  if (!entry) return { ok: false, notFound: true, error: 'price_book_entry_not_found' };
+
+  const version = await prisma.crmPriceBookVersion.findUnique({
+    where: { id: entry.priceBookVersionId },
+  });
+  if (!version) return { ok: false, notFound: true, error: 'price_book_version_not_found' };
+
+  if (isActiveOrImmutable(version)) {
+    return {
+      ok: false,
+      error: 'price_book_version_immutable',
+      reason: 'ACTIVE_price_book_entry_cannot_be_edited',
+    };
+  }
+
+  const data = { updatedAt: args.now || new Date() };
+  if (args.listPrice != null) data.listPrice = Number(args.listPrice);
+  if (args.minPrice != null) data.minPrice = Number(args.minPrice);
+  if (args.unit != null) data.unit = String(args.unit).trim();
+  if (args.billingFrequency != null) {
+    data.billingFrequency = String(args.billingFrequency).trim().toUpperCase();
+  }
+
+  const updated = await prisma.crmPriceBookEntry.update({
+    where: { id: entry.id },
+    data,
+  });
+  return { ok: true, entry: serializePriceBookEntry(updated) };
+}
+
+export async function listPriceBooks(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!(access.canViewOpportunities || access.canViewLeads || access.canView || access.isSuperAdmin)) {
+    return { ok: false, forbidden: true };
+  }
+  if (!hasCrmPriceBookModel(prisma)) {
+    return { ok: false, error: 'crm_price_book_model_unavailable', status: 'UNAVAILABLE' };
+  }
+  const rows = await prisma.crmPriceBook.findMany({ where: {} });
+  return {
+    ok: true,
+    priceBooks: rows.map(serializePriceBook),
+    domain: { wave: 2 },
+  };
+}
+
+===== lib/admin/crm/commercial/approvals.js =====
+
+/**
+ * Commercial approval engine â€” Phase 15 Wave 2.
+ * SoD: requester â‰  protected approver. Material change invalidates approvals.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  CRM_APPROVAL_REQUEST_STATUS,
+  CRM_APPROVAL_STEP_STATUS,
+} from './catalogue.js';
+import {
+  hasCrmApprovalDecisionModel,
+  hasCrmApprovalPolicyModel,
+  hasCrmApprovalRequestModel,
+  hasCrmApprovalStepModel,
+  resolveCommercialActor,
+  serializeApprovalRequest,
+  serializeApprovalStep,
+} from './model.js';
+
+function canEdit(access) {
+  return access.canEditOpportunities || access.canEditLeads || access.canCreateLeads;
+}
+
+function canApprove(access) {
+  return access.canApproveMerge || access.canEditOpportunities || access.isSuperAdmin;
+}
+
+function parseStepsJson(policy) {
+  const raw = policy?.stepsJson;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * submitCommercialDocumentForApproval({
+ *   actorContext, commercialDocumentVersionId, approvalPolicyVersionId, idempotencyKey
+ * })
+ */
+export async function submitCommercialDocumentForApproval(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_approval_submit_forbidden' };
+  }
+  if (
+    !hasCrmApprovalRequestModel(prisma) ||
+    !hasCrmApprovalStepModel(prisma) ||
+    !hasCrmApprovalPolicyModel(prisma)
+  ) {
+    return { ok: false, error: 'crm_approval_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const documentVersionId = String(args.commercialDocumentVersionId || '').trim();
+  const policyId = String(args.approvalPolicyVersionId || args.approvalPolicyId || '').trim();
+  const idempotencyKey = args.idempotencyKey != null ? String(args.idempotencyKey).trim() : '';
+
+  if (!documentVersionId || !policyId) {
+    return { ok: false, error: 'approval_required_fields_missing' };
+  }
+
+  if (idempotencyKey) {
+    const existing = await prisma.crmApprovalRequest.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      const steps = await prisma.crmApprovalStep.findMany({
+        where: { approvalRequestId: existing.id },
+      });
+      return {
+        ok: true,
+        alreadyExists: true,
+        request: serializeApprovalRequest(existing),
+        steps: steps.map(serializeApprovalStep),
+      };
+    }
+  }
+
+  const policy = await prisma.crmApprovalPolicy.findUnique({ where: { id: policyId } });
+  if (!policy) return { ok: false, notFound: true, error: 'approval_policy_not_found' };
+
+  const now = args.now || new Date();
+  const request = await prisma.crmApprovalRequest.create({
+    data: {
+      documentVersionId,
+      approvalPolicyId: policy.id,
+      status: CRM_APPROVAL_REQUEST_STATUS.PENDING,
+      requestedByAdminId: admin?.id || null,
+      idempotencyKey: idempotencyKey || null,
+      materialFingerprint: args.materialFingerprint || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  const stepDefs = parseStepsJson(policy);
+  const defs = stepDefs.length
+    ? stepDefs
+    : [{ stepOrder: 1, role: 'approver', protected: true }];
+
+  const steps = [];
+  for (const def of defs) {
+    const step = await prisma.crmApprovalStep.create({
+      data: {
+        approvalRequestId: request.id,
+        stepOrder: Number(def.stepOrder) || steps.length + 1,
+        role: def.role || 'approver',
+        protected: def.protected !== false,
+        status: CRM_APPROVAL_STEP_STATUS.PENDING,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    steps.push(step);
+  }
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: documentVersionId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_APPROVAL_SUBMITTED,
+    summary: 'Commercial document submitted for approval',
+    payload: { approvalRequestId: request.id, documentVersionId },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    request: serializeApprovalRequest(request),
+    steps: steps.map(serializeApprovalStep),
+  };
+}
+
+/**
+ * decideApprovalStep â€” SoD: requester â‰  protected approver
+ */
+export async function decideApprovalStep(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canApprove(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_approval_decide_forbidden' };
+  }
+  if (
+    !hasCrmApprovalStepModel(prisma) ||
+    !hasCrmApprovalRequestModel(prisma) ||
+    !hasCrmApprovalDecisionModel(prisma)
+  ) {
+    return { ok: false, error: 'crm_approval_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const step = await prisma.crmApprovalStep.findUnique({
+    where: { id: String(args.approvalStepId || '').trim() },
+  });
+  if (!step) return { ok: false, notFound: true, error: 'approval_step_not_found' };
+
+  const request = await prisma.crmApprovalRequest.findUnique({
+    where: { id: step.approvalRequestId },
+  });
+  if (!request) return { ok: false, notFound: true, error: 'approval_request_not_found' };
+
+  if (String(request.status).toUpperCase() === CRM_APPROVAL_REQUEST_STATUS.INVALIDATED) {
+    return { ok: false, error: 'approval_request_invalidated' };
+  }
+  if (String(request.status).toUpperCase() === CRM_APPROVAL_REQUEST_STATUS.APPROVED) {
+    return { ok: true, alreadyExists: true, request: serializeApprovalRequest(request) };
+  }
+
+  const decision = String(args.decision || '').trim().toUpperCase();
+  if (decision !== 'APPROVE' && decision !== 'REJECT') {
+    return { ok: false, error: 'invalid_approval_decision' };
+  }
+
+  const approverId = admin?.id ? String(admin.id) : '';
+  const requesterId = request.requestedByAdminId ? String(request.requestedByAdminId) : '';
+  if (step.protected !== false && requesterId && approverId && requesterId === approverId) {
+    return {
+      ok: false,
+      error: 'self_approval_blocked',
+      reason: 'sod_requester_must_differ_from_approver',
+    };
+  }
+
+  const now = args.now || new Date();
+  const stepStatus =
+    decision === 'APPROVE'
+      ? CRM_APPROVAL_STEP_STATUS.APPROVED
+      : CRM_APPROVAL_STEP_STATUS.REJECTED;
+
+  await prisma.crmApprovalStep.update({
+    where: { id: step.id },
+    data: { status: stepStatus, decidedAt: now, updatedAt: now },
+  });
+
+  await prisma.crmApprovalDecision.create({
+    data: {
+      approvalRequestId: request.id,
+      approvalStepId: step.id,
+      decision,
+      reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+      decidedByAdminId: approverId || null,
+      at: now,
+      createdAt: now,
+    },
+  });
+
+  let requestStatus = request.status;
+  if (decision === 'REJECT') {
+    requestStatus = CRM_APPROVAL_REQUEST_STATUS.REJECTED;
+  } else {
+    const allSteps = await prisma.crmApprovalStep.findMany({
+      where: { approvalRequestId: request.id },
+    });
+    const allApproved = allSteps.every(
+      (s) =>
+        s.id === step.id ||
+        String(s.status).toUpperCase() === CRM_APPROVAL_STEP_STATUS.APPROVED ||
+        String(s.status).toUpperCase() === CRM_APPROVAL_STEP_STATUS.SKIPPED
+    );
+    // current step already updated above; re-check including it
+    const pendingLeft = allSteps.filter((s) => {
+      if (s.id === step.id) return false;
+      return String(s.status).toUpperCase() === CRM_APPROVAL_STEP_STATUS.PENDING;
+    });
+    if (pendingLeft.length === 0 && allApproved) {
+      requestStatus = CRM_APPROVAL_REQUEST_STATUS.APPROVED;
+    } else if (pendingLeft.length === 0) {
+      requestStatus = CRM_APPROVAL_REQUEST_STATUS.APPROVED;
+    }
+  }
+
+  const updated = await prisma.crmApprovalRequest.update({
+    where: { id: request.id },
+    data: { status: requestStatus, updatedAt: now },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: request.documentVersionId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_APPROVAL_DECIDED,
+    summary: `Commercial approval ${decision}`,
+    payload: {
+      approvalRequestId: request.id,
+      stepId: step.id,
+      decision,
+      status: requestStatus,
+    },
+    actorAdminId: approverId || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    request: serializeApprovalRequest(updated),
+    step: serializeApprovalStep({ ...step, status: stepStatus }),
+  };
+}
+
+/**
+ * Material change (e.g. qty) after approval â†’ invalidate affected approval requests.
+ */
+export async function applyMaterialDocumentChange(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_material_change_forbidden' };
+  }
+  if (!hasCrmApprovalRequestModel(prisma)) {
+    return { ok: false, error: 'crm_approval_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const documentVersionId = String(args.commercialDocumentVersionId || '').trim();
+  if (!documentVersionId) {
+    return { ok: false, error: 'document_version_required' };
+  }
+
+  const change = args.change && typeof args.change === 'object' ? args.change : {};
+  const isMaterial =
+    change.quantity != null ||
+    change.lineItems != null ||
+    change.currency != null ||
+    change.discountPercent != null ||
+    args.material === true;
+
+  if (!isMaterial) {
+    return { ok: true, material: false, invalidatedApprovalIds: [] };
+  }
+
+  const now = args.now || new Date();
+  const reason =
+    args.reason != null
+      ? String(args.reason).trim().slice(0, 1000)
+      : 'material_change_invalidates_approval';
+
+  const affected = await prisma.crmApprovalRequest.findMany({
+    where: { documentVersionId },
+  });
+
+  // Filter statuses that should be invalidated
+  const toInvalidate = (affected || []).filter((r) => {
+    const s = String(r.status || '').toUpperCase();
+    return (
+      s === CRM_APPROVAL_REQUEST_STATUS.APPROVED ||
+      s === CRM_APPROVAL_REQUEST_STATUS.PENDING
+    );
+  });
+
+  const invalidatedApprovalIds = [];
+  for (const row of toInvalidate) {
+    await prisma.crmApprovalRequest.update({
+      where: { id: row.id },
+      data: {
+        status: CRM_APPROVAL_REQUEST_STATUS.INVALIDATED,
+        invalidatedReason: reason,
+        invalidatedAt: now,
+        updatedAt: now,
+      },
+    });
+    invalidatedApprovalIds.push(row.id);
+  }
+
+  // Persist material change hint on document version content when available
+  if (typeof prisma.crmCommercialDocumentVersion?.update === 'function') {
+    try {
+      const ver = await prisma.crmCommercialDocumentVersion.findUnique({
+        where: { id: documentVersionId },
+      });
+      if (ver) {
+        const content =
+          ver.contentJson && typeof ver.contentJson === 'object' ? { ...ver.contentJson } : {};
+        content.materialChange = {
+          ...change,
+          at: now.toISOString(),
+          reason,
+        };
+        await prisma.crmCommercialDocumentVersion.update({
+          where: { id: documentVersionId },
+          data: { contentJson: content, updatedAt: now },
+        });
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
+  if (invalidatedApprovalIds.length) {
+    await appendTimelineEvent(prisma, {
+      subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+      subjectId: documentVersionId,
+      eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_APPROVAL_INVALIDATED,
+      summary: 'Commercial approvals invalidated by material change',
+      payload: { documentVersionId, invalidatedApprovalIds, change },
+      actorAdminId: admin?.id || null,
+      at: now,
+    });
+  }
+
+  return {
+    ok: true,
+    material: true,
+    invalidatedApprovalIds,
+    reason,
+  };
+}
+
+export async function listCommercialApprovals(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!(access.canViewOpportunities || access.canView || access.isSuperAdmin)) {
+    return { ok: false, forbidden: true };
+  }
+  if (!hasCrmApprovalRequestModel(prisma)) {
+    return { ok: false, error: 'crm_approval_model_unavailable', status: 'UNAVAILABLE' };
+  }
+  const where = {};
+  if (args.documentVersionId) where.documentVersionId = String(args.documentVersionId);
+  if (args.status) where.status = String(args.status);
+  const rows = await prisma.crmApprovalRequest.findMany({ where });
+  return { ok: true, approvals: rows.map(serializeApprovalRequest) };
+}
+
+===== lib/admin/crm/commercial/discounts.js =====
+
+/**
+ * Discount policies & requests â€” Phase 15 Wave 2.
+ * Threshold e.g. salesperson max 10%; above threshold stays PENDING until approved.
+ * Not applied to effective pricing until APPROVED. SoD on approve.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT,
+  CRM_DISCOUNT_REQUEST_STATUS,
+} from './catalogue.js';
+import {
+  hasCrmDiscountPolicyModel,
+  hasCrmDiscountRequestModel,
+  resolveCommercialActor,
+  serializeDiscountRequest,
+} from './model.js';
+
+function canEdit(access) {
+  return access.canEditOpportunities || access.canEditLeads || access.canCreateLeads;
+}
+
+async function resolveMaxPercent(prisma) {
+  if (!hasCrmDiscountPolicyModel(prisma)) {
+    return CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT;
+  }
+  try {
+    const policy = await prisma.crmDiscountPolicy.findFirst({
+      where: { code: 'SALESPERSON_MAX', status: 'ACTIVE' },
+      orderBy: { version: 'desc' },
+    });
+    if (policy && Number.isFinite(Number(policy.maxPercent))) {
+      return Number(policy.maxPercent);
+    }
+  } catch {
+    // fall through
+  }
+  return CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT;
+}
+
+export async function createDiscountRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_discount_request_forbidden' };
+  }
+  if (!hasCrmDiscountRequestModel(prisma)) {
+    return { ok: false, error: 'crm_discount_request_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const percent = Number(args.percent);
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+    return { ok: false, error: 'invalid_discount_percent' };
+  }
+
+  const maxPercent = await resolveMaxPercent(prisma);
+  const requiresApproval = percent > maxPercent;
+  const now = args.now || new Date();
+
+  const row = await prisma.crmDiscountRequest.create({
+    data: {
+      documentVersionId: String(args.commercialDocumentVersionId || args.documentVersionId || '').trim(),
+      percent,
+      status: requiresApproval
+        ? CRM_DISCOUNT_REQUEST_STATUS.PENDING
+        : CRM_DISCOUNT_REQUEST_STATUS.APPROVED,
+      requiresApproval,
+      maxPolicyPercent: maxPercent,
+      reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+      requestedByAdminId: admin?.id || null,
+      approvedByAdminId: requiresApproval ? null : admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: row.documentVersionId || row.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.DISCOUNT_REQUEST_CREATED,
+    summary: `Discount request ${percent}% (${row.status})`,
+    payload: { discountRequestId: row.id, percent, requiresApproval },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return { ok: true, request: serializeDiscountRequest(row) };
+}
+
+export async function approveDiscountRequest(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!(access.canApproveMerge || access.isSuperAdmin || access.canEditOpportunities)) {
+    return { ok: false, forbidden: true, reason: 'crm_discount_approve_forbidden' };
+  }
+  if (!hasCrmDiscountRequestModel(prisma)) {
+    return { ok: false, error: 'crm_discount_request_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const row = await prisma.crmDiscountRequest.findUnique({
+    where: { id: String(args.discountRequestId || '').trim() },
+  });
+  if (!row) return { ok: false, notFound: true, error: 'discount_request_not_found' };
+
+  const approverId = admin?.id ? String(admin.id) : '';
+  const requesterId = row.requestedByAdminId ? String(row.requestedByAdminId) : '';
+  if (requesterId && approverId && requesterId === approverId) {
+    return {
+      ok: false,
+      error: 'discount_self_approval_blocked',
+      reason: 'sod_requester_must_differ_from_approver',
+    };
+  }
+
+  if (row.status === CRM_DISCOUNT_REQUEST_STATUS.APPROVED) {
+    return { ok: true, alreadyExists: true, request: serializeDiscountRequest(row) };
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmDiscountRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_DISCOUNT_REQUEST_STATUS.APPROVED,
+      approvedByAdminId: approverId || null,
+      approvedAt: now,
+      updatedAt: now,
+    },
+  });
+  return { ok: true, request: serializeDiscountRequest(updated) };
+}
+
+/**
+ * Split discount requests into applied (APPROVED) vs pending.
+ * Pending never reduce effective net pricing.
+ */
+export async function resolveDiscountApplication(prisma, discountRequests = []) {
+  const pending = [];
+  const applied = [];
+  let appliedPercent = 0;
+
+  for (const d of discountRequests || []) {
+    let status = d.status;
+    let percent = Number(d.percent);
+    let id = d.id || null;
+
+    if (id && hasCrmDiscountRequestModel(prisma) && !status) {
+      try {
+        const row = await prisma.crmDiscountRequest.findUnique({ where: { id: String(id) } });
+        if (row) {
+          status = row.status;
+          percent = Number(row.percent);
+          id = row.id;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!Number.isFinite(percent)) continue;
+
+    if (String(status || '').toUpperCase() === CRM_DISCOUNT_REQUEST_STATUS.APPROVED) {
+      applied.push({ id, percent, status: CRM_DISCOUNT_REQUEST_STATUS.APPROVED });
+      appliedPercent = Math.max(appliedPercent, percent);
+    } else {
+      pending.push({
+        id,
+        percent,
+        status: status || CRM_DISCOUNT_REQUEST_STATUS.PENDING,
+      });
+    }
+  }
+
+  return {
+    appliedDiscountPercent: appliedPercent,
+    pendingDiscounts: pending,
+    appliedDiscounts: applied,
+  };
+}
+
+===== lib/admin/crm/commercial/currencyFx.js =====
+
+/**
+ * Explicit FX snapshots for commercial pricing â€” Phase 15 Wave 2.
+ * Missing/stale â†’ FX_CONTEXT_MISSING / STALE. Never silent convert.
+ * Never fabricate a combined multi-currency total.
+ */
+
+import { CRM_FX_RELIABILITY } from './catalogue.js';
+
+const STALE_MS_DEFAULT = 24 * 60 * 60 * 1000;
+
+/**
+ * Validate FX context when source currency â‰  document currency.
+ * @returns {{ ok: true, reliability, rate, snapshot } | { ok: false, error, reliability }}
+ */
+export function resolveFxContext({
+  sourceCurrency,
+  targetCurrency,
+  fxContext,
+  calculationDate,
+  now,
+  staleMs = STALE_MS_DEFAULT,
+} = {}) {
+  const source = sourceCurrency ? String(sourceCurrency).trim().toUpperCase() : null;
+  const target = targetCurrency ? String(targetCurrency).trim().toUpperCase() : null;
+
+  if (!source || !target || source === target) {
+    return {
+      ok: true,
+      reliability: CRM_FX_RELIABILITY.OK,
+      rate: 1,
+      snapshot: null,
+      converted: false,
+    };
+  }
+
+  if (!fxContext || typeof fxContext !== 'object') {
+    return {
+      ok: false,
+      error: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+      reliability: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+    };
+  }
+
+  const rate = Number(fxContext.rate);
+  const namedSource = fxContext.source || fxContext.namedSource;
+  const effectiveAt = fxContext.effectiveAt || fxContext.effectiveTimestamp;
+  const ctxSource = fxContext.sourceCurrency
+    ? String(fxContext.sourceCurrency).trim().toUpperCase()
+    : null;
+  const ctxTarget = fxContext.targetCurrency
+    ? String(fxContext.targetCurrency).trim().toUpperCase()
+    : null;
+
+  if (
+    !Number.isFinite(rate) ||
+    rate <= 0 ||
+    !namedSource ||
+    !effectiveAt ||
+    (ctxSource && ctxSource !== source) ||
+    (ctxTarget && ctxTarget !== target)
+  ) {
+    return {
+      ok: false,
+      error: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+      reliability: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+    };
+  }
+
+  const effectiveMs = new Date(effectiveAt).getTime();
+  const calcMs = new Date(calculationDate || now || Date.now()).getTime();
+  if (!Number.isFinite(effectiveMs) || !Number.isFinite(calcMs)) {
+    return {
+      ok: false,
+      error: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+      reliability: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+    };
+  }
+  if (Math.abs(calcMs - effectiveMs) > staleMs || fxContext.stale === true) {
+    return {
+      ok: false,
+      error: CRM_FX_RELIABILITY.STALE,
+      reliability: CRM_FX_RELIABILITY.STALE,
+    };
+  }
+
+  return {
+    ok: true,
+    reliability: CRM_FX_RELIABILITY.OK,
+    rate,
+    converted: true,
+    snapshot: Object.freeze({
+      sourceCurrency: source,
+      targetCurrency: target,
+      rate,
+      namedSource: String(namedSource),
+      effectiveAt: new Date(effectiveAt).toISOString(),
+      approved: fxContext.approved === true,
+    }),
+  };
+}
+
+/**
+ * Gate multi-currency line sets: without FX for each foreign currency, fail closed.
+ */
+export function assertCurrencyPricingGate({
+  documentCurrency,
+  lineCurrencies,
+  fxContext,
+  calculationDate,
+  now,
+} = {}) {
+  const doc = documentCurrency ? String(documentCurrency).trim().toUpperCase() : null;
+  const currencies = Array.isArray(lineCurrencies) ? lineCurrencies : [];
+  const unique = [...new Set(currencies.map((c) => String(c).trim().toUpperCase()).filter(Boolean))];
+
+  if (unique.length > 1 && !fxContext) {
+    // Mixed currencies without FX â€” never silently sum
+    return {
+      ok: false,
+      error: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+      reliability: CRM_FX_RELIABILITY.FX_CONTEXT_MISSING,
+      reason: 'currency_mix_requires_explicit_fx',
+    };
+  }
+
+  for (const c of unique) {
+    if (!doc || c === doc) continue;
+    const resolved = resolveFxContext({
+      sourceCurrency: c,
+      targetCurrency: doc,
+      fxContext,
+      calculationDate,
+      now,
+    });
+    if (!resolved.ok) return resolved;
+  }
+
+  return { ok: true, reliability: CRM_FX_RELIABILITY.OK };
+}
+
+export function convertAmount(amount, rate) {
+  return roundMoney(Number(amount) * Number(rate));
+}
+
+export function roundMoney(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+===== lib/admin/crm/commercial/tax.js =====
+
+/**
+ * In-platform commercial tax context â€” Phase 15 Wave 2.
+ * Overrides require approval. No Tenant GL tax posting. No MRA EIS fiscal.
+ */
+
+import { roundMoney } from './currencyFx.js';
+
+/**
+ * Resolve effective tax rate from taxContext.
+ * Override without approval â†’ fail.
+ */
+export function resolveTaxContext(taxContext = {}) {
+  const ctx = taxContext && typeof taxContext === 'object' ? taxContext : {};
+  const baseRate = Number(ctx.ratePercent);
+  const hasOverride =
+    ctx.overrideRatePercent != null && ctx.overrideRatePercent !== '' && ctx.overrideRatePercent !== undefined;
+
+  if (hasOverride) {
+    const overrideRate = Number(ctx.overrideRatePercent);
+    if (!Number.isFinite(overrideRate)) {
+      return { ok: false, error: 'tax_override_invalid' };
+    }
+    if (ctx.overrideApproved !== true) {
+      return {
+        ok: false,
+        error: 'tax_override_requires_approval',
+        reason: 'Tax rate overrides require approved evidence',
+      };
+    }
+    return {
+      ok: true,
+      ratePercent: overrideRate,
+      inclusive: ctx.inclusive === true,
+      jurisdiction: ctx.jurisdiction || null,
+      overridden: true,
+      tenantGlPosting: false,
+      mraEisFiscal: false,
+    };
+  }
+
+  return {
+    ok: true,
+    ratePercent: Number.isFinite(baseRate) ? baseRate : 0,
+    inclusive: ctx.inclusive === true,
+    jurisdiction: ctx.jurisdiction || null,
+    overridden: false,
+    tenantGlPosting: false,
+    mraEisFiscal: false,
+  };
+}
+
+export function computeTaxTotal(netSubtotal, taxResolved) {
+  const net = Number(netSubtotal) || 0;
+  const rate = Number(taxResolved?.ratePercent) || 0;
+  if (taxResolved?.inclusive) {
+    // net already includes tax â€” extract tax portion
+    const tax = roundMoney(net - net / (1 + rate / 100));
+    return { taxTotal: tax, taxBase: roundMoney(net - tax) };
+  }
+  return { taxTotal: roundMoney((net * rate) / 100), taxBase: net };
+}
+
+===== test/systemAdmin.crm.commercialWave2.test.js =====
+
+/**
+ * Phase 15 Wave 2 â€” Price Books, pricing, tax/FX, discounts, approvals.
+ * ACTIVE Price Book immutable; no silent FX; discount SoD; material change invalidates.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createPriceBook,
+  approvePriceBookVersion,
+  activatePriceBookVersion,
+  updatePriceBookEntry,
+  calculateCommercialDocument,
+  submitCommercialDocumentForApproval,
+  decideApprovalStep,
+  createDiscountRequest,
+  applyMaterialDocumentChange,
+  getCommercialDomainContract,
+  CRM_PRICE_BOOK_VERSION_STATUS,
+  CRM_DISCOUNT_REQUEST_STATUS,
+  CRM_APPROVAL_REQUEST_STATUS,
+  CRM_FX_RELIABILITY,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-1') {
+  return { id, role: 'Super Admin', permissions: {} };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const priceBookStore = overrides._priceBookStore || [];
+  const priceBookVersionStore = overrides._priceBookVersionStore || [];
+  const priceBookEntryStore = overrides._priceBookEntryStore || [];
+  const taxRuleStore = overrides._taxRuleStore || [];
+  const taxRateVersionStore = overrides._taxRateVersionStore || [];
+  const discountPolicyStore = overrides._discountPolicyStore || [
+    {
+      id: 'dp-default',
+      code: 'SALESPERSON_MAX',
+      maxPercent: 10,
+      status: 'ACTIVE',
+      version: 1,
+    },
+  ];
+  const discountRequestStore = overrides._discountRequestStore || [];
+  const pricingExceptionStore = overrides._pricingExceptionStore || [];
+  const pricingSnapshotStore = overrides._pricingSnapshotStore || [];
+  const approvalPolicyStore = overrides._approvalPolicyStore || [
+    {
+      id: 'ap-1',
+      code: 'COMMERCIAL_DEFAULT',
+      version: 1,
+      status: 'ACTIVE',
+      stepsJson: [{ stepOrder: 1, role: 'approver', protected: true }],
+    },
+  ];
+  const approvalRequestStore = overrides._approvalRequestStore || [];
+  const approvalStepStore = overrides._approvalStepStore || [];
+  const approvalDecisionStore = overrides._approvalDecisionStore || [];
+  const termStore = overrides._termStore || [];
+  const clauseStore = overrides._clauseStore || [];
+  const documentVersionStore = overrides._documentVersionStore || [
+    {
+      id: 'cdv-1',
+      documentId: 'doc-1',
+      versionNumber: 1,
+      versionLabel: 'QUO-2026-000001-V1',
+      status: 'DRAFT',
+      contentJson: { lineItems: [] },
+      immutable: false,
+    },
+  ];
+  const timelineStore = overrides._timelineStore || [];
+
+  function simpleCrud(store, idPrefix) {
+    return {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `${idPrefix}-${store.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        store.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return store.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.code_version) {
+          const k = where.code_version;
+          return store.find((r) => r.code === k.code && r.version === k.version) || null;
+        }
+        if (where.priceBookId_versionNumber) {
+          const k = where.priceBookId_versionNumber;
+          return (
+            store.find(
+              (r) => r.priceBookId === k.priceBookId && r.versionNumber === k.versionNumber
+            ) || null
+          );
+        }
+        if (where.documentVersionId_idempotencyKey) {
+          const k = where.documentVersionId_idempotencyKey;
+          return (
+            store.find(
+              (r) =>
+                r.documentVersionId === k.documentVersionId &&
+                r.idempotencyKey === k.idempotencyKey
+            ) || null
+          );
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...store];
+        if (where.priceBookId) rows = rows.filter((r) => r.priceBookId === where.priceBookId);
+        if (where.documentVersionId) {
+          rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        if (where.code) rows = rows.filter((r) => r.code === where.code);
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        if (orderBy?.versionNumber === 'desc') {
+          rows.sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
+        }
+        if (orderBy?.version === 'desc') {
+          rows.sort((a, b) => (b.version || 0) - (a.version || 0));
+        }
+        if (orderBy?.createdAt === 'desc') {
+          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...store];
+        if (where.priceBookVersionId) {
+          rows = rows.filter((r) => r.priceBookVersionId === where.priceBookVersionId);
+        }
+        if (where.approvalRequestId) {
+          rows = rows.filter((r) => r.approvalRequestId === where.approvalRequestId);
+        }
+        if (where.documentVersionId) {
+          rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = store.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        let count = 0;
+        for (const row of store) {
+          let match = true;
+          if (where.priceBookId && row.priceBookId !== where.priceBookId) match = false;
+          if (where.documentVersionId && row.documentVersionId !== where.documentVersionId) {
+            match = false;
+          }
+          if (where.status && row.status !== where.status) match = false;
+          if (where.code && row.code !== where.code) match = false;
+          if (match) {
+            Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+            count += 1;
+          }
+        }
+        return { count };
+      }),
+    };
+  }
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmPriceBook: simpleCrud(priceBookStore, 'pb'),
+    crmPriceBookVersion: simpleCrud(priceBookVersionStore, 'pbv'),
+    crmPriceBookEntry: simpleCrud(priceBookEntryStore, 'pbe'),
+    crmTaxRule: simpleCrud(taxRuleStore, 'tax'),
+    crmTaxRateVersion: simpleCrud(taxRateVersionStore, 'trv'),
+    crmDiscountPolicy: simpleCrud(discountPolicyStore, 'dp'),
+    crmDiscountRequest: simpleCrud(discountRequestStore, 'dr'),
+    crmPricingException: simpleCrud(pricingExceptionStore, 'pex'),
+    crmPricingSnapshot: simpleCrud(pricingSnapshotStore, 'ps'),
+    crmApprovalPolicy: simpleCrud(approvalPolicyStore, 'ap'),
+    crmApprovalRequest: simpleCrud(approvalRequestStore, 'ar'),
+    crmApprovalStep: simpleCrud(approvalStepStore, 'as'),
+    crmApprovalDecision: simpleCrud(approvalDecisionStore, 'ad'),
+    crmTerm: simpleCrud(termStore, 'term'),
+    crmClause: simpleCrud(clauseStore, 'clause'),
+    crmCommercialDocumentVersion: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentVersionStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentVersionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmTimelineEvent: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
+        timelineStore.push(row);
+        return row;
+      }),
+    },
+    _stores: {
+      seqStore,
+      priceBookStore,
+      priceBookVersionStore,
+      priceBookEntryStore,
+      discountPolicyStore,
+      discountRequestStore,
+      pricingSnapshotStore,
+      approvalPolicyStore,
+      approvalRequestStore,
+      approvalStepStore,
+      approvalDecisionStore,
+      documentVersionStore,
+    },
+  };
+
+  // Enhance price book findUnique for bookNumber
+  const origPbFind = prisma.crmPriceBook.findUnique;
+  prisma.crmPriceBook.findUnique = vi.fn(async ({ where = {} } = {}) => {
+    if (where.bookNumber) {
+      return priceBookStore.find((r) => r.bookNumber === where.bookNumber) || null;
+    }
+    return origPbFind({ where });
+  });
+
+  return prisma;
+}
+
+async function seedActivePriceBook(prisma, actorContext, entries) {
+  const created = await createPriceBook(prisma, {
+    actorContext,
+    name: 'Standard MWK',
+    currency: 'MWK',
+    bookType: 'STANDARD',
+    entries,
+  });
+  expect(created.ok).toBe(true);
+  const approved = await approvePriceBookVersion(prisma, {
+    actorContext: { admin: superAdmin('approver-1') },
+    priceBookVersionId: created.version.id,
+  });
+  expect(approved.ok).toBe(true);
+  const activated = await activatePriceBookVersion(prisma, {
+    actorContext: { admin: superAdmin('approver-1') },
+    priceBookVersionId: created.version.id,
+  });
+  expect(activated.ok).toBe(true);
+  expect(activated.version.status).toBe(CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE);
+  return { book: created.priceBook, version: activated.version, entries: activated.entries };
+}
+
+describe('Phase 15 Wave 2 â€” Price Books, pricing, tax/FX, discounts, approvals', () => {
+  let prisma;
+  let admin;
+  let actorContext;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    admin = superAdmin('sales-1');
+    actorContext = { admin };
+  });
+
+  it('ACTIVE Price Book version/entry is immutable (not silently edited)', async () => {
+    const { version } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 80,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const entry = prisma._stores.priceBookEntryStore[0];
+    const mutate = await updatePriceBookEntry(prisma, {
+      actorContext,
+      priceBookEntryId: entry.id,
+      listPrice: 999,
+    });
+    expect(mutate.ok).toBe(false);
+    expect(mutate.error).toMatch(/immutable|active/i);
+    expect(prisma._stores.priceBookEntryStore[0].listPrice).toBe(100);
+    expect(version.status).toBe(CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE);
+  });
+
+  it('calculateCommercialDocument is deterministic and idempotent by key', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 80,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const args = {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 2, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-idem-1',
+    };
+
+    const first = await calculateCommercialDocument(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.calculationId).toBeTruthy();
+    expect(first.snapshot).toBeTruthy();
+    expect(first.totals.currency).toBe('MWK');
+    expect(first.totals.listSubtotal).toBe(200);
+    expect(first.totals.netSubtotal).toBe(200);
+    expect(first.totals).toHaveProperty('taxTotal');
+    expect(first.totals).toHaveProperty('grandTotal');
+    expect(first.totals).toHaveProperty('quotedMonthlyRecurring');
+    expect(first.totals).toHaveProperty('quotedAnnualRecurring');
+    expect(first.totals).toHaveProperty('firstYearTotal');
+    expect(first.totals).toHaveProperty('totalContractValue');
+
+    const second = await calculateCommercialDocument(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.calculationId).toBe(first.calculationId);
+    expect(second.snapshot).toEqual(first.snapshot);
+    expect(second.totals).toEqual(first.totals);
+    expect(prisma._stores.pricingSnapshotStore.length).toBe(1);
+  });
+
+  it('ZAR + USD line items are not silently summed', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-ZAR',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 100,
+        currency: 'ZAR',
+        billingFrequency: 'MONTHLY',
+      },
+      {
+        productRef: 'PLAN-USD',
+        unit: 'SEAT',
+        listPrice: 50,
+        minPrice: 50,
+        currency: 'USD',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'ZAR',
+      lineItems: [
+        { productRef: 'PLAN-ZAR', quantity: 1, unit: 'SEAT', currency: 'ZAR' },
+        { productRef: 'PLAN-USD', quantity: 1, unit: 'SEAT', currency: 'USD' },
+      ],
+      taxContext: { jurisdiction: 'ZA', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-mix-currency',
+      // no fxContext
+    });
+
+    expect(result.ok).toBe(false);
+    expect([CRM_FX_RELIABILITY.FX_CONTEXT_MISSING, 'CURRENCY_MIX_FORBIDDEN']).toContain(
+      result.error
+    );
+    expect(result.totals).toBeFalsy();
+  });
+
+  it('missing FX context returns FX_CONTEXT_MISSING (never silent convert)', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-USD',
+        unit: 'SEAT',
+        listPrice: 50,
+        minPrice: 50,
+        currency: 'USD',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-USD', quantity: 1, unit: 'SEAT', currency: 'USD' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-fx-missing',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(CRM_FX_RELIABILITY.FX_CONTEXT_MISSING);
+    expect(result.reliability).toBe(CRM_FX_RELIABILITY.FX_CONTEXT_MISSING);
+    expect(result.totals?.grandTotal).not.toBe(0);
+    expect(result.totals).toBeFalsy();
+  });
+
+  it('tax override without approval fails', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 80,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: {
+        jurisdiction: 'MW',
+        inclusive: false,
+        ratePercent: 16.5,
+        overrideRatePercent: 0,
+        overrideApproved: false,
+      },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-tax-override',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/tax_override|approval/i);
+  });
+
+  it('20% discount above 10% threshold stays PENDING until approved', async () => {
+    const discount = await createDiscountRequest(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      percent: 20,
+      reason: 'Strategic deal',
+    });
+    expect(discount.ok).toBe(true);
+    expect(discount.request.status).toBe(CRM_DISCOUNT_REQUEST_STATUS.PENDING);
+    expect(discount.request.requiresApproval).toBe(true);
+
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 50,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [{ id: discount.request.id, percent: 20 }],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-discount-pending',
+    });
+
+    expect(result.ok).toBe(true);
+    // Pending discount must NOT reduce effective net pricing
+    expect(result.totals.listSubtotal).toBe(100);
+    expect(result.totals.netSubtotal).toBe(100);
+    expect(result.snapshot.pendingDiscounts?.length).toBeGreaterThan(0);
+    expect(result.snapshot.appliedDiscountPercent || 0).toBe(0);
+  });
+
+  it('self-approve on commercial approval step is blocked (SoD)', async () => {
+    const submitted = await submitCommercialDocumentForApproval(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      approvalPolicyVersionId: 'ap-1',
+      idempotencyKey: 'apr-1',
+    });
+    expect(submitted.ok).toBe(true);
+    expect(submitted.request.status).toBe(CRM_APPROVAL_REQUEST_STATUS.PENDING);
+    const stepId = submitted.steps[0].id;
+
+    const self = await decideApprovalStep(prisma, {
+      actorContext, // same sales-1 requester
+      approvalStepId: stepId,
+      decision: 'APPROVE',
+      reason: 'I approve myself',
+    });
+    expect(self.ok).toBe(false);
+    expect(self.error).toMatch(/self.?approv|sod/i);
+
+    const other = await decideApprovalStep(prisma, {
+      actorContext: { admin: superAdmin('approver-9') },
+      approvalStepId: stepId,
+      decision: 'APPROVE',
+      reason: 'Looks good',
+    });
+    expect(other.ok).toBe(true);
+    expect(other.request.status).toBe(CRM_APPROVAL_REQUEST_STATUS.APPROVED);
+  });
+
+  it('material qty change after full approval invalidates affected approvals', async () => {
+    const submitted = await submitCommercialDocumentForApproval(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      approvalPolicyVersionId: 'ap-1',
+      idempotencyKey: 'apr-material-1',
+    });
+    const stepId = submitted.steps[0].id;
+    await decideApprovalStep(prisma, {
+      actorContext: { admin: superAdmin('approver-9') },
+      approvalStepId: stepId,
+      decision: 'APPROVE',
+    });
+    expect(
+      prisma._stores.approvalRequestStore.find((r) => r.id === submitted.request.id).status
+    ).toBe(CRM_APPROVAL_REQUEST_STATUS.APPROVED);
+
+    const changed = await applyMaterialDocumentChange(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      change: { quantity: 5, priorQuantity: 2 },
+      reason: 'Customer asked for more seats',
+    });
+    expect(changed.ok).toBe(true);
+    expect(changed.invalidatedApprovalIds).toContain(submitted.request.id);
+    expect(
+      prisma._stores.approvalRequestStore.find((r) => r.id === submitted.request.id).status
+    ).toBe(CRM_APPROVAL_REQUEST_STATUS.INVALIDATED);
+
+    expect(getCommercialDomainContract().wave).toBe(2);
+    expect(getCommercialDomainContract().opportunityEstimatesNonBinding).toBe(true);
+    expect(getCommercialDomainContract().tenantTaxPostingForbidden).toBe(true);
+    expect(getCommercialDomainContract().mraEisFiscalFromQuotationForbidden).toBe(true);
+  });
+});
+
+===== AFTER FIX: lib/admin/crm/commercial/discounts.js =====
+
+/**
+
+ * Discount policies & requests â€” Phase 15 Wave 2.
+
+ * Threshold e.g. salesperson max 10%; above threshold stays PENDING until approved.
+
+ * Not applied to effective pricing until APPROVED. SoD on approve.
+
+ */
+
+
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+
+import { resolveCrmAccess } from '../authz.js';
+
+import { appendTimelineEvent } from '../timeline.js';
+
+import {
+
+  CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT,
+
+  CRM_DISCOUNT_REQUEST_STATUS,
+
+} from './catalogue.js';
+
+import {
+
+  hasCrmDiscountPolicyModel,
+
+  hasCrmDiscountRequestModel,
+
+  resolveCommercialActor,
+
+  serializeDiscountRequest,
+
+} from './model.js';
+
+
+
+function canEdit(access) {
+
+  return access.canEditOpportunities || access.canEditLeads || access.canCreateLeads;
+
+}
+
+
+
+async function resolveMaxPercent(prisma) {
+
+  if (!hasCrmDiscountPolicyModel(prisma)) {
+
+    return CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT;
+
+  }
+
+  try {
+
+    const policy = await prisma.crmDiscountPolicy.findFirst({
+
+      where: { code: 'SALESPERSON_MAX', status: 'ACTIVE' },
+
+      orderBy: { version: 'desc' },
+
+    });
+
+    if (policy && Number.isFinite(Number(policy.maxPercent))) {
+
+      return Number(policy.maxPercent);
+
+    }
+
+  } catch {
+
+    // fall through
+
+  }
+
+  return CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT;
+
+}
+
+
+
+export async function createDiscountRequest(prisma, args = {}) {
+
+  const admin = resolveCommercialActor(args);
+
+  const access = resolveCrmAccess(admin);
+
+  if (!canEdit(access)) {
+
+    return { ok: false, forbidden: true, reason: 'crm_discount_request_forbidden' };
+
+  }
+
+  if (!hasCrmDiscountRequestModel(prisma)) {
+
+    return { ok: false, error: 'crm_discount_request_model_unavailable', status: 'UNAVAILABLE' };
+
+  }
+
+
+
+  const percent = Number(args.percent);
+
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+
+    return { ok: false, error: 'invalid_discount_percent' };
+
+  }
+
+
+
+  const maxPercent = await resolveMaxPercent(prisma);
+
+  const requiresApproval = percent > maxPercent;
+
+  const now = args.now || new Date();
+
+
+
+  const row = await prisma.crmDiscountRequest.create({
+
+    data: {
+
+      documentVersionId: String(args.commercialDocumentVersionId || args.documentVersionId || '').trim(),
+
+      percent,
+
+      status: requiresApproval
+
+        ? CRM_DISCOUNT_REQUEST_STATUS.PENDING
+
+        : CRM_DISCOUNT_REQUEST_STATUS.APPROVED,
+
+      requiresApproval,
+
+      maxPolicyPercent: maxPercent,
+
+      reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+
+      requestedByAdminId: admin?.id || null,
+
+      approvedByAdminId: requiresApproval ? null : admin?.id || null,
+
+      createdAt: now,
+
+      updatedAt: now,
+
+    },
+
+  });
+
+
+
+  await appendTimelineEvent(prisma, {
+
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+
+    subjectId: row.documentVersionId || row.id,
+
+    eventType: CRM_TIMELINE_EVENT_TYPE.DISCOUNT_REQUEST_CREATED,
+
+    summary: `Discount request ${percent}% (${row.status})`,
+
+    payload: { discountRequestId: row.id, percent, requiresApproval },
+
+    actorAdminId: admin?.id || null,
+
+    at: now,
+
+  });
+
+
+
+  return { ok: true, request: serializeDiscountRequest(row) };
+
+}
+
+
+
+export async function approveDiscountRequest(prisma, args = {}) {
+
+  const admin = resolveCommercialActor(args);
+
+  const access = resolveCrmAccess(admin);
+
+  if (!(access.canApproveMerge || access.isSuperAdmin || access.canEditOpportunities)) {
+
+    return { ok: false, forbidden: true, reason: 'crm_discount_approve_forbidden' };
+
+  }
+
+  if (!hasCrmDiscountRequestModel(prisma)) {
+
+    return { ok: false, error: 'crm_discount_request_model_unavailable', status: 'UNAVAILABLE' };
+
+  }
+
+
+
+  const row = await prisma.crmDiscountRequest.findUnique({
+
+    where: { id: String(args.discountRequestId || '').trim() },
+
+  });
+
+  if (!row) return { ok: false, notFound: true, error: 'discount_request_not_found' };
+
+
+
+  const approverId = admin?.id ? String(admin.id) : '';
+
+  const requesterId = row.requestedByAdminId ? String(row.requestedByAdminId) : '';
+
+  if (requesterId && approverId && requesterId === approverId) {
+
+    return {
+
+      ok: false,
+
+      error: 'discount_self_approval_blocked',
+
+      reason: 'sod_requester_must_differ_from_approver',
+
+    };
+
+  }
+
+
+
+  if (row.status === CRM_DISCOUNT_REQUEST_STATUS.APPROVED) {
+
+    return { ok: true, alreadyExists: true, request: serializeDiscountRequest(row) };
+
+  }
+
+
+
+  const now = args.now || new Date();
+
+  const updated = await prisma.crmDiscountRequest.update({
+
+    where: { id: row.id },
+
+    data: {
+
+      status: CRM_DISCOUNT_REQUEST_STATUS.APPROVED,
+
+      approvedByAdminId: approverId || null,
+
+      approvedAt: now,
+
+      updatedAt: now,
+
+    },
+
+  });
+
+  return { ok: true, request: serializeDiscountRequest(updated) };
+
+}
+
+
+
+/**
+
+ * Split discount requests into applied (APPROVED) vs pending.
+
+ * Approval is resolved exclusively from CrmDiscountRequest by id â€” never from caller status.
+
+ * Pending / missing / forged statuses never reduce effective net pricing.
+
+ */
+
+export async function resolveDiscountApplication(prisma, discountRequests = []) {
+
+  const pending = [];
+
+  const applied = [];
+
+  let appliedPercent = 0;
+
+
+
+  for (const d of discountRequests || []) {
+
+    const id = d?.id != null ? String(d.id).trim() : '';
+
+    let status = null;
+
+    let percent = null;
+
+
+
+    if (id && hasCrmDiscountRequestModel(prisma)) {
+
+      try {
+
+        const row = await prisma.crmDiscountRequest.findUnique({ where: { id } });
+
+        if (row) {
+
+          status = row.status;
+
+          percent = Number(row.percent);
+
+        } else {
+
+          // Unknown id â€” never trust caller APPROVED
+
+          pending.push({
+
+            id,
+
+            percent: Number(d.percent),
+
+            status: CRM_DISCOUNT_REQUEST_STATUS.PENDING,
+
+          });
+
+          continue;
+
+        }
+
+      } catch {
+
+        pending.push({
+
+          id,
+
+          percent: Number(d.percent),
+
+          status: CRM_DISCOUNT_REQUEST_STATUS.PENDING,
+
+        });
+
+        continue;
+
+      }
+
+    } else {
+
+      // No id (or model unavailable) â€” reject in-memory APPROVED; treat as pending
+
+      pending.push({
+
+        id: id || null,
+
+        percent: Number(d.percent),
+
+        status: CRM_DISCOUNT_REQUEST_STATUS.PENDING,
+
+      });
+
+      continue;
+
+    }
+
+
+
+    if (!Number.isFinite(percent)) continue;
+
+
+
+    if (String(status || '').toUpperCase() === CRM_DISCOUNT_REQUEST_STATUS.APPROVED) {
+
+      applied.push({ id, percent, status: CRM_DISCOUNT_REQUEST_STATUS.APPROVED });
+
+      appliedPercent = Math.max(appliedPercent, percent);
+
+    } else {
+
+      pending.push({
+
+        id,
+
+        percent,
+
+        status: status || CRM_DISCOUNT_REQUEST_STATUS.PENDING,
+
+      });
+
+    }
+
+  }
+
+
+
+  return {
+
+    appliedDiscountPercent: appliedPercent,
+
+    pendingDiscounts: pending,
+
+    appliedDiscounts: applied,
+
+  };
+
+}
+
+
+
+===== AFTER FIX: lib/admin/crm/commercial/exceptions.js =====
+
+/**
+
+ * Pricing exceptions â€” Phase 15 Wave 2.
+
+ * Manual unit price / below-min / nonstandard terms require reason + approval.
+
+ * Create always PENDING; APPROVED only via SoD approve path. Calc verifies DB.
+
+ */
+
+
+
+import { resolveCrmAccess } from '../authz.js';
+
+import {
+
+  hasCrmPricingExceptionModel,
+
+  resolveCommercialActor,
+
+} from './model.js';
+
+
+
+export async function createPricingException(prisma, args = {}) {
+
+  const admin = resolveCommercialActor(args);
+
+  const access = resolveCrmAccess(admin);
+
+  if (!(access.canEditOpportunities || access.canEditLeads || access.isSuperAdmin)) {
+
+    return { ok: false, forbidden: true, reason: 'crm_pricing_exception_forbidden' };
+
+  }
+
+  if (!hasCrmPricingExceptionModel(prisma)) {
+
+    return { ok: false, error: 'crm_pricing_exception_model_unavailable', status: 'UNAVAILABLE' };
+
+  }
+
+
+
+  const reason = args.reason != null ? String(args.reason).trim() : '';
+
+  if (!reason) return { ok: false, error: 'pricing_exception_reason_required' };
+
+
+
+  const now = args.now || new Date();
+
+  // Never self-approve on create â€” APPROVED only via approvePricingException (SoD).
+
+  const row = await prisma.crmPricingException.create({
+
+    data: {
+
+      documentVersionId: String(args.commercialDocumentVersionId || args.documentVersionId || '').trim(),
+
+      exceptionType: String(args.exceptionType || 'MANUAL_UNIT_PRICE').trim().toUpperCase(),
+
+      reason,
+
+      evidenceJson: args.evidenceJson ?? null,
+
+      status: 'PENDING',
+
+      requestedByAdminId: admin?.id || null,
+
+      approvedByAdminId: null,
+
+      expiresAt: args.expiresAt || null,
+
+      payloadJson: args.payloadJson ?? null,
+
+      createdAt: now,
+
+      updatedAt: now,
+
+    },
+
+  });
+
+
+
+  return {
+
+    ok: true,
+
+    exception: {
+
+      id: row.id,
+
+      status: row.status,
+
+      exceptionType: row.exceptionType,
+
+      reason: row.reason,
+
+    },
+
+  };
+
+}
+
+
+
+export async function approvePricingException(prisma, args = {}) {
+
+  const admin = resolveCommercialActor(args);
+
+  const access = resolveCrmAccess(admin);
+
+  if (!(access.canApproveMerge || access.isSuperAdmin || access.canEditOpportunities)) {
+
+    return { ok: false, forbidden: true, reason: 'crm_pricing_exception_approve_forbidden' };
+
+  }
+
+  if (!hasCrmPricingExceptionModel(prisma)) {
+
+    return { ok: false, error: 'crm_pricing_exception_model_unavailable', status: 'UNAVAILABLE' };
+
+  }
+
+
+
+  const row = await prisma.crmPricingException.findUnique({
+
+    where: { id: String(args.pricingExceptionId || args.exceptionId || '').trim() },
+
+  });
+
+  if (!row) return { ok: false, notFound: true, error: 'pricing_exception_not_found' };
+
+
+
+  const approverId = admin?.id ? String(admin.id) : '';
+
+  const requesterId = row.requestedByAdminId ? String(row.requestedByAdminId) : '';
+
+  if (requesterId && approverId && requesterId === approverId) {
+
+    return {
+
+      ok: false,
+
+      error: 'pricing_exception_self_approval_blocked',
+
+      reason: 'sod_requester_must_differ_from_approver',
+
+    };
+
+  }
+
+
+
+  if (String(row.status || '').toUpperCase() === 'APPROVED') {
+
+    return {
+
+      ok: true,
+
+      alreadyExists: true,
+
+      exception: { id: row.id, status: row.status, exceptionType: row.exceptionType, reason: row.reason },
+
+    };
+
+  }
+
+
+
+  const now = args.now || new Date();
+
+  const updated = await prisma.crmPricingException.update({
+
+    where: { id: row.id },
+
+    data: {
+
+      status: 'APPROVED',
+
+      approvedByAdminId: approverId || null,
+
+      approvedAt: now,
+
+      updatedAt: now,
+
+    },
+
+  });
+
+
+
+  return {
+
+    ok: true,
+
+    exception: {
+
+      id: updated.id,
+
+      status: updated.status,
+
+      exceptionType: updated.exceptionType,
+
+      reason: updated.reason,
+
+    },
+
+  };
+
+}
+
+
+
+/**
+
+ * Only DB-verified APPROVED exceptions may alter effective pricing.
+
+ * In-memory status/approved flags without id + DB APPROVED are rejected.
+
+ */
+
+export async function filterApprovedExceptions(prisma, exceptions = []) {
+
+  const approved = [];
+
+
+
+  for (const e of exceptions || []) {
+
+    const id = e?.id != null ? String(e.id).trim() : '';
+
+    if (!id || !hasCrmPricingExceptionModel(prisma)) {
+
+      continue;
+
+    }
+
+
+
+    try {
+
+      const row = await prisma.crmPricingException.findUnique({ where: { id } });
+
+      if (!row || String(row.status || '').toUpperCase() !== 'APPROVED') {
+
+        continue;
+
+      }
+
+
+
+      const payload =
+
+        row.payloadJson && typeof row.payloadJson === 'object' && !Array.isArray(row.payloadJson)
+
+          ? row.payloadJson
+
+          : {};
+
+
+
+      approved.push({
+
+        id: row.id,
+
+        status: 'APPROVED',
+
+        exceptionType: row.exceptionType,
+
+        reason: row.reason,
+
+        productRef: payload.productRef ?? e.productRef,
+
+        lineKey: payload.lineKey ?? e.lineKey,
+
+        unitPrice: payload.unitPrice != null ? payload.unitPrice : e.unitPrice,
+
+        payloadJson: row.payloadJson,
+
+      });
+
+    } catch {
+
+      // skip unverifiable
+
+    }
+
+  }
+
+
+
+  return approved;
+
+}
+
+
+
+===== AFTER FIX: lib/admin/crm/commercial/pricing.js =====
+
+/**
+ * Deterministic calculateCommercialDocument â€” Phase 15 Wave 2.
+ * Immutable pricing snapshots; currency-explicit totals; idempotent by key.
+ * No silent FX; no Tenant tax posting; no MRA EIS fiscal; Opp estimates unused.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  assertCurrencyPricingGate,
+  convertAmount,
+  resolveFxContext,
+  roundMoney,
+} from './currencyFx.js';
+import { resolveDiscountApplication } from './discounts.js';
+import { filterApprovedExceptions } from './exceptions.js';
+import { collectLineCurrencies, normalizeLineItems } from './lineItems.js';
+import {
+  hasCrmPriceBookEntryModel,
+  hasCrmPriceBookVersionModel,
+  hasCrmPricingSnapshotModel,
+  resolveCommercialActor,
+} from './model.js';
+import { findPriceBookEntryForProduct } from './productConfig.js';
+import {
+  buildCurrencyExplicitTotals,
+  buildPricingSnapshotPayload,
+} from './pricingSnapshot.js';
+import { computeTaxTotal, resolveTaxContext } from './tax.js';
+
+function canEdit(access) {
+  return (
+    access.canEditOpportunities ||
+    access.canEditLeads ||
+    access.canCreateLeads ||
+    access.isSuperAdmin
+  );
+}
+
+async function loadPriceBookEntries(prisma, priceBookVersionId) {
+  if (!hasCrmPriceBookEntryModel(prisma)) return [];
+  return prisma.crmPriceBookEntry.findMany({
+    where: { priceBookVersionId: String(priceBookVersionId) },
+  });
+}
+
+/**
+ * calculateCommercialDocument({
+ *   actorContext, commercialDocumentVersionId, priceBookVersionId, currency,
+ *   lineItems, taxContext, discountRequests, pricingExceptions,
+ *   calculationDate, idempotencyKey, fxContext
+ * }) â†’ { calculationId, snapshot, totals }
+ */
+export async function calculateCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_pricing_calculate_forbidden' };
+  }
+  if (!hasCrmPricingSnapshotModel(prisma) || !hasCrmPriceBookVersionModel(prisma)) {
+    return { ok: false, error: 'crm_pricing_snapshot_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const documentVersionId = String(args.commercialDocumentVersionId || '').trim();
+  const priceBookVersionId = String(args.priceBookVersionId || '').trim();
+  const currency = args.currency ? String(args.currency).trim().toUpperCase() : null;
+  const idempotencyKey = args.idempotencyKey != null ? String(args.idempotencyKey).trim() : '';
+
+  if (!documentVersionId || !priceBookVersionId || !currency) {
+    return { ok: false, error: 'pricing_required_fields_missing' };
+  }
+
+  if (idempotencyKey) {
+    const existing = await prisma.crmPricingSnapshot.findUnique({
+      where: {
+        documentVersionId_idempotencyKey: {
+          documentVersionId,
+          idempotencyKey,
+        },
+      },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        calculationId: existing.id,
+        snapshot: existing.snapshotJson,
+        totals: existing.totalsJson,
+      };
+    }
+    // also try findFirst for mocks without compound unique
+    const existingAlt = await prisma.crmPricingSnapshot.findFirst({
+      where: { documentVersionId, idempotencyKey },
+    });
+    if (existingAlt) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        calculationId: existingAlt.id,
+        snapshot: existingAlt.snapshotJson,
+        totals: existingAlt.totalsJson,
+      };
+    }
+  }
+
+  const pbVersion = await prisma.crmPriceBookVersion.findUnique({
+    where: { id: priceBookVersionId },
+  });
+  if (!pbVersion) {
+    return { ok: false, notFound: true, error: 'price_book_version_not_found' };
+  }
+
+  const normalized = normalizeLineItems(args.lineItems);
+  if (!normalized.ok) return normalized;
+
+  const lineCurrencies = collectLineCurrencies(normalized.lineItems, currency);
+  const fxGate = assertCurrencyPricingGate({
+    documentCurrency: currency,
+    lineCurrencies,
+    fxContext: args.fxContext,
+    calculationDate: args.calculationDate,
+    now: args.now,
+  });
+  if (!fxGate.ok) {
+    return {
+      ok: false,
+      error: fxGate.error,
+      reliability: fxGate.reliability,
+      reason: fxGate.reason,
+    };
+  }
+
+  const taxResolved = resolveTaxContext(args.taxContext);
+  if (!taxResolved.ok) {
+    return { ok: false, error: taxResolved.error, reason: taxResolved.reason };
+  }
+
+  const entries = await loadPriceBookEntries(prisma, priceBookVersionId);
+  const discounts = await resolveDiscountApplication(prisma, args.discountRequests || []);
+  const approvedExceptions = await filterApprovedExceptions(
+    prisma,
+    args.pricingExceptions || []
+  );
+
+  const lineSnapshots = [];
+  let listSubtotal = 0;
+  let netSubtotal = 0;
+  let fxSnapshot = null;
+
+  for (const item of normalized.lineItems) {
+    const entry = findPriceBookEntryForProduct(entries, item.productRef);
+    if (!entry) {
+      return {
+        ok: false,
+        error: 'price_book_entry_not_found',
+        productRef: item.productRef,
+      };
+    }
+
+    const entryCurrency = String(entry.currency || currency).trim().toUpperCase();
+    const lineCurrency = item.currency || entryCurrency;
+    let unitList = Number(entry.listPrice);
+    let unitNet = unitList;
+
+    // Approved exception may override unit price
+    const ex = approvedExceptions.find(
+      (e) => e.productRef === item.productRef || e.lineKey === item.lineKey
+    );
+    if (ex && ex.unitPrice != null) {
+      unitNet = Number(ex.unitPrice);
+    }
+
+    if (lineCurrency !== currency) {
+      const fx = resolveFxContext({
+        sourceCurrency: lineCurrency,
+        targetCurrency: currency,
+        fxContext: args.fxContext,
+        calculationDate: args.calculationDate,
+        now: args.now,
+      });
+      if (!fx.ok) {
+        return { ok: false, error: fx.error, reliability: fx.reliability };
+      }
+      unitList = convertAmount(unitList, fx.rate);
+      unitNet = convertAmount(unitNet, fx.rate);
+      fxSnapshot = fx.snapshot;
+    }
+
+    const lineList = roundMoney(unitList * item.quantity);
+    let lineNet = roundMoney(unitNet * item.quantity);
+    if (discounts.appliedDiscountPercent > 0) {
+      lineNet = roundMoney(lineNet * (1 - discounts.appliedDiscountPercent / 100));
+    }
+
+    listSubtotal += lineList;
+    netSubtotal += lineNet;
+
+    lineSnapshots.push({
+      productRef: item.productRef,
+      quantity: item.quantity,
+      unit: item.unit || entry.unit,
+      currency,
+      sourceCurrency: lineCurrency,
+      listUnitPrice: unitList,
+      netUnitPrice: roundMoney(lineNet / item.quantity),
+      listAmount: lineList,
+      netAmount: lineNet,
+      billingFrequency: item.billingFrequency || entry.billingFrequency || 'MONTHLY',
+      priceBookEntryId: entry.id,
+    });
+  }
+
+  listSubtotal = roundMoney(listSubtotal);
+  netSubtotal = roundMoney(netSubtotal);
+
+  const { taxTotal } = computeTaxTotal(netSubtotal, taxResolved);
+  const totals = buildCurrencyExplicitTotals({
+    currency,
+    listSubtotal,
+    netSubtotal,
+    taxTotal,
+    lineSnapshots,
+    inclusive: taxResolved.inclusive === true,
+  });
+
+  const calculationDate = args.calculationDate || new Date().toISOString().slice(0, 10);
+  const snapshot = buildPricingSnapshotPayload({
+    documentVersionId,
+    priceBookVersionId,
+    currency,
+    calculationDate,
+    lineSnapshots,
+    totals,
+    tax: {
+      jurisdiction: taxResolved.jurisdiction,
+      ratePercent: taxResolved.ratePercent,
+      inclusive: taxResolved.inclusive,
+      overridden: taxResolved.overridden,
+      tenantGlPosting: false,
+      mraEisFiscal: false,
+    },
+    discounts,
+    fx: fxSnapshot,
+    pricingExceptions: approvedExceptions,
+  });
+
+  const now = args.now || new Date();
+  const row = await prisma.crmPricingSnapshot.create({
+    data: {
+      documentVersionId,
+      priceBookVersionId,
+      currency,
+      calculationDate: new Date(calculationDate),
+      idempotencyKey: idempotencyKey || null,
+      snapshotJson: snapshot,
+      totalsJson: totals,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await appendTimelineEvent(prisma, {
+    subjectType: CRM_SUBJECT_TYPE.ACCOUNT,
+    subjectId: documentVersionId,
+    eventType: CRM_TIMELINE_EVENT_TYPE.COMMERCIAL_PRICING_CALCULATED,
+    summary: `Commercial pricing calculated ${totals.grandTotal} ${currency}`,
+    payload: { calculationId: row.id, documentVersionId, currency },
+    actorAdminId: admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    calculationId: row.id,
+    snapshot,
+    totals,
+  };
+}
+
+===== AFTER FIX: lib/admin/crm/commercial/tax.js =====
+
+/**
+ * In-platform commercial tax context â€” Phase 15 Wave 2.
+ * Overrides require approval. No Tenant GL tax posting. No MRA EIS fiscal.
+ */
+
+import { roundMoney } from './currencyFx.js';
+
+/**
+ * Resolve effective tax rate from taxContext.
+ * Override without approval â†’ fail.
+ */
+export function resolveTaxContext(taxContext = {}) {
+  const ctx = taxContext && typeof taxContext === 'object' ? taxContext : {};
+  const baseRate = Number(ctx.ratePercent);
+  const hasOverride =
+    ctx.overrideRatePercent != null && ctx.overrideRatePercent !== '' && ctx.overrideRatePercent !== undefined;
+
+  if (hasOverride) {
+    const overrideRate = Number(ctx.overrideRatePercent);
+    if (!Number.isFinite(overrideRate)) {
+      return { ok: false, error: 'tax_override_invalid' };
+    }
+    if (ctx.overrideApproved !== true) {
+      return {
+        ok: false,
+        error: 'tax_override_requires_approval',
+        reason: 'Tax rate overrides require approved evidence',
+      };
+    }
+    return {
+      ok: true,
+      ratePercent: overrideRate,
+      inclusive: ctx.inclusive === true,
+      jurisdiction: ctx.jurisdiction || null,
+      overridden: true,
+      tenantGlPosting: false,
+      mraEisFiscal: false,
+    };
+  }
+
+  return {
+    ok: true,
+    ratePercent: Number.isFinite(baseRate) ? baseRate : 0,
+    inclusive: ctx.inclusive === true,
+    jurisdiction: ctx.jurisdiction || null,
+    overridden: false,
+    tenantGlPosting: false,
+    mraEisFiscal: false,
+  };
+}
+
+export function computeTaxTotal(netSubtotal, taxResolved) {
+  const net = Number(netSubtotal) || 0;
+  const rate = Number(taxResolved?.ratePercent) || 0;
+  if (taxResolved?.inclusive) {
+    // net already includes tax â€” extract tax portion
+    const tax = roundMoney(net - net / (1 + rate / 100));
+    return { taxTotal: tax, taxBase: roundMoney(net - tax) };
+  }
+  return { taxTotal: roundMoney((net * rate) / 100), taxBase: net };
+}
+
+===== AFTER FIX: lib/admin/crm/commercial/pricingSnapshot.js =====
+
+/**
+ * Immutable pricing snapshot builders â€” Phase 15 Wave 2.
+ */
+
+import { roundMoney } from './currencyFx.js';
+
+/**
+ * Build currency-explicit totals. Labels never swapped / never labelled as Revenue.
+ */
+export function buildCurrencyExplicitTotals({
+  currency,
+  listSubtotal,
+  netSubtotal,
+  taxTotal,
+  lineSnapshots = [],
+  inclusive = false,
+} = {}) {
+  const cur = currency ? String(currency).trim().toUpperCase() : null;
+  const list = roundMoney(listSubtotal);
+  const net = roundMoney(netSubtotal);
+  const tax = roundMoney(taxTotal);
+  // Inclusive: netSubtotal already includes tax â€” do not add taxTotal again.
+  const grand = inclusive ? net : roundMoney(net + tax);
+
+  let monthly = 0;
+  let annual = 0;
+  let oneTime = 0;
+
+  for (const line of lineSnapshots) {
+    const amount = Number(line.netAmount) || 0;
+    const freq = String(line.billingFrequency || 'MONTHLY').toUpperCase();
+    if (freq === 'MONTHLY') monthly += amount;
+    else if (freq === 'ANNUAL') annual += amount;
+    else if (freq === 'QUARTERLY') monthly += amount / 3;
+    else if (freq === 'ONE_TIME') oneTime += amount;
+    else monthly += amount;
+  }
+
+  monthly = roundMoney(monthly);
+  annual = roundMoney(annual + monthly * 12);
+  const firstYearTotal = roundMoney(monthly * 12 + oneTime + (annual > monthly * 12 ? 0 : 0));
+  // Prefer explicit annual lines + monthly*12 + one-time
+  const firstYear = roundMoney(
+    oneTime +
+      monthly * 12 +
+      lineSnapshots
+        .filter((l) => String(l.billingFrequency || '').toUpperCase() === 'ANNUAL')
+        .reduce((s, l) => s + (Number(l.netAmount) || 0), 0)
+  );
+  const tcv = firstYear; // Wave 2 foundation: TCV = first-year unless term provided
+
+  return Object.freeze({
+    currency: cur,
+    listSubtotal: list,
+    netSubtotal: net,
+    taxTotal: tax,
+    grandTotal: grand,
+    quotedMonthlyRecurring: monthly,
+    quotedAnnualRecurring: roundMoney(monthly * 12),
+    firstYearTotal: firstYear,
+    totalContractValue: tcv,
+  });
+}
+
+export function buildPricingSnapshotPayload({
+  documentVersionId,
+  priceBookVersionId,
+  currency,
+  calculationDate,
+  lineSnapshots,
+  totals,
+  tax,
+  discounts,
+  fx,
+  pricingExceptions,
+} = {}) {
+  return Object.freeze({
+    documentVersionId,
+    priceBookVersionId,
+    currency,
+    calculationDate,
+    lines: lineSnapshots,
+    totals,
+    tax,
+    appliedDiscountPercent: discounts?.appliedDiscountPercent || 0,
+    pendingDiscounts: discounts?.pendingDiscounts || [],
+    appliedDiscounts: discounts?.appliedDiscounts || [],
+    fx: fx || null,
+    pricingExceptions: pricingExceptions || [],
+    opportunityEstimateUsed: false,
+    tenantTaxPosted: false,
+    mraEisFiscalSubmitted: false,
+  });
+}
+
+===== AFTER FIX: test/systemAdmin.crm.commercialWave2.test.js =====
+
+/**
+ * Phase 15 Wave 2 â€” Price Books, pricing, tax/FX, discounts, approvals.
+ * ACTIVE Price Book immutable; no silent FX; discount SoD; material change invalidates.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createPriceBook,
+  approvePriceBookVersion,
+  activatePriceBookVersion,
+  updatePriceBookEntry,
+  calculateCommercialDocument,
+  submitCommercialDocumentForApproval,
+  decideApprovalStep,
+  createDiscountRequest,
+  createPricingException,
+  applyMaterialDocumentChange,
+  getCommercialDomainContract,
+  CRM_PRICE_BOOK_VERSION_STATUS,
+  CRM_DISCOUNT_REQUEST_STATUS,
+  CRM_APPROVAL_REQUEST_STATUS,
+  CRM_FX_RELIABILITY,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-1') {
+  return { id, role: 'Super Admin', permissions: {} };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const priceBookStore = overrides._priceBookStore || [];
+  const priceBookVersionStore = overrides._priceBookVersionStore || [];
+  const priceBookEntryStore = overrides._priceBookEntryStore || [];
+  const taxRuleStore = overrides._taxRuleStore || [];
+  const taxRateVersionStore = overrides._taxRateVersionStore || [];
+  const discountPolicyStore = overrides._discountPolicyStore || [
+    {
+      id: 'dp-default',
+      code: 'SALESPERSON_MAX',
+      maxPercent: 10,
+      status: 'ACTIVE',
+      version: 1,
+    },
+  ];
+  const discountRequestStore = overrides._discountRequestStore || [];
+  const pricingExceptionStore = overrides._pricingExceptionStore || [];
+  const pricingSnapshotStore = overrides._pricingSnapshotStore || [];
+  const approvalPolicyStore = overrides._approvalPolicyStore || [
+    {
+      id: 'ap-1',
+      code: 'COMMERCIAL_DEFAULT',
+      version: 1,
+      status: 'ACTIVE',
+      stepsJson: [{ stepOrder: 1, role: 'approver', protected: true }],
+    },
+  ];
+  const approvalRequestStore = overrides._approvalRequestStore || [];
+  const approvalStepStore = overrides._approvalStepStore || [];
+  const approvalDecisionStore = overrides._approvalDecisionStore || [];
+  const termStore = overrides._termStore || [];
+  const clauseStore = overrides._clauseStore || [];
+  const documentVersionStore = overrides._documentVersionStore || [
+    {
+      id: 'cdv-1',
+      documentId: 'doc-1',
+      versionNumber: 1,
+      versionLabel: 'QUO-2026-000001-V1',
+      status: 'DRAFT',
+      contentJson: { lineItems: [] },
+      immutable: false,
+    },
+  ];
+  const timelineStore = overrides._timelineStore || [];
+
+  function simpleCrud(store, idPrefix) {
+    return {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `${idPrefix}-${store.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        store.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return store.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.code_version) {
+          const k = where.code_version;
+          return store.find((r) => r.code === k.code && r.version === k.version) || null;
+        }
+        if (where.priceBookId_versionNumber) {
+          const k = where.priceBookId_versionNumber;
+          return (
+            store.find(
+              (r) => r.priceBookId === k.priceBookId && r.versionNumber === k.versionNumber
+            ) || null
+          );
+        }
+        if (where.documentVersionId_idempotencyKey) {
+          const k = where.documentVersionId_idempotencyKey;
+          return (
+            store.find(
+              (r) =>
+                r.documentVersionId === k.documentVersionId &&
+                r.idempotencyKey === k.idempotencyKey
+            ) || null
+          );
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...store];
+        if (where.priceBookId) rows = rows.filter((r) => r.priceBookId === where.priceBookId);
+        if (where.documentVersionId) {
+          rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        if (where.code) rows = rows.filter((r) => r.code === where.code);
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        if (orderBy?.versionNumber === 'desc') {
+          rows.sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
+        }
+        if (orderBy?.version === 'desc') {
+          rows.sort((a, b) => (b.version || 0) - (a.version || 0));
+        }
+        if (orderBy?.createdAt === 'desc') {
+          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...store];
+        if (where.priceBookVersionId) {
+          rows = rows.filter((r) => r.priceBookVersionId === where.priceBookVersionId);
+        }
+        if (where.approvalRequestId) {
+          rows = rows.filter((r) => r.approvalRequestId === where.approvalRequestId);
+        }
+        if (where.documentVersionId) {
+          rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = store.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        let count = 0;
+        for (const row of store) {
+          let match = true;
+          if (where.priceBookId && row.priceBookId !== where.priceBookId) match = false;
+          if (where.documentVersionId && row.documentVersionId !== where.documentVersionId) {
+            match = false;
+          }
+          if (where.status && row.status !== where.status) match = false;
+          if (where.code && row.code !== where.code) match = false;
+          if (match) {
+            Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+            count += 1;
+          }
+        }
+        return { count };
+      }),
+    };
+  }
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmPriceBook: simpleCrud(priceBookStore, 'pb'),
+    crmPriceBookVersion: simpleCrud(priceBookVersionStore, 'pbv'),
+    crmPriceBookEntry: simpleCrud(priceBookEntryStore, 'pbe'),
+    crmTaxRule: simpleCrud(taxRuleStore, 'tax'),
+    crmTaxRateVersion: simpleCrud(taxRateVersionStore, 'trv'),
+    crmDiscountPolicy: simpleCrud(discountPolicyStore, 'dp'),
+    crmDiscountRequest: simpleCrud(discountRequestStore, 'dr'),
+    crmPricingException: simpleCrud(pricingExceptionStore, 'pex'),
+    crmPricingSnapshot: simpleCrud(pricingSnapshotStore, 'ps'),
+    crmApprovalPolicy: simpleCrud(approvalPolicyStore, 'ap'),
+    crmApprovalRequest: simpleCrud(approvalRequestStore, 'ar'),
+    crmApprovalStep: simpleCrud(approvalStepStore, 'as'),
+    crmApprovalDecision: simpleCrud(approvalDecisionStore, 'ad'),
+    crmTerm: simpleCrud(termStore, 'term'),
+    crmClause: simpleCrud(clauseStore, 'clause'),
+    crmCommercialDocumentVersion: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return documentVersionStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = documentVersionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmTimelineEvent: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
+        timelineStore.push(row);
+        return row;
+      }),
+    },
+    _stores: {
+      seqStore,
+      priceBookStore,
+      priceBookVersionStore,
+      priceBookEntryStore,
+      discountPolicyStore,
+      discountRequestStore,
+      pricingExceptionStore,
+      pricingSnapshotStore,
+      approvalPolicyStore,
+      approvalRequestStore,
+      approvalStepStore,
+      approvalDecisionStore,
+      documentVersionStore,
+    },
+  };
+
+  // Enhance price book findUnique for bookNumber
+  const origPbFind = prisma.crmPriceBook.findUnique;
+  prisma.crmPriceBook.findUnique = vi.fn(async ({ where = {} } = {}) => {
+    if (where.bookNumber) {
+      return priceBookStore.find((r) => r.bookNumber === where.bookNumber) || null;
+    }
+    return origPbFind({ where });
+  });
+
+  return prisma;
+}
+
+async function seedActivePriceBook(prisma, actorContext, entries) {
+  const created = await createPriceBook(prisma, {
+    actorContext,
+    name: 'Standard MWK',
+    currency: 'MWK',
+    bookType: 'STANDARD',
+    entries,
+  });
+  expect(created.ok).toBe(true);
+  const approved = await approvePriceBookVersion(prisma, {
+    actorContext: { admin: superAdmin('approver-1') },
+    priceBookVersionId: created.version.id,
+  });
+  expect(approved.ok).toBe(true);
+  const activated = await activatePriceBookVersion(prisma, {
+    actorContext: { admin: superAdmin('approver-1') },
+    priceBookVersionId: created.version.id,
+  });
+  expect(activated.ok).toBe(true);
+  expect(activated.version.status).toBe(CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE);
+  return { book: created.priceBook, version: activated.version, entries: activated.entries };
+}
+
+describe('Phase 15 Wave 2 â€” Price Books, pricing, tax/FX, discounts, approvals', () => {
+  let prisma;
+  let admin;
+  let actorContext;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    admin = superAdmin('sales-1');
+    actorContext = { admin };
+  });
+
+  it('ACTIVE Price Book version/entry is immutable (not silently edited)', async () => {
+    const { version } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 80,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const entry = prisma._stores.priceBookEntryStore[0];
+    const mutate = await updatePriceBookEntry(prisma, {
+      actorContext,
+      priceBookEntryId: entry.id,
+      listPrice: 999,
+    });
+    expect(mutate.ok).toBe(false);
+    expect(mutate.error).toMatch(/immutable|active/i);
+    expect(prisma._stores.priceBookEntryStore[0].listPrice).toBe(100);
+    expect(version.status).toBe(CRM_PRICE_BOOK_VERSION_STATUS.ACTIVE);
+  });
+
+  it('calculateCommercialDocument is deterministic and idempotent by key', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 80,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const args = {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 2, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-idem-1',
+    };
+
+    const first = await calculateCommercialDocument(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.calculationId).toBeTruthy();
+    expect(first.snapshot).toBeTruthy();
+    expect(first.totals.currency).toBe('MWK');
+    expect(first.totals.listSubtotal).toBe(200);
+    expect(first.totals.netSubtotal).toBe(200);
+    expect(first.totals).toHaveProperty('taxTotal');
+    expect(first.totals).toHaveProperty('grandTotal');
+    expect(first.totals).toHaveProperty('quotedMonthlyRecurring');
+    expect(first.totals).toHaveProperty('quotedAnnualRecurring');
+    expect(first.totals).toHaveProperty('firstYearTotal');
+    expect(first.totals).toHaveProperty('totalContractValue');
+
+    const second = await calculateCommercialDocument(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.calculationId).toBe(first.calculationId);
+    expect(second.snapshot).toEqual(first.snapshot);
+    expect(second.totals).toEqual(first.totals);
+    expect(prisma._stores.pricingSnapshotStore.length).toBe(1);
+  });
+
+  it('ZAR + USD line items are not silently summed', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-ZAR',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 100,
+        currency: 'ZAR',
+        billingFrequency: 'MONTHLY',
+      },
+      {
+        productRef: 'PLAN-USD',
+        unit: 'SEAT',
+        listPrice: 50,
+        minPrice: 50,
+        currency: 'USD',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'ZAR',
+      lineItems: [
+        { productRef: 'PLAN-ZAR', quantity: 1, unit: 'SEAT', currency: 'ZAR' },
+        { productRef: 'PLAN-USD', quantity: 1, unit: 'SEAT', currency: 'USD' },
+      ],
+      taxContext: { jurisdiction: 'ZA', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-mix-currency',
+      // no fxContext
+    });
+
+    expect(result.ok).toBe(false);
+    expect([CRM_FX_RELIABILITY.FX_CONTEXT_MISSING, 'CURRENCY_MIX_FORBIDDEN']).toContain(
+      result.error
+    );
+    expect(result.totals).toBeFalsy();
+  });
+
+  it('missing FX context returns FX_CONTEXT_MISSING (never silent convert)', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-USD',
+        unit: 'SEAT',
+        listPrice: 50,
+        minPrice: 50,
+        currency: 'USD',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-USD', quantity: 1, unit: 'SEAT', currency: 'USD' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-fx-missing',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(CRM_FX_RELIABILITY.FX_CONTEXT_MISSING);
+    expect(result.reliability).toBe(CRM_FX_RELIABILITY.FX_CONTEXT_MISSING);
+    expect(result.totals?.grandTotal).not.toBe(0);
+    expect(result.totals).toBeFalsy();
+  });
+
+  it('tax override without approval fails', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 80,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: {
+        jurisdiction: 'MW',
+        inclusive: false,
+        ratePercent: 16.5,
+        overrideRatePercent: 0,
+        overrideApproved: false,
+      },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-tax-override',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/tax_override|approval/i);
+  });
+
+  it('20% discount above 10% threshold stays PENDING until approved', async () => {
+    const discount = await createDiscountRequest(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      percent: 20,
+      reason: 'Strategic deal',
+    });
+    expect(discount.ok).toBe(true);
+    expect(discount.request.status).toBe(CRM_DISCOUNT_REQUEST_STATUS.PENDING);
+    expect(discount.request.requiresApproval).toBe(true);
+
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 50,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [{ id: discount.request.id, percent: 20 }],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-discount-pending',
+    });
+
+    expect(result.ok).toBe(true);
+    // Pending discount must NOT reduce effective net pricing
+    expect(result.totals.listSubtotal).toBe(100);
+    expect(result.totals.netSubtotal).toBe(100);
+    expect(result.snapshot.pendingDiscounts?.length).toBeGreaterThan(0);
+    expect(result.snapshot.appliedDiscountPercent || 0).toBe(0);
+  });
+
+  it('self-approve on commercial approval step is blocked (SoD)', async () => {
+    const submitted = await submitCommercialDocumentForApproval(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      approvalPolicyVersionId: 'ap-1',
+      idempotencyKey: 'apr-1',
+    });
+    expect(submitted.ok).toBe(true);
+    expect(submitted.request.status).toBe(CRM_APPROVAL_REQUEST_STATUS.PENDING);
+    const stepId = submitted.steps[0].id;
+
+    const self = await decideApprovalStep(prisma, {
+      actorContext, // same sales-1 requester
+      approvalStepId: stepId,
+      decision: 'APPROVE',
+      reason: 'I approve myself',
+    });
+    expect(self.ok).toBe(false);
+    expect(self.error).toMatch(/self.?approv|sod/i);
+
+    const other = await decideApprovalStep(prisma, {
+      actorContext: { admin: superAdmin('approver-9') },
+      approvalStepId: stepId,
+      decision: 'APPROVE',
+      reason: 'Looks good',
+    });
+    expect(other.ok).toBe(true);
+    expect(other.request.status).toBe(CRM_APPROVAL_REQUEST_STATUS.APPROVED);
+  });
+
+  it('forged APPROVED discount without DB APPROVED does not reduce netSubtotal', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 50,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      // Forged: claims APPROVED with no matching CrmDiscountRequest row
+      discountRequests: [{ percent: 20, status: 'APPROVED' }],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-forged-discount',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.totals.listSubtotal).toBe(100);
+    expect(result.totals.netSubtotal).toBe(100);
+    expect(result.snapshot.appliedDiscountPercent || 0).toBe(0);
+  });
+
+  it('forged APPROVED pricing exception without DB APPROVED does not alter unit price', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 100,
+        minPrice: 50,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    // Create stays PENDING even if caller asks approved: true (no self-approve)
+    const created = await createPricingException(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      reason: 'Strategic override',
+      approved: true,
+      payloadJson: { productRef: 'PLAN-CORE', unitPrice: 1 },
+    });
+    expect(created.ok).toBe(true);
+    expect(created.exception.status).toBe('PENDING');
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: false, ratePercent: 0 },
+      discountRequests: [],
+      // Forged in-memory APPROVED (no DB APPROVED) + pending row id must not apply
+      pricingExceptions: [
+        { status: 'APPROVED', approved: true, productRef: 'PLAN-CORE', unitPrice: 1 },
+        { id: created.exception.id, status: 'APPROVED', productRef: 'PLAN-CORE', unitPrice: 1 },
+      ],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-forged-exception',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.totals.listSubtotal).toBe(100);
+    expect(result.totals.netSubtotal).toBe(100);
+  });
+
+  it('tax-inclusive grandTotal equals netSubtotal (does not double-count tax)', async () => {
+    const { version: pbv } = await seedActivePriceBook(prisma, actorContext, [
+      {
+        productRef: 'PLAN-CORE',
+        unit: 'SEAT',
+        listPrice: 116.5,
+        minPrice: 100,
+        currency: 'MWK',
+        billingFrequency: 'MONTHLY',
+      },
+    ]);
+
+    const result = await calculateCommercialDocument(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      priceBookVersionId: pbv.id,
+      currency: 'MWK',
+      lineItems: [{ productRef: 'PLAN-CORE', quantity: 1, unit: 'SEAT' }],
+      taxContext: { jurisdiction: 'MW', inclusive: true, ratePercent: 16.5 },
+      discountRequests: [],
+      pricingExceptions: [],
+      calculationDate: '2026-07-31',
+      idempotencyKey: 'calc-tax-inclusive',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.totals.netSubtotal).toBe(116.5);
+    expect(result.totals.taxTotal).toBeGreaterThan(0);
+    // Inclusive: grandTotal must equal net (already includes tax), not net + tax
+    expect(result.totals.grandTotal).toBe(result.totals.netSubtotal);
+    expect(result.totals.grandTotal).toBe(116.5);
+    expect(result.totals.grandTotal).not.toBe(
+      result.totals.netSubtotal + result.totals.taxTotal
+    );
+  });
+
+  it('material qty change after full approval invalidates affected approvals', async () => {
+    const submitted = await submitCommercialDocumentForApproval(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      approvalPolicyVersionId: 'ap-1',
+      idempotencyKey: 'apr-material-1',
+    });
+    const stepId = submitted.steps[0].id;
+    await decideApprovalStep(prisma, {
+      actorContext: { admin: superAdmin('approver-9') },
+      approvalStepId: stepId,
+      decision: 'APPROVE',
+    });
+    expect(
+      prisma._stores.approvalRequestStore.find((r) => r.id === submitted.request.id).status
+    ).toBe(CRM_APPROVAL_REQUEST_STATUS.APPROVED);
+
+    const changed = await applyMaterialDocumentChange(prisma, {
+      actorContext,
+      commercialDocumentVersionId: 'cdv-1',
+      change: { quantity: 5, priorQuantity: 2 },
+      reason: 'Customer asked for more seats',
+    });
+    expect(changed.ok).toBe(true);
+    expect(changed.invalidatedApprovalIds).toContain(submitted.request.id);
+    expect(
+      prisma._stores.approvalRequestStore.find((r) => r.id === submitted.request.id).status
+    ).toBe(CRM_APPROVAL_REQUEST_STATUS.INVALIDATED);
+
+    expect(getCommercialDomainContract().wave).toBe(2);
+    expect(getCommercialDomainContract().opportunityEstimatesNonBinding).toBe(true);
+    expect(getCommercialDomainContract().tenantTaxPostingForbidden).toBe(true);
+    expect(getCommercialDomainContract().mraEisFiscalFromQuotationForbidden).toBe(true);
+  });
+});

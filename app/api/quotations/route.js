@@ -4,16 +4,21 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { allocateNextQuoNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
+import { toItemTaxCreateRows } from '@/lib/documentLineTaxes';
 
 // Enhanced helper function to calculate quotation totals with discounts
 function calculateQuotationTotals(items, globalDiscount = 0) {
   const totals = calculateInvoiceTotals(items, globalDiscount);
   const processedItems = totals.processedItems.map((item, index) => ({
     ...items[index],
+    ...item,
+    description: item.description ?? items[index]?.description,
     discountAmount: item.discountAmount,
     netAmount: item.netAmount,
     amount: item.amount,
     taxAmount: item.taxAmount,
+    taxRate: item.taxRate,
+    itemTaxes: item.itemTaxes || [],
   }));
 
   return {
@@ -309,7 +314,10 @@ export async function POST(request) {
               discountAmount: item.discountAmount || 0,
               netAmount: item.netAmount || 0,
               amount: item.amount,
-              productId: item.productId || null
+              productId: item.productId || null,
+              itemTaxes: {
+                create: toItemTaxCreateRows(item.itemTaxes).filter((r) => r.taxTypeId),
+              },
             }))
           }
         },
@@ -322,7 +330,7 @@ export async function POST(request) {
               email: true
             }
           },
-          items: true
+          items: { include: { itemTaxes: true } },
         }
       });
     });

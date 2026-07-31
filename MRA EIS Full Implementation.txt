@@ -1,0 +1,3542 @@
+# INSIGHTBOOKS V2
+# COMPLETE MALAWI REVENUE AUTHORITY ELECTRONIC INVOICING SYSTEM INTEGRATION
+# MRA EIS TENANT ENTITLEMENT, TERMINAL ONBOARDING, CONFIGURATION SYNCHRONIZATION,
+# PRODUCT AND SERVICE MAPPING, REAL-TIME SALES TRANSMISSION, OFFLINE INVOICING,
+# QR-CODE RECEIPTS, VAT5 RELIEF, RETRIES, RECONCILIATION, MONITORING,
+# SECURITY, CERTIFICATION AND PRODUCTION ROLLOUT
+# COMPLETE CURSOR AI IMPLEMENTATION MASTER PROMPT
+
+You are working on InsightBooks V2, a production-grade, multi-tenant business management, accounting, POS, sales, invoicing, inventory, tax and financial reporting platform.
+
+Your assignment is to research, design, implement, test and document a complete integration between InsightBooks V2 and the Malawi Revenue Authority Electronic Invoicing System API.
+
+Official sources that must be reviewed directly before implementation:
+
+- https://eis-api.mra.mw/swagger/index.html
+- https://eis-api.mra.mw/docs/
+
+Also inspect the current MRA sandbox and production endpoint configuration provided during the formal developer and software certification process.
+
+Do not rely only on this prompt.
+
+Before writing integration code:
+
+1. Reopen the official documentation.
+2. Reopen the live Swagger UI.
+3. Locate the actual OpenAPI JSON or YAML definition.
+4. Confirm the current API version.
+5. Confirm every HTTP method.
+6. Confirm every endpoint path.
+7. Confirm every request field.
+8. Confirm every response field.
+9. Confirm every required header.
+10. Confirm the hashing and signing rules.
+11. Confirm success and failure status conventions.
+12. Confirm sandbox and production base URLs.
+13. Confirm offline-certification requirements.
+14. Confirm product-ID and product-version requirements.
+15. Confirm the complete certification process.
+16. Record discrepancies between Swagger, the developer guide and live sandbox behaviour.
+17. Obtain clarification from MRA for unresolved contract conflicts.
+18. Never invent an endpoint or compliance rule.
+
+The integration must operate as a bridge between InsightBooks and MRA EIS.
+
+InsightBooks remains the authoritative source for:
+
+- Business operations
+- Customers
+- Products and services
+- Sales invoices
+- POS receipts
+- Payments
+- Inventory movements
+- Accounting Journals
+- General Ledger
+- Trial Balance
+- Financial Statements
+- Audit history
+
+MRA EIS transmission is a tax-compliance integration.
+
+Sending a transaction to MRA must never create a second accounting transaction or duplicate the local Sale, Invoice, POS receipt, payment, Inventory movement or Journal.
+
+The required lifecycle is:
+
+InsightBooks Sale or POS Transaction
+        ↓
+Local Validation
+        ↓
+Local Authorization and Approval
+        ↓
+Canonical Sale Finalization
+        ↓
+Accounting Posting Engine
+        ↓
+Balanced Journal Entry
+        ↓
+MRA EIS Eligibility Validation
+        ↓
+MRA Product, Tax, Site and Terminal Mapping
+        ↓
+MRA Fiscal Invoice Number Generation
+        ↓
+EIS Transmission Record
+        ↓
+Online Submission or Certified Offline Signing
+        ↓
+MRA Validation URL
+        ↓
+Receipt QR Code
+        ↓
+Transmission Reconciliation
+        ↓
+Monitoring, Reporting and Audit Trail
+
+======================================================================
+1. OPERATING ROLE
+======================================================================
+
+Work simultaneously as:
+
+- Principal Integration Architect
+- Malawi Tax Technology Integration Specialist
+- MRA EIS API Specialist
+- Senior Full-Stack Engineer
+- Next.js Specialist
+- Node.js and TypeScript Specialist
+- PostgreSQL Specialist
+- Prisma or ORM Specialist
+- POS Systems Architect
+- Electronic Invoicing Architect
+- Tax Accounting Specialist
+- VAT Specialist
+- Inventory Integration Specialist
+- Multi-Tenant SaaS Architect
+- API Security Engineer
+- Cryptography and Key-Management Specialist
+- Background Job and Queue Specialist
+- Distributed Systems Engineer
+- Offline-First Transaction Specialist
+- Financial Controls Specialist
+- Audit Trail Specialist
+- Quality Assurance Architect
+- DevOps Engineer
+- Site Reliability Engineer
+- Production Release Engineer
+- Compliance Certification Coordinator
+
+Use the actual repository’s:
+
+- Authentication framework
+- Business Context
+- Tenant model
+- Branch model
+- POS implementation
+- Invoice implementation
+- Customer model
+- Inventory model
+- Tax model
+- Payment model
+- Accounting Posting Engine
+- Journal models
+- Transactional Outbox
+- Background Job framework
+- Queue system
+- Audit framework
+- Notification framework
+- Secret-management system
+- Feature-flag framework
+- Permission framework
+- Approval framework
+- Logging and observability framework
+- Existing integration architecture
+
+Do not build a disconnected EIS application inside InsightBooks.
+
+======================================================================
+2. FEATURE-AVAILABILITY MODEL
+======================================================================
+
+MRA EIS must be optional.
+
+Implement two separate levels of control.
+
+LEVEL 1 — SYSTEM ADMINISTRATOR ENTITLEMENT
+
+The InsightBooks System Administrator controls whether the EIS capability is available to a tenant.
+
+Suggested field:
+
+systemAdminEisEntitlementEnabled
+
+Default:
+
+false
+
+When false:
+
+- The tenant cannot activate EIS.
+- EIS setup pages are unavailable to tenant users.
+- EIS sales transmission does not run.
+- EIS credentials cannot be entered.
+- Existing historical EIS transmission records remain readable to authorized support personnel.
+- No queued record may be deleted.
+
+Only an authorized System Administrator may change this entitlement.
+
+LEVEL 2 — TENANT OPERATIONAL SETTING
+
+After System Administration enables the entitlement, an authorized Tenant or Business Administrator may choose whether to configure and operate EIS.
+
+Suggested field:
+
+tenantEisOperationalEnabled
+
+Default:
+
+false
+
+The tenant must complete:
+
+- MRA registration
+- Terminal acquisition
+- Terminal activation
+- Product or service synchronization
+- Branch or site mapping
+- Tax mapping
+- Receipt configuration
+- Connectivity validation
+
+before the status can become ACTIVE.
+
+The two-level rule must be:
+
+Effective EIS Enabled =
+System Admin Entitlement
+AND
+Tenant Operational Setting
+AND
+Valid Activated Terminal
+AND
+Valid Current Configuration
+AND
+Terminal Not Blocked
+
+Do not merge system entitlement and tenant activation into one Boolean field.
+
+======================================================================
+3. FEATURE AND CONNECTION STATUSES
+======================================================================
+
+Implement explicit statuses.
+
+ENTITLEMENT STATUS:
+
+- NOT_ENTITLED
+- ENTITLED
+- SUSPENDED_BY_SYSTEM_ADMIN
+- REVOKED
+
+TENANT EIS STATUS:
+
+- UNAVAILABLE
+- AVAILABLE
+- DISABLED
+- SETUP_REQUIRED
+- ACTIVATION_PENDING
+- ACTIVATION_CONFIGURATION_RECEIVED
+- ACTIVATION_CONFIRMATION_PENDING
+- ACTIVE
+- DEGRADED
+- OFFLINE_MODE
+- BLOCKED_BY_MRA
+- PAUSED_BY_TENANT
+- SUSPENDED_BY_SYSTEM_ADMIN
+- TOKEN_EXPIRED
+- CONFIGURATION_STALE
+- CERTIFICATION_REQUIRED
+- ERROR
+
+TERMINAL STATUS:
+
+- DRAFT
+- TAC_REQUIRED
+- ACTIVATING
+- ACTIVATION_PENDING_CONFIRMATION
+- ACTIVE
+- INACTIVE
+- BLOCKED
+- UNBLOCK_PENDING
+- REVOKED
+- TOKEN_EXPIRED
+- CONFIGURATION_STALE
+- OFFLINE_LIMIT_REACHED
+- ERROR
+
+TRANSMISSION STATUS:
+
+- NOT_REQUIRED
+- NOT_ELIGIBLE
+- PENDING
+- VALIDATING
+- QUEUED
+- SENDING
+- SENT_AWAITING_CONFIRMATION
+- ACCEPTED
+- ACCEPTED_ONLINE
+- SIGNED_OFFLINE
+- QUEUED_OFFLINE
+- SUBMITTING_OFFLINE
+- ACCEPTED_OFFLINE
+- REJECTED
+- RETRY_SCHEDULED
+- UNKNOWN_OUTCOME
+- RECONCILING
+- RECONCILED
+- DEAD_LETTER
+- CANCELLED_BEFORE_SUBMISSION
+- SUPERSEDED
+- MANUAL_REVIEW_REQUIRED
+
+Do not represent all integration states with only `success` and `failed`.
+
+======================================================================
+4. FIRST ACTION — COMPLETE FORENSIC REVIEW
+======================================================================
+
+Before implementation, inspect:
+
+- Existing EIS code
+- Existing MRA integration code
+- Existing tax integration settings
+- Existing feature flags
+- Existing tenant entitlements
+- Existing POS workflows
+- Existing invoice workflows
+- Existing receipt generation
+- Existing QR generation
+- Existing product and tax mappings
+- Existing background Jobs
+- Existing Transactional Outbox
+- Existing retries
+- Existing API clients
+- Existing encrypted-secret storage
+- Existing Audit Events
+- Existing MRA-related database fields
+- Existing environment variables
+- Existing tests
+- Existing documentation
+
+Search repository-wide for:
+
+- MRA
+- EIS
+- electronic invoice
+- fiscal invoice
+- fiscal receipt
+- terminal activation
+- TAC
+- TIN
+- JWT
+- secretKey
+- x-signature
+- x-access-key
+- x-eis-message-hash
+- HMAC
+- SHA512
+- SHA256
+- validationURL
+- QRCode
+- offlineSignature
+- siteId
+- productCode
+- taxRateId
+- VAT5
+- isReliefSupply
+- terminal configuration
+- taxpayer configuration
+- global configuration
+- shouldDownloadLatestConfig
+- shouldBlockTerminal
+
+Create:
+
+docs/mra-eis/CURRENT_IMPLEMENTATION_AUDIT.md
+docs/mra-eis/MRA_EIS_OFFICIAL_CONTRACT_REVIEW.md
+docs/mra-eis/MRA_EIS_SWAGGER_DISCREPANCY_REGISTER.md
+docs/mra-eis/MRA_EIS_IMPLEMENTATION_GAP_REGISTER.md
+
+Do not start by adding a toggle or sending POS sales immediately.
+
+======================================================================
+5. OFFICIAL API CONTRACT DISCOVERY
+======================================================================
+
+Create a verified API Contract Matrix.
+
+For each endpoint record:
+
+- Official functional name
+- API group
+- API version
+- Environment
+- Base URL
+- HTTP method
+- Path
+- Authentication
+- Required headers
+- Message-hash requirement
+- Signature requirement
+- Request content type
+- Response content type
+- Request schema
+- Response schema
+- Required fields
+- Optional fields
+- Field limits
+- Decimal rules
+- Date-time rules
+- Success criteria
+- Business errors
+- HTTP errors
+- Retry safety
+- Idempotency behaviour
+- Timeout behaviour
+- Sandbox result
+- Swagger source
+- Documentation source
+- Discrepancy
+- MRA clarification status
+- Contract-test status
+
+At minimum, verify the currently documented functional areas:
+
+ONBOARDING:
+
+- Activate Terminal
+- Confirm Terminal Activation
+
+CONFIGURATION:
+
+- Get Latest Configuration
+
+SALES:
+
+- Submit Sales Transaction
+- Get Last Submitted Online Transaction
+- Get Last Submitted Offline Transaction
+
+UTILITIES:
+
+- Ping
+- TIN Validation, where present in the current contract
+- Product Status
+- Taxpayer Initial Inventory Upload
+- Get Terminal Site or Branch Products and Services
+- Validate VAT5 Certificate
+- Get Terminal Blocking Message
+- Check Terminal Unblock Status
+
+Do not trust copied sample endpoint paths without sandbox confirmation.
+
+Known documentation inconsistencies must be investigated, including:
+
+- Duplicate `/api/v1` path segments in samples
+- Localhost URLs in utility samples
+- GET versus POST disagreement for product synchronization
+- Status code `0` versus `1` success examples
+- Utility-section numbering differences
+- Message-hash header omissions
+- Swagger OpenAPI-definition loading failures
+
+Implement no production endpoint until the verified matrix is approved.
+
+======================================================================
+6. PRE-INTEGRATION AND CERTIFICATION READINESS
+======================================================================
+
+Implement a readiness checklist covering:
+
+- Taxpayer registered with MRA
+- Correct TIN
+- TIN verified
+- Registered phone and email aligned with MRA records
+- Product-based or service-based Business classification
+- Products uploaded and approved by MRA
+- Services registered and approved by MRA
+- Virtual Warehouse configured where applicable
+- Branches or sites configured
+- Stock transferred to relevant MRA sites where required
+- Terminal applied for
+- Terminal approved
+- Terminal Activation Code received
+- Certified InsightBooks product ID available
+- Certified InsightBooks product version available
+- Sandbox certification completed
+- Production approval received
+- Offline certification received where offline mode is requested
+- Receipt format approved
+- QR-code behaviour validated
+
+InsightBooks must not imply that software is MRA-certified before formal certification.
+
+Statuses:
+
+- NOT_STARTED
+- IN_PROGRESS
+- WAITING_FOR_TENANT
+- WAITING_FOR_MRA
+- READY_FOR_SANDBOX
+- SANDBOX_TESTING
+- CERTIFICATION_PENDING
+- CERTIFIED
+- PRODUCTION_APPROVED
+- BLOCKED
+
+======================================================================
+7. SYSTEM ADMINISTRATION
+======================================================================
+
+Create a secure System Administration area for EIS.
+
+System Administrators must be able to:
+
+- Enable EIS entitlement for a tenant
+- Suspend EIS entitlement
+- Revoke EIS entitlement
+- Select allowed environment
+- Configure approved product ID
+- Configure approved product version
+- Record certification status
+- Record certification expiry where applicable
+- View tenant connection status
+- View terminal health
+- View transmission summaries
+- View critical errors
+- View blocked-terminal status
+- View configuration freshness
+- Apply a platform emergency kill switch
+- Restrict sandbox or production access
+- View audit history
+- Assist with secure credential reset without revealing secrets
+
+System Administrators must not:
+
+- See plaintext terminal secret keys
+- See complete JWT values
+- Submit tenant sales without authorized support workflow
+- Change tenant tax mappings silently
+- Delete failed or rejected transmission evidence
+- Impersonate tenant actions without recorded reason and authorization
+
+======================================================================
+8. TENANT EIS SETTINGS
+======================================================================
+
+Create a tenant-facing route such as:
+
+/settings/integrations/mra-eis
+
+Follow current routing conventions.
+
+Show:
+
+- Entitlement availability
+- Operational enabled or disabled state
+- Setup progress
+- Environment
+- Taxpayer TIN
+- Business classification
+- Terminal count
+- Active terminal
+- Branch and site mappings
+- Configuration versions
+- Last configuration synchronization
+- Connectivity status
+- MRA block status
+- Product synchronization status
+- Tax mapping status
+- Offline certification status
+- Pending transmissions
+- Failed transmissions
+- Last accepted transaction
+- Last online MRA transaction
+- Last offline MRA transaction
+- Receipt and QR configuration
+- Audit history
+
+Tenant Administrators may:
+
+- Start setup
+- Enable or pause operational integration
+- Activate a terminal
+- Confirm activation
+- Map branches and sites
+- Synchronize products and services
+- Map local Items and services
+- Map MRA tax rates
+- Configure fiscal receipt display
+- Test connectivity
+- Review transmissions
+- Retry eligible failures
+- Resolve mappings
+- Acknowledge block messages
+- Request System Administrator assistance
+
+======================================================================
+9. SAFE DISABLE AND PAUSE BEHAVIOUR
+======================================================================
+
+Disabling EIS must not delete compliance evidence.
+
+Before disabling or pausing:
+
+- Show pending transactions
+- Show queued offline transactions
+- Show rejected transactions
+- Show unknown-outcome transactions
+- Show unresolved configuration requirements
+- Explain that existing MRA obligations may continue independently of the InsightBooks setting
+- Require a reason
+- Require confirmation
+- Create an Audit Event
+
+Support:
+
+- DISABLE_BEFORE_ACTIVATION
+- PAUSE_NEW_TRANSMISSIONS
+- DISABLE_AFTER_QUEUE_CLEARS
+- EMERGENCY_PAUSE
+- SYSTEM_ADMIN_SUSPENSION
+
+Already-created transmission records must remain immutable.
+
+Queued transactions must not be silently discarded.
+
+Do not make legal claims about whether disabling the software removes the taxpayer’s statutory duties.
+
+======================================================================
+10. TERMINAL MODEL
+======================================================================
+
+Support one or more terminals per Business.
+
+Each terminal should record:
+
+- Tenant
+- Business
+- Branch
+- MRA site
+- Terminal ID
+- Terminal label
+- Terminal position
+- Environment
+- Product ID
+- Product version
+- Activation date
+- Activation status
+- Token expiry
+- Secret reference
+- JWT reference
+- Current global configuration version
+- Current terminal configuration version
+- Current taxpayer configuration version
+- Offline certification status
+- Offline maximum transaction age
+- Offline maximum cumulative amount
+- Last online contact
+- Last configuration sync
+- Last accepted online transaction
+- Last accepted offline transaction
+- Block status
+- Block reason
+- Unblock status
+- Active status
+- Created by
+- Audit metadata
+
+Do not assume one terminal for the entire SaaS platform.
+
+Do not share a terminal credential across unrelated tenants or Businesses.
+
+======================================================================
+11. TERMINAL ACTIVATION
+======================================================================
+
+Implement the documented terminal activation lifecycle.
+
+Activation input should include:
+
+- Terminal Activation Code
+- OS name
+- OS version
+- OS build where applicable
+- Stable terminal environment identifier required by MRA
+- Certified product ID
+- Product version
+
+The MRA contract currently expects a MAC-address-like environment value.
+
+For a hosted SaaS application:
+
+- Do not attempt to read a browser user’s MAC address.
+- Do not invent random MAC addresses.
+- Do not change the value on each deployment.
+- Use a stable, MRA-approved terminal-host identity.
+- Make the value configurable through secure deployment configuration.
+- Confirm the accepted approach during MRA certification.
+
+The Terminal Activation Code must:
+
+- Be masked after entry
+- Never be logged
+- Never be stored after successful confirmation unless explicitly required
+- Follow the currently verified MRA pattern
+- Be transmitted only through HTTPS
+
+Activation response data must be persisted transactionally before confirmation.
+
+======================================================================
+12. CREDENTIAL AND SECRET SECURITY
+======================================================================
+
+The activation response may contain:
+
+- JWT token
+- Secret key
+- Terminal ID
+- Configuration data
+
+Protect credentials using:
+
+- Encryption at rest
+- Application-level envelope encryption where supported
+- Secure key-management service or existing secret vault
+- Restricted service access
+- No client-browser exposure
+- No plaintext logs
+- No plaintext database administration output
+- No inclusion in exports
+- No inclusion in error reports
+- No inclusion in Audit Event payloads
+- Rotation and revocation procedures
+- Access monitoring
+
+Store secret references rather than plaintext where the architecture supports it.
+
+Only the backend EIS integration service may decrypt and use terminal credentials.
+
+======================================================================
+13. ACTIVATION CONFIRMATION
+======================================================================
+
+After activation configuration has been safely persisted:
+
+- Compute the required activation confirmation signature exactly according to the verified contract.
+- Use HMAC-SHA512 where required.
+- Encode the result exactly as required.
+- Send the required `x-signature` header.
+- Send the terminal ID in the required request structure.
+- Confirm activation.
+- Record the response.
+- Mark the TAC as consumed.
+- Never reuse the TAC.
+- Mark the terminal ACTIVE only after successful confirmation.
+
+Do not guess the signature input.
+
+Derive it from the current Swagger, developer guide and validated sandbox request.
+
+Add known-answer cryptographic tests.
+
+======================================================================
+14. GENERAL REQUEST SECURITY
+======================================================================
+
+Implement a request-signing middleware or client interceptor.
+
+The official documentation currently describes:
+
+- Bearer JWT authorization after activation
+- Secret-key-based request integrity
+- An `x-eis-message-hash` for requests except activation
+- An `x-signature` specifically for activation confirmation
+
+Because examples are inconsistent, the integration client must use the verified endpoint-specific contract.
+
+For each request:
+
+1. Serialize the payload deterministically.
+2. Determine the exact content to hash.
+3. Apply the required HMAC algorithm.
+4. Use the correct terminal secret.
+5. Apply correct Base64 or URL-safe encoding.
+6. Add the correct header.
+7. Add the JWT.
+8. Record a safe payload checksum.
+9. Never record the secret.
+10. Verify contract tests against sandbox.
+
+Do not sign one JSON serialization and transmit another.
+
+======================================================================
+15. CONFIGURATION MANAGEMENT
+======================================================================
+
+Persist versioned MRA configuration snapshots.
+
+GLOBAL CONFIGURATION may include:
+
+- Version
+- Tax rates
+- Charge modes
+- Ordinals
+- Other global rules
+
+TERMINAL CONFIGURATION may include:
+
+- Version
+- Terminal label
+- Active status
+- Email
+- Phone
+- Trading name
+- Receipt address lines
+- MRA site
+- Offline limits
+
+TAXPAYER CONFIGURATION may include:
+
+- Version
+- TIN
+- VAT-registration status
+- Tax office
+- Activated tax rates
+- Activated levies
+
+Never overwrite configuration history without retaining the previous version.
+
+Implement:
+
+- Initial configuration persistence
+- Startup refresh
+- Beginning-of-day refresh
+- Scheduled refresh
+- Manual refresh
+- Refresh after `shouldDownloadLatestConfig`
+- Refresh after version mismatch
+- Configuration checksum
+- Configuration activation
+- Rollback to last valid configuration only where allowed
+- Configuration freshness status
+
+Sales must use the configuration versions actually active when the transaction is transmitted.
+
+======================================================================
+16. TAX RATE AND LEVY MAPPING
+======================================================================
+
+Do not hardcode VAT or levy percentages.
+
+Synchronize MRA tax rates and levies from configuration.
+
+Create explicit mappings between:
+
+- InsightBooks Tax Rate
+- MRA Tax Rate ID
+- MRA rate
+- Charge mode
+- Effective date
+- Business
+- Terminal or taxpayer configuration version
+- Mapping status
+- Approval status
+
+Mapping statuses:
+
+- UNMAPPED
+- SUGGESTED
+- MAPPED
+- VERIFIED
+- CONFLICT
+- INACTIVE
+- SUPERSEDED
+
+Block EIS submission when:
+
+- A sales line has no MRA tax-rate mapping
+- The mapped rate is inactive
+- The local rate conflicts materially with the current MRA configuration
+- The configuration version is stale
+- The selected levy is not activated for the taxpayer
+
+Do not silently change the accounting tax rate of an already-posted sale.
+
+======================================================================
+17. PRODUCT AND SERVICE SYNCHRONIZATION
+======================================================================
+
+MRA centrally manages approved products and services.
+
+Implement synchronization using the verified terminal-site product endpoint.
+
+For every MRA product or service store:
+
+- TIN
+- Site ID
+- Product or service code
+- Barcode
+- Name
+- Description
+- Product or service classification
+- Unit price
+- Cost price where returned
+- Selling price
+- Stock level
+- Unit of measure
+- Applicable tax-rate IDs
+- Active status
+- Last synchronized
+- Configuration version
+- Raw response checksum
+
+Map local InsightBooks records to MRA records.
+
+LOCAL MAPPING:
+
+- Business
+- Branch
+- Warehouse
+- Local Item or Service ID
+- MRA product or service code
+- MRA site
+- MRA tax-rate ID
+- Product or service flag
+- Mapping status
+- Effective date
+- Verified by
+- Sync status
+
+Never map products across different Businesses.
+
+Never submit a local Item using a guessed MRA product code.
+
+======================================================================
+18. PRODUCT-BASED AND SERVICE-BASED BUSINESSES
+======================================================================
+
+PRODUCT-BASED BUSINESS:
+
+- Verify MRA initial Inventory has been uploaded.
+- Verify MRA approval.
+- Verify Virtual Warehouse availability.
+- Verify branch or site allocation.
+- Synchronize site stock.
+- Map products.
+- Prevent sales of products unavailable or unapproved in MRA where required by the contract.
+- Show stock discrepancies.
+
+SERVICE-BASED BUSINESS:
+
+- Do not require an MRA warehouse where documentation says none is required.
+- Synchronize approved services.
+- Map service codes.
+- Mark invoice lines with `isProduct = false`.
+- Do not create fake Inventory movements.
+
+Support mixed businesses only when the MRA configuration and certification allow both.
+
+======================================================================
+19. INITIAL INVENTORY UPLOAD
+======================================================================
+
+Where the verified API supports taxpayer initial Inventory upload, implement it as a controlled onboarding tool.
+
+Fields may include:
+
+- TIN
+- Last-batch indicator
+- Product barcode
+- Product name
+- Product description
+- Quantity in stock
+- Unit price
+- Cost price
+- Selling price
+- Reorder level
+- Overstock level
+
+Rules:
+
+- This is not the ordinary ongoing stock import feature.
+- It is an MRA onboarding or synchronization operation.
+- It must not duplicate InsightBooks Opening Stock accounting.
+- It must not create a second local Inventory receipt.
+- It must record the MRA upload result separately.
+- Batch requests according to MRA limits.
+- Mark the final batch correctly.
+- Preserve upload evidence.
+- Record MRA approval status where available.
+- Prevent duplicate upload batches.
+
+======================================================================
+20. SALES ELIGIBILITY
+======================================================================
+
+Only eligible finalized transactions may be submitted.
+
+SUBMIT:
+
+- Finalized POS Sale
+- Finalized posted Sales Invoice that represents an issued tax invoice
+- Other documented taxable sales supported by MRA
+
+DO NOT SUBMIT:
+
+- Quotation
+- Estimate
+- Proforma Invoice
+- Draft Invoice
+- Unapproved Invoice
+- Cancelled Invoice
+- Deleted draft
+- Purchase
+- Expense
+- Customer payment by itself
+- Supplier payment
+- Inventory transfer
+- Budget
+- Forecast
+- Loan-readiness scenario
+- Internal Journal
+- Opening balance unless explicitly supported by MRA
+
+Credit notes, refunds, returns, voids and corrections must be implemented only according to an explicitly documented MRA contract.
+
+Do not invent negative-sale semantics.
+
+Where MRA documentation does not define a correction workflow:
+
+- Preserve the local transaction.
+- Mark EIS treatment as REQUIRES_MRA_CLARIFICATION.
+- Do not submit an invented payload.
+- Record a compliance task.
+- Obtain MRA guidance before production implementation.
+
+======================================================================
+21. LOCAL ACCOUNTING AND EIS SEPARATION
+======================================================================
+
+The local Sale must post to accounting once.
+
+The EIS bridge must not:
+
+- Create Revenue again
+- Create Tax again
+- Create Receivables again
+- Create Cash again
+- Reduce Inventory again
+- Create Cost of Sales again
+- Update account balances directly
+- Modify the original Journal
+- Change the original Invoice total
+
+Use one authoritative relationship:
+
+Local Sale or POS Receipt
+→ Local Accounting Event
+→ Local Journal
+→ EIS Transmission
+
+EIS status is a compliance status, not an accounting status.
+
+A locally posted Sale may have:
+
+- Accounting Status: POSTED
+- EIS Status: PENDING
+
+This must not imply the Sale is financially unposted.
+
+======================================================================
+22. MRA FISCAL INVOICE NUMBER
+======================================================================
+
+Implement the current MRA invoice-number algorithm only after contract verification.
+
+The documented algorithm uses:
+
+- Taxpayer ID
+- Terminal position
+- Julian transaction date
+- Sequential transaction count for the date
+- Base10-to-Base64 conversion
+- Hyphen-separated components
+
+Maintain both:
+
+- InsightBooks Invoice or Receipt Number
+- MRA Fiscal Invoice Number
+
+Do not overwrite the InsightBooks document number.
+
+Generate the MRA sequence transactionally.
+
+Create a database uniqueness rule using:
+
+- Terminal
+- Business date
+- Daily transaction count
+
+Handle concurrent POS terminals safely.
+
+There must be no duplicate fiscal invoice number.
+
+Record:
+
+- Taxpayer component
+- Terminal position
+- Julian date
+- Daily count
+- Generated number
+- Algorithm version
+- Generation time
+
+======================================================================
+23. SALES PAYLOAD MAPPING
+======================================================================
+
+Build a versioned mapper from an immutable local Sale snapshot to the verified MRA payload.
+
+INVOICE HEADER may include:
+
+- MRA invoice number
+- Invoice date and time
+- Seller TIN
+- Buyer TIN
+- Buyer name
+- Buyer authorization code
+- MRA site ID
+- Global configuration version
+- Taxpayer configuration version
+- Terminal configuration version
+- Relief-supply indicator
+- VAT5 Certificate details
+- Payment method
+
+LINE ITEMS may include:
+
+- Product or service code
+- Description
+- Unit price
+- Quantity
+- Discount
+- Net total before VAT
+- VAT amount
+- MRA tax-rate ID
+- Product or service indicator
+
+SUMMARY may include:
+
+- Tax breakdown
+- Levy breakdown
+- Total VAT
+- Offline signature
+- Invoice total
+- Amount tendered where required by the verified contract
+
+Use exact decimals.
+
+Never use binary floating-point arithmetic.
+
+Validate:
+
+- Sum of line net totals
+- Sum of VAT
+- Sum of levies
+- Discounts
+- Invoice total
+- Amount tendered
+- Change
+- Payment-method mapping
+
+The EIS payload total must equal the finalized local Sale total according to the MRA tax and levy contract.
+
+======================================================================
+24. IMMUTABLE TRANSMISSION SNAPSHOT
+======================================================================
+
+Create an immutable transmission snapshot at fiscalization time.
+
+It must record:
+
+- Local Sale ID
+- Local Sale version
+- Business
+- Branch
+- Terminal
+- Local invoice number
+- MRA fiscal invoice number
+- Seller
+- Buyer
+- Product mappings
+- Tax mappings
+- Configuration versions
+- Payment methods
+- Amounts
+- Payload
+- Payload checksum
+- Created date
+- Accounting Journal reference
+
+Do not rebuild a retry payload from a Sale that has since changed.
+
+Retries must use the same immutable snapshot unless an explicit superseding fiscal event is approved.
+
+======================================================================
+25. B2B TRANSACTIONS
+======================================================================
+
+Support optional Buyer TIN.
+
+When Buyer TIN is supplied:
+
+- Validate format.
+- Use TIN validation utility where available.
+- Store validation result.
+- Determine whether Buyer Authorization Code is required.
+- Prompt for the code where the buyer’s TIN is protected.
+- Do not persist the authorization code longer than necessary unless the contract requires retention.
+- Mask it in UI and logs.
+- Reject transmission when a required code is missing.
+
+Do not require Buyer TIN for ordinary B2C sales unless MRA requires it.
+
+======================================================================
+26. VAT5 RELIEF TRANSACTIONS
+======================================================================
+
+When `isReliefSupply` is true:
+
+- Require project number.
+- Require Certificate number.
+- Require quantity.
+- Validate the VAT5 Certificate before final fiscal transmission.
+- Store the validation response.
+- Verify validity and remaining eligible quantity.
+- Apply VAT relief exactly as documented.
+- Retain local evidence.
+- Link the validation to the Sale.
+- Prevent repeated use beyond the approved quantity.
+- Handle partial certificate use.
+- Revalidate when required.
+
+Do not simply set VAT to zero without MRA validation.
+
+Do not treat every tax-exempt Sale as VAT5 relief.
+
+======================================================================
+27. PAYMENT METHOD MAPPING
+======================================================================
+
+Create mappings between InsightBooks payment methods and MRA payment-method values.
+
+Examples may include:
+
+- Cash
+- Card
+- Mobile Money
+- Bank Transfer
+- Credit
+- Mixed or split payment if supported
+
+Do not hardcode undocumented enum values.
+
+For split payments:
+
+- Verify whether MRA accepts one method, multiple methods or a summarized method.
+- Implement only the verified contract.
+- Preserve local split-payment detail.
+- Document any MRA-level aggregation.
+
+A Customer payment after a credit Invoice must not create another EIS Sale.
+
+======================================================================
+28. ONLINE TRANSACTION FLOW
+======================================================================
+
+For an active online terminal:
+
+1. Finalize the local Sale.
+2. Post local accounting once.
+3. Create immutable EIS snapshot.
+4. Generate MRA fiscal invoice number.
+5. Validate mappings and configuration.
+6. Submit to MRA.
+7. Parse the full response.
+8. Store the validation URL.
+9. Store validation errors.
+10. Process configuration-refresh flag.
+11. Process terminal-block flag.
+12. Mark transmission accepted or rejected.
+13. Generate QR code.
+14. Issue the fiscal receipt.
+15. Create Audit Events.
+16. Update monitoring.
+
+Where immediate fiscal acceptance is required before a receipt can be issued:
+
+- Show a controlled `Fiscalizing sale` state.
+- Do not display an accepted MRA receipt until the MRA response or valid offline signature exists.
+
+======================================================================
+29. RESPONSE PROCESSING
+======================================================================
+
+Normalize the verified MRA envelope into an internal result.
+
+Capture:
+
+- HTTP status
+- MRA status code
+- Remark
+- Data
+- Field errors
+- Validation URL
+- Validation errors
+- Configuration-refresh flag
+- Terminal-block flag
+- Response checksum
+- Received date
+- Request duration
+- Correlation ID
+
+Do not classify success by HTTP 200 alone.
+
+Do not classify failure from one undocumented sample value.
+
+Create a verified status-code policy based on sandbox contract tests.
+
+Unknown response structures must be retained safely and placed in manual review.
+
+======================================================================
+30. QR-CODE RECEIPTS
+======================================================================
+
+For accepted online transactions:
+
+- Use the exact MRA validation URL.
+- Generate a standards-compliant QR code.
+- Store the validation URL.
+- Store the QR-generation checksum.
+- Include the QR code on printed receipts.
+- Include it on PDF receipts.
+- Include it on emailed receipts.
+- Include it on supported digital invoices.
+
+Display:
+
+- InsightBooks document number
+- MRA fiscal invoice number
+- MRA EIS status
+- Seller TIN
+- Date and time
+- MRA validation QR
+- Any other receipt fields required by MRA configuration
+
+Do not encode a different URL from the MRA response.
+
+Do not label a rejected transaction as MRA validated.
+
+======================================================================
+31. UNCERTAIN OUTCOME AND TIMEOUT SAFETY
+======================================================================
+
+A network timeout does not prove that MRA rejected the transaction.
+
+When a request times out after transmission:
+
+- Mark the result UNKNOWN_OUTCOME.
+- Do not immediately generate a new fiscal invoice number.
+- Do not blindly resubmit.
+- Query Last Submitted Online Transaction.
+- Compare MRA’s returned invoice number and payload details.
+- Reconcile the response with the local snapshot.
+- If found, mark the original accepted.
+- If not found after the approved reconciliation process, retry using the same fiscal identity where permitted.
+- Record every attempt.
+
+This control is mandatory for preventing duplicate MRA invoices.
+
+======================================================================
+32. LAST ONLINE AND LAST OFFLINE TRANSACTION RECONCILIATION
+======================================================================
+
+Use the documented last-transaction endpoints for:
+
+- Timeout recovery
+- Crash recovery
+- Power-failure recovery
+- Startup reconciliation
+- Support investigations
+- Daily reconciliation
+- Queue recovery
+
+Compare:
+
+- Fiscal invoice number
+- Invoice date
+- Seller TIN
+- Site
+- Configuration versions
+- Invoice total
+- VAT
+- Offline signature
+- Submission date
+
+Do not automatically equate two transactions based only on total amount.
+
+======================================================================
+33. CONFIGURATION-REFRESH RESPONSE
+======================================================================
+
+When MRA returns `shouldDownloadLatestConfig = true`:
+
+- Pause subsequent EIS submissions for that terminal.
+- Call Get Latest Configuration.
+- Validate the response.
+- Save a new versioned snapshot.
+- Revalidate tax and levy mappings.
+- Activate the configuration.
+- Resume transmission.
+- Record the update.
+- Alert administrators if mapping conflicts arise.
+
+Do not continue submitting indefinitely with a configuration MRA has marked stale.
+
+======================================================================
+34. TERMINAL BLOCKING
+======================================================================
+
+When MRA returns `shouldBlockTerminal = true`:
+
+- Mark terminal BLOCKED_BY_MRA.
+- Stop EIS-dependent sales processing for that terminal.
+- Call Get Terminal Blocking Message.
+- Store the block reason.
+- Display a clear message to the cashier and administrator.
+- Create a critical Audit Event.
+- Send appropriate notifications.
+- Prevent bypass by frontend manipulation.
+- Do not use another tenant’s terminal.
+- Do not silently route sales through an unrelated terminal.
+
+Use Check Terminal Unblock Status according to the verified contract.
+
+After unblock:
+
+- Refresh configuration.
+- Verify terminal status.
+- Resume only after all checks pass.
+
+======================================================================
+35. OFFLINE MODE ELIGIBILITY
+======================================================================
+
+Offline transaction support must be disabled unless:
+
+- InsightBooks software is certified for offline EIS use.
+- The tenant’s terminal is authorized for offline use.
+- A valid terminal secret is available.
+- Current offline limits are available.
+- Configuration is not stale.
+- Terminal is not blocked.
+- Local secure queue is available.
+- Local clock integrity is acceptable.
+
+Suggested field:
+
+offlineModeCertified
+
+Default:
+
+false
+
+Do not provide a UI toggle that circumvents MRA certification.
+
+======================================================================
+36. OFFLINE TRANSACTION FLOW
+======================================================================
+
+When MRA is unavailable and offline mode is certified:
+
+1. Confirm that the outage is genuine.
+2. Confirm terminal is active and not blocked.
+3. Confirm offline amount threshold.
+4. Confirm offline age threshold.
+5. Reserve a fiscal invoice number.
+6. Create immutable EIS snapshot.
+7. Calculate the offline validation parameters.
+8. Calculate the offline signature with the verified algorithm.
+9. Generate offline validation URL.
+10. Generate receipt QR.
+11. Store the transaction in encrypted durable queue.
+12. Mark SIGNED_OFFLINE.
+13. Issue the offline fiscal receipt.
+14. Increase local cumulative offline amount.
+15. Schedule upload.
+16. Transmit after connectivity returns.
+17. Reconcile with MRA’s last offline transaction.
+18. Mark accepted or rejected.
+19. Escalate aged or rejected items.
+
+Do not generate an online-style MRA validation URL while offline.
+
+======================================================================
+37. OFFLINE SIGNATURE
+======================================================================
+
+Implement the currently verified offline-signature algorithm.
+
+The documentation currently describes an offline parameter string containing values equivalent to:
+
+- Fiscal invoice identifier
+- Number of Items
+- Invoice total
+- VAT amount
+- Encoded Julian date
+
+and an HMAC-SHA256 result using the terminal secret with URL-safe encoding.
+
+Do not copy the sample blindly.
+
+Verify:
+
+- Parameter names
+- Parameter order
+- Decimal formatting
+- Date timezone
+- Julian-date algorithm
+- Base64 conversion
+- Character encoding
+- HMAC algorithm
+- Padding behaviour
+- URL encoding
+- Validation base URL
+
+Add cryptographic known-answer tests and sandbox validation.
+
+======================================================================
+38. OFFLINE THRESHOLDS
+======================================================================
+
+Enforce the current MRA-provided:
+
+- Maximum cumulative offline amount
+- Maximum transaction age in hours
+- Other terminal-specific thresholds
+
+Track per terminal and relevant site:
+
+- Offline start time
+- First unsent transaction time
+- Current offline cumulative amount
+- Number of offline transactions
+- Oldest queued transaction
+- Remaining amount allowance
+- Remaining time allowance
+
+When a threshold is reached:
+
+- Block further offline fiscal Sales.
+- Show the reason.
+- Require reconnection.
+- Keep existing local queue safe.
+- Send alerts.
+
+Do not allow the user to manually increase MRA thresholds.
+
+======================================================================
+39. OFFLINE QUEUE SECURITY
+======================================================================
+
+Offline queue entries must be:
+
+- Durable
+- Encrypted
+- Business-scoped
+- Terminal-scoped
+- Immutable after receipt issuance
+- Checksummed
+- Ordered
+- Idempotent
+- Recoverable after restart
+- Protected from unauthorized deletion
+- Audited
+
+A queue entry should include:
+
+- Local Sale
+- Fiscal number
+- Snapshot
+- Offline signature
+- Validation URL
+- Creation date
+- Threshold state
+- Attempt count
+- Last attempt
+- Submission status
+- MRA response
+
+Do not store the secret key in the queue record.
+
+======================================================================
+40. TRANSMISSION QUEUE AND OUTBOX
+======================================================================
+
+Integrate with the Transactional Outbox.
+
+Local Sale commit must atomically create:
+
+- Accounting records
+- EIS snapshot
+- EIS transmission request or Outbox event
+
+The worker must:
+
+- Claim work safely
+- Use bounded concurrency
+- Respect terminal ordering where required
+- Respect tenant fairness
+- Respect rate limits
+- Use the immutable snapshot
+- Apply bounded retries
+- Reconcile unknown outcomes
+- Move permanent failures to manual review
+- Preserve every attempt
+
+Duplicate Job delivery must not create duplicate MRA transmissions.
+
+======================================================================
+41. RETRY POLICY
+======================================================================
+
+Classify errors.
+
+RETRYABLE:
+
+- Network timeout
+- Temporary DNS failure
+- Connection reset
+- HTTP 429
+- Temporary 5xx response
+- MRA temporary-service error
+- Queue interruption
+- Worker restart
+
+NON-RETRYABLE UNTIL CORRECTED:
+
+- Invalid TIN
+- Invalid Site
+- Unknown product code
+- Invalid tax-rate ID
+- Invalid VAT5 Certificate
+- Invalid configuration version
+- Invalid fiscal number
+- Validation failure
+- Blocked terminal
+- Expired credentials
+- Malformed payload
+- Permission denial
+
+AMBIGUOUS:
+
+- Timeout after request was sent
+- Connection closed before response
+- Worker crash after request dispatch
+
+Ambiguous errors must use last-transaction reconciliation before retry.
+
+Use:
+
+- Maximum attempt count
+- Exponential backoff
+- Jitter
+- Manual retry
+- Dead-letter status
+- Alert threshold
+
+Never use unlimited retries.
+
+======================================================================
+42. LOCAL SALE EDITING AND REVERSALS
+======================================================================
+
+After an EIS snapshot or receipt is created:
+
+- Prevent editing material Sale values.
+- Prevent changing Items.
+- Prevent changing quantities.
+- Prevent changing prices.
+- Prevent changing tax.
+- Prevent changing customer fiscal data.
+- Prevent changing the payment method used in the EIS payload.
+
+Corrections must use:
+
+- Credit note
+- Refund
+- Return
+- Reversal
+- Other MRA-approved correction process
+
+Do not delete an MRA-submitted Invoice.
+
+Do not reuse its fiscal number.
+
+Implement correction transmission only after the exact MRA process is verified.
+
+======================================================================
+43. DATA MODELS
+======================================================================
+
+Review existing models before creating new ones.
+
+Potential models include:
+
+- MraEisTenantEntitlement
+- MraEisTenantSetting
+- MraEisConnection
+- MraEisTerminal
+- MraEisTerminalCredential
+- MraEisConfigurationSnapshot
+- MraEisGlobalConfiguration
+- MraEisTerminalConfiguration
+- MraEisTaxpayerConfiguration
+- MraEisTaxRate
+- MraEisLevy
+- MraEisTaxMapping
+- MraEisSiteMapping
+- MraEisProduct
+- MraEisProductMapping
+- MraEisSyncRun
+- MraEisInitialInventoryUpload
+- MraEisInitialInventoryUploadRow
+- MraEisInvoiceSequence
+- MraEisSaleSnapshot
+- MraEisTransmission
+- MraEisTransmissionAttempt
+- MraEisResponse
+- MraEisValidationReceipt
+- MraEisOfflineQueueEntry
+- MraEisVat5Validation
+- MraEisTinValidation
+- MraEisBlockState
+- MraEisReconciliationRun
+- MraEisReconciliationDifference
+- MraEisCertificationRecord
+
+Avoid duplicating the local Invoice or POS Sale model.
+
+Use references to canonical local records.
+
+======================================================================
+44. DATABASE CONSTRAINTS
+======================================================================
+
+Implement constraints for:
+
+- One entitlement per tenant
+- One active setting per tenant and Business where applicable
+- Terminal ID uniqueness
+- Terminal position uniqueness within its required scope
+- Site mapping Business consistency
+- Product mapping Business consistency
+- Tax mapping Business consistency
+- Fiscal invoice number uniqueness
+- Daily transaction-count uniqueness
+- One immutable EIS snapshot per local fiscal event version
+- One active transmission per local fiscal event
+- Transmission-attempt uniqueness
+- One accepted response per authoritative fiscal event
+- Offline queue identity uniqueness
+- VAT5 validation identity
+- Payload checksum consistency
+- Tenant and Business foreign-key consistency
+
+Use database-enforced idempotency.
+
+Do not rely only on application-level `find then insert`.
+
+======================================================================
+45. RECEIPT AND INVOICE UI
+======================================================================
+
+On POS receipts and Sales Invoices display an EIS panel containing:
+
+- EIS enabled status
+- Fiscalization status
+- MRA fiscal invoice number
+- MRA validation state
+- Online or offline mode
+- Validation QR
+- MRA response date
+- Last transmission attempt
+- Error or warning
+- Retry availability
+- Configuration version
+- Terminal
+- Site
+
+Use clear badges:
+
+- MRA Validated
+- MRA Offline Signed
+- Pending Submission
+- Submission Failed
+- Rejected by MRA
+- Terminal Blocked
+- Not Applicable
+- EIS Disabled
+
+Never show “MRA Validated” before acceptance.
+
+======================================================================
+46. TRANSACTION TRACKING DASHBOARD
+======================================================================
+
+Create an EIS dashboard such as:
+
+/integrations/mra-eis
+
+Display:
+
+- Entitlement
+- Tenant operational status
+- Terminal status
+- MRA connectivity
+- Configuration freshness
+- Last successful synchronization
+- Sales transmitted today
+- Accepted online
+- Accepted offline
+- Pending
+- Unknown outcome
+- Rejected
+- Dead-letter
+- Oldest pending transaction
+- Offline cumulative amount
+- Offline remaining allowance
+- Product-mapping issues
+- Tax-mapping issues
+- VAT5 failures
+- Terminal-block message
+- Last MRA online transaction
+- Last MRA offline transaction
+
+Provide filters:
+
+- Business
+- Branch
+- Terminal
+- Site
+- Date
+- Local Sale number
+- Fiscal number
+- Customer
+- Status
+- Online or offline
+- Error code
+- Product
+- Tax rate
+
+======================================================================
+47. TRANSMISSION DETAIL
+======================================================================
+
+Transmission detail must show:
+
+- Local Invoice or POS receipt
+- Local Journal
+- Fiscal number
+- Terminal
+- Site
+- Payload snapshot
+- Safe payload view
+- Payload checksum
+- Request date
+- Response date
+- HTTP status
+- MRA status
+- Remark
+- Field errors
+- Validation URL
+- QR
+- Configuration flags
+- Attempts
+- Retry decisions
+- Reconciliation
+- Audit Trail
+
+Redact:
+
+- JWT
+- Secret key
+- Activation Code
+- Authorization codes where sensitive
+- Restricted customer data
+
+======================================================================
+48. REPORTS AND EXPORTS
+======================================================================
+
+Implement:
+
+- EIS Transaction Report
+- Pending Transmission Report
+- Rejected Transaction Report
+- Offline Transaction Report
+- Product Mapping Report
+- Tax Mapping Report
+- Terminal Status Report
+- Configuration Version Report
+- VAT5 Validation Report
+- MRA versus InsightBooks Reconciliation Report
+- Daily EIS Submission Summary
+- Certification Readiness Report
+- Terminal Blocking History
+
+Reports must be:
+
+- Tenant-scoped
+- Business-scoped
+- Permission-controlled
+- Filterable
+- Paginated
+- Exportable
+- Audited
+
+Do not include secrets in exports.
+
+======================================================================
+49. RECONCILIATION
+======================================================================
+
+Implement daily and on-demand reconciliation.
+
+Compare:
+
+- Finalized local eligible Sales
+- Created EIS snapshots
+- EIS transmission records
+- Accepted MRA responses
+- Last submitted online MRA transaction
+- Last submitted offline MRA transaction
+- Receipt QR availability
+- MRA fiscal-number sequence
+- Local Sale totals
+- MRA payload totals
+- Local VAT
+- MRA VAT
+- Product mappings
+- Configuration versions
+
+Detect:
+
+- Local Sale without EIS snapshot
+- Snapshot without transmission
+- Transmission without response
+- Accepted response without QR
+- Unknown outcome
+- MRA transaction not matched locally
+- Duplicate fiscal number
+- Duplicate accepted transmission
+- Amount mismatch
+- VAT mismatch
+- Product-code mismatch
+- Configuration mismatch
+- Late offline submission
+- Missing buyer authorization
+- Missing VAT5 validation
+
+No reconciliation process may create a second accounting Journal.
+
+======================================================================
+50. TERMINAL HEALTH AND UTILITIES
+======================================================================
+
+Implement safe utility actions:
+
+PING:
+
+- Test MRA connectivity.
+- Record latency.
+- Do not expose token details.
+
+PRODUCT STATUS:
+
+- Verify MRA product mapping.
+- Retrieve stock by location where available.
+- Compare to local mapping.
+- Do not overwrite local stock automatically.
+
+SITE PRODUCTS AND SERVICES:
+
+- Synchronize approved records.
+- Preserve MRA as authoritative for MRA codes.
+- Require mapping review.
+
+TIN VALIDATION:
+
+- Validate Buyer or taxpayer TIN where supported.
+- Store only necessary results.
+
+VAT5 VALIDATION:
+
+- Validate before relief supply.
+
+TERMINAL BLOCK MESSAGE:
+
+- Retrieve and display MRA reason.
+
+UNBLOCK STATUS:
+
+- Poll only at safe intervals.
+- Refresh configuration after unblock.
+
+======================================================================
+51. SECURITY AND AUTHORIZATION
+======================================================================
+
+Suggested permissions:
+
+SYSTEM:
+
+- system.eis.entitlement.enable
+- system.eis.entitlement.suspend
+- system.eis.certification.manage
+- system.eis.support.view
+- system.eis.emergency.pause
+
+TENANT:
+
+- eis.view
+- eis.configure
+- eis.enable
+- eis.pause
+- eis.terminal.activate
+- eis.terminal.confirm
+- eis.terminal.view
+- eis.configuration.sync
+- eis.product.sync
+- eis.product.map
+- eis.tax.map
+- eis.transactions.view
+- eis.transactions.retry
+- eis.transactions.reconcile
+- eis.offline.view
+- eis.reports.view
+- eis.reports.export
+- eis.vat5.validate
+- eis.audit.view
+
+Enforce permissions:
+
+- UI
+- API
+- Server Actions
+- Services
+- Background Jobs
+- Exports
+- Secret access
+
+Do not rely only on hidden buttons.
+
+======================================================================
+52. AUDIT TRAIL
+======================================================================
+
+Audit:
+
+- Entitlement enabled
+- Entitlement suspended
+- Tenant EIS enabled
+- Tenant EIS paused
+- Setup started
+- TAC submitted
+- Terminal activation requested
+- Activation response received
+- Configuration persisted
+- Activation confirmed
+- Credential rotated
+- Configuration synchronized
+- Product synchronized
+- Product mapping changed
+- Tax mapping changed
+- Sales snapshot created
+- Online submission attempted
+- Online submission accepted
+- Offline signature created
+- Offline transaction queued
+- Offline transaction uploaded
+- Submission rejected
+- Retry scheduled
+- Manual retry requested
+- Unknown outcome reconciled
+- VAT5 validated
+- Terminal blocked
+- Block message retrieved
+- Terminal unblocked
+- Report exported
+- Secret access attempted
+- Integration disabled
+
+Audit Events must not contain secrets.
+
+======================================================================
+53. LOGGING AND OBSERVABILITY
+======================================================================
+
+Implement structured metrics and logs.
+
+METRICS:
+
+- EIS transmissions created
+- EIS transmissions accepted
+- EIS transmissions rejected
+- EIS retries
+- Unknown outcomes
+- Online latency
+- Configuration sync latency
+- Product sync latency
+- Pending queue count
+- Oldest pending age
+- Offline queue count
+- Offline cumulative amount
+- VAT5 failures
+- Mapping failures
+- Blocked terminals
+- JWT expiry
+- MRA availability
+- Reconciliation differences
+
+LOG CONTEXT:
+
+- Tenant
+- Business
+- Terminal
+- Site
+- Local Sale
+- Fiscal number
+- Transmission
+- Attempt
+- Status
+- MRA error code
+- Request ID
+- Correlation ID
+- Duration
+
+Never log:
+
+- JWT
+- Secret
+- TAC
+- Full authorization headers
+- Unmasked protected authorization codes
+
+======================================================================
+54. ALERTS
+======================================================================
+
+Create alerts for:
+
+CRITICAL:
+
+- Terminal blocked by MRA
+- Duplicate accepted fiscal transaction
+- Cross-tenant credential use
+- Secret decryption failure
+- Fiscal-number collision
+- Offline limit exceeded
+- Offline transaction approaching age limit
+- Reconciliation shows MRA transaction without local record
+
+HIGH:
+
+- Repeated submission rejection
+- Configuration stale
+- Token expired
+- Product mapping missing
+- Tax mapping conflict
+- Unknown outcome unresolved
+- Old pending transaction
+- VAT5 validation failure
+- Queue dead-letter
+
+MODERATE:
+
+- Product sync required
+- Configuration sync due
+- Certification expiry approaching
+- Connectivity degraded
+
+Each alert must link to a runbook.
+
+======================================================================
+55. TYPED ERRORS
+======================================================================
+
+Implement safe errors such as:
+
+- EisNotEntitledError
+- EisDisabledByTenantError
+- EisSuspendedError
+- EisSetupIncompleteError
+- EisTerminalNotActivatedError
+- EisTerminalBlockedError
+- EisTerminalTokenExpiredError
+- EisConfigurationStaleError
+- EisActivationFailedError
+- EisActivationConfirmationFailedError
+- EisSignatureGenerationError
+- EisMessageHashError
+- EisCredentialAccessError
+- EisProductMappingMissingError
+- EisTaxMappingMissingError
+- EisSiteMappingMissingError
+- EisInvoiceNumberCollisionError
+- EisPayloadValidationError
+- EisAmountMismatchError
+- EisVatMismatchError
+- EisVat5ValidationError
+- EisBuyerAuthorizationRequiredError
+- EisOfflineNotCertifiedError
+- EisOfflineThresholdExceededError
+- EisOfflineTransactionExpiredError
+- EisSubmissionRejectedError
+- EisUnknownSubmissionOutcomeError
+- EisReconciliationError
+- EisRetryNotAllowedError
+- EisContractVersionMismatchError
+- EisApiUnavailableError
+
+Each error must include:
+
+- Safe code
+- Safe message
+- Tenant
+- Business
+- Terminal
+- Local Sale
+- Transmission
+- Fiscal number
+- Request ID
+- Correlation ID
+- Retryability
+- Manual-action requirement
+
+======================================================================
+56. API CLIENT DESIGN
+======================================================================
+
+Implement a dedicated versioned client:
+
+MraEisClient
+
+Responsibilities:
+
+- Base URL
+- Environment
+- Authentication
+- Deterministic serialization
+- Signing
+- Message hashing
+- Timeouts
+- Retry-safe HTTP behaviour
+- Response parsing
+- Contract-version support
+- Redaction
+- Metrics
+- Tracing
+- Circuit breaker
+
+Do not call MRA directly from:
+
+- React components
+- Browser code
+- POS client UI
+- Database repositories
+- Accounting services
+
+All calls must flow through a controlled integration service.
+
+======================================================================
+57. API VERSIONING
+======================================================================
+
+Version:
+
+- MRA API client
+- Payload mapper
+- Fiscal-number algorithm
+- Offline-signature algorithm
+- Configuration parser
+- Response parser
+
+Store the versions used for each transmission.
+
+Do not automatically reinterpret historical payloads using new mapping logic.
+
+Support safe future API upgrades.
+
+======================================================================
+58. TIMEOUTS, CIRCUIT BREAKER AND BACKPRESSURE
+======================================================================
+
+Define:
+
+- Connection timeout
+- Response timeout
+- Total request timeout
+- Queue timeout
+- Product-sync timeout
+- Configuration-sync timeout
+
+Use a circuit breaker for repeated MRA outages.
+
+When open:
+
+- Do not flood MRA with requests.
+- Use certified offline mode where authorized.
+- Otherwise save a controlled pending fiscal state.
+- Show status to users.
+- Continue local non-fiscal workflows only according to approved policy.
+
+Apply tenant and terminal backpressure.
+
+One tenant’s failed queue must not block every tenant.
+
+======================================================================
+59. MULTI-TENANT ISOLATION
+======================================================================
+
+Verify:
+
+- Credentials are tenant-scoped.
+- Terminals are Business-scoped.
+- Site mappings are Business-scoped.
+- Product mappings are Business-scoped.
+- Tax mappings are Business-scoped.
+- Transmissions are Business-scoped.
+- Offline queues are Business-scoped.
+- Reports are Business-scoped.
+- Cache keys are Business-scoped.
+- Jobs restore Business Context.
+- Support access is audited.
+
+Explicitly test valid IDs belonging to another tenant.
+
+======================================================================
+60. USER EXPERIENCE
+======================================================================
+
+The setup flow should be understandable to ordinary Business users.
+
+Recommended steps:
+
+1. EIS availability
+2. MRA readiness checklist
+3. Taxpayer information
+4. Terminal Activation Code
+5. Terminal activation
+6. Configuration confirmation
+7. Branch and site mapping
+8. Product and service synchronization
+9. Tax mapping
+10. Receipt preview
+11. Connectivity test
+12. Sandbox Sale test
+13. Final activation
+
+Provide:
+
+- Stepper
+- Progress
+- Plain-language explanations
+- Technical details drawer
+- Error remediation guidance
+- Save and resume
+- Support link
+- Audit history
+- Status checks
+
+Do not expose cryptographic fields to ordinary users.
+
+======================================================================
+61. RESPONSIVE DESIGN AND ACCESSIBILITY
+======================================================================
+
+Test on:
+
+- Mobile
+- Tablet
+- Laptop
+- Desktop
+
+Ensure:
+
+- Setup stepper works
+- Terminal lists work
+- Product mapping tables work
+- Transaction dashboard works
+- Error detail is readable
+- QR preview is visible
+- Buttons remain reachable
+- No uncontrolled overflow
+- Keyboard navigation works
+- Form labels are accessible
+- Status changes are announced
+- Error messages are accessible
+- Colour is not the only state indicator
+
+======================================================================
+62. SANDBOX TESTING
+======================================================================
+
+Before production:
+
+- Use MRA sandbox.
+- Use an approved test product ID.
+- Use test terminals.
+- Use test TINs approved by MRA.
+- Test every endpoint.
+- Record raw contract results securely.
+- Validate all hash algorithms.
+- Validate configuration versions.
+- Validate receipt QR.
+- Validate B2C.
+- Validate B2B.
+- Validate Buyer Authorization Code.
+- Validate VAT5.
+- Validate products.
+- Validate services.
+- Validate online Sale.
+- Validate offline Sale if certified.
+- Validate last-online lookup.
+- Validate last-offline lookup.
+- Validate block handling.
+- Validate configuration-refresh handling.
+- Validate retries and timeout reconciliation.
+
+Do not send test transactions to production.
+
+======================================================================
+63. CONTRACT TESTS
+======================================================================
+
+Create automated contract tests for:
+
+- Terminal activation request
+- Terminal activation response
+- Activation confirmation signature
+- Authorization header
+- Message-hash header
+- Latest configuration
+- Tax-rate parsing
+- Levy parsing
+- Product Status
+- Initial Inventory upload
+- Site products and services
+- VAT5 validation
+- Submit Sale
+- Sale response
+- Last online Sale
+- Last offline Sale
+- Block message
+- Unblock status
+- General response envelope
+- Error-envelope parsing
+
+Store sanitized contract fixtures.
+
+Do not store real secrets or production JWTs in fixtures.
+
+======================================================================
+64. UNIT AND INTEGRATION TESTS
+======================================================================
+
+Add tests for:
+
+ENTITLEMENT:
+
+- Default not entitled
+- System Admin enables entitlement
+- Tenant cannot self-entitle
+- Tenant can enable after entitlement
+- System suspension overrides tenant setting
+- Historical records remain after disable
+
+ACTIVATION:
+
+- Valid TAC
+- Invalid TAC
+- Activation response persistence
+- Secret encryption
+- Confirmation signature
+- Confirmation failure
+- TAC reuse prevention
+- Browser cannot access secret
+
+CONFIGURATION:
+
+- Initial configuration
+- Version update
+- Startup refresh
+- Beginning-of-day refresh
+- Refresh flag
+- Stale configuration
+- Mapping conflict
+- Terminal inactive
+
+PRODUCTS:
+
+- Product sync
+- Service sync
+- Existing local Item mapping
+- Missing mapping
+- Duplicate MRA code
+- Cross-Business mapping
+- Product status
+- Stock discrepancy
+
+SALES:
+
+- POS cash Sale
+- POS Mobile Money Sale
+- Credit Sale
+- Invoice Sale
+- B2C
+- B2B
+- Protected Buyer TIN
+- VAT5 relief
+- Product line
+- Service line
+- Discount
+- VAT
+- Levy
+- Amount tendered
+- Exact decimal total
+- Draft exclusion
+- Cancelled exclusion
+- Payment exclusion
+
+NUMBERING:
+
+- Fiscal algorithm
+- Julian date
+- Base64 conversion
+- Concurrent count
+- Daily reset
+- Duplicate prevention
+- Local and MRA number separation
+
+ONLINE:
+
+- Accepted submission
+- Rejected submission
+- Validation URL
+- QR generation
+- Configuration flag
+- Block flag
+- HTTP error
+- Business error
+
+UNKNOWN OUTCOME:
+
+- Timeout
+- Last-online match
+- Last-online mismatch
+- Retry same identity
+- No duplicate accepted transaction
+
+OFFLINE:
+
+- Not certified
+- Certified
+- Signature known-answer test
+- Offline QR
+- Amount threshold
+- Age threshold
+- Queue persistence
+- Queue restart
+- Upload
+- Last-offline reconciliation
+- Duplicate Job
+- Expired offline transaction
+
+SECURITY:
+
+- Credential encryption
+- Redacted logs
+- Cross-tenant access
+- Permission denial
+- Export redaction
+- Support-access audit
+
+======================================================================
+65. END-TO-END WORKFLOWS
+======================================================================
+
+WORKFLOW 1 — SYSTEM ENTITLEMENT:
+
+System Administrator
+→ Select tenant
+→ Enable EIS entitlement
+→ Tenant sees EIS as available
+→ Tenant cannot use it until configured
+→ Audit Event is created
+
+WORKFLOW 2 — TERMINAL ACTIVATION:
+
+Tenant Administrator
+→ Open EIS setup
+→ Complete readiness checklist
+→ Enter TAC
+→ Submit activation
+→ Persist encrypted credentials
+→ Persist configuration
+→ Confirm activation
+→ Terminal becomes ACTIVE
+→ TAC is no longer reusable
+
+WORKFLOW 3 — PRODUCT SYNCHRONIZATION:
+
+Active terminal
+→ Fetch site products and services
+→ Match local Items
+→ Resolve unmapped Items
+→ Map MRA tax rates
+→ Validate all products
+→ Mark Business ready for Sales
+
+WORKFLOW 4 — ONLINE POS SALE:
+
+Create POS Sale
+→ Post local Accounting Journal
+→ Create immutable EIS snapshot
+→ Generate fiscal number
+→ Submit to MRA
+→ Receive validation URL
+→ Generate QR
+→ Print receipt
+→ EIS status becomes ACCEPTED_ONLINE
+→ Accounting remains posted once
+
+WORKFLOW 5 — SALES INVOICE:
+
+Create Sales Invoice
+→ Approve and issue
+→ Post Revenue, Tax and Receivable
+→ Send one EIS Sale transaction
+→ Receive QR
+→ Display both local Invoice number and MRA fiscal number
+→ Later Customer payment does not resubmit Revenue
+
+WORKFLOW 6 — UNKNOWN TIMEOUT:
+
+Submit Sale
+→ Request times out
+→ Mark UNKNOWN_OUTCOME
+→ Query last online transaction
+→ Match fiscal number
+→ Mark accepted
+→ Do not resubmit
+→ Receipt QR is restored
+
+WORKFLOW 7 — CONFIGURATION UPDATE:
+
+Submit Sale
+→ MRA requests latest configuration
+→ Pause terminal queue
+→ Fetch configuration
+→ Save new versions
+→ Validate mappings
+→ Resume queue
+
+WORKFLOW 8 — TERMINAL BLOCK:
+
+Sale response requests block
+→ Fetch block message
+→ Mark terminal blocked
+→ Stop fiscal Sales
+→ Notify users
+→ Poll unblock status safely
+→ Refresh configuration after unblock
+→ Resume
+
+WORKFLOW 9 — CERTIFIED OFFLINE SALE:
+
+MRA unavailable
+→ Confirm offline eligibility
+→ Check thresholds
+→ Generate fiscal number
+→ Create offline signature
+→ Generate offline QR
+→ Queue transaction
+→ Print receipt
+→ Reconnect
+→ Upload transaction
+→ Reconcile last offline transaction
+→ Mark accepted
+
+WORKFLOW 10 — VAT5 RELIEF:
+
+Create relief Sale
+→ Enter project and Certificate
+→ Validate VAT5
+→ Confirm available quantity
+→ Exclude VAT correctly
+→ Submit EIS Sale
+→ Store validation evidence
+→ Prevent overuse
+
+WORKFLOW 11 — TENANT DISABLE:
+
+Tenant requests disable
+→ System shows pending queue
+→ User selects disable-after-clear
+→ Queue completes
+→ New EIS submissions stop
+→ Historical records remain
+→ Audit Event is created
+
+======================================================================
+66. ACCOUNTING INVARIANTS
+======================================================================
+
+Implement executable invariants:
+
+1. One local Sale creates one local accounting effect.
+2. EIS submission creates no additional accounting Journal.
+3. One local fiscal event has one authoritative EIS snapshot.
+4. One local fiscal event has one fiscal number.
+5. One accepted MRA result exists per fiscal event.
+6. Duplicate Jobs do not duplicate MRA effects.
+7. Unknown outcomes are reconciled before retry.
+8. Local Sale total equals EIS payload total.
+9. Local VAT equals EIS VAT according to configured tax rules.
+10. Local product lines map to approved MRA product or service codes.
+11. Draft Sales do not transmit.
+12. Cancelled drafts do not transmit.
+13. Customer payments do not transmit as Sales.
+14. Product sync does not mutate local accounting.
+15. Initial MRA Inventory upload does not duplicate local Opening Stock.
+16. EIS status changes do not alter General Ledger balances.
+17. Every accepted online receipt has a validation URL.
+18. Every offline receipt has a valid offline signature.
+19. Offline thresholds cannot be exceeded.
+20. Cross-tenant credentials are never used.
+21. Disabled tenants create no new EIS transmission.
+22. System suspension overrides tenant enablement.
+23. Existing transmission evidence remains after disable.
+24. Secrets never appear in logs or exports.
+25. Terminal block prevents further fiscal processing.
+
+======================================================================
+67. MIGRATION AND EXISTING TRANSACTIONS
+======================================================================
+
+Inspect existing Businesses for:
+
+- Previous EFD or EIS use
+- Existing fiscal numbers
+- Existing QR URLs
+- Existing terminal credentials
+- Existing product mappings
+- Existing submitted transactions
+- Existing Sales needing transmission
+- Existing rejected Sales
+- Existing Tax reports
+- Existing offline Sales
+
+Create a migration plan.
+
+Do not automatically submit all historical Sales to MRA.
+
+Historical submission requires:
+
+- Explicit MRA guidance
+- Tenant approval
+- Date and age validation
+- Duplicate assessment
+- Formal migration mode
+
+Classify existing records:
+
+- PRE_EIS
+- ALREADY_SUBMITTED
+- REQUIRES_MAPPING
+- REQUIRES_MRA_GUIDANCE
+- ELIGIBLE_FOR_CONTROLLED_SUBMISSION
+- NOT_ELIGIBLE
+- MANUAL_REVIEW
+
+======================================================================
+68. FEATURE FLAGS
+======================================================================
+
+Use server-controlled flags:
+
+- mraEisPlatformEnabled
+- mraEisTenantEntitlementEnabled
+- mraEisTenantOperationalEnabled
+- mraEisSandboxEnabled
+- mraEisProductionEnabled
+- mraEisPosTransmissionEnabled
+- mraEisInvoiceTransmissionEnabled
+- mraEisOfflineModeEnabled
+- mraEisProductSyncEnabled
+- mraEisVat5Enabled
+- mraEisAutoRetryEnabled
+- mraEisReceiptQrEnabled
+- mraEisReconciliationEnabled
+
+System Administrator flags must override tenant flags.
+
+Test enabled, disabled, transition and rollback states.
+
+======================================================================
+69. DOCUMENTATION DELIVERABLES
+======================================================================
+
+Create:
+
+docs/mra-eis/
+├── README.md
+├── MRA_EIS_IMPLEMENTATION_TASKS.md
+├── CURRENT_IMPLEMENTATION_AUDIT.md
+├── MRA_EIS_OFFICIAL_CONTRACT_REVIEW.md
+├── MRA_EIS_SWAGGER_DISCREPANCY_REGISTER.md
+├── MRA_EIS_VERIFIED_ENDPOINT_MATRIX.md
+├── MRA_EIS_IMPLEMENTATION_GAP_REGISTER.md
+├── MRA_EIS_TARGET_ARCHITECTURE.md
+├── MRA_EIS_ENTITLEMENT_MODEL.md
+├── MRA_EIS_TENANT_SETTINGS.md
+├── MRA_EIS_PREINTEGRATION_READINESS.md
+├── MRA_EIS_CERTIFICATION_PLAN.md
+├── MRA_EIS_TERMINAL_MODEL.md
+├── MRA_EIS_TERMINAL_ACTIVATION.md
+├── MRA_EIS_CREDENTIAL_SECURITY.md
+├── MRA_EIS_REQUEST_SIGNING.md
+├── MRA_EIS_CONFIGURATION_MANAGEMENT.md
+├── MRA_EIS_TAX_AND_LEVY_MAPPING.md
+├── MRA_EIS_PRODUCT_SERVICE_SYNC.md
+├── MRA_EIS_INITIAL_INVENTORY_UPLOAD.md
+├── MRA_EIS_FISCAL_NUMBERING.md
+├── MRA_EIS_SALES_MAPPING.md
+├── MRA_EIS_ONLINE_TRANSACTIONS.md
+├── MRA_EIS_OFFLINE_TRANSACTIONS.md
+├── MRA_EIS_OFFLINE_SIGNATURE.md
+├── MRA_EIS_OFFLINE_THRESHOLDS.md
+├── MRA_EIS_VAT5_RELIEF.md
+├── MRA_EIS_B2B_TRANSACTIONS.md
+├── MRA_EIS_QR_RECEIPTS.md
+├── MRA_EIS_TRANSMISSION_QUEUE.md
+├── MRA_EIS_RETRY_POLICY.md
+├── MRA_EIS_UNKNOWN_OUTCOME_RECOVERY.md
+├── MRA_EIS_TERMINAL_BLOCKING.md
+├── MRA_EIS_RECONCILIATION.md
+├── MRA_EIS_REPORTS.md
+├── MRA_EIS_PERMISSIONS.md
+├── MRA_EIS_AUDIT_TRAIL.md
+├── MRA_EIS_OBSERVABILITY.md
+├── MRA_EIS_ALERTS.md
+├── MRA_EIS_TYPED_ERRORS.md
+├── MRA_EIS_DATABASE_CHANGES.md
+├── MRA_EIS_API_CLIENT.md
+├── MRA_EIS_CONTRACT_TESTS.md
+├── MRA_EIS_SECURITY_TESTS.md
+├── MRA_EIS_TEST_PLAN.md
+├── MRA_EIS_SANDBOX_TEST_REPORT.md
+├── MRA_EIS_PRODUCTION_READINESS.md
+├── MRA_EIS_ROLLOUT_PLAN.md
+├── MRA_EIS_ROLLBACK_PLAN.md
+├── MRA_EIS_RUNBOOKS.md
+├── MRA_EIS_RISK_REGISTER.md
+└── FINAL_MRA_EIS_IMPLEMENTATION_REPORT.md
+
+Documentation must reflect actual verified API behaviour.
+
+======================================================================
+70. ACCEPTANCE CRITERIA
+======================================================================
+
+The implementation is complete only when:
+
+1. Official documentation has been reviewed.
+2. Live Swagger has been rechecked.
+3. Current OpenAPI definition has been located or its absence documented.
+4. Endpoint methods are verified.
+5. Endpoint paths are verified.
+6. Headers are verified.
+7. Request schemas are verified.
+8. Response schemas are verified.
+9. Signing rules are verified.
+10. Status conventions are verified.
+11. Documentation discrepancies are recorded.
+12. Sandbox contract tests pass.
+13. EIS is not entitled by default.
+14. Only System Administration can grant tenant entitlement.
+15. Tenant can enable or disable operation after entitlement.
+16. System suspension overrides tenant enablement.
+17. Entitlement and operational settings are separate.
+18. Existing transmission evidence survives disablement.
+19. Tenant setup wizard works.
+20. Readiness checklist works.
+21. Product-based Business flow works.
+22. Service-based Business flow works.
+23. Terminal Activation Code validation works.
+24. Activation request works.
+25. Activation response is persisted safely.
+26. JWT is encrypted.
+27. Secret key is encrypted.
+28. Secrets never reach the browser.
+29. Activation confirmation works.
+30. HMAC-SHA512 tests pass.
+31. TAC cannot be reused.
+32. Configuration snapshots are versioned.
+33. Startup configuration refresh works.
+34. Beginning-of-day refresh works.
+35. Response-triggered refresh works.
+36. Tax rates are synchronized.
+37. Levies are synchronized.
+38. Tax mappings are Business-scoped.
+39. Stale configuration blocks or pauses transmission.
+40. Product synchronization works.
+41. Service synchronization works.
+42. Local product mapping works.
+43. Cross-Business mapping is rejected.
+44. Unmapped products block submission.
+45. Unmapped tax rates block submission.
+46. Initial Inventory upload works where approved.
+47. Initial MRA upload does not duplicate local stock.
+48. Finalized POS Sales are eligible.
+49. Finalized Sales Invoices are eligible.
+50. Drafts are excluded.
+51. Quotations are excluded.
+52. Proformas are excluded.
+53. Cancelled documents are excluded.
+54. Payments are not submitted as Sales.
+55. EIS submission creates no accounting Journal.
+56. Local accounting posts once.
+57. EIS snapshot is immutable.
+58. EIS snapshot links to local Journal.
+59. Fiscal numbering follows verified MRA rules.
+60. Fiscal number is unique.
+61. Daily sequence is concurrency-safe.
+62. Local and MRA numbers are stored separately.
+63. Seller TIN maps correctly.
+64. Buyer TIN is optional where allowed.
+65. Protected Buyer TIN authorization works.
+66. Site mapping works.
+67. Configuration versions are transmitted.
+68. Product codes map correctly.
+69. Service codes map correctly.
+70. Unit prices map correctly.
+71. Quantities map correctly.
+72. Discounts map correctly.
+73. Tax totals map correctly.
+74. Levy totals map correctly.
+75. Invoice total matches local Sale.
+76. Exact decimal arithmetic is used.
+77. Payment-method mapping works.
+78. B2C Sale works.
+79. B2B Sale works.
+80. VAT5 validation works.
+81. VAT5 overuse is prevented.
+82. Online Sale submission works.
+83. MRA response is stored.
+84. Validation URL is stored.
+85. QR code is generated.
+86. Printed receipt contains QR.
+87. PDF receipt contains QR.
+88. Rejected transaction is clearly identified.
+89. HTTP success alone is not treated as fiscal success.
+90. Field errors are displayed safely.
+91. Configuration-refresh flag is processed.
+92. Terminal-block flag is processed.
+93. Block message is retrieved.
+94. Blocked terminal stops fiscal Sales.
+95. Unblock status works.
+96. Unknown timeout status is supported.
+97. Last-online reconciliation works.
+98. Duplicate retry is prevented.
+99. Last-offline reconciliation works.
+100. Offline mode is disabled without certification.
+101. Offline eligibility is enforced.
+102. Offline signature is correct.
+103. Offline QR is correct.
+104. Offline queue is encrypted.
+105. Offline queue survives restart.
+106. Cumulative threshold is enforced.
+107. Age threshold is enforced.
+108. Offline upload works.
+109. Late offline transaction is escalated.
+110. Duplicate offline Job does not duplicate submission.
+111. Transaction queue is tenant-scoped.
+112. Transaction queue uses bounded retries.
+113. Dead-letter handling works.
+114. Manual retry is authorized.
+115. Product Status utility works.
+116. Ping works.
+117. TIN validation works where available.
+118. Site product utility works.
+119. VAT5 utility works.
+120. Block utilities work.
+121. Daily reconciliation works.
+122. Local Sales without EIS are detected.
+123. EIS responses without local Sales are detected.
+124. Amount mismatches are detected.
+125. VAT mismatches are detected.
+126. Product mismatches are detected.
+127. Fiscal-number collisions are detected.
+128. Dashboard works.
+129. Transaction detail works.
+130. Reports work.
+131. Reports are exportable.
+132. Secrets are excluded from exports.
+133. Permissions are server-enforced.
+134. Cross-tenant access is rejected.
+135. Audit Events are complete.
+136. Logs are redacted.
+137. Metrics are implemented.
+138. Critical alerts are implemented.
+139. Runbooks are implemented.
+140. Feature flags work.
+141. Sandbox tests pass.
+142. Contract tests pass.
+143. Unit tests pass.
+144. Database tests pass.
+145. Integration tests pass.
+146. Security tests pass.
+147. Multi-tenant tests pass.
+148. Concurrency tests pass.
+149. Queue tests pass.
+150. Unknown-outcome tests pass.
+151. Offline tests pass where certified.
+152. End-to-End tests pass.
+153. Responsive tests pass.
+154. Accessibility tests pass.
+155. Type checking passes.
+156. Linting passes.
+157. Production build succeeds.
+158. MRA certification readiness is documented.
+159. Production activation requires formal approval.
+160. No local Sale is accounted twice.
+161. No EIS submission creates duplicate Revenue.
+162. No duplicate fiscal number remains.
+163. No plaintext credential exists.
+164. No cross-Business EIS data is exposed.
+165. No unsupported MRA behaviour is invented.
+166. Final documentation matches the implementation.
+
+======================================================================
+71. REQUIRED EXECUTION ORDER
+======================================================================
+
+Follow this exact sequence:
+
+Step 1:
+Review official MRA EIS documentation.
+
+Step 2:
+Review live Swagger and locate the current OpenAPI definition.
+
+Step 3:
+Document every discrepancy.
+
+Step 4:
+Build the verified endpoint matrix.
+
+Step 5:
+Run manual sandbox contract discovery.
+
+Step 6:
+Inspect existing InsightBooks integration architecture.
+
+Step 7:
+Inspect POS, Invoice, Tax and Inventory modules.
+
+Step 8:
+Create implementation task plan.
+
+Step 9:
+Implement System Administrator entitlement.
+
+Step 10:
+Implement tenant operational enable and disable settings.
+
+Step 11:
+Implement feature statuses and state machines.
+
+Step 12:
+Implement secure credential storage.
+
+Step 13:
+Implement terminal model.
+
+Step 14:
+Implement readiness checklist.
+
+Step 15:
+Implement terminal activation.
+
+Step 16:
+Implement activation-response persistence.
+
+Step 17:
+Implement activation confirmation.
+
+Step 18:
+Implement HMAC-SHA512 tests.
+
+Step 19:
+Implement versioned API client.
+
+Step 20:
+Implement endpoint-specific signing and message hashing.
+
+Step 21:
+Implement general response parsing.
+
+Step 22:
+Implement versioned configuration storage.
+
+Step 23:
+Implement configuration refresh.
+
+Step 24:
+Implement tax and levy synchronization.
+
+Step 25:
+Implement local-to-MRA tax mapping.
+
+Step 26:
+Implement site and branch mapping.
+
+Step 27:
+Implement product and service synchronization.
+
+Step 28:
+Implement local product and service mapping.
+
+Step 29:
+Implement initial MRA Inventory upload where applicable.
+
+Step 30:
+Implement sales eligibility rules.
+
+Step 31:
+Implement immutable EIS Sale snapshots.
+
+Step 32:
+Implement fiscal invoice numbering.
+
+Step 33:
+Implement exact Sale payload mapping.
+
+Step 34:
+Implement B2C flow.
+
+Step 35:
+Implement B2B flow.
+
+Step 36:
+Implement Buyer Authorization Code handling.
+
+Step 37:
+Implement VAT5 validation.
+
+Step 38:
+Implement payment-method mapping.
+
+Step 39:
+Implement online Sales transmission.
+
+Step 40:
+Implement response persistence.
+
+Step 41:
+Implement QR generation.
+
+Step 42:
+Update POS receipt rendering.
+
+Step 43:
+Update Sales Invoice rendering.
+
+Step 44:
+Implement configuration-refresh response handling.
+
+Step 45:
+Implement terminal-block handling.
+
+Step 46:
+Implement last-online reconciliation.
+
+Step 47:
+Implement unknown-outcome recovery.
+
+Step 48:
+Implement certified offline eligibility.
+
+Step 49:
+Implement offline-signature algorithm.
+
+Step 50:
+Implement offline receipt QR.
+
+Step 51:
+Implement offline threshold tracking.
+
+Step 52:
+Implement encrypted offline queue.
+
+Step 53:
+Implement offline transaction upload.
+
+Step 54:
+Implement last-offline reconciliation.
+
+Step 55:
+Implement Transactional Outbox integration.
+
+Step 56:
+Implement bounded retries.
+
+Step 57:
+Implement dead-letter handling.
+
+Step 58:
+Implement transmission dashboard.
+
+Step 59:
+Implement transmission detail.
+
+Step 60:
+Implement EIS reports.
+
+Step 61:
+Implement daily reconciliation.
+
+Step 62:
+Implement permissions.
+
+Step 63:
+Implement Audit Events.
+
+Step 64:
+Implement metrics and alerts.
+
+Step 65:
+Implement typed errors.
+
+Step 66:
+Implement responsive and accessible UI.
+
+Step 67:
+Implement migration assessment for existing Sales.
+
+Step 68:
+Add Unit tests.
+
+Step 69:
+Add database and idempotency tests.
+
+Step 70:
+Add API contract tests.
+
+Step 71:
+Add sandbox tests.
+
+Step 72:
+Add cryptographic known-answer tests.
+
+Step 73:
+Add POS integration tests.
+
+Step 74:
+Add Invoice integration tests.
+
+Step 75:
+Add VAT and VAT5 tests.
+
+Step 76:
+Add online and timeout-recovery tests.
+
+Step 77:
+Add offline tests where certified.
+
+Step 78:
+Add terminal-block tests.
+
+Step 79:
+Add security and Multi-Tenant tests.
+
+Step 80:
+Run End-to-End workflows.
+
+Step 81:
+Run reconciliation.
+
+Step 82:
+Run type checking.
+
+Step 83:
+Run linting.
+
+Step 84:
+Run complete automated tests.
+
+Step 85:
+Run production build.
+
+Step 86:
+Generate sandbox evidence pack.
+
+Step 87:
+Prepare MRA certification package.
+
+Step 88:
+Do not enable production until certification and approval are confirmed.
+
+Step 89:
+Perform controlled tenant pilot.
+
+Step 90:
+Produce final implementation report.
+
+Do not begin by adding only an enable/disable switch.
+
+Do not send production Sales before terminal activation and certification.
+
+Do not expose the secret key or JWT to frontend code.
+
+Do not invent a browser MAC address.
+
+Do not hardcode VAT rates.
+
+Do not invent MRA product codes.
+
+Do not send draft or cancelled documents.
+
+Do not send Customer payments as Sales.
+
+Do not create a second Revenue Journal during EIS transmission.
+
+Do not blindly retry an unknown-outcome submission.
+
+Do not enable offline mode without certification.
+
+Do not ignore MRA configuration-refresh instructions.
+
+Do not ignore terminal-block instructions.
+
+Do not allow one tenant to use another tenant’s credentials.
+
+Do not delete rejected, queued or accepted transmission evidence.
+
+Do not implement credit notes, refunds or reversals using undocumented negative payloads.
+
+Do not claim MRA compliance or certification without formal approval.
+
+======================================================================
+72. FINAL IMPLEMENTATION REPORT
+======================================================================
+
+Create:
+
+docs/mra-eis/FINAL_MRA_EIS_IMPLEMENTATION_REPORT.md
+
+Include:
+
+1. Executive summary
+2. Official documentation reviewed
+3. Swagger review
+4. OpenAPI-definition status
+5. Documentation discrepancies
+6. Verified endpoint matrix
+7. Sandbox findings
+8. Current InsightBooks implementation reviewed
+9. Target architecture
+10. System entitlement
+11. Tenant enable and disable controls
+12. State machines
+13. Terminal model
+14. Terminal activation
+15. Credential security
+16. Activation confirmation
+17. Request signing
+18. Message hashing
+19. Configuration management
+20. Tax synchronization
+21. Levy synchronization
+22. Product and service synchronization
+23. Product mapping
+24. Site and branch mapping
+25. Initial Inventory upload
+26. Sales eligibility
+27. Fiscal numbering
+28. Sales payload
+29. B2C
+30. B2B
+31. VAT5 relief
+32. Payment methods
+33. Online submission
+34. Response handling
+35. QR receipts
+36. Configuration-refresh handling
+37. Terminal blocking
+38. Unknown-outcome recovery
+39. Offline certification
+40. Offline signatures
+41. Offline thresholds
+42. Offline queue
+43. Offline uploads
+44. Last-online reconciliation
+45. Last-offline reconciliation
+46. Outbox and Jobs
+47. Retry policy
+48. Dashboard
+49. Reports
+50. Reconciliation
+51. Permissions
+52. Audit Trail
+53. Security
+54. Observability
+55. Alerts
+56. Tests
+57. Sandbox result
+58. Certification readiness
+59. Production readiness
+60. Remaining contract questions
+61. Remaining risks
+62. Deployment instructions
+63. Verification instructions
+64. Rollback instructions
+65. Confirmation that EIS is optional
+66. Confirmation that only System Administration grants entitlement
+67. Confirmation that tenants control operational enablement
+68. Confirmation that all credentials are encrypted
+69. Confirmation that EIS transmission creates no additional accounting effect
+70. Confirmation that every fiscal transaction is traceable
+71. Confirmation that unknown outcomes are reconciled before retry
+72. Confirmation that offline mode is certification-controlled
+73. Confirmation that blocked terminals stop Sales
+74. Confirmation that no cross-tenant credential use exists
+75. Honest certification and production-readiness conclusion
+
+======================================================================
+73. REQUIRED FINAL RESPONSE FROM CURSOR
+======================================================================
+
+At completion, provide:
+
+1. Work completed
+2. Official endpoint matrix
+3. Swagger discrepancies
+4. MRA clarification items
+5. Files created
+6. Files modified
+7. Database migrations
+8. System entitlement result
+9. Tenant setting result
+10. Terminal activation result
+11. Activation confirmation result
+12. Credential-security result
+13. HMAC-SHA512 result
+14. Message-hash result
+15. Configuration-sync result
+16. Tax mapping result
+17. Levy mapping result
+18. Site mapping result
+19. Product synchronization result
+20. Service synchronization result
+21. Product mapping result
+22. Initial Inventory upload result
+23. Fiscal-number result
+24. Sale payload result
+25. B2C result
+26. B2B result
+27. Buyer Authorization result
+28. VAT5 result
+29. Payment-method result
+30. Online submission result
+31. MRA response result
+32. QR result
+33. POS receipt result
+34. Sales Invoice result
+35. Configuration-refresh result
+36. Terminal-block result
+37. Unblock result
+38. Unknown-outcome result
+39. Last-online reconciliation result
+40. Offline-certification result
+41. Offline-signature result
+42. Offline-threshold result
+43. Offline-queue result
+44. Offline-upload result
+45. Last-offline reconciliation result
+46. Retry result
+47. Outbox result
+48. Background Job result
+49. Dashboard result
+50. Reports result
+51. Reconciliation result
+52. Permission result
+53. Audit result
+54. Security result
+55. Observability result
+56. Alert result
+57. Contract-test result
+58. Sandbox-test result
+59. Cryptographic-test result
+60. Unit-test result
+61. Database-test result
+62. Integration-test result
+63. Multi-Tenant-test result
+64. Concurrency-test result
+65. End-to-End-test result
+66. Type-check result
+67. Lint result
+68. Production-build result
+69. Certification readiness
+70. Production readiness
+71. Remaining issues
+72. Remaining blockers
+73. Deployment commands
+74. Verification commands
+75. Rollback commands
+76. Confirmation that EIS is unavailable until System Administration grants entitlement
+77. Confirmation that an entitled tenant can enable or pause EIS
+78. Confirmation that System Administration suspension overrides tenant settings
+79. Confirmation that JWT and secret keys never reach the frontend
+80. Confirmation that no secrets appear in logs or exports
+81. Confirmation that local Sales post to accounting once
+82. Confirmation that EIS submission creates no second Journal
+83. Confirmation that every EIS transaction links to its local Sale and Journal
+84. Confirmation that every fiscal invoice number is unique
+85. Confirmation that local and MRA document numbers remain separate
+86. Confirmation that MRA product codes are synchronized rather than invented
+87. Confirmation that MRA tax rates are synchronized rather than hardcoded
+88. Confirmation that B2B and VAT5 rules are validated
+89. Confirmation that accepted receipts contain the MRA validation QR
+90. Confirmation that unknown outcomes are reconciled before retry
+91. Confirmation that duplicate Jobs do not duplicate EIS submissions
+92. Confirmation that offline mode cannot operate without certification
+93. Confirmation that offline limits are enforced
+94. Confirmation that blocked terminals cannot process fiscal Sales
+95. Confirmation that configuration changes are applied when requested
+96. Confirmation that no cross-Business or cross-tenant EIS data is exposed
+97. Confirmation that no unsupported endpoint or correction workflow was invented
+98. Honest final MRA EIS implementation, certification and production-readiness status

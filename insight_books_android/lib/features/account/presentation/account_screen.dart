@@ -778,10 +778,13 @@ class _ReceiptTab extends StatefulWidget {
 }
 
 class _ReceiptTabState extends State<_ReceiptTab> {
+  static const _paperWidthOptions = [58, 70, 72, 76, 80, 88, 90];
+
   late TextEditingController _receiptFooterController;
   late TextEditingController _taxRateController;
   String _currencyCode = 'MWK';
   bool _taxEnabled = true;
+  int _paperWidthMm = 80;
 
   @override
   void initState() {
@@ -794,6 +797,9 @@ class _ReceiptTabState extends State<_ReceiptTab> {
     );
     _currencyCode = widget.settings?.currencyCode ?? 'MWK';
     _taxEnabled = widget.settings?.taxEnabled ?? true;
+    _paperWidthMm = BusinessSettings.normalizePaperWidthMm(
+      widget.settings?.receiptPaperWidthMm,
+    );
   }
 
   @override
@@ -808,6 +814,9 @@ class _ReceiptTabState extends State<_ReceiptTab> {
     if (widget.settings == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final paperValue = _paperWidthOptions.contains(_paperWidthMm)
+        ? _paperWidthMm
+        : BusinessSettings.normalizePaperWidthMm(_paperWidthMm);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -823,13 +832,32 @@ class _ReceiptTabState extends State<_ReceiptTab> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Customize the footer message that appears on your receipts.',
+                  'Choose your thermal paper width and customize the receipt footer.',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSecondary(context),
                   ),
                 ),
                 const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: _paperWidthOptions.contains(paperValue)
+                      ? paperValue
+                      : 80,
+                  decoration: const InputDecoration(
+                    labelText: 'Thermal paper width',
+                    helperText:
+                        'Match your printer roll (58–90 mm). Used as the preferred POS print size.',
+                  ),
+                  items: [
+                    for (final mm in _paperWidthOptions)
+                      DropdownMenuItem(
+                        value: mm,
+                        child: Text('$mm mm${mm == 80 ? ' (most common)' : ''}'),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _paperWidthMm = v ?? 80),
+                ),
+                const SizedBox(height: 16),
                 TextField(
                   controller: _receiptFooterController,
                   maxLines: 3,
@@ -885,6 +913,9 @@ class _ReceiptTabState extends State<_ReceiptTab> {
                     _taxRateController.text = (widget.settings?.defaultTaxRate ?? 16.5).toString();
                     _currencyCode = widget.settings?.currencyCode ?? 'MWK';
                     _taxEnabled = widget.settings?.taxEnabled ?? true;
+                    _paperWidthMm = BusinessSettings.normalizePaperWidthMm(
+                      widget.settings?.receiptPaperWidthMm,
+                    );
                   });
                 },
                 child: const Text('Discard'),
@@ -897,6 +928,7 @@ class _ReceiptTabState extends State<_ReceiptTab> {
                   widget.onSave(
                     widget.settings!.copyWith(
                       receiptFooter: _receiptFooterController.text,
+                      receiptPaperWidthMm: _paperWidthMm,
                       currencyCode: _currencyCode,
                       defaultTaxRate: double.tryParse(_taxRateController.text) ?? 16.5,
                       taxEnabled: _taxEnabled,

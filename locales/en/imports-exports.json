@@ -1,0 +1,8 @@
+{
+  "downloadTemplate": "Download template",
+  "selectFile": "Select file",
+  "validate": "Validate",
+  "dryRun": "Dry run",
+  "importComplete": "Import complete",
+  "exportReady": "Export ready"
+}

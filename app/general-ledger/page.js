@@ -1,12 +1,23 @@
-// app/accounting/general-ledger/page.js 
-import GeneralLedger from '@/components/GeneralLedger';
-import PermissionGuard from '@/components/PermissionGuard';
+/**
+ * Phase 4 — legacy `/general-ledger` retired. Canonical GL is `/general-ledger-v2`.
+ */
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'General Ledger',
-  description: 'View and manage the general ledger journal entries',
-};
-
-export default function GeneralLedgerPage() {
-  return <PermissionGuard permission="generalLedger.view"><GeneralLedger /></PermissionGuard>;
+export default async function GeneralLedgerLegacyRedirectPage({ searchParams }) {
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  if (params && typeof params === 'object') {
+    for (const [key, value] of Object.entries(params)) {
+      if (value == null) continue;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item != null) qs.append(key, String(item));
+        }
+      } else {
+        qs.set(key, String(value));
+      }
+    }
+  }
+  const query = qs.toString();
+  redirect(query ? `/general-ledger-v2?${query}` : '/general-ledger-v2');
 }

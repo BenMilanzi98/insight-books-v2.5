@@ -1,0 +1,10 @@
+{
+  "required": "Gawo ili likufunika",
+  "invalidEmail": "Lowetsani imelo yolondola",
+  "invalidNumber": "Lowetsani nambala yolondola",
+  "amountGreaterThanZero": "Ndalama ziyenera kukhala zoposa zero",
+  "passwordsDoNotMatch": "Mawu achinsinsi safanana",
+  "invalidDate": "Lowetsani tsiku lolondola",
+  "permissionDenied": "Mulibe chilolezo chochita izi",
+  "periodClosed": "Nthawi ya accounting yatsekedwa"
+}

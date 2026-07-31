@@ -200,8 +200,18 @@ export async function POST(request) {
       });
 
       // 11) Rewire budgets
-      const budgetItems = await tx.budgetItem.updateMany({
+      const budgetItems = await tx.legacyBudgetItem.updateMany({
         where: { budget: { tenantId: user.tenantId }, accountId: source.id },
+        data: { accountId: target.id }
+      });
+
+      await tx.budgetLine.updateMany({
+        where: { budget: { tenantId: user.tenantId }, accountId: source.id },
+        data: { accountId: target.id }
+      });
+
+      await tx.forecastLine.updateMany({
+        where: { forecast: { tenantId: user.tenantId }, accountId: source.id },
         data: { accountId: target.id }
       });
 

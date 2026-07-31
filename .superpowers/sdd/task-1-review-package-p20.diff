@@ -1,0 +1,2279 @@
+# Task 1 P20
+
+
+===== lib/admin/crm/conversions/readiness.js =====
+
+/**
+ * Phase 16 / Phase 20 conversion readiness — wraps Phase 15 Closed-Won readiness.
+ * Dispatches vs Phase 12 opportunity conversion readiness by args.
+ * Phase 20 Wave 1: no soft-pass on missing acceptance; UNKNOWN ≠ READY.
+ */
+
+import { evaluateClosedWonReadiness } from '../commercial/readiness.js';
+import { evaluateConversionReadiness as evaluateOpportunityConversionReadiness } from '../opportunities/conversionReadiness.js';
+import {
+  CRM_CONVERSION_READINESS_STATUS,
+  getConversionDomainContract,
+} from './catalogue.js';
+import {
+  hasCrmConversionRequestModel,
+  resolveConversionActor,
+  serializeConversionRequest,
+} from './model.js';
+import { loadConversionRequest } from './requests.js';
+
+const PASSING = new Set([
+  CRM_CONVERSION_READINESS_STATUS.READY,
+  CRM_CONVERSION_READINESS_STATUS.READY_WITH_WARNINGS,
+]);
+
+function mapPhase15Status(p15Status) {
+  const s = String(p15Status || '').toUpperCase();
+  if (s === 'READY') return CRM_CONVERSION_READINESS_STATUS.READY;
+  if (s === 'READY_WITH_WARNINGS') {
+    return CRM_CONVERSION_READINESS_STATUS.READY_WITH_WARNINGS;
+  }
+  if (s === 'HANDED_OFF') return CRM_CONVERSION_READINESS_STATUS.READY;
+  if (s === 'APPROVAL_REQUIRED') {
+    return CRM_CONVERSION_READINESS_STATUS.APPROVAL_REQUIRED;
+  }
+  if (s === 'DUPLICATE_REVIEW_REQUIRED') {
+    return CRM_CONVERSION_READINESS_STATUS.DUPLICATE_REVIEW_REQUIRED;
+  }
+  if (s === 'UNKNOWN') return CRM_CONVERSION_READINESS_STATUS.UNKNOWN;
+  if (s === 'BLOCKED') return CRM_CONVERSION_READINESS_STATUS.BLOCKED;
+  if (s === 'PARTIALLY_READY') {
+    return CRM_CONVERSION_READINESS_STATUS.PARTIALLY_READY;
+  }
+  return CRM_CONVERSION_READINESS_STATUS.NOT_READY;
+}
+
+function isReadyStatus(status) {
+  return PASSING.has(status);
+}
+
+/**
+ * Phase 20 — evaluate conversion readiness for a CVR or acceptance.
+ */
+export async function evaluateConversionRequestReadiness(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+
+  let request = null;
+  if (args.conversionRequestId) {
+    if (!hasCrmConversionRequestModel(prisma)) {
+      return {
+        ok: false,
+        error: 'crm_conversion_request_model_unavailable',
+        status: 'UNAVAILABLE',
+        readinessStatus: CRM_CONVERSION_READINESS_STATUS.UNKNOWN,
+      };
+    }
+    request = await loadConversionRequest(prisma, args.conversionRequestId);
+    if (!request) {
+      return {
+        ok: false,
+        notFound: true,
+        error: 'conversion_request_not_found',
+        readinessStatus: CRM_CONVERSION_READINESS_STATUS.UNKNOWN,
+      };
+    }
+  }
+
+  const acceptanceId =
+    args.acceptanceId ||
+    request?.acceptanceId ||
+    null;
+
+  if (!acceptanceId && !request) {
+    return {
+      ok: false,
+      error: 'conversionRequestId_or_acceptanceId_required',
+      readinessStatus: CRM_CONVERSION_READINESS_STATUS.UNKNOWN,
+    };
+  }
+
+  const checklist = [];
+  let readinessStatus = CRM_CONVERSION_READINESS_STATUS.READY;
+
+  if (request) {
+    checklist.push({
+      code: 'conversion_request',
+      ok: true,
+      severity: 'INFO',
+      detail: `CVR ${request.requestNumber}`,
+    });
+    if (!request.opportunityId) {
+      checklist.push({
+        code: 'opportunity',
+        ok: false,
+        severity: 'ERROR',
+        detail: 'opportunityId missing',
+      });
+      readinessStatus = CRM_CONVERSION_READINESS_STATUS.NOT_READY;
+    } else {
+      checklist.push({
+        code: 'opportunity',
+        ok: true,
+        severity: 'INFO',
+        detail: request.opportunityId,
+      });
+    }
+  }
+
+  const resolvedAcceptance = acceptanceId || request?.acceptanceId;
+  if (!resolvedAcceptance) {
+    checklist.push({
+      code: 'phase15_acceptance',
+      ok: false,
+      severity: 'ERROR',
+      detail: 'acceptanceId required — handoff pin alone is not acceptance',
+    });
+    readinessStatus = CRM_CONVERSION_READINESS_STATUS.UNKNOWN;
+  } else if (typeof evaluateClosedWonReadiness === 'function') {
+    try {
+      const phase15 = await evaluateClosedWonReadiness(prisma, {
+        acceptanceId: resolvedAcceptance,
+        admin,
+        opportunityId: args.opportunityId || request?.opportunityId || null,
+        requireDiscountApprovals: args.requireDiscountApprovals,
+      });
+
+      if (phase15?.ok === false && phase15?.error === 'acceptance_not_found') {
+        // Phase 20: never soft-pass via handoff pin when acceptance missing
+        checklist.push({
+          code: 'phase15_acceptance',
+          ok: false,
+          severity: 'ERROR',
+          detail: 'acceptance not found — handoff pin is not acceptance evidence',
+        });
+        readinessStatus = CRM_CONVERSION_READINESS_STATUS.UNKNOWN;
+      } else if (phase15?.forbidden) {
+        checklist.push({
+          code: 'phase15_closed_won_readiness',
+          ok: false,
+          severity: 'ERROR',
+          detail: phase15.reason || 'forbidden',
+        });
+        readinessStatus = CRM_CONVERSION_READINESS_STATUS.BLOCKED;
+      } else if (phase15?.ok) {
+        const p15Status = phase15.readinessStatus;
+        const mapped = mapPhase15Status(p15Status);
+        const pass =
+          p15Status === 'READY' ||
+          p15Status === 'HANDED_OFF' ||
+          p15Status === 'READY_WITH_WARNINGS';
+        checklist.push({
+          code: 'phase15_closed_won_readiness',
+          ok: pass,
+          severity: pass ? 'INFO' : 'ERROR',
+          detail: p15Status,
+        });
+        if (!pass) {
+          readinessStatus = mapped;
+        } else if (readinessStatus === CRM_CONVERSION_READINESS_STATUS.READY) {
+          readinessStatus = mapped;
+        }
+      } else if (phase15 && !phase15.ok) {
+        checklist.push({
+          code: 'phase15_closed_won_readiness',
+          ok: false,
+          severity: 'ERROR',
+          detail: phase15.error || 'phase15_readiness_unavailable',
+        });
+        readinessStatus =
+          phase15.readinessStatus === 'UNKNOWN'
+            ? CRM_CONVERSION_READINESS_STATUS.UNKNOWN
+            : CRM_CONVERSION_READINESS_STATUS.BLOCKED;
+      } else {
+        checklist.push({
+          code: 'phase15_closed_won_readiness',
+          ok: false,
+          severity: 'ERROR',
+          detail: 'phase15_readiness_unknown',
+        });
+        readinessStatus = CRM_CONVERSION_READINESS_STATUS.UNKNOWN;
+      }
+    } catch (err) {
+      checklist.push({
+        code: 'phase15_closed_won_readiness',
+        ok: false,
+        severity: 'ERROR',
+        detail: `phase15_readiness_exception:${String(err?.message || err)}`,
+      });
+      readinessStatus = CRM_CONVERSION_READINESS_STATUS.UNKNOWN;
+    }
+  }
+
+  checklist.push({
+    code: 'no_provision_until_execute',
+    ok: true,
+    severity: 'INFO',
+    detail: 'Customer/Tenant/Subscription deferred to Waves 2–3',
+  });
+
+  // UNKNOWN / BLOCKED / NOT_READY / APPROVAL_REQUIRED never pass as READY
+  const ok = isReadyStatus(readinessStatus);
+
+  return {
+    ok,
+    readinessStatus,
+    checklist,
+    request: request ? serializeConversionRequest(request) : null,
+    closedWon: false,
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    domain: getConversionDomainContract(),
+    meta: {
+      unknownNeverReady: true,
+      softPassForbidden: true,
+    },
+  };
+}
+
+/**
+ * Unified entry: CVR/acceptance → Phase 16; opportunityId → Phase 12 soft checklist.
+ */
+export async function evaluateConversionReadiness(prisma, args = {}) {
+  if (args.conversionRequestId || (args.acceptanceId && !args.opportunityId)) {
+    return evaluateConversionRequestReadiness(prisma, args);
+  }
+  return evaluateOpportunityConversionReadiness(prisma, args);
+}
+
+
+===== lib/admin/crm/opportunities/close.js =====
+
+/**
+ * Opportunity win/loss close — Phase 12 Wave 3 / Phase 20 Wave 1 harden.
+ * CLOSED_WON requires evidence + win reason + decision date.
+ * CLOSED_LOST requires loss reason.
+ * Never provisions Tenant / Subscription / Invoice / Payment.
+ * When acceptanceId provided, commercial readiness must pass (UNKNOWN ≠ READY).
+ */
+
+import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
+import { CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { evaluateClosedWonReadiness } from '../commercial/readiness.js';
+import {
+  CRM_OPPORTUNITY_STATUS,
+  CRM_PIPELINE_STAGE,
+} from '../pipeline/catalogue.js';
+import { isTerminalStage } from '../pipeline/definitions.js';
+import { transitionOpportunityStage } from '../pipeline/transition.js';
+import { hasCrmOpportunityModel, serializeOpportunity } from './model.js';
+import { appendOpportunityTimelineEvent } from './timeline.js';
+
+export const CRM_CLOSE_APPROVAL_STATUS = Object.freeze({
+  NOT_REQUIRED: 'NOT_REQUIRED',
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+});
+
+export const CRM_WIN_REASON = Object.freeze({
+  BEST_FIT: 'BEST_FIT',
+  PRICE: 'PRICE',
+  RELATIONSHIP: 'RELATIONSHIP',
+  URGENCY: 'URGENCY',
+  OTHER: 'OTHER',
+});
+
+export const CRM_LOSS_REASON = Object.freeze({
+  NO_BUDGET: 'NO_BUDGET',
+  COMPETITOR: 'COMPETITOR',
+  NO_DECISION: 'NO_DECISION',
+  TIMING: 'TIMING',
+  REQUIREMENTS_MISMATCH: 'REQUIREMENTS_MISMATCH',
+  OTHER: 'OTHER',
+});
+
+/**
+ * Assert no Tenant / Subscription / Invoice / Payment provision occurred.
+ * Always returns ok with provision flags false for Wave 3 close path.
+ */
+export function assertNoProvision(result = {}) {
+  const flags = {
+    tenantCreated: result.tenantCreated === true,
+    subscriptionCreated: result.subscriptionCreated === true,
+    invoiceCreated: result.invoiceCreated === true,
+    paymentCreated: result.paymentCreated === true,
+    provisionExecuted: result.provisionExecuted === true,
+  };
+  const provisioned = Object.values(flags).some(Boolean);
+  return {
+    ok: !provisioned,
+    provisioned,
+    ...flags,
+    assertNoProvision: true,
+  };
+}
+
+async function loadOpportunity(prisma, opportunityId) {
+  const id = opportunityId ? String(opportunityId).trim() : '';
+  if (!id || !hasCrmOpportunityModel(prisma)) return null;
+  try {
+    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
+    }
+    return await prisma.crmOpportunity.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+function normalizeEvidence(evidence) {
+  if (evidence == null) return null;
+  if (Array.isArray(evidence)) {
+    return evidence
+      .map((e) => {
+        if (typeof e === 'string') return { type: 'REFERENCE', value: e };
+        if (e && typeof e === 'object') return e;
+        return null;
+      })
+      .filter(Boolean);
+  }
+  if (typeof evidence === 'string' && evidence.trim()) {
+    return [{ type: 'REFERENCE', value: evidence.trim() }];
+  }
+  if (typeof evidence === 'object') return [evidence];
+  return null;
+}
+
+function hasEvidence(evidence) {
+  const norm = normalizeEvidence(evidence);
+  return Array.isArray(norm) && norm.length > 0;
+}
+
+/**
+ * Close as CLOSED_WON — evidence + winReason + decisionDate required.
+ */
+export async function closeOpportunityWon(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (!access.canTransitionOpportunityStages && !access.canEditOpportunities) {
+    return { ok: false, forbidden: true, reason: 'crm_close_forbidden' };
+  }
+
+  const row = await loadOpportunity(prisma, args.opportunityId);
+  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
+
+  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
+  if (!scope.canView) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: scope.reason || 'crm_scope_denied',
+      error: scope.reason || 'crm_scope_denied',
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+      paymentCreated: false,
+      provisionExecuted: false,
+    };
+  }
+
+  if (isTerminalStage(row.stageCode)) {
+    return {
+      ok: false,
+      error: 'ALREADY_TERMINAL',
+      stageCode: row.stageCode,
+      reason: 'opportunity_already_closed',
+      idempotent: true,
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+      paymentCreated: false,
+      provisionExecuted: false,
+    };
+  }
+
+  const winReason = args.winReason != null ? String(args.winReason).trim().toUpperCase() : '';
+  if (!winReason) {
+    return { ok: false, error: 'WIN_REASON_REQUIRED', missingCriteria: ['winReason'] };
+  }
+
+  const decisionDate = args.decisionDate ? new Date(args.decisionDate) : null;
+  if (!decisionDate || Number.isNaN(decisionDate.getTime())) {
+    return { ok: false, error: 'DECISION_DATE_REQUIRED', missingCriteria: ['decisionDate'] };
+  }
+
+  if (!hasEvidence(args.evidence ?? args.evidenceReferences)) {
+    return {
+      ok: false,
+      error: 'CLOSED_WON_EVIDENCE_REQUIRED',
+      missingCriteria: ['evidence'],
+    };
+  }
+
+  // Phase 20 — commercial acceptance gates when acceptanceId supplied
+  const acceptanceId = args.acceptanceId ? String(args.acceptanceId).trim() : '';
+  if (acceptanceId) {
+    const readiness = await evaluateClosedWonReadiness(prisma, {
+      acceptanceId,
+      admin: args.admin,
+      opportunityId: row.id,
+      requireDiscountApprovals: args.requireDiscountApprovals,
+      now: args.now,
+    });
+    const status = String(readiness?.readinessStatus || 'UNKNOWN').toUpperCase();
+    const ready =
+      readiness?.ok !== false &&
+      (status === 'READY' || status === 'HANDED_OFF' || status === 'READY_WITH_WARNINGS');
+    if (!ready) {
+      return {
+        ok: false,
+        error: 'CLOSED_WON_READINESS_BLOCKED',
+        reason: `readiness_${status.toLowerCase()}`,
+        readinessStatus: status,
+        readiness,
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        paymentCreated: false,
+        provisionExecuted: false,
+      };
+    }
+  }
+
+  const evidence = normalizeEvidence(args.evidence ?? args.evidenceReferences);
+  const now = args.now || new Date();
+  const approvalStatus =
+    args.requireApproval === true
+      ? CRM_CLOSE_APPROVAL_STATUS.PENDING
+      : CRM_CLOSE_APPROVAL_STATUS.NOT_REQUIRED;
+
+  if (approvalStatus === CRM_CLOSE_APPROVAL_STATUS.PENDING && args.approvalGranted !== true) {
+    // Stub: record pending without stage move when approval required and not granted
+    try {
+      await prisma.crmOpportunity.update({
+        where: { id: row.id },
+        data: {
+          winReason,
+          decisionDate,
+          closeEvidence: evidence,
+          closeApprovalStatus: approvalStatus,
+          updatedAt: now,
+        },
+      });
+    } catch {
+      // column may be missing pre-SQL
+    }
+    return {
+      ok: false,
+      error: 'CLOSE_APPROVAL_PENDING',
+      approvalStatus,
+      opportunity: serializeOpportunity({
+        ...row,
+        winReason,
+        decisionDate,
+        closeEvidence: evidence,
+        closeApprovalStatus: approvalStatus,
+      }),
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+      paymentCreated: false,
+      provisionExecuted: false,
+    };
+  }
+
+  const transition = await transitionOpportunityStage({
+    prisma,
+    admin: args.admin,
+    opportunityId: row.id,
+    toStageCode: CRM_PIPELINE_STAGE.CLOSED_WON,
+    reason: args.reason || `closed_won:${winReason}`,
+    evidenceReferences: evidence,
+    idempotencyKey: args.idempotencyKey,
+    expectedVersion: args.expectedVersion,
+    now,
+    closeServiceAuthorized: true,
+  });
+
+  if (!transition.ok) {
+    return {
+      ...transition,
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+      paymentCreated: false,
+      provisionExecuted: false,
+    };
+  }
+
+  let updated = transition.opportunity;
+  try {
+    const fresh = await prisma.crmOpportunity.update({
+      where: { id: row.id },
+      data: {
+        winReason,
+        lossReason: null,
+        decisionDate,
+        closeEvidence: evidence,
+        closedAt: now,
+        closedByAdminId: args.admin?.id || null,
+        closeApprovalStatus: approvalStatus === CRM_CLOSE_APPROVAL_STATUS.PENDING
+          ? CRM_CLOSE_APPROVAL_STATUS.APPROVED
+          : approvalStatus,
+        status: CRM_OPPORTUNITY_STATUS.WON,
+        updatedAt: now,
+      },
+    });
+    updated = serializeOpportunity(fresh);
+  } catch {
+    updated = serializeOpportunity({
+      ...(transition.opportunity || row),
+      winReason,
+      decisionDate,
+      closeEvidence: evidence,
+      closedAt: now,
+      status: CRM_OPPORTUNITY_STATUS.WON,
+    });
+  }
+
+  await appendOpportunityTimelineEvent(prisma, {
+    opportunityId: row.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.CLOSED_WON,
+    summary: `Closed won: ${winReason}`,
+    payload: {
+      winReason,
+      decisionDate: decisionDate.toISOString(),
+      evidenceCount: evidence.length,
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+    },
+    actorAdminId: args.admin?.id || null,
+    at: now,
+  });
+
+  const result = {
+    ok: true,
+    opportunity: updated,
+    fromStageCode: transition.fromStageCode,
+    toStageCode: CRM_PIPELINE_STAGE.CLOSED_WON,
+    historyId: transition.historyId,
+    idempotent: Boolean(transition.idempotent),
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    paymentCreated: false,
+    provisionExecuted: false,
+  };
+
+  return { ...result, provisionCheck: assertNoProvision(result) };
+}
+
+/**
+ * Close as CLOSED_LOST — lossReason required.
+ */
+export async function closeOpportunityLost(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (!access.canTransitionOpportunityStages && !access.canEditOpportunities) {
+    return { ok: false, forbidden: true, reason: 'crm_close_forbidden' };
+  }
+
+  const row = await loadOpportunity(prisma, args.opportunityId);
+  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
+
+  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
+  if (!scope.canView) {
+    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
+  }
+
+  if (isTerminalStage(row.stageCode)) {
+    return {
+      ok: false,
+      error: 'ALREADY_TERMINAL',
+      stageCode: row.stageCode,
+      reason: 'opportunity_already_closed',
+    };
+  }
+
+  const lossReason = args.lossReason != null ? String(args.lossReason).trim().toUpperCase() : '';
+  if (!lossReason) {
+    return { ok: false, error: 'LOSS_REASON_REQUIRED', missingCriteria: ['lossReason'] };
+  }
+
+  const decisionDate = args.decisionDate ? new Date(args.decisionDate) : new Date();
+  const now = args.now || new Date();
+  const evidence = normalizeEvidence(args.evidence ?? args.evidenceReferences);
+
+  const transition = await transitionOpportunityStage({
+    prisma,
+    admin: args.admin,
+    opportunityId: row.id,
+    toStageCode: CRM_PIPELINE_STAGE.CLOSED_LOST,
+    reason: args.reason || `closed_lost:${lossReason}`,
+    evidenceReferences: evidence || undefined,
+    idempotencyKey: args.idempotencyKey,
+    expectedVersion: args.expectedVersion,
+    now,
+    closeServiceAuthorized: true,
+  });
+
+  if (!transition.ok) {
+    return {
+      ...transition,
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+      paymentCreated: false,
+      provisionExecuted: false,
+    };
+  }
+
+  let updated = transition.opportunity;
+  try {
+    const fresh = await prisma.crmOpportunity.update({
+      where: { id: row.id },
+      data: {
+        lossReason,
+        winReason: null,
+        decisionDate: Number.isNaN(decisionDate.getTime()) ? now : decisionDate,
+        closeEvidence: evidence || undefined,
+        closedAt: now,
+        closedByAdminId: args.admin?.id || null,
+        closeApprovalStatus: CRM_CLOSE_APPROVAL_STATUS.NOT_REQUIRED,
+        status: CRM_OPPORTUNITY_STATUS.LOST,
+        updatedAt: now,
+      },
+    });
+    updated = serializeOpportunity(fresh);
+  } catch {
+    updated = serializeOpportunity({
+      ...(transition.opportunity || row),
+      lossReason,
+      closedAt: now,
+      status: CRM_OPPORTUNITY_STATUS.LOST,
+    });
+  }
+
+  await appendOpportunityTimelineEvent(prisma, {
+    opportunityId: row.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.CLOSED_LOST,
+    summary: `Closed lost: ${lossReason}`,
+    payload: { lossReason, tenantCreated: false, subscriptionCreated: false, invoiceCreated: false },
+    actorAdminId: args.admin?.id || null,
+    at: now,
+  });
+
+  const result = {
+    ok: true,
+    opportunity: updated,
+    fromStageCode: transition.fromStageCode,
+    toStageCode: CRM_PIPELINE_STAGE.CLOSED_LOST,
+    historyId: transition.historyId,
+    idempotent: Boolean(transition.idempotent),
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    paymentCreated: false,
+    provisionExecuted: false,
+  };
+
+  return { ...result, provisionCheck: assertNoProvision(result) };
+}
+
+/**
+ * Reopen from terminal stage to CUSTOMER_DECISION (or explicit toStageCode open stage).
+ * Requires reason. Does not invent commercial / probability.
+ */
+export async function reopenOpportunity(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (!access.canTransitionOpportunityStages && !access.canEditOpportunities) {
+    return { ok: false, forbidden: true, reason: 'crm_reopen_forbidden' };
+  }
+
+  const row = await loadOpportunity(prisma, args.opportunityId);
+  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
+
+  if (!isTerminalStage(row.stageCode)) {
+    return {
+      ok: false,
+      error: 'NOT_TERMINAL',
+      reason: 'reopen_requires_terminal_stage',
+      stageCode: row.stageCode,
+    };
+  }
+
+  const reopenReason = args.reopenReason != null ? String(args.reopenReason).trim() : '';
+  if (!reopenReason) {
+    return { ok: false, error: 'REOPEN_REASON_REQUIRED', missingCriteria: ['reopenReason'] };
+  }
+
+  const toStage =
+    args.toStageCode != null
+      ? String(args.toStageCode).trim().toUpperCase()
+      : CRM_PIPELINE_STAGE.CUSTOMER_DECISION;
+
+  if (isTerminalStage(toStage)) {
+    return { ok: false, error: 'INVALID_REOPEN_TARGET', toStageCode: toStage };
+  }
+
+  const now = args.now || new Date();
+  const nextVersion = (row.version ?? 1) + 1;
+
+  let updated = null;
+  try {
+    updated = await prisma.crmOpportunity.update({
+      where: { id: row.id },
+      data: {
+        stageCode: toStage,
+        status: CRM_OPPORTUNITY_STATUS.OPEN,
+        version: nextVersion,
+        reopenReason,
+        reopenedAt: now,
+        reopenedByAdminId: args.admin?.id || null,
+        closedAt: null,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    return { ok: false, error: 'reopen_update_failed', detail: String(err?.message || err) };
+  }
+
+  if (hasCrmOpportunityModel(prisma) && typeof prisma.crmOpportunityStageHistory?.create === 'function') {
+    try {
+      await prisma.crmOpportunityStageHistory.create({
+        data: {
+          opportunityId: row.id,
+          fromStageCode: row.stageCode,
+          toStageCode: toStage,
+          changedByAdminId: args.admin?.id || null,
+          reason: `reopen:${reopenReason}`,
+          idempotencyKey: args.idempotencyKey || null,
+          at: now,
+        },
+      });
+    } catch {
+      // history optional on conflict
+    }
+  }
+
+  await appendOpportunityTimelineEvent(prisma, {
+    opportunityId: row.id,
+    eventType: CRM_TIMELINE_EVENT_TYPE.REOPENED,
+    summary: `Reopened to ${toStage}: ${reopenReason.slice(0, 120)}`,
+    payload: {
+      fromStageCode: row.stageCode,
+      toStageCode: toStage,
+      reopenReason,
+    },
+    actorAdminId: args.admin?.id || null,
+    at: now,
+  });
+
+  return {
+    ok: true,
+    opportunity: serializeOpportunity(updated),
+    fromStageCode: row.stageCode,
+    toStageCode: toStage,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    paymentCreated: false,
+    provisionExecuted: false,
+    provisionCheck: assertNoProvision({}),
+  };
+}
+
+
+===== lib/admin/crm/commercial/acceptance.js =====
+
+/**
+ * Commercial document acceptance — Phase 15 Wave 3 / Phase 20 Wave 1 harden.
+ * Requires exact version + artifact + checksum + recipient + authority.
+ * Idempotent. Never fabricates. Acceptance ≠ Closed Won.
+ * View / open / silence never count as acceptance.
+ */
+
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { loadArtifactChecksum } from './artifacts.js';
+import { resolveReviewAccessByToken } from './reviewAccess.js';
+
+/** Phase 20 — authority presence ≠ VERIFIED */
+export const CRM_ACCEPTANCE_AUTHORITY_STATUS = Object.freeze({
+  VERIFIED: 'VERIFIED',
+  VERIFICATION_REQUIRED: 'VERIFICATION_REQUIRED',
+  UNKNOWN: 'UNKNOWN',
+});
+
+export function hasCrmCommercialAcceptanceModel(prisma) {
+  return typeof prisma?.crmCommercialAcceptance?.create === 'function';
+}
+
+export function serializeAcceptance(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    artifactId: row.artifactId,
+    checksumSha256: row.checksumSha256,
+    recipientId: row.recipientId,
+    authorityRole: row.authorityRole,
+    authorityStatus:
+      row.authorityStatus ||
+      evaluateAcceptanceAuthorityStatus(row).status,
+    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
+    idempotencyKey: row.idempotencyKey || null,
+  };
+}
+
+/**
+ * Resolve authority status. Role string alone never implies VERIFIED.
+ * @param {{ authorityStatus?: string, authorityRole?: string }} input
+ */
+export function evaluateAcceptanceAuthorityStatus(input = {}) {
+  const explicit = String(input?.authorityStatus || '')
+    .trim()
+    .toUpperCase();
+  if (explicit === CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED) {
+    return { ok: true, status: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED };
+  }
+  if (explicit === CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFICATION_REQUIRED) {
+    return {
+      ok: false,
+      status: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFICATION_REQUIRED,
+      error: 'authority_verification_required',
+    };
+  }
+  if (explicit === CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN) {
+    return {
+      ok: false,
+      status: CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN,
+      error: 'authority_unknown',
+    };
+  }
+  // Missing / unrecognized status — UNKNOWN ≠ VERIFIED even if role present
+  return {
+    ok: false,
+    status: CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN,
+    error: 'authority_unknown',
+  };
+}
+
+/**
+ * Engagement (view/open/silence) must never be treated as acceptance.
+ * @param {{ engagementType?: string, documentVersionId?: string }} args
+ */
+export function assertEngagementIsNotAcceptance(args = {}) {
+  const type = String(args.engagementType || args.type || '')
+    .trim()
+    .toUpperCase();
+  const blocked = new Set([
+    'VIEW',
+    'VIEWED',
+    'OPEN',
+    'OPENED',
+    'SILENCE',
+    'NO_RESPONSE',
+    'EMAIL_OPEN',
+    'LINK_OPEN',
+  ]);
+  if (!type || blocked.has(type)) {
+    return {
+      ok: false,
+      error: 'engagement_is_not_acceptance',
+      engagementType: type || 'UNKNOWN',
+      documentVersionId: args.documentVersionId || null,
+      acceptance: null,
+    };
+  }
+  return {
+    ok: false,
+    error: 'engagement_is_not_acceptance',
+    engagementType: type,
+    documentVersionId: args.documentVersionId || null,
+    acceptance: null,
+  };
+}
+
+const ACCEPTABLE = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+]);
+
+/**
+ * Authority for protected acceptance must come from the verified recipient role.
+ * Empty / missing role is UNVERIFIED and never satisfies acceptance.
+ */
+export function evaluateAcceptanceAuthority(recipient, claimedRole = '') {
+  const verifiedRole = String(recipient?.authorityRole || '')
+    .trim()
+    .toUpperCase();
+  if (!verifiedRole) {
+    return {
+      ok: false,
+      error: 'authority_unverified',
+      status: 'UNVERIFIED',
+    };
+  }
+  const claimed = claimedRole ? String(claimedRole).trim().toUpperCase() : '';
+  if (claimed && claimed !== verifiedRole) {
+    return { ok: false, error: 'authority_mismatch' };
+  }
+  return { ok: true, authorityRole: verifiedRole };
+}
+
+export async function acceptCommercialDocument(prisma, args = {}) {
+  if (!hasCrmCommercialAcceptanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_acceptance_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  // Hard deny: view/open/silence inference paths never create acceptance
+  if (
+    args.inferFromView === true ||
+    args.silenceAsAcceptance === true ||
+    args.inferFromOpen === true ||
+    args.inferFromEngagement === true
+  ) {
+    return {
+      ok: false,
+      error: 'engagement_is_not_acceptance',
+      inferred: false,
+      acceptance: null,
+    };
+  }
+
+  const now = args.now || new Date();
+  let documentVersionId = args.documentVersionId || args.commercialDocumentVersionId || null;
+  let artifactId = args.artifactId || null;
+  let checksumSha256 = args.checksumSha256
+    ? String(args.checksumSha256).trim().toLowerCase()
+    : '';
+  let recipientId = args.recipientId || null;
+  const claimedAuthorityRole = args.authorityRole
+    ? String(args.authorityRole).trim().toUpperCase()
+    : '';
+
+  // Token path: resolve → bind version/recipient/artifact/checksum; reject unknown/expired/revoked
+  if (args.token) {
+    const resolved = await resolveReviewAccessByToken(prisma, args.token, { now });
+    if (!resolved.ok) return resolved;
+    const access = resolved.reviewAccess;
+    if (documentVersionId && documentVersionId !== access.documentVersionId) {
+      return { ok: false, error: 'document_version_token_mismatch' };
+    }
+    if (recipientId && access.recipientId && recipientId !== access.recipientId) {
+      return { ok: false, error: 'recipient_token_mismatch' };
+    }
+    if (artifactId && access.artifactId && artifactId !== access.artifactId) {
+      return { ok: false, error: 'artifact_token_mismatch' };
+    }
+    if (
+      checksumSha256 &&
+      access.checksumSha256 &&
+      checksumSha256 !== String(access.checksumSha256).trim().toLowerCase()
+    ) {
+      return { ok: false, error: 'checksum_token_mismatch' };
+    }
+    documentVersionId = access.documentVersionId;
+    recipientId = access.recipientId;
+    artifactId = access.artifactId || artifactId;
+    checksumSha256 = access.checksumSha256
+      ? String(access.checksumSha256).trim().toLowerCase()
+      : checksumSha256;
+  }
+
+  if (!documentVersionId) return { ok: false, error: 'documentVersionId_required' };
+  if (!artifactId) return { ok: false, error: 'artifactId_required' };
+  if (!checksumSha256) return { ok: false, error: 'checksum_required' };
+  if (!recipientId) return { ok: false, error: 'recipientId_required' };
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey) {
+    const existing = await prisma.crmCommercialAcceptance.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        acceptance: serializeAcceptance(existing),
+        domain: getCommercialDomainContract(),
+      };
+    }
+  }
+
+  const version = await prisma.crmCommercialDocumentVersion.findUnique({
+    where: { id: documentVersionId },
+  });
+  if (!version) return { ok: false, error: 'document_version_not_found' };
+
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED) {
+    return { ok: false, error: 'version_superseded' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN) {
+    return { ok: false, error: 'version_withdrawn' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED) {
+    return { ok: false, error: 'version_expired' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED) {
+    return { ok: false, error: 'version_rejected' };
+  }
+  if (version.status === CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED) {
+    // Idempotent accept of already accepted if same binding
+    const prior = await prisma.crmCommercialAcceptance.findFirst({
+      where: { documentVersionId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (prior && prior.checksumSha256 === checksumSha256 && prior.artifactId === artifactId) {
+      return {
+        ok: true,
+        alreadyExists: true,
+        acceptance: serializeAcceptance(prior),
+        domain: getCommercialDomainContract(),
+      };
+    }
+    return { ok: false, error: 'version_already_accepted' };
+  }
+  if (!ACCEPTABLE.has(version.status)) {
+    return { ok: false, error: `version_not_acceptable:${version.status}` };
+  }
+
+  // Review access must be active (not revoked, not expired) for this version+recipient
+  if (typeof prisma.crmCommercialReviewAccess?.findFirst === 'function') {
+    const access = await prisma.crmCommercialReviewAccess.findFirst({
+      where: {
+        documentVersionId,
+        recipientId,
+        revokedAt: null,
+      },
+    });
+    if (!access) {
+      return { ok: false, error: 'review_access_revoked' };
+    }
+    if (access.expiresAt && new Date(access.expiresAt) < now) {
+      return { ok: false, error: 'review_access_expired' };
+    }
+  }
+
+  const artifact = await prisma.crmCommercialArtifact.findUnique({
+    where: { id: artifactId },
+  });
+  if (!artifact) return { ok: false, error: 'artifact_not_found' };
+  if ((artifact.versionId || artifact.documentVersionId) !== documentVersionId) {
+    return { ok: false, error: 'artifact_version_mismatch' };
+  }
+
+  const stored = await loadArtifactChecksum(prisma, artifactId);
+  if (!stored?.sha256) return { ok: false, error: 'checksum_missing_on_artifact' };
+  if (String(stored.sha256).toLowerCase() !== checksumSha256) {
+    return { ok: false, error: 'checksum_mismatch' };
+  }
+
+  // Authority: evaluate from verified recipient role only (never default empty → SIGNATORY)
+  if (typeof prisma.crmCommercialRecipient?.findUnique !== 'function') {
+    return { ok: false, error: 'recipient_model_unavailable', status: 'UNAVAILABLE' };
+  }
+  const recipient = await prisma.crmCommercialRecipient.findUnique({
+    where: { id: recipientId },
+  });
+  if (!recipient) return { ok: false, error: 'recipient_not_found' };
+  const authority = evaluateAcceptanceAuthority(recipient, claimedAuthorityRole);
+  if (!authority.ok) return authority;
+  const authorityRole = authority.authorityRole;
+
+  const row = await prisma.crmCommercialAcceptance.create({
+    data: {
+      documentVersionId,
+      artifactId,
+      checksumSha256,
+      recipientId,
+      authorityRole,
+      authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED,
+      acceptedAt: now,
+      idempotencyKey: idempotencyKey || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  await prisma.crmCommercialDocumentVersion.update({
+    where: { id: documentVersionId },
+    data: {
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED,
+      immutable: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    acceptance: serializeAcceptance(row),
+    closedWon: false,
+    domain: getCommercialDomainContract(),
+  };
+}
+
+
+===== lib/admin/crm/commercial/readiness.js =====
+
+/**
+ * Closed-Won readiness evaluation — Phase 15 Wave 4 / Phase 20 Wave 1 harden.
+ * Driven by acceptance evidence (version + checksum + authority status).
+ * Acceptance ≠ Closed Won. Never auto-mutates Opportunity.
+ * Expired / superseded / UNKNOWN authority / unapproved discounts block READY.
+ */
+
+import { CRM_READINESS_STATUS, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import {
+  CRM_ACCEPTANCE_AUTHORITY_STATUS,
+  evaluateAcceptanceAuthorityStatus,
+} from './acceptance.js';
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  CRM_DISCOUNT_REQUEST_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { hasCrmCommercialAcceptanceModel } from './model.js';
+
+export const CLOSED_WON_READINESS_VERSION = 'crm-closed-won-readiness-v2-2026-07-31';
+
+const TERMINAL_BAD_VERSION = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.WITHDRAWN,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.REJECTED,
+]);
+
+function item(key, ok, severity, detail, blocker = false) {
+  return {
+    key,
+    ok: Boolean(ok),
+    severity: severity || (ok ? 'INFO' : 'WARN'),
+    detail: detail || null,
+    blocker: Boolean(blocker),
+  };
+}
+
+function deriveStatus(items) {
+  const blockers = items.filter((i) => i.blocker && !i.ok);
+  if (blockers.some((i) => i.key === 'acceptance_authority_status')) {
+    const auth = blockers.find((i) => i.key === 'acceptance_authority_status');
+    if (String(auth?.detail || '').includes('UNKNOWN')) {
+      return CRM_READINESS_STATUS.UNKNOWN;
+    }
+  }
+  if (blockers.some((i) => i.key === 'discount_approvals' || i.key === 'material_discount_approved')) {
+    return CRM_READINESS_STATUS.APPROVAL_REQUIRED;
+  }
+  if (blockers.length > 0) return CRM_READINESS_STATUS.BLOCKED;
+  const failed = items.filter((i) => !i.ok);
+  if (failed.length === 0) return CRM_READINESS_STATUS.READY;
+  const requiredFailed = failed.filter((i) => i.severity !== 'INFO');
+  if (requiredFailed.length === 0) return CRM_READINESS_STATUS.PARTIALLY_READY;
+  const allSoft = requiredFailed.every((i) => i.severity === 'WARN');
+  if (allSoft && requiredFailed.length < items.length) {
+    return CRM_READINESS_STATUS.PARTIALLY_READY;
+  }
+  return CRM_READINESS_STATUS.NOT_READY;
+}
+
+export function hasCrmClosedWonConversionHandoffModel(prisma) {
+  return typeof prisma?.crmClosedWonConversionHandoff?.create === 'function';
+}
+
+async function collectDiscountApprovalItems(prisma, args, acceptance) {
+  const items = [];
+  const requireDiscounts =
+    args.requireDiscountApprovals === true ||
+    args.requireDiscountApprovals == null; // default on when model present
+
+  if (!requireDiscounts) return items;
+  if (typeof prisma?.crmDiscountRequest?.findMany !== 'function') return items;
+
+  const opportunityId = args.opportunityId
+    ? String(args.opportunityId).trim()
+    : null;
+  const documentVersionId = acceptance?.documentVersionId
+    ? String(acceptance.documentVersionId).trim()
+    : null;
+
+  let rows = [];
+  try {
+    rows = await prisma.crmDiscountRequest.findMany({
+      where: {
+        ...(opportunityId || documentVersionId
+          ? {
+              OR: [
+                ...(opportunityId ? [{ opportunityId }] : []),
+                ...(documentVersionId ? [{ documentVersionId }] : []),
+              ],
+            }
+          : {}),
+      },
+    });
+  } catch {
+    rows = [];
+  }
+
+  const materialPending = (rows || []).filter((r) => {
+    const status = String(r.status || '').toUpperCase();
+    const requires =
+      r.requiresApproval === true ||
+      (Number.isFinite(Number(r.percent)) && Number(r.percent) > 10);
+    if (!requires) return false;
+    return status !== CRM_DISCOUNT_REQUEST_STATUS.APPROVED;
+  });
+
+  if (materialPending.length === 0) {
+    items.push(
+      item(
+        'discount_approvals',
+        true,
+        'INFO',
+        'No unapproved material discounts',
+        false
+      )
+    );
+    return items;
+  }
+
+  items.push(
+    item(
+      'discount_approvals',
+      false,
+      'CRITICAL',
+      `${materialPending.length} unapproved material discount(s)`,
+      true
+    )
+  );
+  items.push(
+    item(
+      'material_discount_approved',
+      false,
+      'CRITICAL',
+      materialPending.map((r) => r.id).join(',') || 'pending',
+      true
+    )
+  );
+  return items;
+}
+
+/**
+ * Evaluate Closed-Won readiness from an acceptance record.
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ acceptanceId: string, admin?: object, opportunityId?: string, requireDiscountApprovals?: boolean }} args
+ */
+export async function evaluateClosedWonReadiness(prisma, args = {}) {
+  const access = resolveCrmAccess(args.admin);
+  if (
+    !access.canViewOpportunities &&
+    !access.canView &&
+    !access.isSuperAdmin
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_closed_won_readiness_forbidden',
+    };
+  }
+
+  if (!hasCrmCommercialAcceptanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_acceptance_model_unavailable',
+      status: 'UNAVAILABLE',
+      readinessStatus: CRM_READINESS_STATUS.UNKNOWN,
+    };
+  }
+
+  const acceptanceId = args.acceptanceId ? String(args.acceptanceId).trim() : '';
+  if (!acceptanceId) {
+    return {
+      ok: false,
+      error: 'acceptanceId_required',
+      readinessStatus: CRM_READINESS_STATUS.UNKNOWN,
+    };
+  }
+
+  const acceptance = await prisma.crmCommercialAcceptance.findUnique({
+    where: { id: acceptanceId },
+  });
+  if (!acceptance) {
+    return {
+      ok: false,
+      notFound: true,
+      error: 'acceptance_not_found',
+      readinessStatus: CRM_READINESS_STATUS.UNKNOWN,
+    };
+  }
+
+  // Already handed off → HANDED_OFF (terminal readiness for Phase 16 handoff)
+  if (hasCrmClosedWonConversionHandoffModel(prisma)) {
+    const priorHandoff = await prisma.crmClosedWonConversionHandoff.findFirst({
+      where: { acceptanceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (priorHandoff) {
+      return {
+        ok: true,
+        readinessStatus: CRM_READINESS_STATUS.HANDED_OFF,
+        checklist: [
+          item('acceptance_version', true, 'INFO', 'Version bound'),
+          item('acceptance_checksum', true, 'INFO', 'Checksum bound'),
+          item('acceptance_authority', true, 'INFO', 'Authority bound'),
+          item('acceptance_authority_status', true, 'INFO', 'Authority verified'),
+          item('phase16_handoff', true, 'INFO', 'Handoff already emitted'),
+        ],
+        acceptanceId,
+        documentVersionId: acceptance.documentVersionId,
+        handoffId: priorHandoff.id,
+        closedWon: false,
+        conversionExecuted: false,
+        tenantCreated: false,
+        domain: getCommercialDomainContract(),
+        meta: { definitionVersion: CLOSED_WON_READINESS_VERSION },
+      };
+    }
+  }
+
+  const versionOk = Boolean(acceptance.documentVersionId);
+  const checksumOk = Boolean(
+    acceptance.checksumSha256 && String(acceptance.checksumSha256).trim()
+  );
+  const authorityRoleOk = Boolean(
+    acceptance.authorityRole && String(acceptance.authorityRole).trim()
+  );
+  const authorityEval = evaluateAcceptanceAuthorityStatus(acceptance);
+  const authorityStatusOk = authorityEval.ok === true;
+  const artifactOk = Boolean(acceptance.artifactId);
+
+  const items = [
+    item(
+      'acceptance_version',
+      versionOk,
+      versionOk ? 'INFO' : 'CRITICAL',
+      versionOk
+        ? `Version ${acceptance.documentVersionId}`
+        : 'Acceptance missing documentVersionId',
+      !versionOk
+    ),
+    item(
+      'acceptance_checksum',
+      checksumOk,
+      checksumOk ? 'INFO' : 'CRITICAL',
+      checksumOk ? 'Checksum bound' : 'Acceptance missing checksum',
+      !checksumOk
+    ),
+    item(
+      'acceptance_authority',
+      authorityRoleOk,
+      authorityRoleOk ? 'INFO' : 'CRITICAL',
+      authorityRoleOk
+        ? `Authority ${acceptance.authorityRole}`
+        : 'Acceptance missing authority role',
+      !authorityRoleOk
+    ),
+    item(
+      'acceptance_authority_status',
+      authorityStatusOk,
+      authorityStatusOk ? 'INFO' : 'CRITICAL',
+      authorityStatusOk
+        ? `Authority ${CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED}`
+        : `Authority ${authorityEval.status} — blocks Closed-Won`,
+      !authorityStatusOk
+    ),
+    item(
+      'acceptance_artifact',
+      artifactOk,
+      artifactOk ? 'INFO' : 'WARN',
+      artifactOk ? `Artifact ${acceptance.artifactId}` : 'Artifact missing (soft)',
+      false
+    ),
+  ];
+
+  // Version existence + expired/superseded/withdrawn hard blocks
+  if (
+    versionOk &&
+    typeof prisma.crmCommercialDocumentVersion?.findUnique === 'function'
+  ) {
+    const version = await prisma.crmCommercialDocumentVersion.findUnique({
+      where: { id: acceptance.documentVersionId },
+    });
+    const versionStatusOk = Boolean(version);
+    items.push(
+      item(
+        'version_exists',
+        versionStatusOk,
+        versionStatusOk ? 'INFO' : 'CRITICAL',
+        versionStatusOk ? 'Document version present' : 'Document version missing',
+        !versionStatusOk
+      )
+    );
+
+    if (version) {
+      const status = String(version.status || '').toUpperCase();
+      const expired = status === CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED;
+      const superseded = status === CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED;
+      const bad = TERMINAL_BAD_VERSION.has(status);
+
+      items.push(
+        item(
+          'commercial_version_status',
+          !bad,
+          bad ? 'CRITICAL' : 'INFO',
+          bad ? `Version status ${status} blocks Closed-Won` : `Version status ${status}`,
+          bad
+        )
+      );
+      items.push(
+        item(
+          'version_not_expired',
+          !expired,
+          expired ? 'CRITICAL' : 'INFO',
+          expired ? 'Commercial version expired' : 'Version not expired',
+          expired
+        )
+      );
+      items.push(
+        item(
+          'version_not_superseded',
+          !superseded,
+          superseded ? 'CRITICAL' : 'INFO',
+          superseded ? 'Commercial version superseded' : 'Version not superseded',
+          superseded
+        )
+      );
+
+      // expiresAt in the past even if status not yet flipped
+      if (version.expiresAt && new Date(version.expiresAt) < (args.now || new Date())) {
+        items.push(
+          item(
+            'version_not_expired',
+            false,
+            'CRITICAL',
+            'Commercial version expiresAt passed',
+            true
+          )
+        );
+      }
+    }
+  }
+
+  const discountItems = await collectDiscountApprovalItems(prisma, args, acceptance);
+  items.push(...discountItems);
+
+  const readinessStatus = deriveStatus(items);
+  const passesReady =
+    readinessStatus === CRM_READINESS_STATUS.READY ||
+    readinessStatus === CRM_READINESS_STATUS.HANDED_OFF;
+
+  return {
+    ok: true,
+    readinessStatus,
+    ready: passesReady,
+    checklist: items,
+    acceptanceId,
+    documentVersionId: acceptance.documentVersionId,
+    artifactId: acceptance.artifactId,
+    checksumSha256: acceptance.checksumSha256,
+    authorityRole: acceptance.authorityRole,
+    authorityStatus: authorityEval.status,
+    closedWon: false,
+    conversionExecuted: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    domain: getCommercialDomainContract(),
+    meta: {
+      definitionVersion: CLOSED_WON_READINESS_VERSION,
+      inventClosedWonForbidden: true,
+      autoOpportunityMutationForbidden: true,
+      unknownNeverReady: true,
+      eventTypeHint: CRM_TIMELINE_EVENT_TYPE.CLOSED_WON_READINESS,
+    },
+  };
+}
+
+
+===== test/systemAdmin.crm.conversionPhase20Wave1.test.js =====
+
+/**
+ * Phase 20 Wave 1 — Closed-Won readiness / acceptance / authority / approvals harden.
+ * UNKNOWN ≠ READY; expired/superseded block; view≠acceptance; unapproved discount blocks;
+ * close + conversion create idempotent; close alone does not provision.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  evaluateClosedWonReadiness,
+  evaluateConversionReadiness,
+  acceptCommercialDocument,
+  recordCustomerView,
+  closeOpportunityWon,
+  createConversionRequest,
+  createConversionPlan,
+  executeClosedWonConversion,
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  CRM_CONVERSION_READINESS_STATUS,
+  CRM_DISCOUNT_REQUEST_STATUS,
+  CRM_READINESS_STATUS,
+} from '@/lib/admin/crm';
+import {
+  CRM_ACCEPTANCE_AUTHORITY_STATUS,
+  evaluateAcceptanceAuthorityStatus,
+  assertEngagementIsNotAcceptance,
+} from '@/lib/admin/crm/commercial/acceptance.js';
+
+function superAdmin(id = 'super-p20-w1') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.pipeline.transitionStages': true,
+    },
+  };
+}
+
+function salesRepNoScope(id = 'rep-no-scope') {
+  return {
+    id,
+    role: 'Sales Rep',
+    permissions: {
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.pipeline.transitionStages': true,
+    },
+    crmScope: {
+      mode: 'territory',
+      territoryIds: [],
+      teamIds: [],
+      ownerAdminIds: [],
+    },
+  };
+}
+
+function simpleCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      if (where.opportunityNumber) {
+        return store.find((r) => r.opportunityNumber === where.opportunityNumber) || null;
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+      let rows = [...store];
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.acceptanceId) {
+        rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+      }
+      if (where.opportunityId) {
+        rows = rows.filter((r) => r.opportunityId === where.opportunityId);
+      }
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      if (where.idempotencyKey) {
+        rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+      }
+      if (where.tokenHash) {
+        rows = rows.filter((r) => r.tokenHash === where.tokenHash);
+      }
+      if (orderBy?.createdAt === 'desc') {
+        rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.opportunityId) {
+        rows = rows.filter((r) => r.opportunityId === where.opportunityId);
+      }
+      if (where.status) {
+        if (typeof where.status === 'object' && where.status.in) {
+          rows = rows.filter((r) => where.status.in.includes(r.status));
+        } else if (typeof where.status === 'object' && where.status.not) {
+          rows = rows.filter((r) => r.status !== where.status.not);
+        } else {
+          rows = rows.filter((r) => r.status === where.status);
+        }
+      }
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      let rows = [...store];
+      if (where.id) rows = rows.filter((r) => r.id === where.id);
+      if (where.version != null) rows = rows.filter((r) => r.version === where.version);
+      if (where.documentVersionId) {
+        rows = rows.filter((r) => r.documentVersionId === where.documentVersionId);
+      }
+      if (where.revokedAt === null) rows = rows.filter((r) => r.revokedAt == null);
+      for (const row of rows) {
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      }
+      return { count: rows.length };
+    }),
+    count: vi.fn(async () => store.length),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const documentVersionStore = overrides._documentVersionStore || [
+    {
+      id: 'cdv-ready',
+      documentId: 'doc-1',
+      versionNumber: 1,
+      status: CRM_COMMERCIAL_DOCUMENT_STATUS.ACCEPTED,
+      immutable: true,
+      expiresAt: null,
+    },
+  ];
+  const acceptanceStore = overrides._acceptanceStore || [
+    {
+      id: 'accp-ready',
+      documentVersionId: 'cdv-ready',
+      artifactId: 'art-1',
+      checksumSha256: 'checksum-ready-abc',
+      recipientId: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED,
+      acceptedAt: new Date('2026-07-30T10:00:00.000Z'),
+      idempotencyKey: 'accept-ready',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+  const opportunityStore = overrides._opportunityStore || [
+    {
+      id: 'opp-1',
+      opportunityNumber: 'OPP-2026-000001',
+      stageCode: 'CUSTOMER_DECISION',
+      status: 'OPEN',
+      accountId: 'acct-1',
+      contactId: 'con-1',
+      currency: 'MWK',
+      amount: 5000,
+      version: 1,
+      ownerAdminId: 'super-p20-w1',
+      territoryId: 'terr-1',
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+      updatedAt: new Date('2026-07-01T00:00:00Z'),
+    },
+  ];
+  const discountStore = overrides._discountStore || [];
+  const approvalStore = overrides._approvalStore || [];
+  const recipientStore = overrides._recipientStore || [
+    {
+      id: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED,
+    },
+  ];
+  const reviewAccessStore = overrides._reviewAccessStore || [
+    {
+      id: 'ra-1',
+      documentVersionId: 'cdv-view',
+      recipientId: 'rcp-1',
+      artifactId: 'art-view',
+      checksumSha256: 'checksum-view',
+      tokenHash: 'token-view-hash',
+      revokedAt: null,
+      expiresAt: null,
+    },
+  ];
+  const viewStore = overrides._viewStore || [];
+  const handoffStore = overrides._handoffStore || [];
+  const requestStore = overrides._requestStore || [];
+  const requestHistoryStore = overrides._requestHistoryStore || [];
+  const planStore = overrides._planStore || [];
+  const planVersionStore = overrides._planVersionStore || [];
+  const dryRunStore = overrides._dryRunStore || [];
+  const conversionStore = overrides._conversionStore || [];
+  const conversionHistoryStore = overrides._conversionHistoryStore || [];
+  const stepStore = overrides._stepStore || [];
+  const attemptStore = overrides._attemptStore || [];
+  const failureStore = overrides._failureStore || [];
+  const seqStore = overrides._seqStore || [];
+  const stageHistoryStore = overrides._stageHistoryStore || [];
+  const timelineStore = overrides._timelineStore || [];
+  const customerStore = overrides._customerStore || [];
+  const tenantStore = overrides._tenantStore || [];
+  const subscriptionStore = overrides._subscriptionStore || [];
+  const artifactStore = overrides._artifactStore || [
+    {
+      id: 'art-1',
+      versionId: 'cdv-ready',
+      documentVersionId: 'cdv-ready',
+      sha256: 'checksum-ready-abc',
+    },
+    {
+      id: 'art-view',
+      versionId: 'cdv-view',
+      documentVersionId: 'cdv-view',
+      sha256: 'checksum-view',
+    },
+  ];
+  const checksumStore = overrides._checksumStore || [
+    { artifactId: 'art-1', sha256: 'checksum-ready-abc' },
+    { artifactId: 'art-view', sha256: 'checksum-view' },
+  ];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _acceptanceStore: acceptanceStore,
+    _documentVersionStore: documentVersionStore,
+    _opportunityStore: opportunityStore,
+    _discountStore: discountStore,
+    _conversionStore: conversionStore,
+    _requestStore: requestStore,
+    _customerStore: customerStore,
+    _tenantStore: tenantStore,
+    _subscriptionStore: subscriptionStore,
+    _viewStore: viewStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null;
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmCommercialAcceptance: simpleCrud(acceptanceStore, 'accp'),
+    crmCommercialDocumentVersion: simpleCrud(documentVersionStore, 'cdv'),
+    crmCommercialRecipient: simpleCrud(recipientStore, 'rcp'),
+    crmCommercialReviewAccess: simpleCrud(reviewAccessStore, 'ra'),
+    crmCommercialCustomerView: simpleCrud(viewStore, 'view'),
+    crmCommercialArtifact: {
+      findUnique: vi.fn(async ({ where = {} } = {}) =>
+        artifactStore.find((r) => r.id === where.id) || null
+      ),
+    },
+    crmCommercialArtifactChecksum: {
+      findUnique: vi.fn(async ({ where = {} } = {}) =>
+        checksumStore.find((r) => r.artifactId === where.artifactId) || null
+      ),
+      findFirst: vi.fn(async ({ where = {} } = {}) =>
+        checksumStore.find((r) => r.artifactId === where.artifactId) || null
+      ),
+    },
+    crmDiscountRequest: simpleCrud(discountStore, 'dr'),
+    crmApprovalRequest: simpleCrud(approvalStore, 'apr'),
+    crmClosedWonConversionHandoff: simpleCrud(handoffStore, 'handoff'),
+    crmOpportunity: {
+      ...simpleCrud(opportunityStore, 'opp'),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return opportunityStore.find((r) => r.id === where.id) || null;
+        if (where.opportunityNumber) {
+          return (
+            opportunityStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null
+          );
+        }
+        return null;
+      }),
+    },
+    crmOpportunityStageHistory: simpleCrud(stageHistoryStore, 'osh'),
+    crmOpportunityTimelineEvent: simpleCrud(timelineStore, 'otl'),
+    crmTimelineEvent: simpleCrud(timelineStore, 'tl'),
+    crmConversionRequest: {
+      ...simpleCrud(requestStore, 'cvr'),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return requestStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return requestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.requestNumber) {
+          return requestStore.find((r) => r.requestNumber === where.requestNumber) || null;
+        }
+        return null;
+      }),
+    },
+    crmConversionRequestStatusHistory: simpleCrud(requestHistoryStore, 'cvrh'),
+    crmConversionPlan: simpleCrud(planStore, 'plan'),
+    crmConversionPlanVersion: simpleCrud(planVersionStore, 'pv'),
+    crmConversionDryRun: simpleCrud(dryRunStore, 'dry'),
+    crmConversion: {
+      ...simpleCrud(conversionStore, 'cvn'),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return conversionStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return conversionStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.conversionNumber) {
+          return conversionStore.find((r) => r.conversionNumber === where.conversionNumber) || null;
+        }
+        return null;
+      }),
+    },
+    crmConversionStatusHistory: simpleCrud(conversionHistoryStore, 'cvnh'),
+    crmConversionStep: simpleCrud(stepStore, 'step'),
+    crmConversionAttempt: simpleCrud(attemptStore, 'att'),
+    crmConversionFailure: simpleCrud(failureStore, 'fail'),
+    customer: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cust-${customerStore.length + 1}`, ...data };
+        customerStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...customerStore]),
+    },
+    tenant: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `ten-${tenantStore.length + 1}`, ...data };
+        tenantStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...tenantStore]),
+    },
+    subscription: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `sub-${subscriptionStore.length + 1}`, ...data };
+        subscriptionStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...subscriptionStore]),
+    },
+  };
+
+  return prisma;
+}
+
+describe('Phase 20 Wave 1 — Closed-Won readiness / acceptance / authority / approvals', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('exposes UNKNOWN readiness status and UNKNOWN ≠ READY', () => {
+    expect(CRM_CONVERSION_READINESS_STATUS.UNKNOWN).toBe('UNKNOWN');
+    expect(CRM_READINESS_STATUS.UNKNOWN).toBe('UNKNOWN');
+    expect(CRM_CONVERSION_READINESS_STATUS.UNKNOWN).not.toBe(
+      CRM_CONVERSION_READINESS_STATUS.READY
+    );
+    expect(CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN).toBe('UNKNOWN');
+    expect(CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFICATION_REQUIRED).toBe(
+      'VERIFICATION_REQUIRED'
+    );
+    expect(CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED).toBe('VERIFIED');
+  });
+
+  it('expired commercial version blocks Closed-Won readiness (not READY)', async () => {
+    const prisma = makePrisma({
+      _documentVersionStore: [
+        {
+          id: 'cdv-expired',
+          documentId: 'doc-exp',
+          versionNumber: 1,
+          status: CRM_COMMERCIAL_DOCUMENT_STATUS.EXPIRED,
+          immutable: true,
+          expiresAt: new Date('2026-06-01T00:00:00Z'),
+        },
+      ],
+      _acceptanceStore: [
+        {
+          id: 'accp-exp',
+          documentVersionId: 'cdv-expired',
+          artifactId: 'art-1',
+          checksumSha256: 'checksum-ready-abc',
+          recipientId: 'rcp-1',
+          authorityRole: 'SIGNATORY',
+          authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED,
+          acceptedAt: new Date('2026-05-01T00:00:00Z'),
+        },
+      ],
+    });
+
+    const result = await evaluateClosedWonReadiness(prisma, {
+      acceptanceId: 'accp-exp',
+      admin: superAdmin(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.readinessStatus).not.toBe('READY');
+    expect(result.readinessStatus).not.toBe(CRM_CONVERSION_READINESS_STATUS.READY);
+    expect(['BLOCKED', 'NOT_READY']).toContain(result.readinessStatus);
+    expect(
+      result.checklist.some(
+        (i) =>
+          (i.key === 'version_not_expired' || i.key === 'commercial_version_status') &&
+          i.blocker &&
+          !i.ok
+      )
+    ).toBe(true);
+  });
+
+  it('superseded proposal version blocks Closed-Won readiness', async () => {
+    const prisma = makePrisma({
+      _documentVersionStore: [
+        {
+          id: 'cdv-super',
+          documentId: 'doc-super',
+          versionNumber: 1,
+          status: CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED,
+          immutable: true,
+        },
+      ],
+      _acceptanceStore: [
+        {
+          id: 'accp-super',
+          documentVersionId: 'cdv-super',
+          artifactId: 'art-1',
+          checksumSha256: 'checksum-ready-abc',
+          recipientId: 'rcp-1',
+          authorityRole: 'SIGNATORY',
+          authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFIED,
+          acceptedAt: new Date('2026-05-01T00:00:00Z'),
+        },
+      ],
+    });
+
+    const result = await evaluateClosedWonReadiness(prisma, {
+      acceptanceId: 'accp-super',
+      admin: superAdmin(),
+    });
+
+    expect(result.readinessStatus).not.toBe('READY');
+    expect(['BLOCKED', 'NOT_READY']).toContain(result.readinessStatus);
+    expect(
+      result.checklist.some(
+        (i) =>
+          (i.key === 'version_not_superseded' || i.key === 'commercial_version_status') &&
+          i.blocker &&
+          !i.ok
+      )
+    ).toBe(true);
+  });
+
+  it('view/open/silence never counts as acceptance', async () => {
+    const prisma = makePrisma({
+      _documentVersionStore: [
+        {
+          id: 'cdv-view',
+          documentId: 'doc-view',
+          versionNumber: 1,
+          status: CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+          immutable: true,
+        },
+      ],
+      _acceptanceStore: [],
+    });
+
+    // Engagement helpers must refuse to treat view/open/silence as acceptance
+    expect(
+      assertEngagementIsNotAcceptance({
+        engagementType: 'VIEW',
+        documentVersionId: 'cdv-view',
+      }).ok
+    ).toBe(false);
+    expect(
+      assertEngagementIsNotAcceptance({
+        engagementType: 'OPEN',
+        documentVersionId: 'cdv-view',
+      }).ok
+    ).toBe(false);
+    expect(
+      assertEngagementIsNotAcceptance({
+        engagementType: 'SILENCE',
+        documentVersionId: 'cdv-view',
+      }).ok
+    ).toBe(false);
+
+    const viewed = await recordCustomerView(prisma, {
+      token: 'token-view',
+      tokenHash: 'token-view-hash',
+      recipientId: 'rcp-1',
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    // View may succeed or require token resolution — either way must not create acceptance
+    if (viewed.ok) {
+      expect(viewed.acceptance).toBeFalsy();
+      expect(prisma._acceptanceStore.length).toBe(0);
+    }
+    expect(prisma._acceptanceStore.length).toBe(0);
+
+    // VIEWED status alone must not invent acceptance
+    const acceptViaView = await acceptCommercialDocument(prisma, {
+      documentVersionId: 'cdv-view',
+      artifactId: 'art-view',
+      checksumSha256: 'checksum-view',
+      recipientId: 'rcp-1',
+      authorityRole: 'SIGNATORY',
+      // Explicitly missing required binding fields would fail; silence path:
+      inferFromView: true,
+      silenceAsAcceptance: true,
+    });
+    expect(acceptViaView.ok === false || acceptViaView.inferred !== true).toBe(true);
+    if (acceptViaView.error) {
+      expect(String(acceptViaView.error)).toMatch(
+        /infer|view|silence|engagement|not.?acceptance/i
+      );
+    }
+  });
+
+  it('authority UNKNOWN / VERIFICATION_REQUIRED blocks Closed-Won readiness', async () => {
+    expect(
+      evaluateAcceptanceAuthorityStatus({
+        authorityRole: 'SIGNATORY',
+        authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN,
+      }).status
+    ).toBe(CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN);
+    expect(
+      evaluateAcceptanceAuthorityStatus({
+        authorityRole: 'SIGNATORY',
+        // presence of role alone must not imply VERIFIED
+      }).status
+    ).toBe(CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN);
+
+    const prismaUnknown = makePrisma({
+      _acceptanceStore: [
+        {
+          id: 'accp-unk',
+          documentVersionId: 'cdv-ready',
+          artifactId: 'art-1',
+          checksumSha256: 'checksum-ready-abc',
+          recipientId: 'rcp-1',
+          authorityRole: 'SIGNATORY',
+          authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.UNKNOWN,
+          acceptedAt: new Date('2026-07-30T10:00:00.000Z'),
+        },
+      ],
+    });
+    const unknown = await evaluateClosedWonReadiness(prismaUnknown, {
+      acceptanceId: 'accp-unk',
+      admin: superAdmin(),
+    });
+    expect(unknown.readinessStatus).not.toBe('READY');
+    expect(['BLOCKED', 'NOT_READY', 'UNKNOWN']).toContain(unknown.readinessStatus);
+    expect(
+      unknown.checklist.some(
+        (i) => i.key === 'acceptance_authority_status' && i.blocker && !i.ok
+      )
+    ).toBe(true);
+
+    const prismaVerify = makePrisma({
+      _acceptanceStore: [
+        {
+          id: 'accp-vr',
+          documentVersionId: 'cdv-ready',
+          artifactId: 'art-1',
+          checksumSha256: 'checksum-ready-abc',
+          recipientId: 'rcp-1',
+          authorityRole: 'SIGNATORY',
+          authorityStatus: CRM_ACCEPTANCE_AUTHORITY_STATUS.VERIFICATION_REQUIRED,
+          acceptedAt: new Date('2026-07-30T10:00:00.000Z'),
+        },
+      ],
+    });
+    const verifyReq = await evaluateClosedWonReadiness(prismaVerify, {
+      acceptanceId: 'accp-vr',
+      admin: superAdmin(),
+    });
+    expect(verifyReq.readinessStatus).not.toBe('READY');
+    expect(
+      verifyReq.checklist.some(
+        (i) => i.key === 'acceptance_authority_status' && i.blocker && !i.ok
+      )
+    ).toBe(true);
+  });
+
+  it('unapproved material discount blocks Closed-Won readiness', async () => {
+    const prisma = makePrisma({
+      _discountStore: [
+        {
+          id: 'dr-pending',
+          opportunityId: 'opp-1',
+          documentVersionId: 'cdv-ready',
+          percent: 20,
+          status: CRM_DISCOUNT_REQUEST_STATUS.PENDING,
+          requiresApproval: true,
+        },
+      ],
+    });
+
+    // Link acceptance document to opportunity via version document
+    prisma._documentVersionStore[0].opportunityId = 'opp-1';
+
+    const result = await evaluateClosedWonReadiness(prisma, {
+      acceptanceId: 'accp-ready',
+      admin: superAdmin(),
+      opportunityId: 'opp-1',
+      requireDiscountApprovals: true,
+    });
+
+    expect(result.readinessStatus).not.toBe('READY');
+    expect(['BLOCKED', 'NOT_READY', 'APPROVAL_REQUIRED']).toContain(result.readinessStatus);
+    expect(
+      result.checklist.some(
+        (i) =>
+          (i.key === 'discount_approvals' || i.key === 'material_discount_approved') &&
+          i.blocker &&
+          !i.ok
+      )
+    ).toBe(true);
+  });
+
+  it('conversion readiness soft-pass is removed — missing acceptance ≠ READY; UNKNOWN ≠ READY', async () => {
+    const prisma = makePrisma({
+      _acceptanceStore: [],
+      _handoffStore: [
+        {
+          id: 'handoff-pin',
+          acceptanceId: 'accp-missing',
+          documentVersionId: 'cdv-ready',
+          opportunityId: 'opp-1',
+          payloadJson: { type: 'CRM_CLOSED_WON_CONVERSION_HANDOFF' },
+          idempotencyKey: 'handoff:accp-missing',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    // Seed a CVR with handoff pin but acceptance missing from model
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin: superAdmin() },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-missing',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-pin',
+      idempotencyKey: 'cvr-softpass:1',
+    });
+    expect(req.ok).toBe(true);
+
+    const readiness = await evaluateConversionReadiness(prisma, {
+      conversionRequestId: req.request.id,
+      admin: superAdmin(),
+    });
+
+    expect(readiness.readinessStatus).not.toBe(CRM_CONVERSION_READINESS_STATUS.READY);
+    expect(readiness.ok).toBe(false);
+    expect([
+      CRM_CONVERSION_READINESS_STATUS.NOT_READY,
+      CRM_CONVERSION_READINESS_STATUS.BLOCKED,
+      CRM_CONVERSION_READINESS_STATUS.UNKNOWN,
+    ]).toContain(readiness.readinessStatus);
+  });
+
+  it('exact Closed-Won + conversion retry returns same id; close alone does not provision', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+
+    const closeArgs = {
+      opportunityId: 'opp-1',
+      admin,
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-ready' }],
+      acceptanceId: 'accp-ready',
+      idempotencyKey: 'close-exact:1',
+    };
+
+    const firstClose = await closeOpportunityWon(prisma, closeArgs);
+    expect(firstClose.ok).toBe(true);
+    expect(firstClose.tenantCreated).toBe(false);
+    expect(firstClose.subscriptionCreated).toBe(false);
+    expect(firstClose.invoiceCreated).toBe(false);
+    expect(firstClose.paymentCreated).toBe(false);
+    expect(firstClose.provisionExecuted).toBe(false);
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+    expect(prisma.tenant.create).not.toHaveBeenCalled();
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
+
+    // Re-open for conversion path: reset stage to allow orchestrator close again via mock path
+    // Conversion create idempotency
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-ready',
+      opportunityId: 'opp-1',
+      idempotencyKey: 'cvr-idem:1',
+    });
+    expect(req.ok).toBe(true);
+
+    const reqRetry = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-ready',
+      opportunityId: 'opp-1',
+      idempotencyKey: 'cvr-idem:1',
+    });
+    expect(reqRetry.ok).toBe(true);
+    expect(reqRetry.request.id).toBe(req.request.id);
+    expect(prisma._requestStore.length).toBe(1);
+
+    // Already CLOSED_WON — exact close retry must be idempotent (same terminal, no provision)
+    const closeRetry = await closeOpportunityWon(prisma, closeArgs);
+    expect(
+      closeRetry.ok === true ||
+        closeRetry.error === 'ALREADY_TERMINAL' ||
+        closeRetry.idempotent === true
+    ).toBe(true);
+    expect(closeRetry.tenantCreated ?? false).toBe(false);
+    expect(closeRetry.provisionExecuted ?? false).toBe(false);
+    expect(prisma._customerStore.length).toBe(0);
+    expect(prisma._tenantStore.length).toBe(0);
+    expect(prisma._subscriptionStore.length).toBe(0);
+  });
+
+  it('sales-team / territory empty scope fail-closes Closed-Won', async () => {
+    const prisma = makePrisma();
+    const result = await closeOpportunityWon(prisma, {
+      opportunityId: 'opp-1',
+      admin: salesRepNoScope(),
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-ready' }],
+      acceptanceId: 'accp-ready',
+      idempotencyKey: 'close-scope:1',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.forbidden || result.error).toBeTruthy();
+    expect(String(result.reason || result.error || '')).toMatch(
+      /scope|territory|team|fail.?closed|denied/i
+    );
+    expect(prisma._opportunityStore[0].stageCode).toBe('CUSTOMER_DECISION');
+  });
+});
+

@@ -1,0 +1,281 @@
+[
+  {
+    "id": "EP-CFG-01",
+    "method": "POST",
+    "route": "/api/v1/configuration/get-latest-configs",
+    "file": "EP-CFG-01-post-configuration-get-latest-configs.md",
+    "env": "production",
+    "summary": "Retrieves the device latest configurations and returns them",
+    "tag": "Configuration"
+  },
+  {
+    "id": "EP-CFG-02",
+    "method": "POST",
+    "route": "/api/v1/configuration/request-new-terminal-token",
+    "file": "EP-CFG-02-post-configuration-request-new-terminal-token.md",
+    "env": "production",
+    "summary": "Retrieves new terminal token",
+    "tag": "Configuration"
+  },
+  {
+    "id": "EP-ONB-01",
+    "method": "POST",
+    "route": "/api/v1/onboarding/activate-terminal",
+    "file": "EP-ONB-01-post-onboarding-activate-terminal.md",
+    "env": "production",
+    "summary": "Activates a terminal",
+    "tag": "OnBoarding"
+  },
+  {
+    "id": "EP-ONB-02",
+    "method": "POST",
+    "route": "/api/v1/onboarding/terminal-activated-confirmation",
+    "file": "EP-ONB-02-post-onboarding-terminal-activated-confirmation.md",
+    "env": "production",
+    "summary": "Confirmation that the terminal activation response was fully processed \r\nby the terminal and device should be flagged as activated",
+    "tag": "OnBoarding"
+  },
+  {
+    "id": "EP-SAL-01",
+    "method": "POST",
+    "route": "/api/v1/sales/last-submitted-online-transaction",
+    "file": "EP-SAL-01-post-sales-last-submitted-online-transaction.md",
+    "env": "production",
+    "summary": "Returns the last submitted online Transaction",
+    "tag": "Sales"
+  },
+  {
+    "id": "EP-SAL-02",
+    "method": "POST",
+    "route": "/api/v1/sales/last-submitted-offline-transaction",
+    "file": "EP-SAL-02-post-sales-last-submitted-offline-transaction.md",
+    "env": "production",
+    "summary": "Extracts the last submitted offline Transaction",
+    "tag": "Sales"
+  },
+  {
+    "id": "EP-SAL-03",
+    "method": "POST",
+    "route": "/api/v1/sales/process-credit-debit-note",
+    "file": "EP-SAL-03-post-sales-process-credit-debit-note.md",
+    "env": "production",
+    "summary": "Generates a credit note or debit note from an existing invoice.\r\nIf the updated VAT or total is higher than the original invoice, a debit note is generated.\r\nIf the updated VAT or total is lower than the original invoice, a credit note is generated.",
+    "tag": "Sales"
+  },
+  {
+    "id": "EP-SAL-04",
+    "method": "POST",
+    "route": "/api/v1/sales/get-invoice-by-number",
+    "file": "EP-SAL-04-post-sales-get-invoice-by-number.md",
+    "env": "production",
+    "summary": "Fetches a submitted invoice by invoice number, including validation URL and levy details.",
+    "tag": "Sales"
+  },
+  {
+    "id": "EP-SAL-05",
+    "method": "POST",
+    "route": "/api/v1/sales/submit-sales-transaction",
+    "file": "EP-SAL-05-post-sales-submit-sales-transaction.md",
+    "env": "production",
+    "summary": "submits Sales Transaction",
+    "tag": "Sales"
+  },
+  {
+    "id": "EP-STK-01",
+    "method": "POST",
+    "route": "/api/v1/stock/transfer-inventory",
+    "file": "EP-STK-01-post-stock-transfer-inventory.md",
+    "env": "production",
+    "summary": "Transfers inventory in bulk. Only one transfer type per request is allowed.\r\nTypes: Warehouse->Site, Site->Site.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-02",
+    "method": "GET",
+    "route": "/api/v1/stock/warehouse-inventory",
+    "file": "EP-STK-02-get-stock-warehouse-inventory.md",
+    "env": "production",
+    "summary": "Retrieves warehouse inventory for the authenticated taxpayer.\r\nLimits: \r\n- Default page size: 50 items\r\n- Maximum page size: 200 items \r\n- Minimum page number: 1",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-RAW-01",
+    "method": "GET",
+    "route": "/api/v1/raw-material/get-raw-material",
+    "file": "EP-RAW-01-get-raw-material-get-raw-material.md",
+    "env": "production",
+    "summary": "Retrieves raw material warehouse inventory for the authenticated taxpayer.\r\nLimits: \r\n- Default page size: 50 items\r\n- Maximum page size: 200 items \r\n- Minimum page number: 1",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-03",
+    "method": "POST",
+    "route": "/api/v1/stock/submit-informal-purchase",
+    "file": "EP-STK-03-post-stock-submit-informal-purchase.md",
+    "env": "production",
+    "summary": "This method saves stocks that were purchased from traders not in EIS. This is subject to approval.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-RAW-02",
+    "method": "POST",
+    "route": "/api/v1/raw-material/submit-conversion",
+    "file": "EP-RAW-02-post-raw-material-submit-conversion.md",
+    "env": "production",
+    "summary": "Adds a new production record",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-04",
+    "method": "POST",
+    "route": "/api/v1/stock/submit-adjustment",
+    "file": "EP-STK-04-post-stock-submit-adjustment.md",
+    "env": "production",
+    "summary": "Submits a stock adjustment request (Increase or Decrease) for a given product barcode.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-05",
+    "method": "POST",
+    "route": "/api/v1/stock/getStockAdjustmentReasons",
+    "file": "EP-STK-05-post-stock-getStockAdjustmentReasons.md",
+    "env": "production",
+    "summary": "Retrieves the list of possible stock adjustment reasons.\r\nRequires a valid authorization token.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-06",
+    "method": "POST",
+    "route": "/api/v1/stock/get-suppliers",
+    "file": "EP-STK-06-post-stock-get-suppliers.md",
+    "env": "production",
+    "summary": "Retrieves a list of all suppliers.\r\nRequires a valid authorization token.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-UTL-01",
+    "method": "POST",
+    "route": "/api/v1/utilities/validate-vat5-certificate",
+    "file": "EP-UTL-01-post-utilities-validate-vat5-certificate.md",
+    "env": "production",
+    "summary": "Validates the authenticity and validity of a VAT 5 Certificate.",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-02",
+    "method": "POST",
+    "route": "/api/v1/utilities/get-terminal-blocking-message",
+    "file": "EP-UTL-02-post-utilities-get-terminal-blocking-message.md",
+    "env": "production",
+    "summary": "Retrieves the blocking message for a terminal, if it is currently blocked",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-03",
+    "method": "POST",
+    "route": "/api/v1/utilities/check-terminal-unblock-status",
+    "file": "EP-UTL-03-post-utilities-check-terminal-unblock-status.md",
+    "env": "production",
+    "summary": "Checks if a terminal has been unblocked",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-04",
+    "method": "POST",
+    "route": "/api/v1/utilities/check-tin-authorization-requirement",
+    "file": "EP-UTL-04-post-utilities-check-tin-authorization-requirement.md",
+    "env": "production",
+    "summary": "Checks whether a TIN requires a purchase authorization code.",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-05",
+    "method": "POST",
+    "route": "/api/v1/utilities/validate-authorization-code",
+    "file": "EP-UTL-05-post-utilities-validate-authorization-code.md",
+    "env": "production",
+    "summary": "This checks the authenticity and validity of an authorization code",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-06",
+    "method": "POST",
+    "route": "/api/v1/utilities/ping",
+    "file": "EP-UTL-06-post-utilities-ping.md",
+    "env": "production",
+    "summary": "Checks if a client is able to communicate with the server",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-07",
+    "method": "POST",
+    "route": "/api/v1/utilities/product-status",
+    "file": "EP-UTL-07-post-utilities-product-status.md",
+    "env": "production",
+    "summary": "Checks the status of a product as to where it ti mapped to UNSPSC at MRA side",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-SAL-06",
+    "method": "POST",
+    "route": "/api/v1/sales/cancel-receipt",
+    "file": "EP-SAL-06-post-sales-cancel-receipt.md",
+    "env": "production",
+    "summary": "Creates a void request for an existing invoice (receipt).",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-SAL-07",
+    "method": "POST",
+    "route": "/api/v1/sales/get-void-receipts",
+    "file": "EP-SAL-07-post-sales-get-void-receipts.md",
+    "env": "production",
+    "summary": "Retrieves void (cancelled receipt) requests.",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-08",
+    "method": "POST",
+    "route": "/api/v1/utilities/get-terminal-site-products",
+    "file": "EP-UTL-08-post-utilities-get-terminal-site-products.md",
+    "env": "production",
+    "summary": "Retrieves the latest products for a terminal site",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-UTL-09",
+    "method": "POST",
+    "route": "/api/v1/utilities/taxpayer-initial-inventory-upload",
+    "file": "EP-UTL-09-post-utilities-taxpayer-initial-inventory-upload.md",
+    "env": "production",
+    "summary": "Handles the initial inventory upload for a taxpayer, supporting phased uploads (up to 50 products per batch) and a last batch indicator.\r\nIf not the last batch, stores items in staging table. If last batch, processes all items from staging table.",
+    "tag": "Utilities"
+  },
+  {
+    "id": "EP-STK-S1",
+    "method": "POST",
+    "route": "/api/v1/stock/add-product",
+    "file": "EP-STK-S1-post-stock-add-product.md",
+    "env": "sandbox-only",
+    "summary": "Adds a new product to master products and creates zero-quantity warehouse inventory for the taxpayer.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-S2",
+    "method": "GET",
+    "route": "/api/v1/stock/get-hs-codes",
+    "file": "EP-STK-S2-get-stock-get-hs-codes.md",
+    "env": "sandbox-only",
+    "summary": "Retrieves a list of HS codes for use when adding products.",
+    "tag": "StockOperations"
+  },
+  {
+    "id": "EP-STK-S3",
+    "method": "GET",
+    "route": "/api/v1/stock/get-units-of-measure",
+    "file": "EP-STK-S3-get-stock-get-units-of-measure.md",
+    "env": "sandbox-only",
+    "summary": "Retrieves active units of measure for use when adding products.",
+    "tag": "StockOperations"
+  }
+]

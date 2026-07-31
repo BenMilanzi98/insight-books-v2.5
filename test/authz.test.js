@@ -23,6 +23,12 @@ describe('RBAC permission checks (hasPermission)', () => {
     expect(hasPermission(admin, 'accounts.update')).toBe(true);
   });
 
+  it('allows Business Owner role name variant for settings/setup access', () => {
+    const businessOwner = { role: { name: 'Business Owner', permissions: {} } };
+    expect(hasPermission(businessOwner, 'settings.view')).toBe(true);
+    expect(hasPermission(businessOwner, 'system.view')).toBe(true);
+  });
+
   it('allows master-admin role name variants', () => {
     expect(
       hasPermission({ role: { name: 'Master Admin', permissions: {} } }, 'settings.view')

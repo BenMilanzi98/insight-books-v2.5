@@ -1,0 +1,12 @@
+tenantId,accountId,code,name,legacyType,v2Category,isActive,acceptsNewTransactions,status,isCanonical,isKnownDuplicateCode,transactionLines,journalLines,expenseReferences,activeMappings,mergedInto,replacementAccountId,proposedAction,historicalRepairRequired
+cmqhgd27r00088s9so9tzjh7s,cmqhgd2f5001i8s9s5e5ednvg,1216,Salary Advance Receivable,Asset,ASSET,true,true,ACTIVE,false,false,0,0,0,0,,,REVIEW_NOT_EXPENSE,false
+cmqhgd27r00088s9so9tzjh7s,cmqhgd2mn00488s9su9c9ec49,5200,Salaries & Wages,Expense,EXPENSE,true,true,ACTIVE,true,false,1,0,0,0,,,KEEP_CANONICAL,false
+cmqkqxir900028s4c34dy6nzm,cmqkqxiyl001u8s4cx38m0ajt,1216,Salary Advance Receivable,Asset,ASSET,true,true,ACTIVE,false,false,0,0,0,0,,,REVIEW_NOT_EXPENSE,false
+cmqkqxir900028s4c34dy6nzm,cmqkqxj46004k8s4cu5dp5yl6,5200,Salaries & Wages,Expense,EXPENSE,true,true,ACTIVE,true,false,0,0,0,0,,,KEEP_CANONICAL,false
+cmrsy80d100038s0c1jvnp6j3,cmrsy80le001x8s0c3vfdznq9,1216,Salary Advance Receivable,Asset,ASSET,true,true,ACTIVE,false,false,0,0,0,0,,,REVIEW_NOT_EXPENSE,false
+cmrsy80d100038s0c1jvnp6j3,cmrsy80qg004n8s0cj9w759xi,5200,Salaries & Wages,Expense,EXPENSE,true,true,ACTIVE,true,false,0,0,0,0,,,KEEP_CANONICAL,false
+cmqkrntib007v8s4c5m1bh8e7,cmqkrntqw009n8s4cc9ir40cs,1216,Salary Advance Receivable,Asset,ASSET,true,true,ACTIVE,false,false,0,0,0,0,,,REVIEW_NOT_EXPENSE,false
+cmqkrntib007v8s4c5m1bh8e7,cmqkrntwe00cd8s4cpn81sm2m,5200,Salaries & Wages,Expense,EXPENSE,true,true,ACTIVE,true,false,0,0,0,0,,,KEEP_CANONICAL,false
+cmqh9u3ku00048sdoxrglkgev,cmqhba9jz00138s6wcabhgux8,1216,Salary Advance Receivable,Asset,ASSET,true,true,ACTIVE,false,false,0,0,0,0,,,REVIEW_NOT_EXPENSE,false
+cmqh9u3ku00048sdoxrglkgev,cmqhbaa6u003t8s6wi1zycml0,5200,Salaries & Wages,Expense,EXPENSE,true,true,ACTIVE,true,false,0,0,0,0,,,KEEP_CANONICAL,false
+cmqh9u3ku00048sdoxrglkgev,cmqhbaa7g003x8s6wlvl0fgm8,5301,Salaries & Wages,Expense,EXPENSE,false,true,ARCHIVED,false,true,0,0,0,0,cmqhbaa6u003t8s6wi1zycml0,,DEPRECATE_UNUSED,false

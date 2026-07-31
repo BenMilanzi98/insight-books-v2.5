@@ -5,7 +5,9 @@ const prisma = new PrismaClient();
 const checks = [
   { name: 'Expense', model: 'expense', accountField: 'expenseAccountId', expectedType: 'Expense' },
   { name: 'RecurringExpense', model: 'recurringExpense', accountField: 'expenseAccountId', expectedType: 'Expense' },
-  { name: 'BudgetItem', model: 'budgetItem', accountField: 'accountId', expectedType: null },
+  { name: 'LegacyBudgetItem', model: 'legacyBudgetItem', accountField: 'accountId', expectedType: null },
+  { name: 'BudgetLine', model: 'budgetLine', accountField: 'accountId', expectedType: null },
+  { name: 'ForecastLine', model: 'forecastLine', accountField: 'accountId', expectedType: null },
   { name: 'TaxType', model: 'taxType', accountField: 'accountId', expectedType: 'Liability' },
   { name: 'SaleItem', model: 'saleItem', accountField: 'accountId', expectedType: 'Income' },
   { name: 'InvoiceItem', model: 'invoiceItem', accountField: 'accountId', expectedType: 'Income' },

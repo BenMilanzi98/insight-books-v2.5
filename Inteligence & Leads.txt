@@ -1,0 +1,1745 @@
+/insightbooks Admin Intelligence and Lead CRM — Full Implementation Roadmap
+
+The uploaded specification contains two tightly connected systems:
+
+A SaaS Business Intelligence Command Centre for executives, finance, customer success, technical operations and security.
+A complete Lead Management and Sales CRM covering lead capture, qualification, Pipeline, proposals, conversion, onboarding, training and retention.
+
+They should be implemented as one integrated platform inside /insightbooks, sharing users, permissions, Tenants, subscriptions, billing, notifications, Audit Trails and analytics rather than operating as separate disconnected applications.
+
+1. Overall Product Vision
+
+The /insightbooks section must become the central operating system for the company behind InsightBooks.
+
+It must allow management to answer:
+
+How is InsightBooks performing financially?
+How many customers are joining, paying, renewing or leaving?
+Which products and features generate the most value?
+Which customers are healthy, inactive or likely to cancel?
+Which leads require immediate follow-up?
+How effective is the sales team?
+What operational, infrastructure or security risks exist?
+What should management do next?
+
+The completed platform should connect this full lifecycle:
+
+Marketing Source
+        ↓
+Lead
+        ↓
+Qualification
+        ↓
+Demo
+        ↓
+Proposal
+        ↓
+Negotiation
+        ↓
+Won
+        ↓
+Tenant Creation
+        ↓
+Subscription
+        ↓
+Billing and Payment
+        ↓
+Onboarding
+        ↓
+Training
+        ↓
+Product Adoption
+        ↓
+Customer Health
+        ↓
+Renewal and Retention
+
+The System Administration section must remain a platform control plane. It must not become an alternative interface for posting Tenant accounting transactions.
+
+2. Non-Negotiable Architecture Principles
+2.1 Platform and Tenant data must remain separate
+
+The Admin system may analyse Tenant activity and manage platform relationships, but it must not silently post or modify Tenant:
+
+Journals
+Sales
+Purchases
+Expenses
+Payroll
+Inventory
+Taxes
+Assets
+Liabilities
+Customer payments
+Supplier payments
+
+Any authorised assistance inside a Tenant must use the existing secure support-access or impersonation workflow with complete Audit Trails.
+
+2.2 The removed Chart of Accounts route must remain removed
+
+The following must not be reintroduced:
+
+/insightbooks/chart-of-accounts
+
+The “System chart of accounts” navigation item must remain absent.
+
+Normal Tenant Chart of Accounts functionality remains under the Tenant accounting application.
+
+2.3 Transactional data and analytics data must be separated
+
+Operational records remain the source of truth.
+
+Analytics may use:
+
+Read models
+Aggregation tables
+Materialised views
+Event streams
+Daily snapshots
+Cached metrics
+
+Analytics must never become an independent competing financial source.
+
+2.4 Platform revenue must not be confused with Tenant revenue
+
+The Admin Dashboard should report InsightBooks SaaS revenue from:
+
+Platform subscriptions
+Platform invoices
+Platform payments
+Add-ons
+MRA EIS plans
+Setup fees
+Usage charges
+Credits and refunds
+
+It must not combine these figures with sales made by Tenants to their own customers.
+
+2.5 No duplicated commercial effects
+
+The system must prevent:
+
+Duplicate Leads
+Duplicate Tenants
+Duplicate Subscriptions
+Duplicate platform invoices
+Duplicate payments
+Duplicate affiliate commissions
+Duplicate onboarding projects
+Duplicate Lead conversions
+Duplicate activities
+Duplicate notifications
+Duplicate analytics events
+2.6 AI must remain evidence-based
+
+AI-generated insights must always show:
+
+The underlying metric
+The analysed period
+The comparison period
+The contributing factors
+Confidence or reliability
+Data freshness
+Links to supporting records
+
+AI must not invent reasons, revenue, customer behaviour or recommendations without supporting evidence.
+
+2.7 Bilingual readiness
+
+Every new page and component must use the existing English–Chichewa internationalisation architecture.
+
+No newly implemented page may be built with hardcoded English-only strings.
+
+3. Recommended Route Architecture
+/insightbooks
+/insightbooks/dashboard
+
+/insightbooks/intelligence
+/insightbooks/intelligence/executive
+/insightbooks/intelligence/revenue
+/insightbooks/intelligence/customers
+/insightbooks/intelligence/products
+/insightbooks/intelligence/growth
+/insightbooks/intelligence/ai-insights
+
+/insightbooks/customers
+/insightbooks/customers/[tenantId]
+/insightbooks/customer-success
+/insightbooks/customer-success/health
+/insightbooks/customer-success/renewals
+/insightbooks/customer-success/churn-risk
+/insightbooks/customer-success/campaigns
+
+/insightbooks/support
+/insightbooks/support/tickets
+/insightbooks/support/complaints
+/insightbooks/support/bugs
+/insightbooks/support/feature-requests
+/insightbooks/support/reports
+
+/insightbooks/crm
+/insightbooks/crm/dashboard
+/insightbooks/crm/leads
+/insightbooks/crm/leads/[leadId]
+/insightbooks/crm/pipeline
+/insightbooks/crm/tasks
+/insightbooks/crm/calendar
+/insightbooks/crm/activities
+/insightbooks/crm/calls
+/insightbooks/crm/demos
+/insightbooks/crm/proposals
+/insightbooks/crm/companies
+/insightbooks/crm/onboarding
+/insightbooks/crm/training
+/insightbooks/crm/sales-team
+/insightbooks/crm/reports
+/insightbooks/crm/settings
+
+/insightbooks/marketing
+/insightbooks/marketing/sources
+/insightbooks/marketing/campaigns
+/insightbooks/marketing/conversions
+/insightbooks/marketing/reports
+
+/insightbooks/notifications
+/insightbooks/notifications/rules
+/insightbooks/notifications/history
+
+/insightbooks/system-health
+/insightbooks/system-health/infrastructure
+/insightbooks/system-health/database
+/insightbooks/system-health/apis
+/insightbooks/system-health/jobs
+/insightbooks/system-health/incidents
+
+/insightbooks/audit-security
+/insightbooks/audit-security/audit-events
+/insightbooks/audit-security/login-activity
+/insightbooks/audit-security/security-alerts
+/insightbooks/audit-security/admin-actions
+
+/insightbooks/reports
+/insightbooks/settings
+
+Existing Admin modules such as Tenant Management, User Management, billing, subscriptions, affiliates, Android releases, email management and MRA EIS entitlement must remain integrated into the navigation.
+
+4. Target Role Model
+Super System Administrator
+
+Full platform control, subject to approval and Segregation of Duties.
+
+CEO or Executive
+
+Access to:
+
+Executive Overview
+Revenue
+Growth
+Customer health
+Product adoption
+Sales forecasts
+AI recommendations
+
+No unrestricted security or configuration mutation unless separately authorised.
+
+Finance Manager
+
+Access to:
+
+Platform revenue
+Subscriptions
+Invoices
+Payments
+Refunds
+Reconciliation
+Revenue forecasts
+Financial reports
+Customer Success Manager
+
+Access to:
+
+Tenant profiles
+Customer health
+Engagement
+Renewals
+Churn risk
+Support cases
+Onboarding
+Training
+Sales Manager
+
+Access to:
+
+All Leads
+Pipeline
+Proposals
+Sales-team performance
+Forecasts
+Lead sources
+Conversion reports
+Salesperson
+
+Access limited to:
+
+Assigned Leads
+Assigned tasks
+Own Pipeline
+Own activities
+Demos
+Proposals
+Follow-ups
+Technical Administrator
+
+Access to:
+
+Infrastructure
+APIs
+Database health
+Queue health
+Errors
+Incidents
+Security monitoring
+Platform Auditor
+
+Read-only access to authorised:
+
+Reports
+Audit Trails
+Commercial records
+Sales activity
+Security events
+Supporting evidence
+5. Master Implementation Phases
+Phase 1 — Complete Discovery, Audit and Architecture Definition
+Objective
+
+Understand the existing /insightbooks implementation before introducing intelligence or CRM features.
+
+Work
+
+Audit:
+
+All /insightbooks routes
+Existing Admin Dashboard
+Tenant Management
+User Management
+Billing and subscriptions
+Platform invoices and payments
+Affiliate Management
+MRA EIS entitlement
+Email Management
+Android App Management
+Audit and Security
+Notifications
+Background Jobs
+Existing analytics
+Existing Lead or sales data
+Existing support records
+Existing tracking and event data
+Existing permissions
+Existing internationalisation
+Existing UI components
+Existing exports and reports
+
+Create:
+
+docs/admin-intelligence-crm/
+├── CURRENT_SYSTEM_AUDIT.md
+├── ROUTE_INVENTORY.md
+├── COMPONENT_INVENTORY.md
+├── DATA_SOURCE_INVENTORY.md
+├── DATABASE_MODEL_AUDIT.md
+├── EVENT_TRACKING_AUDIT.md
+├── ANALYTICS_GAP_REGISTER.md
+├── CRM_GAP_REGISTER.md
+├── PERMISSION_AUDIT.md
+├── MULTI_TENANT_RISK_REGISTER.md
+├── DUPLICATION_RISK_REGISTER.md
+├── SECURITY_RISK_REGISTER.md
+├── PERFORMANCE_RISK_REGISTER.md
+├── FINAL_GAP_REGISTER.md
+└── TARGET_ARCHITECTURE.md
+Completion gate
+
+Phase 1 is complete only when every requested metric and CRM workflow has a confirmed source or a documented instrumentation requirement.
+
+Phase 2 — Shared Admin Platform Foundation
+Objective
+
+Build the shared foundation needed by both Business Intelligence and CRM.
+
+Work
+
+Implement or standardise:
+
+Admin App Shell
+Responsive Sidebar
+Mobile navigation
+Admin header
+Global search
+Date-range selector
+Notification centre
+Page header
+Filter system
+Data Tables
+Mobile data Cards
+Charts
+Export dialogs
+Error states
+Loading states
+Empty states
+Role guards
+Permission guards
+English and Chichewa translations
+Audit helpers
+Correlation IDs
+Tenant and Business scoping
+Completion gate
+
+All future Admin modules must use the shared components rather than creating independent designs.
+
+Phase 3 — Role-Based Access and Executive Data Security
+Objective
+
+Create a secure and role-aware intelligence platform.
+
+Work
+
+Implement:
+
+Executive role
+Finance role
+Customer Success role
+Sales Manager role
+Salesperson role
+Technical Administrator role
+Auditor role
+Fine-grained permissions
+Dashboard widget permissions
+Report permissions
+Export permissions
+Lead ownership rules
+Team visibility rules
+Restricted financial metrics
+Restricted infrastructure details
+Real and effective actor tracking
+Completion gate
+
+The same route must return only the metrics, Leads and actions permitted to the current role.
+
+Phase 4 — Analytics Event and Data Foundation
+Objective
+
+Create a reliable data layer for analytics without slowing operational workflows.
+
+Work
+
+Define canonical events such as:
+
+TENANT_CREATED
+TENANT_ACTIVATED
+USER_LOGIN
+USER_ACTIVE
+SUBSCRIPTION_STARTED
+SUBSCRIPTION_RENEWED
+SUBSCRIPTION_CANCELLED
+PLATFORM_INVOICE_ISSUED
+PLATFORM_PAYMENT_SUCCEEDED
+PLATFORM_PAYMENT_FAILED
+FEATURE_USED
+POS_TRANSACTION_CREATED
+SALES_INVOICE_CREATED
+REPORT_GENERATED
+SUPPORT_TICKET_CREATED
+LEAD_CREATED
+LEAD_STAGE_CHANGED
+DEMO_COMPLETED
+PROPOSAL_SENT
+LEAD_WON
+ONBOARDING_COMPLETED
+
+Implement:
+
+Analytics Event table
+Event idempotency
+Event versioning
+Event source references
+Daily metric snapshots
+Monthly metric snapshots
+Feature-usage aggregation
+Customer-activity aggregation
+Revenue aggregation
+Sales aggregation
+Data freshness tracking
+Backfill tools
+Reconciliation tools
+Completion gate
+
+Analytics totals reconcile to their transactional source systems.
+
+Phase 5 — Executive Intelligence Dashboard
+Objective
+
+Build the main Business Intelligence Command Centre.
+
+Dashboard sections
+Revenue
+MRR
+ARR
+Total platform Revenue
+Growth rate
+New Revenue
+Expansion Revenue
+Contraction Revenue
+Churned Revenue
+Outstanding billing
+Customers
+Total Tenants
+Active Tenants
+Trial Tenants
+Paying Tenants
+New signups
+Suspended Tenants
+Churn rate
+Product usage
+Daily Active Users
+Weekly Active Users
+Monthly Active Users
+Transactions processed
+Invoices generated
+POS activity
+Feature adoption
+Sales
+New Leads
+Qualified Leads
+Demos
+Proposals
+Won opportunities
+Pipeline value
+Forecast Revenue
+System health
+Uptime
+API availability
+Database status
+Queue health
+Storage
+Failed Jobs
+Error rate
+Completion gate
+
+Every KPI provides drill-down, definition, source, current period, comparison period and data freshness.
+
+Phase 6 — Revenue Intelligence
+Objective
+
+Provide trustworthy SaaS financial intelligence.
+
+Work
+
+Implement:
+
+MRR calculation
+ARR calculation
+New MRR
+Expansion MRR
+Contraction MRR
+Churned MRR
+Net Revenue Retention
+Gross Revenue Retention
+Subscription Revenue
+Add-on Revenue
+MRA EIS Revenue
+Setup-fee Revenue
+Usage Revenue
+Revenue by Plan
+Revenue by country
+Revenue by industry
+Revenue by payment method
+Payment success rate
+Payment failure rate
+Refund analysis
+Outstanding Invoice analysis
+Revenue forecasts
+Critical rule
+
+All formulas must be documented and reconciled against platform subscriptions, invoices, payments, Credits and refunds.
+
+Completion gate
+
+Revenue totals match the platform billing records exactly.
+
+Phase 7 — Customer Intelligence
+Objective
+
+Create a complete 360-degree view of each Tenant.
+
+Customer list
+
+Show:
+
+Business name
+Owner
+Industry
+Plan
+Subscription status
+Revenue contribution
+Last login
+Active users
+Usage score
+Health score
+Renewal date
+Support status
+Risk status
+Customer profile
+
+Tabs:
+
+Overview
+Businesses
+Users
+Subscription
+Billing
+Product usage
+Feature adoption
+Customer health
+Support
+Onboarding
+Training
+Communications
+Security
+Audit Trail
+Completion gate
+
+Management can move from a summary metric to the underlying Tenant, activity, invoice, payment or support record.
+
+Phase 8 — Customer Health Scoring Engine
+Objective
+
+Calculate transparent Customer Health Scores.
+
+Possible scoring dimensions
+Login recency
+Login frequency
+Active users
+Product usage
+Feature breadth
+Transaction volume
+Subscription status
+Payment behaviour
+Support burden
+Training completion
+Onboarding completion
+Renewal proximity
+Unresolved incidents
+Declining activity
+Required behaviour
+
+The system must show:
+
+Overall score
+Score category
+Individual contributing factors
+Positive factors
+Risk factors
+Score history
+Last calculation time
+Scoring-rule version
+
+Categories:
+
+Healthy
+Stable
+Needs Attention
+At Risk
+Critical
+Completion gate
+
+Every health score is reproducible and explainable.
+
+Phase 9 — Product and Feature Analytics
+Objective
+
+Understand which InsightBooks modules create value.
+
+Track adoption of:
+Accounting
+POS
+Inventory
+Payroll
+Reports
+Sales Invoicing
+Expenses
+Purchases
+Budgeting
+Forecasting
+Assets and Liabilities
+Rental and Hiring
+Tax Management
+MRA EIS
+Metrics
+Tenants using the feature
+Percentage adoption
+New adoption
+Active usage
+Retention by feature
+Revenue by feature adoption
+Support issues by feature
+Churn correlation
+Upsell opportunities
+Completion gate
+
+Usage events are deduplicated and do not count retries, page refreshes or automated Jobs as genuine user adoption.
+
+Phase 10 — Customer Success and Retention
+Objective
+
+Help Customer Success prevent churn and increase adoption.
+
+Work
+
+Implement:
+
+Inactive-customer detection
+Renewal calendar
+Expiring subscriptions
+Churn-risk list
+Engagement campaigns
+Customer-health queues
+Training follow-ups
+Onboarding follow-ups
+Adoption recommendations
+Success tasks
+Account-owner assignment
+Retention notes
+Intervention outcomes
+Alerts
+
+Examples:
+
+No login for 30 days
+Usage dropped by 50%
+Subscription expires within 14 days
+Repeated failed payments
+Onboarding incomplete
+Training incomplete
+High support-ticket volume
+Critical module unused
+Completion gate
+
+Every risk alert has a reason, owner, recommended action and resolution state.
+
+Phase 11 — Support Management Centre
+Objective
+
+Create a central support-management workflow.
+
+Support types
+Support Ticket
+Complaint
+Bug Report
+Feature Request
+Billing Issue
+Training Request
+Security Concern
+Features
+Ticket assignment
+Priority
+SLA
+Status
+Comments
+Attachments
+Customer timeline
+Escalation
+Resolution
+Satisfaction score
+Reopening
+Root-cause category
+Analytics
+Average response time
+Average resolution time
+SLA compliance
+Reopened Tickets
+Ticket volume by module
+Common problems
+Satisfaction score
+Support burden by Tenant
+Completion gate
+
+Support activity contributes correctly to Customer Health and product-problem analytics.
+
+Phase 12 — Infrastructure and Technical Operations Monitoring
+Objective
+
+Provide a secure Technical Administration Dashboard.
+
+Monitor
+Infrastructure
+CPU
+Memory
+Storage
+Bandwidth
+Application availability
+Database
+Connectivity
+Size
+Query duration
+Slow queries
+Connection usage
+Replication or backup status where available
+Application
+API latency
+Error rate
+Failed Jobs
+Queue depth
+Scheduled Job failures
+Integration failures
+Security
+Failed logins
+Suspicious activity
+Locked accounts
+Permission failures
+Cross-Tenant attempts
+Completion gate
+
+The monitoring system exposes operational status without exposing infrastructure secrets.
+
+Phase 13 — Audit, Security and Activity Intelligence
+Objective
+
+Unify platform audit and security analysis.
+
+Work
+
+Implement:
+
+Admin activity timeline
+Tenant changes
+User changes
+Permission changes
+Billing changes
+Lead changes
+Proposal changes
+Conversion actions
+Support access
+Impersonation
+Security events
+Export actions
+Import actions
+Data-change history
+Completion gate
+
+Audit Events are immutable, searchable, filterable, exportable and permission-controlled.
+
+Phase 14 — CRM Foundation and Lead Capture
+Objective
+
+Create the Lead Management foundation.
+
+Lead sources
+WhatsApp
+Website
+Facebook
+Referral
+Walk-in
+Phone call
+Existing Customer
+Affiliate
+Sales Agent
+Partner
+Spreadsheet import
+Manual entry
+Lead fields
+Business name
+Owner
+Phone
+WhatsApp
+Email
+District
+Region
+Industry
+Business type
+Number of employees
+Estimated monthly Revenue
+Current accounting method
+Current POS
+Source
+Campaign
+Assigned salesperson
+Expected value
+Status
+Next action
+Next-action date
+Duplicate detection
+
+Use controlled matching based on:
+
+Phone
+WhatsApp number
+Email
+Registration number
+Business name and location
+Existing Tenant relationship
+Completion gate
+
+The system prevents silent duplicate Leads while allowing reviewed merges.
+
+Phase 15 — Lead Qualification and Scoring
+Objective
+
+Create a repeatable qualification process.
+
+Qualification dimensions
+Business size
+Current system
+Pain points
+Urgency
+Budget readiness
+Decision maker
+Industry fit
+Number of branches
+Employee count
+Required modules
+MRA compliance need
+Implementation complexity
+Lead score
+
+Use versioned scoring rules.
+
+Example categories:
+
+Hot
+Warm
+Cold
+Disqualified
+
+The UI must show why points were added or removed.
+
+Completion gate
+
+Lead scoring is transparent, configurable and recalculates consistently.
+
+Phase 16 — Sales Pipeline and Stage Management
+Objective
+
+Implement the full opportunity lifecycle.
+
+Pipeline stages
+New Lead
+Called
+Qualified
+Demo Scheduled
+Demo Completed
+Follow-up
+Proposal Sent
+Negotiation
+Won
+Onboarding
+Training
+Lost
+Disqualified
+Alternative outcomes
+No Answer
+Call Later
+Postponed
+Unresponsive
+Duplicate
+Invalid Contact
+Not Interested
+Work
+
+Implement:
+
+Kanban board
+Drag-and-drop with server validation
+Stage-entry rules
+Required fields per stage
+Stage history
+Stage duration
+Pipeline value
+Probability
+Expected close date
+Ownership
+Bulk reassignment
+Lost reasons
+Reopen workflow
+Completion gate
+
+No stage movement can erase history or bypass mandatory qualification and approval rules.
+
+Phase 17 — Activities, Notes, Calls, Tasks and Calendar
+Objective
+
+Ensure no Lead interaction or follow-up is forgotten.
+
+Activities
+Call
+WhatsApp
+Email
+Meeting
+Demo
+Physical visit
+Voice note
+Proposal
+Follow-up
+Internal note
+Tasks
+Owner
+Assignee
+Due date
+Reminder
+Priority
+Status
+Completion evidence
+Related Lead
+Related Tenant
+Related Proposal
+Calendar
+
+Views:
+
+Month
+Week
+Day
+Agenda
+
+Events:
+
+Calls
+Meetings
+Demos
+Follow-ups
+Training
+Installations
+Reviews
+Completion gate
+
+Every completed interaction appears in an immutable activity timeline.
+
+Phase 18 — Demo Management
+Objective
+
+Manage demos from scheduling through outcome.
+
+Fields
+Lead
+Date
+Time
+Timezone
+Platform
+Presenter
+Demo type
+Modules covered
+Participants
+Notes
+Outcome
+Next action
+Recording or attachments where permitted
+Reminder schedule
+24 hours
+1 hour
+15 minutes
+Completion gate
+
+A completed demo automatically creates the correct next-action recommendation without advancing the Pipeline silently.
+
+Phase 19 — Proposal and Quotation Management
+Objective
+
+Generate and track commercial proposals.
+
+Work
+
+Implement:
+
+Proposal templates
+Plan selection
+Add-ons
+MRA EIS plans
+Setup fees
+Discounts
+Taxes
+Validity
+Terms
+Approval
+PDF
+Email
+View tracking
+Acceptance
+Rejection
+Expiry
+Revision history
+Proposal states
+Draft
+Pending Approval
+Approved
+Sent
+Viewed
+Accepted
+Declined
+Expired
+Superseded
+Cancelled
+Completion gate
+
+Proposal acceptance does not create duplicate subscriptions, invoices or Tenants.
+
+Phase 20 — Lead Conversion and Won Workflow
+Objective
+
+Create an atomic and idempotent Lead-to-Customer conversion process.
+
+Won workflow
+
+When authorised conversion is confirmed:
+
+Reload the Lead.
+Confirm it has not already been converted.
+Resolve or create the Tenant once.
+Resolve or create the primary User once.
+Create the Business once.
+Create the Subscription once.
+Create the first platform Invoice once where required.
+Preserve the accepted Proposal.
+Create the onboarding project once.
+Assign the onboarding officer.
+Create training tasks.
+Link the Lead to the Tenant.
+Mark the opportunity Won.
+Create Audit Events.
+Queue notifications.
+Critical rule
+
+Retrying the conversion must return the previously created Tenant, Subscription, Invoice and onboarding record.
+
+Completion gate
+
+No duplicate commercial or Tenant record can be produced from the same Lead.
+
+Phase 21 — Onboarding Management
+Objective
+
+Track new customers from purchase to go-live.
+
+Default checklist
+Tenant created
+Business profile completed
+Users added
+Branches configured
+Chart of Accounts configured or imported
+Opening Balances completed
+Inventory imported
+Products configured
+Subscription confirmed
+MRA EIS setup where applicable
+Training scheduled
+Training completed
+Go-live completed
+30-day review completed
+Features
+Progress bar
+Responsible person
+Due dates
+Dependencies
+Evidence
+Notes
+Blockers
+Approval
+Customer-visible status where appropriate
+Completion gate
+
+Onboarding progress feeds Customer Health but does not alter Tenant accounting data from the Admin portal.
+
+Phase 22 — Customer Training Management
+Objective
+
+Track delivery and effectiveness of customer training.
+
+Capture
+Training date
+Trainer
+Participants
+Modules covered
+Duration
+Delivery method
+Attendance
+Notes
+Customer feedback
+Assessment
+Certificate
+Follow-up required
+Completion gate
+
+Training history is available from both the original Lead journey and the converted Tenant profile.
+
+Phase 23 — Marketing Attribution and Acquisition Analytics
+Objective
+
+Understand where Leads and paying customers originate.
+
+Sources
+Website
+WhatsApp
+Facebook
+Referral
+Affiliates
+Agents
+Partners
+Walk-ins
+Campaigns
+Metrics
+Leads
+Qualified Leads
+Demos
+Proposals
+Won customers
+Conversion rate
+Revenue
+Customer acquisition cost
+Trial conversion
+Average sales cycle
+Retention by source
+Completion gate
+
+Attribution supports first-touch and final-touch models without overwriting original source data.
+
+Phase 24 — Sales Reporting and Forecasting
+Objective
+
+Provide management with trustworthy Pipeline intelligence.
+
+Reports
+Sales Funnel
+Pipeline by stage
+Pipeline by salesperson
+Leads by source
+Lead conversion
+Lost reasons
+Sales cycle
+Demo conversion
+Proposal conversion
+Revenue won
+Expected Revenue
+Forecast by month
+Forecast by Plan
+Forecast by industry
+Forecast by region
+Salesperson performance
+Forecasting
+
+Use:
+
+Opportunity amount
+Pipeline stage
+Probability
+Expected close date
+Historical conversion
+Stage duration
+Recent activity
+Proposal status
+Completion gate
+
+Forecast values identify whether they are deterministic totals, weighted estimates or AI-assisted estimates.
+
+Phase 25 — AI Business Intelligence Layer
+Objective
+
+Transform verified analytics into management guidance.
+
+AI insight categories
+Revenue
+Customer health
+Churn risk
+Growth
+Product adoption
+Sales
+Support
+Infrastructure
+Security
+Marketing
+Required architecture
+
+Use:
+
+Verified metrics
+        ↓
+Deterministic anomaly and rule engine
+        ↓
+Evidence package
+        ↓
+AI narrative generation
+        ↓
+Human-readable recommendation
+
+Each insight must show:
+
+What happened
+Why the system believes it happened
+Supporting records
+Confidence
+Suggested action
+Owner
+Generated time
+Expiry or relevance period
+Completion gate
+
+No AI recommendation appears without traceable supporting evidence.
+
+Phase 26 — AI Sales Assistant
+Objective
+
+Help salespeople decide what to do next.
+
+Features
+Daily brief
+Follow-ups due
+High-value neglected Leads
+Demos scheduled
+Proposals awaiting action
+Leads at risk
+Tasks overdue
+Suggested next action
+
+Examples:
+
+Call the Lead
+Schedule a demo
+Send a proposal
+Follow up
+Escalate to Sales Manager
+Begin onboarding
+Opportunity analysis
+Closing probability
+Positive factors
+Risk factors
+Recommended intervention
+Safety rule
+
+AI may suggest actions but must not automatically:
+
+Mark a Lead Won
+Send a Proposal
+Create a Subscription
+Create an Invoice
+Suspend a customer
+Alter pricing
+Change a Pipeline stage
+
+without an explicit approved command.
+
+Phase 27 — Smart Notifications and Alert Rules
+Objective
+
+Create one central rule-driven alert engine.
+
+Alert categories
+Business
+Revenue decline
+Churn increase
+Low conversion
+Expiring subscriptions
+Sales
+Follow-up overdue
+Demo approaching
+Proposal not viewed
+High-value Lead inactive
+Customer Success
+Customer inactivity
+Declining usage
+Training incomplete
+Onboarding stalled
+Technical
+Server degraded
+API failure
+Database issue
+Failed Jobs
+Storage threshold
+Security
+Repeated failed logins
+Suspicious access
+Permission violation
+Cross-Tenant attempt
+Completion gate
+
+Alerts are deduplicated, assignable, acknowledgeable and resolvable.
+
+Phase 28 — WhatsApp, Email and Communication Integrations
+Objective
+
+Connect communication channels without losing history.
+
+WhatsApp
+
+Support according to the existing integration architecture:
+
+Lead capture
+Message logging
+Templates
+Follow-up messages
+Demo reminders
+Proposal delivery
+Opt-out handling
+Email
+Lead communication
+Proposal delivery
+Follow-up reminders
+Onboarding
+Training
+Customer Success campaigns
+Rules
+Communications must be linked to a Lead or Tenant.
+Retries must not create duplicate messages.
+Consent and suppression rules must be respected.
+Secrets remain server-side.
+Failed delivery remains visible.
+Phase 29 — Import, Export and Data Migration
+Objective
+
+Support controlled migration and backup of CRM and intelligence data.
+
+Imports
+Leads
+Companies
+Activities
+Tasks
+Demos
+Proposals
+Historical Pipeline stages
+Sales-team assignments
+Onboarding records
+Training records
+Required process
+Download template.
+Upload file.
+Validate headers.
+Validate users.
+Validate Lead sources.
+Detect duplicates.
+Run Dry Run.
+Show row-level errors.
+Obtain approval where required.
+Import idempotently.
+Produce final report.
+Exports
+Leads
+Pipeline
+Activities
+Tasks
+Proposals
+Customers
+Revenue reports
+Health reports
+Product analytics
+Infrastructure reports
+Audit logs
+
+Support:
+
+XLSX
+CSV
+PDF where appropriate
+Phase 30 — Complete Reporting Centre
+Objective
+
+Create one unified report catalogue for /insightbooks.
+
+Report families
+Executive
+Revenue
+Customers
+Product
+Customer Success
+Support
+Sales
+Marketing
+Infrastructure
+Security
+Audit
+Onboarding
+Training
+
+Every report must include:
+
+Definition
+Source
+Period
+Filters
+Data freshness
+Drill-down
+Export
+Permission
+English and Chichewa labels
+Reconciliation status where applicable
+Phase 31 — Performance, Caching and Scale
+Objective
+
+Ensure the command centre remains fast as the platform grows.
+
+Work
+
+Implement:
+
+Server-side pagination
+Indexed analytics queries
+Materialised read models
+Daily snapshots
+Incremental aggregation
+Route-level caching
+Tenant-safe cache keys
+Role-safe cache keys
+Date-range cache keys
+Background aggregation Jobs
+Queue backpressure
+Job monitoring
+Large-export Jobs
+Query timeouts
+Chart lazy loading
+Performance targets
+Main Dashboard initial response within an agreed budget
+No loading of all Tenants or Leads into the browser
+No browser-side aggregation of platform-scale financial data
+No blocking of operational posting workflows by analytics Jobs
+Phase 32 — Security, Privacy and Compliance Hardening
+Objective
+
+Protect sensitive platform, financial, customer and sales data.
+
+Test
+Unauthenticated access
+Role bypass
+IDOR
+Cross-Tenant access
+Cross-team Lead access
+Salesperson ownership bypass
+Executive financial-data restrictions
+Infrastructure secret leakage
+Export bypass
+Import abuse
+Attachment abuse
+Stored XSS
+Formula injection
+AI prompt injection through user-entered notes
+Unsafe AI output rendering
+Support-access abuse
+Impersonation abuse
+Cache leakage
+Search leakage
+WhatsApp and email credential leakage
+Phase 33 — Automated Testing and Complete Regression
+Objective
+
+Prove that the implementation is reliable.
+
+Test layers
+Unit tests
+Database tests
+Service tests
+Integration tests
+End-to-End tests
+Permission tests
+Multi-Tenant tests
+Idempotency tests
+Concurrency tests
+Analytics reconciliation tests
+CRM conversion tests
+Billing tests
+AI grounding tests
+Security tests
+Responsive tests
+Accessibility tests
+English tests
+Chichewa tests
+Visual regression tests
+Performance tests
+Critical regression areas
+Tenant Management
+User Management
+Billing
+Subscriptions
+Platform invoices
+Platform payments
+Affiliate Management
+MRA EIS entitlement
+Email Management
+Audit and Security
+Admin support access
+Removed Chart of Accounts route
+Phase 34 — Historical Data Migration and Backfill
+Objective
+
+Make analytics and CRM useful immediately without corrupting history.
+
+Work
+Backfill subscription metrics
+Backfill platform Revenue
+Backfill Tenant activity
+Backfill User activity
+Backfill feature adoption where evidence exists
+Import historical Leads
+Import historical activities
+Import historical proposals
+Link existing customers to source Leads where safely possible
+Classify unverifiable history as legacy
+Produce reconciliation results
+Critical rule
+
+Do not invent historical usage or activity when evidence does not exist.
+
+Phase 35 — Pilot, Rollout and Hypercare
+Objective
+
+Deploy safely.
+
+Rollout order
+Internal development testing
+Admin-only preview
+Executive Dashboard pilot
+Finance pilot
+Sales-team CRM pilot
+Customer Success pilot
+Technical monitoring pilot
+Historical data validation
+Production rollout
+Hypercare and defect monitoring
+Rollback
+
+Provide:
+
+Feature flags
+Route-level disablement
+Safe database migration rollback
+Analytics Job suspension
+CRM module disablement
+Previous Dashboard fallback
+No deletion of newly collected evidence
+6. Recommended Delivery Grouping
+
+Although the roadmap contains 35 phases, it can be managed under six major programmes.
+
+Programme A — Foundation
+
+Phases 1–4
+
+Programme B — Business Intelligence
+
+Phases 5–13
+
+Programme C — Sales CRM
+
+Phases 14–22
+
+Programme D — Growth and AI
+
+Phases 23–28
+
+Programme E — Reporting, Scale and Security
+
+Phases 29–33
+
+Programme F — Migration and Production Rollout
+
+Phases 34–35
+
+7. Global Data Models to Expect
+
+The implementation should audit existing models before adding new ones, but the target domain will likely require equivalents of:
+
+AnalyticsEvent
+AnalyticsMetricSnapshot
+FeatureUsageEvent
+FeatureUsageAggregate
+CustomerHealthScore
+CustomerHealthFactor
+CustomerRiskAlert
+AiInsight
+AiInsightEvidence
+SystemMetric
+SystemIncident
+SupportTicket
+SupportActivity
+Lead
+LeadQualification
+LeadStageHistory
+LeadActivity
+LeadTask
+LeadNote
+LeadAttachment
+Demo
+Proposal
+ProposalVersion
+Pipeline
+PipelineStage
+SalesTeam
+SalesTarget
+LeadConversion
+OnboardingProject
+OnboardingTask
+TrainingSession
+MarketingSource
+MarketingCampaign
+NotificationRule
+NotificationEvent
+
+Every model must include appropriate:
+
+Tenant or platform scope
+Ownership
+Status
+Version
+Created by
+Updated by
+Audit references
+Idempotency
+Timestamps
+Soft archival where necessary
+8. Global Acceptance Criteria
+
+The programme is complete only when:
+
+/insightbooks operates as one coherent control plane.
+The removed Chart of Accounts route remains removed.
+Executive KPIs reconcile to source data.
+Platform and Tenant Revenue remain separate.
+MRR and ARR definitions are documented.
+Customer Health is explainable.
+Product adoption is based on deduplicated evidence.
+Support data integrates with Customer Health.
+Infrastructure monitoring exposes no secrets.
+Audit Events are immutable.
+Leads cannot be silently duplicated.
+Pipeline history cannot be deleted.
+Activities remain traceable.
+Tasks and reminders work.
+Demos are fully tracked.
+Proposals are versioned.
+Lead conversion is idempotent.
+One Lead cannot create multiple unintended Tenants.
+One accepted Proposal cannot create duplicate subscriptions.
+Onboarding is linked to the converted customer.
+Training is tracked.
+Marketing attribution works.
+Sales forecasts identify their calculation type.
+AI insights show evidence.
+AI does not autonomously execute critical actions.
+Notifications are deduplicated.
+Imports support Dry Run.
+Exports respect permissions.
+All pages are mobile-responsive.
+English and Chichewa are supported.
+Role permissions are enforced server-side.
+Cross-Tenant access is blocked.
+Cross-team Lead access is blocked.
+Audit Trails include real and effective actors.
+No page-wide horizontal overflow remains.
+Accessibility tests pass.
+Security tests pass.
+Performance tests pass.
+No Critical defect remains.
+No High defect remains.
+The Production build succeeds.
+9. Recommended Starting Point
+
+The first implementation prompt should cover:
+
+Phase 1 — Complete Discovery, Audit and Architecture Definition
+
+This phase must establish the actual current routes, database models, services, data sources, integrations, analytics readiness and CRM gaps before any Dashboard or Lead interface is built.

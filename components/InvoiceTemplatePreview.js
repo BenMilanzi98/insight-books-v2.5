@@ -130,7 +130,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       const lineTotal = multiplyMoney(item.quantity, item.unitPrice);
       const discountAmount = item.discountAmount || 0;
       const netAmount = subtractMoney(lineTotal, discountAmount);
-      const lineTaxAmount = percentOfMoney(netAmount, item.taxRate || 0);
+      const itemTaxes = item.itemTaxes || item.taxes || [];
+      const lineTaxAmount = itemTaxes.length
+        ? itemTaxes.reduce((s, t) => addMoney(s, Number(t.taxAmount) || 0), 0)
+        : percentOfMoney(netAmount, item.taxRate || 0);
       return {
         ...item,
         // Ensure line title: description or product name
@@ -139,7 +142,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         lineTotal,
         discountAmount,
         netAmount,
-        lineTaxAmount
+        lineTaxAmount,
+        itemTaxes,
       };
     }),
     // Use the stored discount values from the database
@@ -260,8 +264,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                 <td className="py-3.5 text-right text-gray-600">{item.quantity}</td>
                 <td className="py-3.5 text-right text-gray-600">{formatAmountDisplay(item.unitPrice)}</td>
                 <td className="py-3.5 text-right">{item.discountAmount > 0 ? <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span> : <span className="text-gray-400">—</span>}</td>
-                <td className="py-3.5 text-right text-gray-600" title={item.taxRate > 0 ? `VAT ${item.taxRate}%` : null}>
-                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}` : '—'}
+                <td className="py-3.5 text-right text-gray-600" title={item.itemTaxes?.length ? item.itemTaxes.map((t) => t.taxName).join(', ') : (item.taxRate > 0 ? `VAT ${item.taxRate}%` : null)}>
+                  {item.itemTaxes?.length > 0
+                    ? item.itemTaxes.map((t) => `${t.taxName}: ${formatAmountDisplay(t.taxAmount)}`).join(' · ')
+                    : item.taxRate > 0
+                      ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}`
+                      : '—'}
                 </td>
                 <td className="py-3.5 text-right font-medium text-gray-900">{formatAmountDisplay(item.amount)}</td>
               </tr>
@@ -418,7 +426,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
-                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}` : '—'}
+                  {item.itemTaxes?.length > 0
+                    ? item.itemTaxes.map((t) => `${t.taxName}: ${formatAmountDisplay(t.taxAmount)}`).join(' · ')
+                    : item.taxRate > 0
+                      ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}`
+                      : '—'}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
               </tr>
@@ -617,7 +629,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                 )}
               </td>
               <td className="py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
-                {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}` : '—'}
+                {item.itemTaxes?.length > 0
+                    ? item.itemTaxes.map((t) => `${t.taxName}: ${formatAmountDisplay(t.taxAmount)}`).join(' · ')
+                    : item.taxRate > 0
+                      ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}`
+                      : '—'}
               </td>
               <td className="py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
             </tr>

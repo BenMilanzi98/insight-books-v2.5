@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import {
@@ -20,6 +23,7 @@ const btnPrimary =
   'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function EmailTemplatesPage() {
+  const { t } = useI18n();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,7 +40,7 @@ export default function EmailTemplatesPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/email/templates', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/email/templates', { credentials: 'include' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Failed to load templates');
       setTemplates(body.templates || []);
@@ -56,7 +60,7 @@ export default function EmailTemplatesPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/email/templates', {
+      const res = await adminFetch('/api/admin/email/templates', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -114,7 +118,7 @@ export default function EmailTemplatesPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Email templates"
+        title={t('admin-pages.email.templates.title')}
         description="Versioned templates. SMTP secrets are never stored here — configure transport under Global Settings."
         actions={
           <>

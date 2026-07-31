@@ -328,6 +328,83 @@ export async function GET(request, context) {
           'Content-Disposition': `attachment; filename="client-account-summary-${(client.name || 'client').replace(/\s+/g, '-')}-${Date.now()}.pdf"`
         }
       });
+    } else if (format === 'xlsx' || format === 'excel') {
+      const ExcelJS = (await import('exceljs')).default;
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'InsightBooks';
+      workbook.created = new Date();
+
+      const summarySheet = workbook.addWorksheet('Summary');
+      summarySheet.columns = [
+        { header: 'Field', key: 'field', width: 28 },
+        { header: 'Value', key: 'value', width: 40 },
+      ];
+      summarySheet.addRows([
+        { field: 'Client', value: client.name },
+        { field: 'Email', value: client.email || '' },
+        { field: 'Phone', value: client.phone || '' },
+        { field: 'Address', value: client.address || '' },
+        { field: 'Total Invoiced', value: totalInvoiced },
+        { field: 'Total Paid', value: totalPaid },
+        { field: 'Outstanding', value: totalOutstanding },
+        { field: 'Total Sales (POS)', value: totalSales },
+        { field: 'Generated At', value: summary.generatedAt },
+      ]);
+
+      const txSheet = workbook.addWorksheet('Transactions');
+      txSheet.columns = [
+        { header: 'Date', key: 'date', width: 14 },
+        { header: 'Type', key: 'type', width: 12 },
+        { header: 'Reference', key: 'reference', width: 18 },
+        { header: 'Description', key: 'description', width: 44 },
+        { header: 'Debit', key: 'debit', width: 14 },
+        { header: 'Credit', key: 'credit', width: 14 },
+        { header: 'Balance', key: 'balance', width: 14 },
+        { header: 'Status', key: 'status', width: 12 },
+      ];
+      transactions.forEach((tx) => {
+        txSheet.addRow({
+          date: tx.date ? new Date(tx.date).toLocaleDateString() : '',
+          type: tx.type,
+          reference: tx.reference || '',
+          description: tx.description || '',
+          debit: Number(tx.debit || 0),
+          credit: Number(tx.credit || 0),
+          balance: Number(tx.balance != null ? tx.balance : 0),
+          status: tx.status || '',
+        });
+      });
+
+      const invSheet = workbook.addWorksheet('Outstanding Invoices');
+      invSheet.columns = [
+        { header: 'Invoice', key: 'invoiceNumber', width: 16 },
+        { header: 'Issue Date', key: 'issueDate', width: 14 },
+        { header: 'Due Date', key: 'dueDate', width: 14 },
+        { header: 'Total', key: 'total', width: 14 },
+        { header: 'Paid', key: 'paid', width: 14 },
+        { header: 'Balance Due', key: 'balanceDue', width: 14 },
+        { header: 'Status', key: 'status', width: 12 },
+      ];
+      (summary.outstanding?.invoices || []).forEach((inv) => {
+        invSheet.addRow({
+          invoiceNumber: inv.invoiceNumber,
+          issueDate: inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : '',
+          dueDate: inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '',
+          total: Number(inv.total || 0),
+          paid: Number(inv.paid || 0),
+          balanceDue: Number(inv.balanceDue || 0),
+          status: inv.status || '',
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const safeName = (client.name || 'client').replace(/[^\w\-]+/g, '-');
+      return new NextResponse(Buffer.from(buffer), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="client-account-summary-${safeName}-${Date.now()}.xlsx"`,
+        },
+      });
     } else if (format === 'json') {
       return NextResponse.json(summary);
     } else {

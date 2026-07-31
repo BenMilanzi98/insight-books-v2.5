@@ -1,0 +1,28 @@
+{
+  "title": "InsightBooks Release Certification Pack (Phase 16 QA)",
+  "disclaimer": "Internal quality evidence only — not an external accounting audit opinion or security certification.",
+  "commit": "5b59a68",
+  "generatedAt": "2026-07-22T08:43:36.224Z",
+  "finishedAt": "2026-07-22T08:43:41.463Z",
+  "suite": "test:qa / test/qa/**",
+  "exitCode": 0,
+  "passed": true,
+  "evidence": {
+    "accountingInvariants": "test/qa/invariants/accounting.invariants.test.js",
+    "securityInvariants": "test/qa/invariants/security.invariants.test.js",
+    "defectRegressions": "test/qa/regression/defect.regressions.test.js",
+    "architecture": "test/qa/architecture/static.boundaries.test.js",
+    "goldenDatasetA": "test/qa/golden/datasetA.basicService.test.js"
+  },
+  "confirmations": {
+    "exactDecimals": true,
+    "forecastNeverPosts": true,
+    "proposedLoanNeverPosts": true,
+    "capitalNotDoubledRegression": true,
+    "salaryAccount5200Regression": true,
+    "sodSelfApprovalBlocked": true,
+    "auditAppendOnly": true,
+    "crossBusinessDenied": true
+  },
+  "outputTail": "\n RUN  v4.1.2 C:/laragon/www/insight-books-v2.0\n\n ✓ test/qa/architecture/static.boundaries.test.js (5 tests) 40ms\n ✓ test/qa/invariants/accounting.invariants.test.js (11 tests) 31ms\n ✓ test/qa/regression/defect.regressions.test.js (7 tests) 25ms\n ✓ test/qa/property/journal.properties.test.js (3 tests) 23ms\n ✓ test/qa/invariants/security.invariants.test.js (10 tests) 19ms\n ✓ test/qa/multi-tenant/isolation.matrix.test.js (6 tests) 12ms\n ✓ test/qa/failure-injection/failureInjection.test.js (5 tests) 11ms\n ✓ test/qa/golden/datasetA.basicService.test.js (2 tests) 7ms\n\n Test Files  8 passed (8)\n      Tests  49 passed (49)\n   Start at  10:43:39\n   Duration  2.09s (transform 654ms, setup 0ms, import 1.18s, tests 166ms, environment 1ms)\n\n"
+}

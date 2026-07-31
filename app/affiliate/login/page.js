@@ -87,21 +87,22 @@ export default function AffiliateLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen flex-col justify-center bg-[var(--background-secondary)] py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-            <User className="h-8 w-8 text-indigo-600" />
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--action-primary)]/10">
+            <User className="h-8 w-8 text-[var(--action-primary)]" aria-hidden="true" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">Affiliate Login</h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Affiliate Login</h1>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Access your affiliate dashboard and track your referrals
           </p>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface-primary)] px-4 py-8 shadow-[var(--shadow-card)] sm:px-10">
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">

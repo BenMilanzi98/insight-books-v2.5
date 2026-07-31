@@ -7,12 +7,17 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import AdminNoticeBanner from '@/components/admin/AdminNoticeBanner';
 import AdminSupportAccessBanner from '@/components/admin/AdminSupportAccessBanner';
 import AdminGlobalSearch from '@/components/admin/AdminGlobalSearch';
+import AdminFooter from '@/components/admin/AdminFooter';
+import AdminContextBanner from '@/components/admin/AdminContextBanner';
+import { useI18n } from '@/components/i18n/I18nProvider';
 import { cn } from '@/lib/utils';
 
 /**
  * Platform admin shell — dedicated chrome, independent scroll, mobile drawer a11y.
+ * Canonical name: AdminAppShell (aliased export).
  */
 export default function AdminShell({ children, admin }) {
+  const { t } = useI18n();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
@@ -74,12 +79,12 @@ export default function AdminShell({ children, admin }) {
       : '';
 
   return (
-    <div className="relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--admin-bg)] text-[var(--admin-text)]">
+    <div className="admin-shell-canvas relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden text-[var(--admin-text)]">
       <aside
         id={drawerId}
-        aria-label="Admin navigation"
+        aria-label={t('admin-shell.navAria')}
         className={cn(
-          'fixed left-0 top-0 z-[var(--z-drawer)] h-[100dvh] overflow-hidden bg-[var(--admin-sidebar-bg)] transition-[transform,width] duration-200 ease-[var(--motion-ease)]',
+          'admin-sidebar-shell fixed left-0 top-0 z-[var(--z-drawer)] h-[100dvh] overflow-hidden transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
           isMobile
             ? sidebarOpen
               ? 'w-[var(--sidebar-width)] translate-x-0'
@@ -103,7 +108,7 @@ export default function AdminShell({ children, admin }) {
       {isMobile && sidebarOpen ? (
         <button
           type="button"
-          aria-label="Close navigation menu"
+          aria-label={t('admin-shell.closeNav')}
           className="fixed inset-0 z-[var(--z-backdrop)] cursor-pointer bg-slate-900/40"
           onClick={closeMobile}
         />
@@ -131,15 +136,20 @@ export default function AdminShell({ children, admin }) {
         ) : null}
 
         <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="mx-auto w-full max-w-[var(--admin-content-max)] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[var(--admin-content-max)] px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
             <Suspense fallback={null}>
               <AdminNoticeBanner />
             </Suspense>
             <AdminSupportAccessBanner />
+            <AdminContextBanner admin={admin} />
             {children}
           </div>
         </main>
+        <AdminFooter />
       </div>
     </div>
   );
 }
+
+/** Canonical Phase 2 name — same implementation as AdminShell. */
+export { AdminShell as AdminAppShell };

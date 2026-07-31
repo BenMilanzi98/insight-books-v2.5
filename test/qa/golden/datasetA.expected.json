@@ -1,0 +1,26 @@
+{
+  "id": "GOLDEN_A_BASIC_SERVICE",
+  "version": 1,
+  "currency": "MWK",
+  "capital": {
+    "amount": "1000000.00",
+    "debitAccount": "1000",
+    "creditAccount": "3000"
+  },
+  "cashSale": {
+    "amount": "150000.00",
+    "debitAccount": "1000",
+    "creditAccount": "4000"
+  },
+  "expense": {
+    "amount": "45000.00",
+    "debitAccount": "5100",
+    "creditAccount": "1000"
+  },
+  "expectedBalanceSheet": {
+    "assets": "1105000.00",
+    "liabilities": "0.00",
+    "equity": "1105000.00",
+    "note": "Structural illustration after capital + sale − expense cash movements (not a live GL rebuild)."
+  }
+}

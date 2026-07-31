@@ -1,49 +1,23 @@
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
-import { hasEISAccess, canSubmitEISInvoice } from '@/lib/subscriptionService';
-import eisService from '@/lib/eisService';
 
-export async function POST(request) {
-  try {
-    const user = await getUserFromSession(request);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const hasEIS = await hasEISAccess(user.tenantId);
-    if (!hasEIS) {
-      return NextResponse.json(
-        { error: 'EIS subscription required', code: 'EIS_SUBSCRIPTION_REQUIRED' },
-        { status: 403 }
-      );
-    }
-
-    const quotaCheck = await canSubmitEISInvoice(user.tenantId);
-    if (!quotaCheck.canSubmit) {
-      return NextResponse.json(
-        { error: quotaCheck.reason, code: 'EIS_QUOTA_EXCEEDED', quota: quotaCheck },
-        { status: 429 }
-      );
-    }
-
-    const body = await request.json();
-    const { invoiceData, sourceType, sourceId } = body;
-
-    if (!invoiceData) {
-      return NextResponse.json({ error: 'invoiceData is required' }, { status: 400 });
-    }
-
-    const result = await eisService.submitInvoice(
-      user.tenantId,
-      invoiceData,
-      sourceType || null,
-      sourceId || null
-    );
-
-    return NextResponse.json({ success: true, data: result });
-  } catch (error) {
-    console.error('POST /api/eis/invoices/submit error:', error);
-    return NextResponse.json(
-      { error: error.message, code: 'EIS_SUBMISSION_ERROR' },
-      { status: 500 }
-    );
-  }
+/**
+ * Legacy direct MRA Sale submit — disabled in Phase 11.
+ * Use /api/mra-eis/sales-eligibility (preflight) and canonical POS/Invoice finalization,
+ * which create a local bridge + outbox for Phase 12. No MRA Sale API call occurs in Phase 11.
+ */
+export async function POST() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        code: 'MRA_EIS_LEGACY_SUBMIT_DISABLED',
+        message:
+          'Direct MRA invoice submission is disabled. Finalize the sale through InsightBooks POS or Sales Invoice flows. Phase 11 creates a local EIS bridge only; Phase 12 owns fiscal snapshots. No MRA Sale was submitted.',
+        requiredAction: 'USE_CANONICAL_FINALIZATION',
+        phase: 11,
+        mraSubmitted: false,
+      },
+    },
+    { status: 410 }
+  );
 }

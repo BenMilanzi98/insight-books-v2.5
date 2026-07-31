@@ -57,10 +57,13 @@ export default function ReversalModal({
     closeModal();
   };
 
-  // Handle reversal success callback
+  const { eligibility, loading: eligibilityLoading, checkEligibility } = useReversalEligibility();
+  const { impact, loading: impactLoading, fetchImpact } = useReversalImpact();
+  const { executing, error: executionError, executeReversal } = useReversalExecution();
+
+  // Handle reversal success callback (skip auto-close when awaiting approval)
   useEffect(() => {
-    if (result && step === 'complete' && onReversalSuccess) {
-      // Small delay to show success message before closing
+    if (result && step === 'complete' && onReversalSuccess && !result.pendingApproval) {
       const timer = setTimeout(() => {
         onReversalSuccess();
         handleClose();
@@ -68,10 +71,6 @@ export default function ReversalModal({
       return () => clearTimeout(timer);
     }
   }, [result, step, onReversalSuccess]);
-
-  const { eligibility, loading: eligibilityLoading, checkEligibility } = useReversalEligibility();
-  const { impact, loading: impactLoading, fetchImpact } = useReversalImpact();
-  const { executing, error: executionError, executeReversal } = useReversalExecution();
 
   // Normalize transaction type to match API expectations (capitalize first letter)
   const normalizeTransactionType = (type) => {
@@ -91,7 +90,8 @@ export default function ReversalModal({
   const handleConfirmReversal = async () => {
     try {
       const normalizedType = normalizeTransactionType(transactionType);
-      await executeReversal(transaction.id, normalizedType, reversalReason);
+      const data = await executeReversal(transaction.id, normalizedType, reversalReason);
+      setResult(data);
       setStep('complete');
     } catch (err) {
       // Error is handled by the hook
@@ -424,15 +424,34 @@ export default function ReversalModal({
           {/* Step 3: Complete */}
           {step === 'complete' && (
             <div className="text-center py-6">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 ${
+                result?.pendingApproval ? 'bg-amber-100' : 'bg-green-100'
+              }`}>
+                <svg
+                  className={`h-6 w-6 ${result?.pendingApproval ? 'text-amber-600' : 'text-green-600'}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {result?.pendingApproval ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  )}
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Reversal Successful</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {result?.pendingApproval ? 'Submitted for Approval' : 'Reversal Successful'}
+              </h3>
               <p className="text-gray-500 mb-6">
-                The {getTypeLabel(transactionType).toLowerCase()} has been reversed successfully.
+                {result?.pendingApproval
+                  ? (result.message ||
+                    'A separate user must approve this reversal before it posts to the ledger.')
+                  : `The ${getTypeLabel(transactionType).toLowerCase()} has been reversed successfully.`}
               </p>
+              {result?.pendingApproval && result?.register?.id ? (
+                <p className="text-xs text-gray-400 mb-4 font-mono">Request ID: {result.register.id}</p>
+              ) : null}
               
               {/* Reversal Summary */}
               {result?.reversal && (

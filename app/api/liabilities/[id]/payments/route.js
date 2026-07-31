@@ -461,53 +461,47 @@ export async function POST(request, { params }) {
           ? ` (Principal: ${principalPaid}, Interest: ${interestPaid})`
           : ''
       }`;
-      const journalEntry = await tx.journalEntry.create({
-        data: {
+      const glLines = journalLines.map((line, index) => ({
+        lineNumber: index + 1,
+        accountId: line.accountId,
+        debitAmount: line.debitAmount ?? 0,
+        creditAmount: line.creditAmount ?? 0,
+        description: line.description || null,
+      }));
+      const { postLoanRepaymentAccounting } = await import(
+        '@/lib/accountingV2/adapters/remainingAdapters.js'
+      );
+      const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry.js');
+      const posted = (
+        await postLoanRepaymentAccounting({
+          db: tx,
           tenantId: user.tenantId,
-          entryDate: paymentDate,
-          referenceNumber,
-          description: journalDescription,
-          entryType: 'Regular',
-          status: 'Posted',
-          sourceType: 'LiabilityPayment',
-          sourceId: payment.id,
-          createdById: user.id,
-          postedById: user.id,
-          postedDate: new Date(),
-          lines: {
-            create: journalLines.map((line, index) => ({
-              lineNumber: index + 1,
-              accountId: line.accountId,
-              debitAmount: line.debitAmount ?? 0,
-              creditAmount: line.creditAmount ?? 0,
-              description: line.description || null
-            }))
-          }
-        },
-        include: { lines: true }
-      });
-
-      for (const line of journalEntry.lines) {
-        await updateAccountBalanceOnTransaction(
-          line.accountId,
-          line.debitAmount || 0,
-          line.creditAmount || 0,
-          tx
-        );
-      }
-
-      const trasactionRecord = await tx.transaction.create({
-        data: {
-          tenantId: user.tenantId,
+          userId: user.id,
+          paymentId: payment.id,
+          liabilityId: liability.id,
+          amount: paymentAmount,
           date: paymentDate,
-          description: `Liability payment - ${liability.name}${principalPaid > 0 && interestPaid > 0 ? ` (Principal: ${principalPaid}, Interest: ${interestPaid})` : ''}`,
-          reference: body.reference || payment.id,
-          status: 'posted',
-          sourceType: 'LiabilityPayment',
-          sourceId: payment.id,
-          createdById: user.id
-        }
-      });
+          description: journalDescription,
+          lines: glLines,
+          legacyPost: () =>
+            postGlEntry({
+              tenantId: user.tenantId,
+              userId: user.id,
+              entryDate: paymentDate,
+              description: journalDescription,
+              reference: referenceNumber,
+              sourceType: 'LiabilityPayment',
+              sourceId: payment.id,
+              lines: glLines,
+              tx,
+            }),
+        })
+      ).result;
+      const journalEntry = {
+        ...(posted || {}),
+        id: posted?.id || posted?.journalEntryId || null,
+      };
+      const trasactionRecord = journalEntry;
 
       // Create separate expense records for principal and interest
       const expenseRecords = [];
@@ -633,10 +627,10 @@ export async function POST(request, { params }) {
           principalPaid: principalPaid,
           interestPaid: interestPaid,
           paymentMethod,
-          journalEntryId: result.journalEntry.id,
+          journalEntryId: result.journalEntry?.id || null,
           expenseIds: result.expenseRecords.map(e => e.id),
           paymentRecordIds: result.paymentRecords.map(p => p.id),
-          transactionId: result.transactionRecord.id,
+          transactionId: result.transactionRecord?.id || null,
           isHistorical: isHistorical
         })
       }

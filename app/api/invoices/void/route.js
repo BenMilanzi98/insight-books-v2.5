@@ -2,13 +2,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
-import { reverseGlEntry } from '@/lib/accountingEngine/reverseGlEntry.js';
-import { POSTED_TRANSACTION_STATUSES } from '@/lib/accountingEngine/constants.js';
+import { reverseSourceJournals } from '@/lib/accountingV2/application/reverseSourceJournals.js';
 import { addMoney } from '@/lib/money';
 
 export async function POST(request) {
   try {
-    // Get authenticated user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -34,7 +32,6 @@ export async function POST(request) {
       );
     }
 
-    // Find the invoice
     const invoice = await prisma.invoice.findFirst({
       where: {
         id: invoiceId,
@@ -57,7 +54,6 @@ export async function POST(request) {
       );
     }
 
-    // Check if invoice can be voided
     if (invoice.status === 'void') {
       return NextResponse.json(
         { success: false, error: 'Invoice is already voided' },
@@ -72,7 +68,6 @@ export async function POST(request) {
       );
     }
 
-    // Check if there are completed payments
     const totalPaid = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
     if (totalPaid > 0) {
       return NextResponse.json(
@@ -81,51 +76,36 @@ export async function POST(request) {
       );
     }
 
-    // Use transaction to ensure data consistency
+    const voidDate = new Date();
+    const reversalReason = reason.trim();
+    await assertPeriodOpen(user.tenantId, voidDate);
+
+    // V2 reverse first (own posting boundary), then mark invoice void.
+    const v2Reversal = await reverseSourceJournals({
+      tenantId: user.tenantId,
+      userId: user.id,
+      reason: reversalReason,
+      sourceTypes: ['Invoice', 'Invoice-COGS'],
+      sourceIds: [invoiceId],
+      requireJournals: true,
+      postingDate: voidDate.toISOString().slice(0, 10),
+    });
+
     const result = await prisma.$transaction(async (tx) => {
-      // Store original total before voiding
       const originalTotal = invoice.total;
 
-      // Update invoice status
       const updatedInvoice = await tx.invoice.update({
         where: { id: invoiceId },
         data: {
           status: 'void',
-          voidedAt: new Date(),
+          voidedAt: voidDate,
           voidedById: user.id,
-          voidReason: reason.trim(),
+          voidReason: reversalReason,
           originalTotal: originalTotal,
-          updatedAt: new Date()
+          updatedAt: voidDate
         }
       });
 
-      const voidDate = new Date();
-      const reversalReason = reason.trim();
-      await assertPeriodOpen(user.tenantId, voidDate, tx);
-
-      const originalTransactions = await tx.transaction.findMany({
-        where: {
-          tenantId: user.tenantId,
-          sourceId: invoiceId,
-          status: { in: POSTED_TRANSACTION_STATUSES },
-          isReversal: false,
-        },
-        select: { id: true },
-        orderBy: { createdAt: 'asc' },
-      });
-
-      for (const origTxn of originalTransactions) {
-        await reverseGlEntry({
-          tenantId: user.tenantId,
-          userId: user.id,
-          originalTransactionId: origTxn.id,
-          reason: reversalReason,
-          entryDate: voidDate,
-          tx,
-        });
-      }
-
-      // Create audit log
       await tx.auditLog.create({
         data: {
           action: 'INVOICE_VOID',
@@ -137,8 +117,10 @@ export async function POST(request) {
             invoiceNumber: invoice.invoiceNumber,
             clientName: invoice.client.name,
             originalTotal: originalTotal,
-            voidReason: reason.trim(),
-            voidedBy: user.email
+            voidReason: reversalReason,
+            voidedBy: user.email,
+            v2JournalsReversed: v2Reversal.reversed.map((r) => r.originalJournalId),
+            v2JournalsSkipped: v2Reversal.skippedAlreadyReversed,
           }),
           ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
           timestamp: new Date()
@@ -176,7 +158,18 @@ export async function POST(request) {
       );
     }
 
-    if (error.code === 'ALREADY_REVERSED') {
+    if (error.code === 'NO_V2_JOURNAL_TO_REVERSE') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message || 'No posted V2 journal found to reverse for this invoice.',
+          details: { code: 'NO_V2_JOURNAL_TO_REVERSE', ...(error.details || {}) },
+        },
+        { status: 409 }
+      );
+    }
+
+    if (error.code === 'ALREADY_REVERSED' || error.name === 'SourceAlreadyPostedError') {
       return NextResponse.json(
         { success: false, error: error.message || 'Invoice journals have already been reversed.' },
         { status: 409 }

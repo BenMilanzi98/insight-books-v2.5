@@ -1,0 +1,2566 @@
+# Task 3 P18 review
+
+
+===== assessments.js =====
+
+/**
+ * Training Assessments — Phase 18 Wave 3.
+ * Knowledge-check / practical foundations; versioned with attempt limits + duration.
+ */
+
+import {
+  TRAINING_ASSESSMENT_TYPE,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingAssessmentModel,
+  hasCustomerTrainingAssessmentVersionModel,
+  resolveTrainingActor,
+  serializeTrainingAssessment,
+  serializeTrainingAssessmentVersion,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+
+const TYPE_SET = new Set(Object.values(TRAINING_ASSESSMENT_TYPE));
+
+export async function createTrainingAssessment(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_assessment_create_forbidden' };
+  }
+  if (
+    !hasCustomerTrainingAssessmentModel(prisma) ||
+    !hasCustomerTrainingAssessmentVersionModel(prisma)
+  ) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const title = args.title ? String(args.title).trim() : '';
+  const assessmentType = String(args.assessmentType || TRAINING_ASSESSMENT_TYPE.KNOWLEDGE_CHECK)
+    .trim()
+    .toUpperCase();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  const maxAttempts = Number(args.maxAttempts ?? 2);
+  const durationMinutes = Number(args.durationMinutes ?? 30);
+  const passScore = Number(args.passScore ?? 70);
+
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!title) return { ok: false, error: 'title_required' };
+  if (!TYPE_SET.has(assessmentType)) {
+    return { ok: false, error: 'invalid_assessment_type' };
+  }
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+  if (!Number.isFinite(maxAttempts) || maxAttempts < 1) {
+    return { ok: false, error: 'invalid_max_attempts' };
+  }
+  if (!Number.isFinite(durationMinutes) || durationMinutes < 1) {
+    return { ok: false, error: 'invalid_duration_minutes' };
+  }
+
+  const access = await loadTrainingProgramForActor(prisma, { ...args, programId });
+  if (!access.ok) return access;
+
+  const existing = await prisma.customerTrainingAssessment.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    const version = await prisma.customerTrainingAssessmentVersion.findFirst({
+      where: { assessmentId: existing.id },
+    });
+    return {
+      ok: true,
+      assessment: serializeTrainingAssessment(existing),
+      version: serializeTrainingAssessmentVersion(version),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  const assessment = await prisma.customerTrainingAssessment.create({
+    data: {
+      programId,
+      title,
+      assessmentType,
+      status: 'ACTIVE',
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  const version = await prisma.customerTrainingAssessmentVersion.create({
+    data: {
+      assessmentId: assessment.id,
+      versionNumber: 1,
+      maxAttempts,
+      durationMinutes,
+      passScore,
+      questionsJson: args.questionsJson ?? null,
+      immutable: true,
+      status: 'ACTIVE',
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    assessment: serializeTrainingAssessment(assessment),
+    version: serializeTrainingAssessmentVersion(version),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== attempts.js =====
+
+/**
+ * Assessment Attempts — Phase 18 Wave 3.
+ * Server-authoritative timer + attempt limits; answers excluded from list payloads.
+ */
+
+import {
+  TRAINING_ATTEMPT_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  canViewTraining,
+  hasCustomerTrainingAssessmentAttemptModel,
+  hasCustomerTrainingAssessmentVersionModel,
+  resolveTrainingActor,
+  serializeTrainingAssessmentAttempt,
+  serializeTrainingAssessmentAttemptListItem,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+
+async function loadVersion(prisma, assessmentVersionId) {
+  if (!hasCustomerTrainingAssessmentVersionModel(prisma)) return null;
+  return prisma.customerTrainingAssessmentVersion.findUnique({
+    where: { id: assessmentVersionId },
+  });
+}
+
+async function assertProgramForVersion(prisma, args, version) {
+  if (!version) return { ok: false, notFound: true, error: 'assessment_version_not_found' };
+  const assessment = await prisma.customerTrainingAssessment.findUnique({
+    where: { id: version.assessmentId },
+  });
+  if (!assessment) {
+    return { ok: false, notFound: true, error: 'assessment_not_found' };
+  }
+  const access = await loadTrainingProgramForActor(prisma, {
+    ...args,
+    programId: assessment.programId,
+  });
+  if (!access.ok) return access;
+  return { ok: true, assessment, program: access.programRow || access.program };
+}
+
+export async function startAssessmentAttempt(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_attempt_start_forbidden' };
+  }
+  if (!hasCustomerTrainingAssessmentAttemptModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_attempt_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const assessmentVersionId = args.assessmentVersionId
+    ? String(args.assessmentVersionId).trim()
+    : '';
+  const participantId = args.participantId ? String(args.participantId).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!assessmentVersionId) return { ok: false, error: 'assessmentVersionId_required' };
+  if (!participantId) return { ok: false, error: 'participantId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  if (args.programId || args.tenantId || args.actorContext?.tenantId) {
+    // Explicit program/tenant pin — deny early when Cross-Tenant
+    if (args.programId) {
+      const access = await loadTrainingProgramForActor(prisma, {
+        ...args,
+        programId: args.programId,
+      });
+      if (!access.ok) return access;
+    }
+  }
+
+  const existing = await prisma.customerTrainingAssessmentAttempt.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      attempt: serializeTrainingAssessmentAttempt(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const version = await loadVersion(prisma, assessmentVersionId);
+  const scoped = await assertProgramForVersion(prisma, args, version);
+  if (!scoped.ok) return scoped;
+
+  const prior = await prisma.customerTrainingAssessmentAttempt.findMany({
+    where: { assessmentVersionId, participantId },
+  });
+  const counted = prior.filter(
+    (a) => a.status !== TRAINING_ATTEMPT_STATUS.EXPIRED || a.countsTowardLimit !== false
+  );
+  const maxAttempts = Number(version.maxAttempts || 1);
+  if (counted.length >= maxAttempts) {
+    return {
+      ok: false,
+      error: 'attempt_limit_exceeded',
+      maxAttempts,
+      attemptsUsed: counted.length,
+    };
+  }
+
+  const now = args.now || new Date();
+  const durationMinutes = Number(version.durationMinutes || 30);
+  const serverEndsAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+
+  const attempt = await prisma.customerTrainingAssessmentAttempt.create({
+    data: {
+      assessmentId: version.assessmentId,
+      assessmentVersionId,
+      participantId,
+      programId: scoped.assessment.programId,
+      status: TRAINING_ATTEMPT_STATUS.IN_PROGRESS,
+      attemptNumber: counted.length + 1,
+      serverStartedAt: now,
+      serverEndsAt,
+      countsTowardLimit: true,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    attempt: serializeTrainingAssessmentAttempt(attempt),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function submitAssessmentAttempt(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_attempt_submit_forbidden' };
+  }
+  if (!hasCustomerTrainingAssessmentAttemptModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_attempt_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const attemptId = args.attemptId ? String(args.attemptId).trim() : '';
+  if (!attemptId) return { ok: false, error: 'attemptId_required' };
+
+  const attempt = await prisma.customerTrainingAssessmentAttempt.findUnique({
+    where: { id: attemptId },
+  });
+  if (!attempt) return { ok: false, notFound: true, error: 'attempt_not_found' };
+
+  if (attempt.programId) {
+    const access = await loadTrainingProgramForActor(prisma, {
+      ...args,
+      programId: attempt.programId,
+    });
+    if (!access.ok) return access;
+  }
+
+  if (
+    attempt.status !== TRAINING_ATTEMPT_STATUS.IN_PROGRESS &&
+    attempt.status !== TRAINING_ATTEMPT_STATUS.SUBMITTED
+  ) {
+    if (attempt.status === TRAINING_ATTEMPT_STATUS.EXPIRED) {
+      return { ok: false, error: 'attempt_timer_expired' };
+    }
+    return { ok: false, error: 'attempt_not_submittable', status: attempt.status };
+  }
+
+  const now = args.now || new Date();
+  const endsAt = attempt.serverEndsAt ? new Date(attempt.serverEndsAt) : null;
+  // Client timer is not authoritative — only serverEndsAt matters.
+  if (endsAt && now.getTime() > endsAt.getTime()) {
+    await prisma.customerTrainingAssessmentAttempt.update({
+      where: { id: attemptId },
+      data: {
+        status: TRAINING_ATTEMPT_STATUS.EXPIRED,
+        updatedAt: now,
+      },
+    });
+    return { ok: false, error: 'attempt_timer_expired', serverEndsAt: endsAt.toISOString() };
+  }
+
+  const updated = await prisma.customerTrainingAssessmentAttempt.update({
+    where: { id: attemptId },
+    data: {
+      status: TRAINING_ATTEMPT_STATUS.SUBMITTED,
+      answersJson: args.answersJson ?? null,
+      submittedAt: now,
+      clientTimerExpiredClaim:
+        args.clientTimerExpired === true || args.clientTimerExpired === false
+          ? Boolean(args.clientTimerExpired)
+          : null,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    attempt: serializeTrainingAssessmentAttempt(updated),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function listAssessmentAttempts(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canViewTraining(admin) && !canManageTraining(admin)) {
+    return { ok: false, forbidden: true, error: 'training_attempt_list_forbidden', attempts: [] };
+  }
+  if (!hasCustomerTrainingAssessmentAttemptModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_attempt_model_unavailable',
+      status: 'UNAVAILABLE',
+      attempts: [],
+    };
+  }
+
+  const where = {};
+  if (args.assessmentVersionId) {
+    where.assessmentVersionId = String(args.assessmentVersionId).trim();
+  }
+  if (args.participantId) {
+    where.participantId = String(args.participantId).trim();
+  }
+  if (args.assessmentId) {
+    where.assessmentId = String(args.assessmentId).trim();
+  }
+
+  const rows = await prisma.customerTrainingAssessmentAttempt.findMany({ where });
+  return {
+    ok: true,
+    attempts: rows.map(serializeTrainingAssessmentAttemptListItem),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function retakeAssessment(prisma, args = {}) {
+  return startAssessmentAttempt(prisma, args);
+}
+
+
+===== grading.js =====
+
+/**
+ * Assessment grading / finalise / regrade — Phase 18 Wave 3.
+ * Objective + manual; final results immutable except via regrade (original preserved).
+ */
+
+import {
+  TRAINING_ATTEMPT_STATUS,
+  TRAINING_RESULT_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingAssessmentResultModel,
+  hasCustomerTrainingAssessmentAttemptModel,
+  hasCustomerTrainingAssessmentRegradeModel,
+  resolveTrainingActor,
+  serializeTrainingAssessmentResult,
+  serializeTrainingAssessmentRegrade,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+
+function scoreObjective(version, answersJson) {
+  const questions = Array.isArray(version?.questionsJson) ? version.questionsJson : [];
+  if (!questions.length) {
+    return { score: 0, maxScore: 0, passed: false };
+  }
+  const answers = answersJson && typeof answersJson === 'object' ? answersJson : {};
+  let earned = 0;
+  let maxScore = 0;
+  for (const q of questions) {
+    const points = Number(q.points ?? 0);
+    maxScore += points;
+    if (q.type === 'OBJECTIVE' || q.correctAnswer != null) {
+      const given = answers[q.id];
+      if (String(given ?? '') === String(q.correctAnswer ?? '')) {
+        earned += points;
+      }
+    }
+  }
+  const score = maxScore > 0 ? Math.round((earned / maxScore) * 100) : 0;
+  const passScore = Number(version.passScore ?? 70);
+  return { score, maxScore: 100, earned, rawMax: maxScore, passed: score >= passScore };
+}
+
+export async function gradeAssessmentAttempt(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_grade_forbidden' };
+  }
+  if (
+    !hasCustomerTrainingAssessmentAttemptModel(prisma) ||
+    !hasCustomerTrainingAssessmentResultModel(prisma)
+  ) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_result_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const attemptId = args.attemptId ? String(args.attemptId).trim() : '';
+  if (!attemptId) return { ok: false, error: 'attemptId_required' };
+
+  const attempt = await prisma.customerTrainingAssessmentAttempt.findUnique({
+    where: { id: attemptId },
+  });
+  if (!attempt) return { ok: false, notFound: true, error: 'attempt_not_found' };
+
+  if (attempt.programId) {
+    const access = await loadTrainingProgramForActor(prisma, {
+      ...args,
+      programId: attempt.programId,
+    });
+    if (!access.ok) return access;
+  }
+
+  const existingResult = await prisma.customerTrainingAssessmentResult.findFirst({
+    where: { attemptId },
+  });
+  if (existingResult?.immutable || existingResult?.status === TRAINING_RESULT_STATUS.FINALISED) {
+    return {
+      ok: false,
+      error: 'final_result_immutable_regrade_required',
+      resultId: existingResult.id,
+    };
+  }
+
+  const version = await prisma.customerTrainingAssessmentVersion.findUnique({
+    where: { id: attempt.assessmentVersionId },
+  });
+  if (!version) return { ok: false, error: 'assessment_version_not_found' };
+
+  const mode = String(args.mode || 'OBJECTIVE')
+    .trim()
+    .toUpperCase();
+  let score;
+  let passed;
+  if (mode === 'MANUAL') {
+    if (args.score == null || !Number.isFinite(Number(args.score))) {
+      return { ok: false, error: 'manual_score_required' };
+    }
+    score = Number(args.score);
+    passed = score >= Number(version.passScore ?? 70);
+  } else {
+    const obj = scoreObjective(version, attempt.answersJson);
+    score = obj.score;
+    passed = obj.passed;
+  }
+
+  const now = args.now || new Date();
+  let result;
+  if (existingResult) {
+    result = await prisma.customerTrainingAssessmentResult.update({
+      where: { id: existingResult.id },
+      data: {
+        score,
+        passed,
+        gradeMode: mode,
+        status: passed ? TRAINING_RESULT_STATUS.PASSED : TRAINING_RESULT_STATUS.FAILED,
+        immutable: false,
+        gradedByAdminId: admin?.id || null,
+        updatedAt: now,
+      },
+    });
+  } else {
+    result = await prisma.customerTrainingAssessmentResult.create({
+      data: {
+        attemptId,
+        assessmentVersionId: attempt.assessmentVersionId,
+        participantId: attempt.participantId,
+        programId: attempt.programId,
+        score,
+        originalScore: score,
+        passed,
+        gradeMode: mode,
+        status: passed ? TRAINING_RESULT_STATUS.PASSED : TRAINING_RESULT_STATUS.FAILED,
+        immutable: false,
+        gradedByAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  await prisma.customerTrainingAssessmentAttempt.update({
+    where: { id: attemptId },
+    data: {
+      status: TRAINING_ATTEMPT_STATUS.GRADED,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    result: serializeTrainingAssessmentResult(result),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function finaliseAssessmentResult(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_finalise_forbidden' };
+  }
+  if (!hasCustomerTrainingAssessmentResultModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_result_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const resultId = args.resultId ? String(args.resultId).trim() : '';
+  if (!resultId) return { ok: false, error: 'resultId_required' };
+
+  const result = await prisma.customerTrainingAssessmentResult.findUnique({
+    where: { id: resultId },
+  });
+  if (!result) return { ok: false, notFound: true, error: 'result_not_found' };
+
+  if (result.programId) {
+    const access = await loadTrainingProgramForActor(prisma, {
+      ...args,
+      programId: result.programId,
+    });
+    if (!access.ok) return access;
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.customerTrainingAssessmentResult.update({
+    where: { id: resultId },
+    data: {
+      status: TRAINING_RESULT_STATUS.FINALISED,
+      immutable: true,
+      finalisedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (result.attemptId) {
+    await prisma.customerTrainingAssessmentAttempt.update({
+      where: { id: result.attemptId },
+      data: {
+        status: TRAINING_ATTEMPT_STATUS.FINALISED,
+        updatedAt: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    result: serializeTrainingAssessmentResult(updated),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function regradeAssessmentAttempt(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_regrade_forbidden' };
+  }
+  if (
+    !hasCustomerTrainingAssessmentResultModel(prisma) ||
+    !hasCustomerTrainingAssessmentRegradeModel(prisma)
+  ) {
+    return {
+      ok: false,
+      error: 'customer_training_assessment_regrade_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const resultId = args.resultId ? String(args.resultId).trim() : '';
+  const reason = args.reason ? String(args.reason).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  const score = Number(args.score);
+
+  if (!resultId) return { ok: false, error: 'resultId_required' };
+  if (!reason) return { ok: false, error: 'reason_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+  if (!Number.isFinite(score)) return { ok: false, error: 'score_required' };
+
+  const existingRegrade = await prisma.customerTrainingAssessmentRegrade.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existingRegrade) {
+    const result = await prisma.customerTrainingAssessmentResult.findUnique({
+      where: { id: existingRegrade.resultId },
+    });
+    return {
+      ok: true,
+      regrade: serializeTrainingAssessmentRegrade(existingRegrade),
+      result: serializeTrainingAssessmentResult(result),
+      originalScore: existingRegrade.originalScore,
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const result = await prisma.customerTrainingAssessmentResult.findUnique({
+    where: { id: resultId },
+  });
+  if (!result) return { ok: false, notFound: true, error: 'result_not_found' };
+
+  if (result.programId) {
+    const access = await loadTrainingProgramForActor(prisma, {
+      ...args,
+      programId: result.programId,
+    });
+    if (!access.ok) return access;
+  }
+
+  const version = await prisma.customerTrainingAssessmentVersion.findUnique({
+    where: { id: result.assessmentVersionId },
+  });
+  const passScore = Number(version?.passScore ?? 70);
+  const originalScore =
+    result.originalScore != null ? Number(result.originalScore) : Number(result.score);
+  const now = args.now || new Date();
+  const passed = score >= passScore;
+
+  const regrade = await prisma.customerTrainingAssessmentRegrade.create({
+    data: {
+      resultId,
+      attemptId: result.attemptId,
+      originalScore,
+      newScore: score,
+      reason,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  const updated = await prisma.customerTrainingAssessmentResult.update({
+    where: { id: resultId },
+    data: {
+      score,
+      originalScore,
+      passed,
+      status: TRAINING_RESULT_STATUS.FINALISED,
+      immutable: true,
+      regradedAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    regrade: serializeTrainingAssessmentRegrade(regrade),
+    result: serializeTrainingAssessmentResult(updated),
+    originalScore,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== completion.js =====
+
+/**
+ * Participant / Program completion — Phase 18 Wave 3.
+ * Deterministic against versioned policy; UNKNOWN ≠ COMPLETED.
+ */
+
+import {
+  TRAINING_ATTENDANCE_STATUS,
+  TRAINING_COMPLETION_POLICY_V1,
+  TRAINING_COMPLETION_STATUS,
+  TRAINING_EXERCISE_STATUS,
+  TRAINING_RESULT_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingParticipantCompletionModel,
+  resolveTrainingActor,
+  serializeTrainingParticipantCompletion,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+
+const PRESENT_LIKE = new Set([
+  TRAINING_ATTENDANCE_STATUS.PRESENT,
+  TRAINING_ATTENDANCE_STATUS.PRESENT_LATE,
+  TRAINING_ATTENDANCE_STATUS.PRESENT_PARTIAL,
+  TRAINING_ATTENDANCE_STATUS.LEFT_EARLY,
+]);
+
+const EXERCISE_OK = new Set([
+  TRAINING_EXERCISE_STATUS.PASSED,
+  TRAINING_EXERCISE_STATUS.WAIVED,
+]);
+
+async function loadPolicy(prisma, policyVersion) {
+  if (typeof prisma?.customerTrainingCompletionPolicy?.findFirst === 'function') {
+    const row = await prisma.customerTrainingCompletionPolicy.findFirst({
+      where: { policyVersion, status: 'ACTIVE' },
+    });
+    if (row) return row;
+  }
+  if (policyVersion === TRAINING_COMPLETION_POLICY_V1) {
+    return {
+      id: 'builtin-policy-v1',
+      policyVersion: TRAINING_COMPLETION_POLICY_V1,
+      requiresAttendance: true,
+      requiresExercises: true,
+      requiresAssessments: true,
+      status: 'ACTIVE',
+    };
+  }
+  return null;
+}
+
+export async function evaluateParticipantCompletion(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_completion_evaluate_forbidden' };
+  }
+  if (!hasCustomerTrainingParticipantCompletionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_participant_completion_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const participantId = args.participantId ? String(args.participantId).trim() : '';
+  const policyVersion = args.policyVersion
+    ? String(args.policyVersion).trim()
+    : TRAINING_COMPLETION_POLICY_V1;
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!participantId) return { ok: false, error: 'participantId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const access = await loadTrainingProgramForActor(prisma, { ...args, programId });
+  if (!access.ok) return access;
+
+  const existing = await prisma.customerTrainingParticipantCompletion.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      completion: serializeTrainingParticipantCompletion(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const policy = await loadPolicy(prisma, policyVersion);
+  if (!policy) return { ok: false, error: 'completion_policy_not_found' };
+
+  const gaps = [];
+
+  if (policy.requiresAttendance !== false) {
+    let attendanceRows = [];
+    if (typeof prisma.customerTrainingAttendance?.findMany === 'function') {
+      attendanceRows = await prisma.customerTrainingAttendance.findMany({
+        where: { participantId },
+      });
+    }
+    const present = attendanceRows.some((r) => PRESENT_LIKE.has(String(r.status || '')));
+    if (!present) {
+      gaps.push('ATTENDANCE_REQUIRED');
+    }
+  }
+
+  if (policy.requiresExercises !== false) {
+    let exercises = [];
+    if (typeof prisma.customerTrainingExercise?.findMany === 'function') {
+      exercises = await prisma.customerTrainingExercise.findMany({
+        where: { programId, participantId },
+      });
+    }
+    const ok = exercises.some((e) => EXERCISE_OK.has(String(e.status || '')));
+    if (!ok) {
+      gaps.push('EXERCISES_REQUIRED');
+    }
+  }
+
+  if (policy.requiresAssessments !== false) {
+    let results = [];
+    if (typeof prisma.customerTrainingAssessmentResult?.findMany === 'function') {
+      results = await prisma.customerTrainingAssessmentResult.findMany({
+        where: { programId, participantId },
+      });
+    }
+    const passed = results.some(
+      (r) =>
+        r.passed === true &&
+        (r.immutable === true ||
+          r.status === TRAINING_RESULT_STATUS.FINALISED ||
+          r.status === TRAINING_RESULT_STATUS.PASSED)
+    );
+    if (!passed) {
+      gaps.push('ASSESSMENTS_REQUIRED');
+    }
+  }
+
+  if (gaps.length) {
+    return {
+      ok: false,
+      error: 'completion_blocked_policy_gaps',
+      status: TRAINING_COMPLETION_STATUS.NOT_COMPLETED,
+      gaps,
+      completion: null,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  const completion = await prisma.customerTrainingParticipantCompletion.create({
+    data: {
+      programId,
+      participantId,
+      policyVersion,
+      status: TRAINING_COMPLETION_STATUS.COMPLETED,
+      gapsJson: [],
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    completion: serializeTrainingParticipantCompletion(completion),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function evaluateProgramCompletion(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_program_completion_forbidden' };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  if (!programId) return { ok: false, error: 'programId_required' };
+
+  const access = await loadTrainingProgramForActor(prisma, { ...args, programId });
+  if (!access.ok) return access;
+
+  const completions =
+    typeof prisma.customerTrainingParticipantCompletion?.findMany === 'function'
+      ? await prisma.customerTrainingParticipantCompletion.findMany({
+          where: { programId },
+        })
+      : [];
+  const completed = completions.filter(
+    (c) => c.status === TRAINING_COMPLETION_STATUS.COMPLETED
+  );
+  const withGaps = completions.filter(
+    (c) => c.status === TRAINING_COMPLETION_STATUS.COMPLETED_WITH_GAPS
+  );
+
+  let status = TRAINING_COMPLETION_STATUS.IN_PROGRESS;
+  if (completed.length && !withGaps.length) {
+    status = TRAINING_COMPLETION_STATUS.COMPLETED;
+  } else if (withGaps.length || (completed.length && withGaps.length)) {
+    status = TRAINING_COMPLETION_STATUS.COMPLETED_WITH_GAPS;
+  } else if (!completions.length) {
+    status = TRAINING_COMPLETION_STATUS.UNKNOWN;
+  }
+
+  return {
+    ok: true,
+    status,
+    participantCompletedCount: completed.length,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== certificates.js =====
+
+/**
+ * Training Certificates — Phase 18 Wave 3.
+ * Requires ParticipantCompletion; checksum; idempotent issue; revoke → REVOKED.
+ * Not professional accreditation.
+ */
+
+import { createHash, randomBytes } from 'crypto';
+import {
+  TRAINING_CERTIFICATE_TYPE,
+  TRAINING_CERTIFICATE_VERIFICATION,
+  TRAINING_COMPLETION_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import { allocateTrainingCertificateNumber } from './numbering.js';
+import {
+  canManageTraining,
+  canViewTraining,
+  hasCustomerTrainingCertificateModel,
+  hasCustomerTrainingParticipantCompletionModel,
+  resolveTrainingActor,
+  serializeTrainingCertificate,
+  serializeTrainingCertificatePublic,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+
+function computeChecksum(payload) {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+export async function issueTrainingCertificate(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_certificate_issue_forbidden' };
+  }
+  if (!hasCustomerTrainingCertificateModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_certificate_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+  if (!hasCustomerTrainingParticipantCompletionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_participant_completion_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const participantCompletionId = args.participantCompletionId
+    ? String(args.participantCompletionId).trim()
+    : '';
+  const templateVersionId = args.templateVersionId
+    ? String(args.templateVersionId).trim()
+    : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  const certificateType = String(
+    args.certificateType || TRAINING_CERTIFICATE_TYPE.COMPLETION
+  )
+    .trim()
+    .toUpperCase();
+
+  if (!participantCompletionId) {
+    return { ok: false, error: 'participantCompletionId_required' };
+  }
+  if (!templateVersionId) return { ok: false, error: 'templateVersionId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const existing = await prisma.customerTrainingCertificate.findUnique({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      certificate: serializeTrainingCertificate(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const completion = await prisma.customerTrainingParticipantCompletion.findUnique({
+    where: { id: participantCompletionId },
+  });
+  if (!completion) {
+    return { ok: false, error: 'completion_required_or_not_found', notFound: true };
+  }
+  if (completion.status !== TRAINING_COMPLETION_STATUS.COMPLETED) {
+    return {
+      ok: false,
+      error: 'completion_required_not_completed',
+      status: completion.status,
+    };
+  }
+
+  const access = await loadTrainingProgramForActor(prisma, {
+    ...args,
+    programId: completion.programId,
+  });
+  if (!access.ok) return access;
+
+  const now = args.now || new Date();
+  const allocated = await allocateTrainingCertificateNumber(prisma, { now });
+  if (!allocated.ok) {
+    return { ok: false, error: allocated.error || 'certificate_number_allocation_failed' };
+  }
+
+  const verificationCode = randomBytes(16).toString('hex');
+  const checksum = computeChecksum({
+    certificateNumber: allocated.number,
+    participantCompletionId,
+    templateVersionId,
+    certificateType,
+    participantId: completion.participantId,
+    programId: completion.programId,
+    issuedAt: now.toISOString(),
+  });
+
+  const certificate = await prisma.customerTrainingCertificate.create({
+    data: {
+      certificateNumber: allocated.number,
+      participantCompletionId,
+      programId: completion.programId,
+      participantId: completion.participantId,
+      templateVersionId,
+      certificateType,
+      checksum,
+      verificationCode,
+      verificationStatus: TRAINING_CERTIFICATE_VERIFICATION.VALID,
+      status: 'ISSUED',
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      issuedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    certificate: serializeTrainingCertificate(certificate),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function revokeTrainingCertificate(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_certificate_revoke_forbidden' };
+  }
+  if (!hasCustomerTrainingCertificateModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_certificate_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const certificateId = args.certificateId ? String(args.certificateId).trim() : '';
+  const reason = args.reason ? String(args.reason).trim() : '';
+  if (!certificateId) return { ok: false, error: 'certificateId_required' };
+  if (!reason) return { ok: false, error: 'reason_required' };
+
+  const certificate = await prisma.customerTrainingCertificate.findUnique({
+    where: { id: certificateId },
+  });
+  if (!certificate) {
+    return { ok: false, notFound: true, error: 'certificate_not_found' };
+  }
+
+  if (certificate.programId) {
+    const access = await loadTrainingProgramForActor(prisma, {
+      ...args,
+      programId: certificate.programId,
+    });
+    if (!access.ok) return access;
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.customerTrainingCertificate.update({
+    where: { id: certificateId },
+    data: {
+      verificationStatus: TRAINING_CERTIFICATE_VERIFICATION.REVOKED,
+      status: 'REVOKED',
+      revokeReason: reason,
+      revokedAt: now,
+      revokedByAdminId: admin?.id || null,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    certificate: serializeTrainingCertificate(updated),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function verifyTrainingCertificate(prisma, args = {}) {
+  if (!hasCustomerTrainingCertificateModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_certificate_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const verificationCode = args.verificationCode
+    ? String(args.verificationCode).trim()
+    : '';
+  const certificateNumber = args.certificateNumber
+    ? String(args.certificateNumber).trim()
+    : '';
+
+  if (!verificationCode && !certificateNumber) {
+    return { ok: false, error: 'verificationCode_or_certificateNumber_required' };
+  }
+
+  let certificate = null;
+  if (verificationCode) {
+    certificate = await prisma.customerTrainingCertificate.findUnique({
+      where: { verificationCode },
+    });
+  }
+  if (!certificate && certificateNumber) {
+    certificate = await prisma.customerTrainingCertificate.findUnique({
+      where: { certificateNumber },
+    });
+  }
+  if (!certificate) {
+    return {
+      ok: false,
+      notFound: true,
+      error: 'certificate_not_found',
+      verificationStatus: TRAINING_CERTIFICATE_VERIFICATION.UNKNOWN,
+    };
+  }
+
+  const verificationStatus =
+    certificate.verificationStatus || TRAINING_CERTIFICATE_VERIFICATION.UNKNOWN;
+
+  return {
+    ok: true,
+    verificationStatus,
+    status: verificationStatus,
+    certificate: serializeTrainingCertificatePublic(certificate),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export { canViewTraining };
+
+
+===== onboardingFeed.js =====
+
+/**
+ * Typed Training outcome → Phase 17 onboarding coordination — Phase 18 Wave 3.
+ * Sets trainingDomainSource / trainingDomainStatus; does NOT mark onboarding Project COMPLETED.
+ */
+
+import { getTrainingDomainContract } from './catalogue.js';
+import {
+  canManageTraining,
+  resolveTrainingActor,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+import { evaluateProgramCompletion } from './completion.js';
+import {
+  setTrainingCoordinationStatus,
+  TRAINING_COORD_STATUS,
+} from '../onboarding/training.js';
+
+const DOMAIN_SOURCE = 'PHASE_18_TRAINING';
+
+/**
+ * Publish authoritative Training-domain outcome into Phase 17 coordination row.
+ */
+export async function publishTrainingOutcomeToOnboarding(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_onboarding_feed_forbidden' };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const access = await loadTrainingProgramForActor(prisma, { ...args, programId });
+  if (!access.ok) return access;
+
+  const program = access.programRow || access.program;
+  const projectId = program.onboardingProjectId
+    ? String(program.onboardingProjectId).trim()
+    : '';
+  if (!projectId) {
+    return { ok: false, error: 'onboarding_project_not_linked' };
+  }
+
+  const programCompletion = await evaluateProgramCompletion(prisma, {
+    ...args,
+    programId,
+  });
+  if (!programCompletion.ok) return programCompletion;
+
+  const domainStatus =
+    programCompletion.status === 'COMPLETED' ||
+    programCompletion.participantCompletedCount > 0
+      ? 'COMPLETED'
+      : programCompletion.status === 'COMPLETED_WITH_GAPS'
+        ? 'COMPLETED_WITH_GAPS'
+        : 'IN_PROGRESS';
+
+  const coordStatus =
+    domainStatus === 'COMPLETED'
+      ? TRAINING_COORD_STATUS.COMPLETED
+      : domainStatus === 'COMPLETED_WITH_GAPS'
+        ? TRAINING_COORD_STATUS.READY
+        : TRAINING_COORD_STATUS.IN_PROGRESS;
+
+  // Capture project status before feed — must remain unchanged for COMPLETED auto-flip.
+  let projectBefore = null;
+  if (typeof prisma.customerOnboardingProject?.findUnique === 'function') {
+    projectBefore = await prisma.customerOnboardingProject.findUnique({
+      where: { id: projectId },
+    });
+  }
+
+  const fed = await setTrainingCoordinationStatus(prisma, {
+    actorContext: args.actorContext || { admin },
+    admin,
+    projectId,
+    status: coordStatus,
+    trainingDomainSource: DOMAIN_SOURCE,
+    trainingDomainStatus: domainStatus === 'COMPLETED_WITH_GAPS' ? 'COMPLETED' : domainStatus,
+    sourceDomain: DOMAIN_SOURCE,
+    now: args.now,
+  });
+
+  if (!fed.ok) return fed;
+
+  let projectAfter = projectBefore;
+  if (typeof prisma.customerOnboardingProject?.findUnique === 'function') {
+    projectAfter = await prisma.customerOnboardingProject.findUnique({
+      where: { id: projectId },
+    });
+  }
+
+  // Hard rule: never mutate onboarding Project to COMPLETED from this feed.
+  if (
+    projectBefore &&
+    projectAfter &&
+    projectBefore.status !== 'COMPLETED' &&
+    projectAfter.status === 'COMPLETED'
+  ) {
+    await prisma.customerOnboardingProject.update({
+      where: { id: projectId },
+      data: { status: projectBefore.status, updatedAt: args.now || new Date() },
+    });
+    projectAfter = { ...projectAfter, status: projectBefore.status };
+  }
+
+  return {
+    ok: true,
+    training: fed.training,
+    onboardingProjectCompleted: false,
+    projectStatus: projectAfter?.status || null,
+    programCompletionStatus: programCompletion.status,
+    idempotencyKey,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+
+===== exercises.js =====
+
+/**
+ * Training Exercises — Phase 18 Wave 3.
+ * Submit → review → pass / retry / waived. Source-backed evidence.
+ */
+
+import {
+  TRAINING_EXERCISE_STATUS,
+  getTrainingDomainContract,
+} from './catalogue.js';
+import {
+  canManageTraining,
+  hasCustomerTrainingExerciseModel,
+  resolveTrainingActor,
+  serializeTrainingExercise,
+} from './model.js';
+import { loadTrainingProgramForActor } from './programAccess.js';
+
+const DECISION_MAP = Object.freeze({
+  PASSED: TRAINING_EXERCISE_STATUS.PASSED,
+  PASS: TRAINING_EXERCISE_STATUS.PASSED,
+  RETRY: TRAINING_EXERCISE_STATUS.RETRY_REQUIRED,
+  RETRY_REQUIRED: TRAINING_EXERCISE_STATUS.RETRY_REQUIRED,
+  WAIVED: TRAINING_EXERCISE_STATUS.WAIVED,
+  WAIVE: TRAINING_EXERCISE_STATUS.WAIVED,
+});
+
+export async function submitTrainingExercise(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_exercise_submit_forbidden' };
+  }
+  if (!hasCustomerTrainingExerciseModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_exercise_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  const participantId = args.participantId ? String(args.participantId).trim() : '';
+  const title = args.title ? String(args.title).trim() : '';
+  const evidenceRef = args.evidenceRef ? String(args.evidenceRef).trim() : '';
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!programId) return { ok: false, error: 'programId_required' };
+  if (!participantId) return { ok: false, error: 'participantId_required' };
+  if (!title) return { ok: false, error: 'title_required' };
+  if (!evidenceRef) return { ok: false, error: 'evidenceRef_required' };
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const access = await loadTrainingProgramForActor(prisma, { ...args, programId });
+  if (!access.ok) return access;
+
+  const existing = await prisma.customerTrainingExercise.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      exercise: serializeTrainingExercise(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  const exercise = await prisma.customerTrainingExercise.create({
+    data: {
+      programId,
+      participantId,
+      title,
+      evidenceRef,
+      status: TRAINING_EXERCISE_STATUS.SUBMITTED,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    exercise: serializeTrainingExercise(exercise),
+    created: true,
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function reviewTrainingExercise(prisma, args = {}) {
+  const admin = resolveTrainingActor(args);
+  if (!canManageTraining(admin)) {
+    return { ok: false, forbidden: true, reason: 'training_exercise_review_forbidden' };
+  }
+  if (!hasCustomerTrainingExerciseModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_exercise_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const exerciseId = args.exerciseId ? String(args.exerciseId).trim() : '';
+  const decision = String(args.decision || '')
+    .trim()
+    .toUpperCase();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+
+  if (!exerciseId) return { ok: false, error: 'exerciseId_required' };
+  if (!DECISION_MAP[decision]) {
+    return { ok: false, error: 'invalid_exercise_decision' };
+  }
+  if (!idempotencyKey) return { ok: false, error: 'idempotencyKey_required' };
+
+  const existing = await prisma.customerTrainingExercise.findFirst({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      exercise: serializeTrainingExercise(existing),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getTrainingDomainContract(),
+    };
+  }
+
+  const exercise = await prisma.customerTrainingExercise.findUnique({
+    where: { id: exerciseId },
+  });
+  if (!exercise) return { ok: false, notFound: true, error: 'exercise_not_found' };
+
+  const access = await loadTrainingProgramForActor(prisma, {
+    ...args,
+    programId: exercise.programId,
+  });
+  if (!access.ok) return access;
+
+  const now = args.now || new Date();
+  const updated = await prisma.customerTrainingExercise.update({
+    where: { id: exerciseId },
+    data: {
+      status: DECISION_MAP[decision],
+      reviewDecision: decision,
+      reviewReason: args.reason ? String(args.reason).trim() : null,
+      reviewedByAdminId: admin?.id || null,
+      reviewIdempotencyKey: idempotencyKey,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    exercise: serializeTrainingExercise(updated),
+    domain: getTrainingDomainContract(),
+  };
+}
+
+export async function waiveTrainingExercise(prisma, args = {}) {
+  return reviewTrainingExercise(prisma, {
+    ...args,
+    decision: 'WAIVED',
+  });
+}
+
+export async function retryTrainingExercise(prisma, args = {}) {
+  return reviewTrainingExercise(prisma, {
+    ...args,
+    decision: 'RETRY_REQUIRED',
+  });
+}
+
+
+===== test =====
+
+/**
+ * Phase 18 Wave 3 — Exercises, assessments, completion, certificates, Phase 17 feed.
+ * Server timers + attempt limits; answers not in list payloads; final results immutable
+ * without regrade; completion needs attendance/exercises/assessments; cert requires
+ * completion + checksum; revoke → REVOKED; publish does NOT complete onboarding Project;
+ * onboarding cannot fabricate Training COMPLETED; Cross-Tenant denied.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  TRAINING_ATTENDANCE_SOURCE,
+  TRAINING_PARTICIPANT_VERIFICATION,
+  TRAINING_CERTIFICATE_VERIFICATION,
+  createTrainingCohort,
+  verifyTrainingParticipant,
+  enrolTrainingParticipant,
+  captureTrainingAttendance,
+  submitTrainingExercise,
+  reviewTrainingExercise,
+  waiveTrainingExercise,
+  createTrainingAssessment,
+  startAssessmentAttempt,
+  submitAssessmentAttempt,
+  listAssessmentAttempts,
+  gradeAssessmentAttempt,
+  finaliseAssessmentResult,
+  retakeAssessment,
+  regradeAssessmentAttempt,
+  evaluateParticipantCompletion,
+  issueTrainingCertificate,
+  revokeTrainingCertificate,
+  verifyTrainingCertificate,
+  publishTrainingOutcomeToOnboarding,
+  loadTrainingProgramForActor,
+  calculateTrainingHealth,
+  calculateTrainingProgress,
+} from '@/lib/admin/customerSuccess/training';
+import {
+  setTrainingCoordinationStatus,
+  evaluateOnboardingReadiness,
+} from '@/lib/admin/customerSuccess/onboarding';
+
+function superAdmin(id = 'super-trn-w3-1') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+      'systemAdmin.customerSuccess.manageCases': true,
+    },
+  };
+}
+
+function makeStoreCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      if (where.certificateNumber) {
+        return store.find((r) => r.certificateNumber === where.certificateNumber) || null;
+      }
+      if (where.verificationCode) {
+        return store.find((r) => r.verificationCode === where.verificationCode) || null;
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      for (const [k, v] of Object.entries(where || {})) {
+        if (v == null) continue;
+        if (typeof v === 'object' && v.in) {
+          rows = rows.filter((r) => v.in.includes(r[k]));
+        } else {
+          rows = rows.filter((r) => r[k] === v);
+        }
+      }
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      for (const [k, v] of Object.entries(where || {})) {
+        if (v == null) continue;
+        if (typeof v === 'object' && v.in) {
+          rows = rows.filter((r) => v.in.includes(r[k]));
+        } else {
+          rows = rows.filter((r) => r[k] === v);
+        }
+      }
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error(`${idPrefix}_not_found`);
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    count: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      for (const [k, v] of Object.entries(where || {})) {
+        if (v == null) continue;
+        rows = rows.filter((r) => r[k] === v);
+      }
+      return rows.length;
+    }),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const programStore = overrides._programStore || [
+    {
+      id: 'trn-prog-1',
+      programNumber: 'TRN-2026-000001',
+      status: 'IN_PROGRESS',
+      trainingType: 'CUSTOMER_ONBOARDING',
+      trainingRequestId: 'trq-1',
+      customerId: 'cust-1',
+      tenantId: 'tenant-1',
+      subscriptionId: 'sub-1',
+      onboardingProjectId: 'onb-proj-1',
+      curriculumVersionId: 'currv-onboarding-wave1-v1',
+      createdByAdminId: 'super-trn-w3-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+  ];
+  const cohortStore = overrides._cohortStore || [];
+  const participantStore = overrides._participantStore || [];
+  const enrolmentStore = overrides._enrolmentStore || [];
+  const sessionStore = overrides._sessionStore || [];
+  const attendanceStore = overrides._attendanceStore || [];
+  const exerciseStore = overrides._exerciseStore || [];
+  const assessmentStore = overrides._assessmentStore || [];
+  const assessmentVersionStore = overrides._assessmentVersionStore || [];
+  const attemptStore = overrides._attemptStore || [];
+  const resultStore = overrides._resultStore || [];
+  const regradeStore = overrides._regradeStore || [];
+  const completionStore = overrides._completionStore || [];
+  const programCompletionStore = overrides._programCompletionStore || [];
+  const certificateStore = overrides._certificateStore || [];
+  const policyStore = overrides._policyStore || [
+    {
+      id: 'policy-v1',
+      policyVersion: 'training-completion-policy-v1',
+      requiresAttendance: true,
+      requiresExercises: true,
+      requiresAssessments: true,
+      status: 'ACTIVE',
+    },
+  ];
+  const seqStore = overrides._seqStore || [];
+  const onboardingProjectStore = overrides._onboardingProjectStore || [
+    {
+      id: 'onb-proj-1',
+      projectNumber: 'ONB-2026-000001',
+      status: 'IN_PROGRESS',
+      tenantId: 'tenant-1',
+      customerId: 'cust-1',
+      createdAt: new Date('2026-07-31T09:00:00Z'),
+      updatedAt: new Date('2026-07-31T09:00:00Z'),
+    },
+  ];
+  const onboardingTrainingStore = overrides._onboardingTrainingStore || [];
+  const readinessStore = overrides._readinessStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _programStore: programStore,
+    _cohortStore: cohortStore,
+    _participantStore: participantStore,
+    _enrolmentStore: enrolmentStore,
+    _sessionStore: sessionStore,
+    _attendanceStore: attendanceStore,
+    _exerciseStore: exerciseStore,
+    _assessmentStore: assessmentStore,
+    _assessmentVersionStore: assessmentVersionStore,
+    _attemptStore: attemptStore,
+    _resultStore: resultStore,
+    _regradeStore: regradeStore,
+    _completionStore: completionStore,
+    _programCompletionStore: programCompletionStore,
+    _certificateStore: certificateStore,
+    _policyStore: policyStore,
+    _seqStore: seqStore,
+    _onboardingProjectStore: onboardingProjectStore,
+    _onboardingTrainingStore: onboardingTrainingStore,
+    _readinessStore: readinessStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    customerTrainingProgram: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `trn-prog-${programStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        programStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return programStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...programStore];
+        if (where.id) rows = rows.filter((r) => r.id === where.id);
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = programStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('program_not_found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerTrainingCohort: makeStoreCrud(cohortStore, 'coh'),
+    customerTrainingParticipant: {
+      ...makeStoreCrud(participantStore, 'part'),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...participantStore];
+        if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+        if (where.identityKey) rows = rows.filter((r) => r.identityKey === where.identityKey);
+        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
+        if (where.id) rows = rows.filter((r) => r.id === where.id);
+        return rows[0] || null;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return participantStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+    },
+    customerTrainingEnrolment: makeStoreCrud(enrolmentStore, 'enr'),
+    customerTrainingSession: makeStoreCrud(sessionStore, 'sess'),
+    customerTrainingAttendance: makeStoreCrud(attendanceStore, 'att'),
+    customerTrainingExercise: makeStoreCrud(exerciseStore, 'ex'),
+    customerTrainingAssessment: makeStoreCrud(assessmentStore, 'asm'),
+    customerTrainingAssessmentVersion: makeStoreCrud(assessmentVersionStore, 'asmv'),
+    customerTrainingAssessmentAttempt: makeStoreCrud(attemptStore, 'attm'),
+    customerTrainingAssessmentResult: makeStoreCrud(resultStore, 'res'),
+    customerTrainingAssessmentRegrade: makeStoreCrud(regradeStore, 'regr'),
+    customerTrainingParticipantCompletion: makeStoreCrud(completionStore, 'pcomp'),
+    customerTrainingProgramCompletion: makeStoreCrud(programCompletionStore, 'gcomp'),
+    customerTrainingCertificate: makeStoreCrud(certificateStore, 'cert'),
+    customerTrainingCompletionPolicy: {
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...policyStore];
+        if (where.policyVersion) {
+          rows = rows.filter((r) => r.policyVersion === where.policyVersion);
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows[0] || null;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return policyStore.find((r) => r.id === where.id) || null;
+        if (where.policyVersion) {
+          return policyStore.find((r) => r.policyVersion === where.policyVersion) || null;
+        }
+        return null;
+      }),
+    },
+    customerOnboardingProject: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `onb-${onboardingProjectStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        onboardingProjectStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) {
+          return onboardingProjectStore.find((r) => r.id === where.id) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...onboardingProjectStore];
+        if (where.id) rows = rows.filter((r) => r.id === where.id);
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = onboardingProjectStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('onboarding_project_not_found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerOnboardingTraining: makeStoreCrud(onboardingTrainingStore, 'otrn'),
+    customerOnboardingReadinessEvaluation: makeStoreCrud(readinessStore, 'ready'),
+  };
+
+  // Cohort/participant create need findUnique by idempotency etc. — patch cohort
+  prisma.customerTrainingCohort.findUnique = vi.fn(async ({ where = {} } = {}) => {
+    if (where.id) return cohortStore.find((r) => r.id === where.id) || null;
+    if (where.idempotencyKey) {
+      return cohortStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+    }
+    if (where.cohortNumber) {
+      return cohortStore.find((r) => r.cohortNumber === where.cohortNumber) || null;
+    }
+    return null;
+  });
+  prisma.customerTrainingCohort.findFirst = vi.fn(async ({ where = {} } = {}) => {
+    let rows = [...cohortStore];
+    if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+    if (where.idempotencyKey) {
+      rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+    }
+    return rows[0] || null;
+  });
+
+  prisma.customerTrainingEnrolment.findFirst = vi.fn(async ({ where = {} } = {}) => {
+    let rows = [...enrolmentStore];
+    if (where.programId) rows = rows.filter((r) => r.programId === where.programId);
+    if (where.participantId) {
+      rows = rows.filter((r) => r.participantId === where.participantId);
+    }
+    if (where.idempotencyKey) {
+      rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+    }
+    return rows[0] || null;
+  });
+
+  prisma.customerTrainingAttendance.findFirst = vi.fn(async ({ where = {} } = {}) => {
+    let rows = [...attendanceStore];
+    if (where.idempotencyKey) {
+      rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+    }
+    if (where.sessionId) rows = rows.filter((r) => r.sessionId === where.sessionId);
+    if (where.participantId) {
+      rows = rows.filter((r) => r.participantId === where.participantId);
+    }
+    return rows[0] || null;
+  });
+
+  prisma.customerTrainingAssessmentAttempt.findMany = vi.fn(
+    async ({ where = {} } = {}) => {
+      let rows = [...attemptStore];
+      if (where.assessmentVersionId) {
+        rows = rows.filter((r) => r.assessmentVersionId === where.assessmentVersionId);
+      }
+      if (where.participantId) {
+        rows = rows.filter((r) => r.participantId === where.participantId);
+      }
+      if (where.assessmentId) {
+        rows = rows.filter((r) => r.assessmentId === where.assessmentId);
+      }
+      return rows;
+    }
+  );
+
+  prisma.customerTrainingCertificate.findUnique = vi.fn(async ({ where = {} } = {}) => {
+    if (where.id) return certificateStore.find((r) => r.id === where.id) || null;
+    if (where.idempotencyKey) {
+      return certificateStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+    }
+    if (where.certificateNumber) {
+      return (
+        certificateStore.find((r) => r.certificateNumber === where.certificateNumber) ||
+        null
+      );
+    }
+    if (where.verificationCode) {
+      return (
+        certificateStore.find((r) => r.verificationCode === where.verificationCode) || null
+      );
+    }
+    return null;
+  });
+
+  return prisma;
+}
+
+async function seedParticipant(prisma, admin, opts = {}) {
+  const cohort = await createTrainingCohort(prisma, {
+    actorContext: { admin },
+    programId: opts.programId || 'trn-prog-1',
+    name: opts.cohortName || 'Wave 3 Cohort',
+    language: 'en',
+    deliveryMode: 'VIRTUAL',
+    timezone: 'Africa/Johannesburg',
+    capacity: 20,
+    idempotencyKey: opts.cohortKey || 'coh:w3:1',
+  });
+  expect(cohort.ok).toBe(true);
+
+  const verified = await verifyTrainingParticipant(prisma, {
+    actorContext: { admin },
+    programId: opts.programId || 'trn-prog-1',
+    contactId: opts.contactId || 'contact-w3-1',
+    identityType: 'CUSTOMER_CONTACT',
+    verificationState: TRAINING_PARTICIPANT_VERIFICATION.VERIFIED,
+    idempotencyKey: opts.participantKey || 'part:w3:1',
+  });
+  expect(verified.ok).toBe(true);
+
+  const enrolled = await enrolTrainingParticipant(prisma, {
+    actorContext: { admin },
+    programId: opts.programId || 'trn-prog-1',
+    cohortId: cohort.cohort.id,
+    participantId: verified.participant.id,
+    idempotencyKey: opts.enrolKey || 'enr:w3:1',
+  });
+  expect(enrolled.ok).toBe(true);
+
+  return {
+    cohort: cohort.cohort,
+    participant: verified.participant,
+    enrolment: enrolled.enrolment,
+  };
+}
+
+async function seedAssessment(prisma, admin, opts = {}) {
+  const created = await createTrainingAssessment(prisma, {
+    actorContext: { admin },
+    programId: opts.programId || 'trn-prog-1',
+    title: opts.title || 'Knowledge check',
+    assessmentType: opts.assessmentType || 'KNOWLEDGE_CHECK',
+    maxAttempts: opts.maxAttempts ?? 2,
+    durationMinutes: opts.durationMinutes ?? 30,
+    passScore: opts.passScore ?? 70,
+    questionsJson: opts.questionsJson || [
+      { id: 'q1', prompt: '2+2?', type: 'OBJECTIVE', correctAnswer: '4', points: 100 },
+    ],
+    idempotencyKey: opts.idempotencyKey || 'asm:w3:1',
+  });
+  expect(created.ok).toBe(true);
+  return created;
+}
+
+describe('Phase 18 Wave 3 — Exercises / assessments / completion / certificates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('attempt beyond limit fails', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin);
+    const asm = await seedAssessment(prisma, admin, { maxAttempts: 1 });
+
+    const first = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:limit:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    expect(first.ok).toBe(true);
+
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: first.attempt.id,
+      answersJson: { q1: '4' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+
+    const beyond = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:limit:2',
+      now: new Date('2026-08-01T11:00:00Z'),
+    });
+    expect(beyond.ok).toBe(false);
+    expect(beyond.error).toMatch(/attempt.?limit|max.?attempt|limit/i);
+  });
+
+  it('client-only timer is not authoritative (server window wins)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin);
+    const asm = await seedAssessment(prisma, admin, {
+      durationMinutes: 10,
+      idempotencyKey: 'asm:timer:1',
+    });
+
+    const started = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:timer:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    expect(started.ok).toBe(true);
+    expect(started.attempt.serverEndsAt).toBeTruthy();
+
+    const late = await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      answersJson: { q1: '4' },
+      clientTimerExpired: false,
+      now: new Date('2026-08-01T10:20:00Z'),
+    });
+    expect(late.ok).toBe(false);
+    expect(late.error).toMatch(/expired|timer|window|time/i);
+
+    const started2 = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:timer:2',
+      now: new Date('2026-08-01T11:00:00Z'),
+    });
+    expect(started2.ok).toBe(true);
+
+    const earlyClientClaim = await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started2.attempt.id,
+      answersJson: { q1: '4' },
+      clientTimerExpired: true,
+      now: new Date('2026-08-01T11:02:00Z'),
+    });
+    expect(earlyClientClaim.ok).toBe(true);
+    expect(earlyClientClaim.attempt.status).toMatch(/SUBMITTED|GRADED|FINALISED/i);
+  });
+
+  it('final result immutable without regrade; regrade preserves original', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin);
+    const asm = await seedAssessment(prisma, admin, { idempotencyKey: 'asm:imm:1' });
+
+    const started = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:imm:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      answersJson: { q1: '4' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+    const graded = await gradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      mode: 'OBJECTIVE',
+    });
+    expect(graded.ok).toBe(true);
+
+    const finalised = await finaliseAssessmentResult(prisma, {
+      actorContext: { admin },
+      resultId: graded.result.id,
+    });
+    expect(finalised.ok).toBe(true);
+    expect(finalised.result.immutable).toBe(true);
+
+    const mutate = await gradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      mode: 'MANUAL',
+      score: 50,
+    });
+    expect(mutate.ok).toBe(false);
+    expect(mutate.error).toMatch(/immutable|regrade|final/i);
+
+    const originalScore = finalised.result.score;
+    const regraded = await regradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      resultId: graded.result.id,
+      score: 90,
+      reason: 'Marking correction',
+      idempotencyKey: 'regr:imm:1',
+    });
+    expect(regraded.ok).toBe(true);
+    expect(regraded.regrade.originalScore ?? regraded.originalScore).toBe(originalScore);
+    expect(regraded.result.score).toBe(90);
+    expect(prisma._resultStore.find((r) => r.id === graded.result.id).originalScore).toBe(
+      originalScore
+    );
+  });
+
+  it('completion blocked without attendance', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin, {
+      cohortKey: 'coh:comp:1',
+      participantKey: 'part:comp:1',
+      enrolKey: 'enr:comp:1',
+    });
+
+    const ex = await submitTrainingExercise(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      title: 'Sandbox walkthrough',
+      evidenceRef: 'evidence://ex-1',
+      idempotencyKey: 'ex:comp:1',
+    });
+    expect(ex.ok).toBe(true);
+    const reviewed = await reviewTrainingExercise(prisma, {
+      actorContext: { admin },
+      exerciseId: ex.exercise.id,
+      decision: 'PASSED',
+      idempotencyKey: 'ex:comp:rev:1',
+    });
+    expect(reviewed.ok).toBe(true);
+
+    const asm = await seedAssessment(prisma, admin, { idempotencyKey: 'asm:comp:1' });
+    const started = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:comp:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      answersJson: { q1: '4' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+    const graded = await gradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      mode: 'OBJECTIVE',
+    });
+    await finaliseAssessmentResult(prisma, {
+      actorContext: { admin },
+      resultId: graded.result.id,
+    });
+
+    const blocked = await evaluateParticipantCompletion(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      policyVersion: 'training-completion-policy-v1',
+      idempotencyKey: 'pcomp:no-att:1',
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error || blocked.status).toMatch(
+      /attendance|incomplete|not.?complete|blocked|policy/i
+    );
+    expect(blocked.completion?.status).not.toBe('COMPLETED');
+  });
+
+  it('cert without completion fails; retry same checksum; revoke → REVOKED', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant, cohort } = await seedParticipant(prisma, admin, {
+      cohortKey: 'coh:cert:1',
+      participantKey: 'part:cert:1',
+      enrolKey: 'enr:cert:1',
+    });
+
+    const noComp = await issueTrainingCertificate(prisma, {
+      actorContext: { admin },
+      participantCompletionId: 'missing-completion',
+      templateVersionId: 'tmpl-v1',
+      idempotencyKey: 'cert:nocomp:1',
+    });
+    expect(noComp.ok).toBe(false);
+    expect(noComp.error).toMatch(/completion|required|not.?found/i);
+
+    // Satisfy policy: attendance + exercise + assessment
+    const session = await prisma.customerTrainingSession.create({
+      data: {
+        sessionNumber: 'TRS-2026-000099',
+        programId: 'trn-prog-1',
+        cohortId: cohort.id,
+        status: 'DELIVERED',
+        sessionDelivered: true,
+      },
+    });
+    await captureTrainingAttendance(prisma, {
+      actorContext: { admin },
+      sessionId: session.id,
+      participantId: participant.id,
+      status: 'PRESENT',
+      source: TRAINING_ATTENDANCE_SOURCE.TRAINER_CONFIRMED,
+      idempotencyKey: 'att:cert:1',
+    });
+
+    const ex = await submitTrainingExercise(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      title: 'Practical exercise',
+      evidenceRef: 'evidence://cert-ex',
+      idempotencyKey: 'ex:cert:1',
+    });
+    await reviewTrainingExercise(prisma, {
+      actorContext: { admin },
+      exerciseId: ex.exercise.id,
+      decision: 'PASSED',
+      idempotencyKey: 'ex:cert:rev:1',
+    });
+
+    const asm = await seedAssessment(prisma, admin, { idempotencyKey: 'asm:cert:1' });
+    const started = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:cert:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      answersJson: { q1: '4' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+    const graded = await gradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      mode: 'OBJECTIVE',
+    });
+    await finaliseAssessmentResult(prisma, {
+      actorContext: { admin },
+      resultId: graded.result.id,
+    });
+
+    const completion = await evaluateParticipantCompletion(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      policyVersion: 'training-completion-policy-v1',
+      idempotencyKey: 'pcomp:cert:1',
+    });
+    expect(completion.ok).toBe(true);
+    expect(completion.completion.status).toBe('COMPLETED');
+
+    const issued = await issueTrainingCertificate(prisma, {
+      actorContext: { admin },
+      participantCompletionId: completion.completion.id,
+      templateVersionId: 'tmpl-v1',
+      certificateType: 'COMPLETION',
+      idempotencyKey: 'cert:issue:1',
+      now: new Date('2026-08-02T12:00:00Z'),
+    });
+    expect(issued.ok).toBe(true);
+    expect(issued.certificate.certificateNumber).toMatch(/^IB-TRN-CERT-\d{4}-\d{6}$/);
+    expect(issued.certificate.checksum).toBeTruthy();
+    expect(issued.certificate.verificationCode).toBeTruthy();
+
+    const retry = await issueTrainingCertificate(prisma, {
+      actorContext: { admin },
+      participantCompletionId: completion.completion.id,
+      templateVersionId: 'tmpl-v1',
+      certificateType: 'COMPLETION',
+      idempotencyKey: 'cert:issue:1',
+      now: new Date('2026-08-02T12:00:00Z'),
+    });
+    expect(retry.ok).toBe(true);
+    expect(retry.certificate.id).toBe(issued.certificate.id);
+    expect(retry.certificate.checksum).toBe(issued.certificate.checksum);
+    expect(retry.idempotentReplay || retry.alreadyExists).toBe(true);
+
+    const revoked = await revokeTrainingCertificate(prisma, {
+      actorContext: { admin },
+      certificateId: issued.certificate.id,
+      reason: 'Issued in error',
+      idempotencyKey: 'cert:rev:1',
+    });
+    expect(revoked.ok).toBe(true);
+
+    const verified = await verifyTrainingCertificate(prisma, {
+      verificationCode: issued.certificate.verificationCode,
+    });
+    expect(verified.ok).toBe(true);
+    expect(verified.verificationStatus || verified.status).toBe(
+      TRAINING_CERTIFICATE_VERIFICATION.REVOKED
+    );
+    expect(verified.verificationStatus || verified.status).toBe('REVOKED');
+  });
+
+  it('onboarding feed updates readiness dim; does not mark Project COMPLETED', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant, cohort } = await seedParticipant(prisma, admin, {
+      cohortKey: 'coh:feed:1',
+      participantKey: 'part:feed:1',
+      enrolKey: 'enr:feed:1',
+    });
+
+    const session = await prisma.customerTrainingSession.create({
+      data: {
+        sessionNumber: 'TRS-2026-000098',
+        programId: 'trn-prog-1',
+        cohortId: cohort.id,
+        status: 'DELIVERED',
+        sessionDelivered: true,
+      },
+    });
+    await captureTrainingAttendance(prisma, {
+      actorContext: { admin },
+      sessionId: session.id,
+      participantId: participant.id,
+      status: 'PRESENT',
+      source: TRAINING_ATTENDANCE_SOURCE.TRAINER_CONFIRMED,
+      idempotencyKey: 'att:feed:1',
+    });
+    const ex = await submitTrainingExercise(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      title: 'Feed exercise',
+      evidenceRef: 'evidence://feed',
+      idempotencyKey: 'ex:feed:1',
+    });
+    await reviewTrainingExercise(prisma, {
+      actorContext: { admin },
+      exerciseId: ex.exercise.id,
+      decision: 'PASSED',
+      idempotencyKey: 'ex:feed:rev:1',
+    });
+    const asm = await seedAssessment(prisma, admin, { idempotencyKey: 'asm:feed:1' });
+    const started = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:feed:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      answersJson: { q1: '4' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+    const graded = await gradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      mode: 'OBJECTIVE',
+    });
+    await finaliseAssessmentResult(prisma, {
+      actorContext: { admin },
+      resultId: graded.result.id,
+    });
+    await evaluateParticipantCompletion(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      policyVersion: 'training-completion-policy-v1',
+      idempotencyKey: 'pcomp:feed:1',
+    });
+
+    const projectBefore = prisma._onboardingProjectStore.find((p) => p.id === 'onb-proj-1');
+    expect(projectBefore.status).toBe('IN_PROGRESS');
+
+    const published = await publishTrainingOutcomeToOnboarding(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      idempotencyKey: 'feed:1',
+    });
+    expect(published.ok).toBe(true);
+    expect(published.training.trainingDomainSource).toMatch(/PHASE_18|TRAINING/i);
+    expect(published.training.trainingDomainStatus).toBe('COMPLETED');
+    expect(published.training.status).toBe('COMPLETED');
+    expect(published.onboardingProjectCompleted).not.toBe(true);
+
+    const projectAfter = prisma._onboardingProjectStore.find((p) => p.id === 'onb-proj-1');
+    expect(projectAfter.status).toBe('IN_PROGRESS');
+    expect(projectAfter.status).not.toBe('COMPLETED');
+
+    const readiness = await evaluateOnboardingReadiness(prisma, {
+      actorContext: { admin },
+      projectId: 'onb-proj-1',
+    });
+    expect(readiness.ok).toBe(true);
+    expect(readiness.dimensions.training).toBe('READY');
+  });
+
+  it('onboarding cannot fabricate Training COMPLETED without domain source', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+
+    const blocked = await setTrainingCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: 'onb-proj-1',
+      status: 'COMPLETED',
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/training.?domain|phase.?18|source/i);
+  });
+
+  it('Cross-Tenant program access denied', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+
+    const denied = await loadTrainingProgramForActor(prisma, {
+      actorContext: { admin, tenantId: 'tenant-other' },
+      programId: 'trn-prog-1',
+      tenantId: 'tenant-other',
+    });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toMatch(/cross.?tenant|denied|isolation/i);
+
+    const startDenied = await startAssessmentAttempt(prisma, {
+      actorContext: { admin, tenantId: 'tenant-other' },
+      programId: 'trn-prog-1',
+      tenantId: 'tenant-other',
+      assessmentVersionId: 'asmv-x',
+      participantId: 'part-x',
+      idempotencyKey: 'attm:xt:1',
+    });
+    expect(startDenied.ok).toBe(false);
+    expect(startDenied.error).toMatch(/cross.?tenant|denied|not.?found|version/i);
+  });
+
+  it('list attempts do not leak answers', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin, {
+      cohortKey: 'coh:list:1',
+      participantKey: 'part:list:1',
+      enrolKey: 'enr:list:1',
+    });
+    const asm = await seedAssessment(prisma, admin, { idempotencyKey: 'asm:list:1' });
+    const started = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:list:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: started.attempt.id,
+      answersJson: { q1: '4', secret: 'should-not-list' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+
+    const listed = await listAssessmentAttempts(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+    });
+    expect(listed.ok).toBe(true);
+    expect(listed.attempts.length).toBeGreaterThan(0);
+    for (const a of listed.attempts) {
+      expect(a.answersJson).toBeUndefined();
+      expect(a.answers).toBeUndefined();
+      expect(JSON.stringify(a)).not.toMatch(/should-not-list/);
+    }
+  });
+
+  it('exercise waiver path and health/progress are versioned', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin, {
+      cohortKey: 'coh:ex:1',
+      participantKey: 'part:ex:1',
+      enrolKey: 'enr:ex:1',
+    });
+
+    const submitted = await submitTrainingExercise(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+      title: 'Optional lab',
+      evidenceRef: 'evidence://lab',
+      idempotencyKey: 'ex:waive:1',
+    });
+    expect(submitted.ok).toBe(true);
+
+    const waived = await waiveTrainingExercise(prisma, {
+      actorContext: { admin },
+      exerciseId: submitted.exercise.id,
+      reason: 'Prior learning credit',
+      idempotencyKey: 'ex:waive:done:1',
+    });
+    expect(waived.ok).toBe(true);
+    expect(waived.exercise.status).toBe('WAIVED');
+
+    const health = await calculateTrainingHealth(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+    });
+    expect(health.ok).toBe(true);
+    expect(health.rulesVersion).toBeTruthy();
+    expect(health.status).toBeTruthy();
+
+    const progress = await calculateTrainingProgress(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-1',
+      participantId: participant.id,
+    });
+    expect(progress.ok).toBe(true);
+    expect(progress.rulesVersion).toBeTruthy();
+    expect(progress.complete || progress.isComplete).not.toBe(true);
+  });
+
+  it('retake allowed after failed finalised result within attempt limit', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { participant } = await seedParticipant(prisma, admin, {
+      cohortKey: 'coh:retake:1',
+      participantKey: 'part:retake:1',
+      enrolKey: 'enr:retake:1',
+    });
+    const asm = await seedAssessment(prisma, admin, {
+      maxAttempts: 2,
+      idempotencyKey: 'asm:retake:1',
+    });
+
+    const a1 = await startAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      idempotencyKey: 'attm:retake:1',
+      now: new Date('2026-08-01T10:00:00Z'),
+    });
+    await submitAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: a1.attempt.id,
+      answersJson: { q1: 'wrong' },
+      now: new Date('2026-08-01T10:05:00Z'),
+    });
+    const g1 = await gradeAssessmentAttempt(prisma, {
+      actorContext: { admin },
+      attemptId: a1.attempt.id,
+      mode: 'OBJECTIVE',
+    });
+    await finaliseAssessmentResult(prisma, {
+      actorContext: { admin },
+      resultId: g1.result.id,
+    });
+    expect(g1.result.passed).toBe(false);
+
+    const retake = await retakeAssessment(prisma, {
+      actorContext: { admin },
+      assessmentVersionId: asm.version.id,
+      participantId: participant.id,
+      priorAttemptId: a1.attempt.id,
+      idempotencyKey: 'attm:retake:2',
+      now: new Date('2026-08-01T12:00:00Z'),
+    });
+    expect(retake.ok).toBe(true);
+    expect(retake.attempt.id).not.toBe(a1.attempt.id);
+  });
+});
+

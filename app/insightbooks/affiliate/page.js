@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle, Clock, Copy, Download, Eye, Lock, Pencil, Plus,
@@ -89,6 +92,7 @@ function formatMaskedBank(masked) {
 }
 
 export default function AffiliatePage() {
+  const { t } = useI18n();
   const [affiliates, setAffiliates] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -123,8 +127,8 @@ export default function AffiliatePage() {
     setStatsError(false);
     try {
       const [affRes, statsRes] = await Promise.all([
-        fetch('/api/admin/affiliate', { credentials: 'include' }),
-        fetch('/api/admin/affiliate/stats', { credentials: 'include' }),
+        adminFetch('/api/admin/affiliate', { credentials: 'include' }),
+        adminFetch('/api/admin/affiliate/stats', { credentials: 'include' }),
       ]);
 
       const affBody = await affRes.json().catch(() => ({}));
@@ -218,7 +222,7 @@ export default function AffiliatePage() {
         const hasNewBank = Object.values(formData.bankDetails || {}).some((v) => String(v || '').trim());
         if (hasNewBank) payload.bankDetails = formData.bankDetails;
 
-        const res = await fetch('/api/admin/affiliate/update', {
+        const res = await adminFetch('/api/admin/affiliate/update', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -229,7 +233,7 @@ export default function AffiliatePage() {
         closeForm();
         showSuccess('Affiliate updated successfully');
       } else {
-        const res = await fetch('/api/admin/affiliate', {
+        const res = await adminFetch('/api/admin/affiliate', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -253,7 +257,7 @@ export default function AffiliatePage() {
     setActionLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/affiliate/delete', {
+      const res = await adminFetch('/api/admin/affiliate/delete', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -285,7 +289,7 @@ export default function AffiliatePage() {
     setActionLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/affiliate/set-password', {
+      const res = await adminFetch('/api/admin/affiliate/set-password', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -438,7 +442,7 @@ export default function AffiliatePage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Affiliate management"
+        title={t('admin-pages.affiliate.title')}
         description="Manage affiliates, commissions, and referral performance. Bank details are masked."
         actions={
           <>

@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Save } from 'lucide-react';
 import {
@@ -29,6 +32,7 @@ const EMPTY = {
 };
 
 export default function AdminGlobalSettingsPage() {
+  const { t } = useI18n();
   const [settings, setSettings] = useState(EMPTY);
   const [featureFlags, setFeatureFlags] = useState({});
   const [version, setVersion] = useState(null);
@@ -41,7 +45,7 @@ export default function AdminGlobalSettingsPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/settings', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/settings', { credentials: 'include' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Failed to load (${res.status})`);
       setSettings({ ...EMPTY, ...(body.settings || {}) });
@@ -73,7 +77,7 @@ export default function AdminGlobalSettingsPage() {
     setError('');
     setSuccess('');
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await adminFetch('/api/admin/settings', {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -95,7 +99,7 @@ export default function AdminGlobalSettingsPage() {
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="Global Settings"
+        title={t('admin-pages.settings.title')}
         description="Platform configuration. Secret fields are masked; leave masked or blank to keep the existing value."
         actions={
           <div className="flex flex-wrap gap-2">

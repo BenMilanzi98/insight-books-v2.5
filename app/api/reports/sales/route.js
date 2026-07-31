@@ -23,6 +23,7 @@ import {
   buildSalesReconciliation,
   getGlPeriodTotals,
 } from '@/lib/reportingEngine/index.js';
+import { getSalesGlAccountLines } from '@/lib/accountingReportService';
 
 export async function GET(request) {
   try {
@@ -289,26 +290,16 @@ export async function GET(request) {
     );
 
     let glTotals = null;
+    let accountLines = [];
     try {
-      for (const tenantId of tenantIds) {
-        const t = await getGlPeriodTotals({
-          tenantId,
-          startDate,
-          endDate,
-          branchId: reportBranchId,
-          prisma,
-        });
-        if (!glTotals) {
-          glTotals = { ...t, accountLines: [...(t.accountLines || [])] };
-        } else {
-          glTotals.revenue = addMoney(glTotals.revenue, t.revenue);
-          glTotals.cogs = addMoney(glTotals.cogs, t.cogs);
-          glTotals.operatingExpenses = addMoney(glTotals.operatingExpenses, t.operatingExpenses);
-          glTotals.totalExpenses = addMoney(glTotals.totalExpenses, t.totalExpenses);
-          glTotals.hasGlActivity = glTotals.hasGlActivity || t.hasGlActivity;
-          if (t.accountLines?.length) glTotals.accountLines.push(...t.accountLines);
-        }
-      }
+      const glPack = await getSalesGlAccountLines({
+        tenantIds,
+        startDate,
+        endDate,
+        branchId: reportBranchId,
+      });
+      glTotals = glPack.glTotals;
+      accountLines = glPack.accountLines;
     } catch (glErr) {
       console.warn('Sales report: GL reconciliation failed', glErr?.message || glErr);
     }
@@ -376,6 +367,7 @@ export async function GET(request) {
           : null,
         sourcePolicy: glTotals?.sourcePolicy ?? null,
       },
+      accountLines,
       scope,
       ...(byTenant ? { byTenant } : {}),
     });

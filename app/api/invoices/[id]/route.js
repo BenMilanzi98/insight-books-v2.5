@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { createInvoiceJournalEntry } from '@/lib/transactionJournalHelpers';
+import { postInvoiceAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { reverseAndDeleteInvoiceRecord } from '@/lib/invoiceDeleteService';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
@@ -11,6 +11,12 @@ import {
   requireInvoiceItemAccountIdColumn,
   buildInvoiceItemCreateData,
 } from '@/lib/ensureInvoiceItemAccountId';
+import {
+  assertEisFinalizationAllowed,
+  bridgeSalesInvoiceAfterCommit,
+} from '@/lib/mraEis/application/eligibility/finalizationIntegration.js';
+import { MraEisControlError } from '@/lib/mraEis/domain/errors.js';
+import { emitSalesInvoicePosted } from '@/lib/admin/productAnalytics/producers';
 
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
@@ -48,7 +54,8 @@ export async function GET(request, { params }) {
         client: true,
         items: {
           include: {
-            product: { select: { name: true } }
+            product: { select: { name: true } },
+            itemTaxes: true,
           }
         },
         payments: {
@@ -89,10 +96,12 @@ export async function GET(request, { params }) {
     const isFullyPaid = outstandingAmount <= 0.005;
     const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
     
-    // Ensure each line has a display title (description or product name)
+    // Ensure each line has a display title (description or product name) and expose taxes for the UI
     const itemsWithTitle = (invoice.items || []).map((item) => ({
       ...item,
-      description: (item.description && String(item.description).trim()) || (item.product && item.product.name) || 'Item'
+      description: (item.description && String(item.description).trim()) || (item.product && item.product.name) || 'Item',
+      taxes: item.itemTaxes || [],
+      productTaxes: item.itemTaxes || [],
     }));
 
     // Format the response to include prepared by info and payment details
@@ -261,6 +270,57 @@ export async function PUT(request, { params }) {
     // Enhanced calculation using the new function
     const calculations = calculateInvoiceTotals(normalizedItems, body.discount || 0);
 
+    // Phase 11: EIS preflight when issuing/posting from Draft
+    if (
+      existingInvoice.status === 'Draft' &&
+      body.status &&
+      body.status !== 'Draft' &&
+      String(body.status).toUpperCase() !== 'PROFORMA'
+    ) {
+      try {
+        await assertEisFinalizationAllowed({
+          tenantId: user.tenantId,
+          sourceType: 'SALES_INVOICE',
+          sourceId: invoiceId,
+          sourceState: String(body.status).toUpperCase(),
+          branchId: existingInvoice.branchId,
+          lines: (calculations.processedItems || []).map((item, idx) => ({
+            id: item.id || `line-${idx}`,
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            taxAmount: item.taxAmount || 0,
+            description: item.description,
+            isService: item.isService,
+          })),
+          payments: [
+            {
+              localPaymentMethodId: body.paymentMethod || 'Credit',
+              amount: calculations.total,
+              isCredit: true,
+            },
+          ],
+          header: {
+            subtotal: calculations.subtotal,
+            taxAmount: calculations.taxAmount,
+            total: calculations.total,
+            paymentMethod: body.paymentMethod || 'Credit',
+          },
+          buyer: {
+            customerId: body.clientId || existingInvoice.clientId,
+            isB2B: true,
+          },
+          isCreditSale: true,
+          actorContext: { userId: user.id },
+        });
+      } catch (eisPreflightErr) {
+        if (eisPreflightErr instanceof MraEisControlError) {
+          return NextResponse.json(eisPreflightErr.toJSON(), { status: eisPreflightErr.httpStatus || 422 });
+        }
+        throw eisPreflightErr;
+      }
+    }
+
     // Create a transaction to update invoice and items
     const updatedInvoice = await prisma.$transaction(async (tx) => {
       // 1. Update the invoice
@@ -396,44 +456,25 @@ export async function PUT(request, { params }) {
               }
             }
 
-            // Resolve taxTypeId so invoice tax is posted to the correct TaxType account
-            let invoiceTaxTypeId = null;
-            const invoiceTaxAmount = Number(invoice.taxAmount || 0);
-            if (invoiceTaxAmount > 0) {
-              try {
-                const activeTaxTypes = await tx.taxType.findMany({
-                  where: { tenantId: user.tenantId, status: 'Active' },
-                });
-                const nonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
-                const itemTaxRates = calculations.processedItems
-                  .map(i => Number(i.taxRate || 0))
-                  .filter(r => r > 0);
-                const primaryRate = itemTaxRates.length > 0 ? itemTaxRates[0] : 0;
-                if (primaryRate > 0) {
-                  invoiceTaxTypeId = nonPayeTypes.find(t => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id
-                    || nonPayeTypes[0]?.id || null;
-                } else {
-                  invoiceTaxTypeId = nonPayeTypes[0]?.id || null;
-                }
-              } catch (taxLookupErr) {
-                console.warn('Could not resolve taxTypeId for invoice update:', taxLookupErr?.message);
-              }
-            }
-
-            await createInvoiceJournalEntry({
+            await postInvoiceAccounting({
+              db: tx,
               tenantId: user.tenantId,
               userId: user.id,
               invoiceId: invoice.id,
-              invoiceNumber: invoice.invoiceNumber,
-              issueDate: invoice.issueDate,
-              totalAmount: invoice.total,
-              items: calculations.processedItems,
-              hasServices: invoiceHasServices,
-              cogsAmount: totalCOGS,
-              taxAmount: invoiceTaxAmount,
-              taxTypeId: invoiceTaxTypeId,
-              tx,
             });
+            if (totalCOGS > 0) {
+              await postCostOfSalesAccounting({
+                db: tx,
+                tenantId: user.tenantId,
+                userId: user.id,
+                documentKind: 'Invoice',
+                documentId: invoice.id,
+                documentNumber: invoice.invoiceNumber,
+                documentDate: invoice.issueDate,
+                cogsAmount: totalCOGS,
+                branchId: invoice.branchId || null,
+              });
+            }
           }
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
@@ -469,7 +510,7 @@ export async function PUT(request, { params }) {
               email: true,
             }
           },
-          items: true,
+          items: { include: { itemTaxes: true } },
           createdBy: {
             select: {
               id: true,
@@ -480,9 +521,48 @@ export async function PUT(request, { params }) {
       });
     });
     
+    let eisResult = null;
+    if (
+      existingInvoice.status === 'Draft' &&
+      updatedInvoice.status !== 'Draft' &&
+      String(updatedInvoice.status).toUpperCase() !== 'PROFORMA'
+    ) {
+      try {
+        await emitSalesInvoicePosted(prisma, {
+          tenantId: user.tenantId,
+          invoiceId: updatedInvoice.id,
+          actorId: user.id,
+          status: updatedInvoice.status,
+          occurredAt: updatedInvoice.updatedAt || new Date(),
+          branchId: updatedInvoice.branchId || null,
+        });
+      } catch (analyticsErr) {
+        console.warn('[productAnalytics] invoice posted emit failed:', analyticsErr?.message);
+      }
+
+      eisResult = await bridgeSalesInvoiceAfterCommit({
+        tenantId: user.tenantId,
+        invoice: updatedInvoice,
+        actorContext: { userId: user.id },
+      });
+    }
+
     return NextResponse.json({
       message: 'Invoice updated successfully',
-      invoice: updatedInvoice
+      invoice: updatedInvoice,
+      eis: eisResult
+        ? {
+            status: eisResult.eisStatus || eisResult.bridge?.status || null,
+            bridgeId: eisResult.bridge?.id || null,
+            decision: eisResult.eligibility?.decision || null,
+            message: eisResult.message || null,
+            recoveryRequired: Boolean(eisResult.recoveryRequired),
+            mraSubmitted: false,
+            mraAccepted: false,
+            fiscalNumber: null,
+            qrPresent: false,
+          }
+        : null,
     });
   } catch (error) {
     console.error(`Error updating invoice ${invoiceId}:`, error);

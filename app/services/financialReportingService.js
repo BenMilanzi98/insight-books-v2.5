@@ -1,7 +1,14 @@
 // /services/financialReportingService.js
 
 /**
- * Service for fetching and processing financial reports data
+ * @deprecated Legacy report client helpers.
+ *
+ * Product financial reporting is Accounting V2 only:
+ *   UI  → /reports-v2
+ *   API → /api/accounting-v2/reports/*
+ *
+ * These fetchers remain for residual callers. Prefer the V2 generate/export
+ * routes. Legacy /api/reports/cash-flow is retired (HTTP 410).
  */
 
 import { formatCurrency } from '@/lib/currencyUtils';
@@ -144,27 +151,12 @@ export const fetchBalanceSheet = async ({ timeframe, customDateRange = null, bus
 };
 
 /**
- * Fetch cash flow statement data
+ * @deprecated Legacy cash-flow API retired (HTTP 410). Use `/reports-v2?type=CASH_FLOW`.
  */
-export const fetchCashFlowStatement = async ({ timeframe, customDateRange = null, businessScope = null }) => {
-  try {
-    const { startDate, endDate } = getDateRange(timeframe, customDateRange);
-    
-    const response = await fetch(withBusinessScope(
-      `/api/reports/cash-flow?startDate=${startDate}&endDate=${endDate}`,
-      businessScope
-    ));
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching cash flow statement: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching cash flow statement:', error);
-    throw error;
-  }
+export const fetchCashFlowStatement = async () => {
+  throw new Error(
+    'Legacy cash flow is retired. Open /reports-v2?type=CASH_FLOW (Accounting V2 JE-only).'
+  );
 };
 
 /**
@@ -417,14 +409,20 @@ export const fetchProductProfitDetail = async ({
  */
 export const fetchAvailableReports = async () => {
   try {
-    const response = await fetch('/api/reports/available');
+    const response = await fetch('/api/reports/available', { credentials: 'include' });
     
     if (!response.ok) {
       throw new Error(`Error fetching available reports: ${response.statusText}`);
     }
     
     const data = await response.json();
-    return Array.isArray(data) ? data : data.reports || [];
+    // API returns { reports: [...] }; tolerate a bare array. Never return a non-array.
+    const reports = Array.isArray(data) ? data : data?.reports;
+    if (!Array.isArray(reports)) {
+      console.warn('Unexpected /api/reports/available payload; expected reports array.', data);
+      return [];
+    }
+    return reports;
   } catch (error) {
     console.error('Error fetching available reports:', error);
     throw new Error('Failed to load available reports');

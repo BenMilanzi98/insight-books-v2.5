@@ -160,8 +160,9 @@ export async function GET(request) {
     }
 
     // Catalog: physical products vs billable services (same Product table)
+    // POS catalog must never include services (invoice-only).
     const catalog = (searchParams.get('catalog') || '').toLowerCase();
-    if (catalog === 'products') {
+    if (posCatalogMode || catalog === 'products') {
       where.isService = false;
     } else if (catalog === 'services') {
       where.isService = true;

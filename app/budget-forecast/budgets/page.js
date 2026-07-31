@@ -2,217 +2,199 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
-import { ClipboardList, Loader2, Plus, RefreshCw } from 'lucide-react';
+import BfShell, { StatusBadge, SummaryCard } from '@/components/budget-forecast/BfShell';
+import { formatCurrency } from '@/lib/currencyUtils';
 
-export default function BfBudgetsListPage() {
-  const [rows, setRows] = useState([]);
+export default function BudgetsPage() {
+  const router = useRouter();
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     name: '',
-    periodType: 'monthly',
-    startDate: '',
-    endDate: '',
-    status: 'draft',
+    startDate: `${new Date().getFullYear()}-01-01`,
+    endDate: `${new Date().getFullYear()}-12-31`,
+    frequency: 'MONTHLY',
+    budgetMethod: 'CREATE_MANUALLY',
   });
 
-  const load = async () => {
+  async function load() {
     setLoading(true);
-    setError(null);
+    setError('');
     try {
-      const res = await fetch('/api/bf/expense-budgets');
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || 'Failed to load');
-      setRows(j.data || []);
+      const res = await fetch('/api/budget-forecast/budgets?dashboard=1');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to load');
+      setDashboard(json.data);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
     load();
   }, []);
 
-  const create = async (e) => {
+  async function createBudget(e) {
     e.preventDefault();
     setCreating(true);
-    setError(null);
+    setError('');
     try {
-      const res = await fetch('/api/bf/expense-budgets', {
+      const res = await fetch('/api/budget-forecast/budgets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || 'Create failed');
-      setForm({ name: '', periodType: 'monthly', startDate: '', endDate: '', status: 'draft' });
-      await load();
-      if (j.data?.id) {
-        window.location.href = `/budget-forecast/budgets/${j.data.id}`;
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Create failed');
+      router.push(`/budget-forecast/budgets/${json.data.id}`);
+    } catch (e) {
+      setError(e.message);
       setCreating(false);
     }
-  };
+  }
+
+  async function migrateBf() {
+    setError('');
+    const res = await fetch('/api/budget-forecast/migrate', { method: 'POST' });
+    const json = await res.json();
+    if (!res.ok) {
+      setError(json.error || 'Migration failed');
+      return;
+    }
+    await load();
+  }
+
+  const cards = dashboard?.cards || {};
 
   return (
-    <PermissionGuard permission="budgets.view">
-      <div className="space-y-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Expense budgets</h2>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Set targets per expense (or COGS) account and period. After saving, open{' '}
-              <Link href="/budget-forecast/reports" className="font-semibold text-emerald-700 hover:underline">
-                Reports
-              </Link>{' '}
-              to compare against real postings.
-            </p>
+    <PermissionGuard requiredPermission="budgets.view">
+      <BfShell
+        title="Budgets"
+        subtitle="Plan revenue and expenses against the Chart of Accounts. Budgets never post to the General Ledger."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={migrateBf}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Migrate legacy BF data
+            </button>
+          </>
+        }
+      >
+        {error ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            {error}
           </div>
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCard label="Planned revenue" value={formatCurrency(cards.plannedRevenue || 0)} hint="All listed budgets" />
+          <SummaryCard label="Planned expenses" value={formatCurrency(cards.plannedExpense || 0)} />
+          <SummaryCard label="Expected profit" value={formatCurrency(cards.expectedProfit || 0)} />
+          <SummaryCard label="Active completion" value={`${cards.completion || 0}%`} hint={cards.activeStatus || 'No active budget'} />
         </div>
 
-        {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
-        )}
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-            <Plus className="h-5 w-5 text-emerald-600" />
-            New expense budget
-          </h3>
-          <form onSubmit={create} className="mt-4 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <label className="text-xs font-semibold text-slate-600">
-                Name
-                <input
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. FY2026 operating"
-                  required
-                />
-              </label>
-              <label className="text-xs font-semibold text-slate-600">
-                Period type
-                <select
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm"
-                  value={form.periodType}
-                  onChange={(e) => setForm((f) => ({ ...f, periodType: e.target.value }))}
-                >
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
-                </select>
-              </label>
-              <label className="text-xs font-semibold text-slate-600">
-                Start
-                <input
-                  type="date"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm"
-                  value={form.startDate}
-                  onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                  required
-                />
-              </label>
-              <label className="text-xs font-semibold text-slate-600">
-                End
-                <input
-                  type="date"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm"
-                  value={form.endDate}
-                  onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-                  required
-                />
-              </label>
-              <label className="text-xs font-semibold text-slate-600">
-                Status
-                <select
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm"
-                  value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="active">Active</option>
-                </select>
-              </label>
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          <section className="lg:col-span-2 rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <h2 className="text-sm font-semibold text-slate-900">Budgets</h2>
             </div>
-            <button
-              type="submit"
-              disabled={creating}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-              Create and edit grid
-            </button>
-          </form>
-        </section>
-
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
-            <h3 className="font-bold text-slate-900">Your budgets</h3>
-          </div>
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              Loading…
-            </div>
-          ) : rows.length === 0 ? (
-            <p className="px-5 py-10 text-sm text-slate-600">No expense budgets yet. Create one above.</p>
-          ) : (
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr className="border-b border-slate-100">
-                  <th className="px-5 py-3">Name</th>
-                  <th className="px-5 py-3">Period</th>
-                  <th className="px-5 py-3">Range</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Lines</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-5 py-3 font-semibold text-slate-900">{r.name}</td>
-                    <td className="px-5 py-3 text-slate-600">{r.periodType}</td>
-                    <td className="px-5 py-3 text-slate-600">
-                      {new Date(r.startDate).toLocaleDateString()} – {new Date(r.endDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-slate-600">{r._count?.lines ?? 0}</td>
-                    <td className="px-5 py-3 text-right">
+            {loading ? (
+              <p className="p-4 text-sm text-slate-500">Loading…</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {(dashboard?.recent || []).length === 0 ? (
+                  <li className="p-6 text-sm text-slate-500">No budgets yet. Create one to start planning.</li>
+                ) : (
+                  (dashboard?.recent || []).map((b) => (
+                    <li key={b.id}>
                       <Link
-                        href={`/budget-forecast/budgets/${r.id}`}
-                        className="font-semibold text-emerald-700 hover:underline"
+                        href={`/budget-forecast/budgets/${b.id}`}
+                        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50"
                       >
-                        Open
+                        <div>
+                          <p className="font-medium text-slate-900">{b.name}</p>
+                          <p className="text-xs text-slate-500">
+                            v{b.versionNumber}.{b.revisionNumber} · {b.frequency} · {b.currency}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {b.completion ? (
+                            <span className="text-xs text-slate-500">{b.completion.percent}%</span>
+                          ) : null}
+                          <StatusBadge status={b.status} />
+                        </div>
                       </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-slate-900">Create budget</h2>
+            <form className="mt-4 space-y-3" onSubmit={createBudget}>
+              <label className="block text-sm">
+                <span className="text-slate-600">Name</span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-600">Start</span>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  value={form.startDate}
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-600">End</span>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  value={form.endDate}
+                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-600">Frequency</span>
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  value={form.frequency}
+                  onChange={(e) => setForm({ ...form, frequency: e.target.value })}
+                >
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="QUARTERLY">Quarterly</option>
+                  <option value="ANNUAL">Annual</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                disabled={creating}
+                className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                {creating ? 'Creating…' : 'Create draft'}
+              </button>
+            </form>
+          </section>
+        </div>
+      </BfShell>
     </PermissionGuard>
   );
 }

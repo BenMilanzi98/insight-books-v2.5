@@ -1,0 +1,764 @@
+{
+  "extractedAt": "2026-07-22T16:11:46.160Z",
+  "source": "production swagger v1",
+  "schemas": {
+    "SalesInvoice": {
+      "required": [
+        "invoiceHeader",
+        "invoiceLineItems",
+        "invoiceSummary"
+      ],
+      "type": "object",
+      "properties": {
+        "invoiceHeader": {
+          "$ref": "#/components/schemas/InvoiceHeader"
+        },
+        "invoiceLineItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/LineItemDto"
+          }
+        },
+        "invoiceSummary": {
+          "$ref": "#/components/schemas/InvoiceSummary"
+        }
+      },
+      "additionalProperties": false
+    },
+    "InvoiceHeader": {
+      "required": [
+        "globalConfigVersion",
+        "invoiceDateTime",
+        "invoiceNumber",
+        "sellerTIN",
+        "siteId",
+        "taxpayerConfigVersion",
+        "terminalConfigVersion"
+      ],
+      "type": "object",
+      "properties": {
+        "invoiceNumber": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "invoiceDateTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sellerTIN": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "buyerTIN": {
+          "type": "string",
+          "nullable": true
+        },
+        "buyerName": {
+          "type": "string",
+          "nullable": true
+        },
+        "buyerAuthorizationCode": {
+          "type": "string",
+          "nullable": true
+        },
+        "siteId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "globalConfigVersion": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "taxpayerConfigVersion": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "terminalConfigVersion": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "isExport": {
+          "type": "boolean"
+        },
+        "isReliefSupply": {
+          "type": "boolean"
+        },
+        "vat5CertificateDetails": {
+          "$ref": "#/components/schemas/Vat5CertificateDto"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "InvoiceSummary": {
+      "required": [
+        "taxBreakDown"
+      ],
+      "type": "object",
+      "properties": {
+        "taxBreakDown": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/TaxBreakDown"
+          }
+        },
+        "levyBreakDown": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/LevyBreakDown"
+          },
+          "nullable": true
+        },
+        "totalVAT": {
+          "type": "number",
+          "format": "double"
+        },
+        "offlineSignature": {
+          "type": "string",
+          "nullable": true
+        },
+        "invoiceTotal": {
+          "type": "number",
+          "format": "double"
+        },
+        "amountTendered": {
+          "type": "number",
+          "format": "double",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "LineItemDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "productCode": {
+          "type": "string",
+          "nullable": true
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "unitPrice": {
+          "type": "number",
+          "format": "double"
+        },
+        "quantity": {
+          "type": "number",
+          "format": "double"
+        },
+        "discount": {
+          "type": "number",
+          "format": "double",
+          "nullable": true
+        },
+        "total": {
+          "type": "number",
+          "format": "double"
+        },
+        "totalVAT": {
+          "type": "number",
+          "format": "double"
+        },
+        "taxRateId": {
+          "type": "string",
+          "nullable": true
+        },
+        "isProduct": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "InvoiceResponse": {
+      "type": "object",
+      "properties": {
+        "validationURL": {
+          "type": "string",
+          "nullable": true
+        },
+        "shouldDownloadLatestConfig": {
+          "type": "boolean"
+        },
+        "shouldBlockTerminal": {
+          "type": "boolean"
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "InvoiceResponseAPIResponse": {
+      "type": "object",
+      "properties": {
+        "statusCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "remark": {
+          "type": "string",
+          "nullable": true
+        },
+        "data": {
+          "$ref": "#/components/schemas/InvoiceResponse"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/APIError"
+          },
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "UnActivatedTerminal": {
+      "required": [
+        "environment",
+        "terminalActivationCode"
+      ],
+      "type": "object",
+      "properties": {
+        "terminalActivationCode": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "environment": {
+          "$ref": "#/components/schemas/TerminalRuntimeEnvironment"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalRuntimeEnvironment": {
+      "required": [
+        "platform",
+        "pos"
+      ],
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/components/schemas/Platform"
+        },
+        "pos": {
+          "$ref": "#/components/schemas/POS"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Platform": {
+      "required": [
+        "osName",
+        "osVersion"
+      ],
+      "type": "object",
+      "properties": {
+        "osName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "osVersion": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "osBuild": {
+          "type": "string",
+          "nullable": true
+        },
+        "macAddress": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "POS": {
+      "required": [
+        "productID",
+        "productVersion"
+      ],
+      "type": "object",
+      "properties": {
+        "productID": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "productVersion": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalCredentials": {
+      "type": "object",
+      "properties": {
+        "jwtToken": {
+          "type": "string",
+          "nullable": true
+        },
+        "secretKey": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "ActivatedTerminal": {
+      "type": "object",
+      "properties": {
+        "terminalId": {
+          "type": "string",
+          "nullable": true
+        },
+        "terminalPosition": {
+          "type": "integer",
+          "format": "int32",
+          "nullable": true
+        },
+        "taxpayerId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "activationDate": {
+          "type": "string",
+          "format": "date-time",
+          "nullable": true
+        },
+        "terminalCredentials": {
+          "$ref": "#/components/schemas/TerminalCredentials"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalActivationResponse": {
+      "type": "object",
+      "properties": {
+        "activatedTerminal": {
+          "$ref": "#/components/schemas/ActivatedTerminal"
+        },
+        "configuration": {
+          "$ref": "#/components/schemas/Configuration"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalActivationResponseAPIResponse": {
+      "type": "object",
+      "properties": {
+        "statusCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "remark": {
+          "type": "string",
+          "nullable": true
+        },
+        "data": {
+          "$ref": "#/components/schemas/TerminalActivationResponse"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/APIError"
+          },
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "ActivatedTerminalConfirmation": {
+      "required": [
+        "terminalId"
+      ],
+      "type": "object",
+      "properties": {
+        "terminalId": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Configuration": {
+      "type": "object",
+      "properties": {
+        "globalConfiguration": {
+          "$ref": "#/components/schemas/TaxConfiguration"
+        },
+        "terminalConfiguration": {
+          "$ref": "#/components/schemas/TerminalConfiguration"
+        },
+        "taxpayerConfiguration": {
+          "$ref": "#/components/schemas/TaxpayerConfiguration"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TaxConfiguration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "versionNo": {
+          "type": "number",
+          "format": "double"
+        },
+        "taxrates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/TaxRateDto"
+          },
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "TaxpayerConfiguration": {
+      "type": "object",
+      "properties": {
+        "versionNo": {
+          "type": "number",
+          "format": "double"
+        },
+        "tin": {
+          "type": "string",
+          "nullable": true
+        },
+        "isVATRegistered": {
+          "type": "boolean"
+        },
+        "taxOfficeCode": {
+          "type": "string",
+          "nullable": true
+        },
+        "taxOffice": {
+          "$ref": "#/components/schemas/TaxOfficeDto"
+        },
+        "activatedTaxRateIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "activatedTaxrates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ActivatedTaxrateDto"
+          },
+          "nullable": true
+        },
+        "activatedLevies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ActivatedLevyDto"
+          },
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "TerminalConfiguration": {
+      "type": "object",
+      "properties": {
+        "versionNo": {
+          "type": "number",
+          "format": "double"
+        },
+        "terminalLabel": {
+          "type": "string",
+          "nullable": true
+        },
+        "isActiveTerminal": {
+          "type": "boolean"
+        },
+        "emailAddress": {
+          "type": "string",
+          "nullable": true
+        },
+        "phoneNumber": {
+          "type": "string",
+          "nullable": true
+        },
+        "tradingName": {
+          "type": "string",
+          "nullable": true
+        },
+        "addressLines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "terminalSite": {
+          "$ref": "#/components/schemas/TerminalSiteDto"
+        },
+        "offlineLimit": {
+          "$ref": "#/components/schemas/OfflineLimit"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OfflineLimit": {
+      "type": "object",
+      "properties": {
+        "maxTransactionAgeInHours": {
+          "type": "number",
+          "format": "double"
+        },
+        "maxCummulativeAmount": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LastSubmittedInvoice": {
+      "required": [
+        "invoiceHeader",
+        "invoiceLineItems",
+        "invoiceSummary"
+      ],
+      "type": "object",
+      "properties": {
+        "invoiceHeader": {
+          "$ref": "#/components/schemas/InvoiceHeader"
+        },
+        "invoiceLineItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/LineItemDto"
+          }
+        },
+        "invoiceSummary": {
+          "$ref": "#/components/schemas/InvoiceSummary"
+        },
+        "dateSubmitted": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TaxBreakDown": {
+      "type": "object",
+      "properties": {
+        "rateId": {
+          "type": "string",
+          "nullable": true
+        },
+        "taxableAmount": {
+          "type": "number",
+          "format": "double"
+        },
+        "taxAmount": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LevyBreakDown": {
+      "type": "object",
+      "properties": {
+        "levyTypeId": {
+          "type": "string",
+          "nullable": true
+        },
+        "levyRate": {
+          "type": "number",
+          "format": "double"
+        },
+        "levyAmount": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TaxRateDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "nullable": true
+        },
+        "name": {
+          "type": "string",
+          "nullable": true
+        },
+        "chargeMode": {
+          "type": "string",
+          "nullable": true
+        },
+        "ordinal": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rate": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProductIdentifier": {
+      "required": [
+        "productId",
+        "tin"
+      ],
+      "type": "object",
+      "properties": {
+        "productId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tin": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "APIError": {
+      "type": "object",
+      "properties": {
+        "errorCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "fieldName": {
+          "type": "string",
+          "nullable": true
+        },
+        "errorMessage": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "PongResponse": {
+      "type": "object",
+      "properties": {
+        "serverDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PongResponseAPIResponse": {
+      "type": "object",
+      "properties": {
+        "statusCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "remark": {
+          "type": "string",
+          "nullable": true
+        },
+        "data": {
+          "$ref": "#/components/schemas/PongResponse"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/APIError"
+          },
+          "nullable": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "operationAuthHints": {
+    "POST /api/v1/onboarding/terminal-activated-confirmation": {
+      "parameters": [
+        {
+          "name": "x-signature",
+          "in": "header",
+          "description": "Signature computed by hashing the terminal activation code using the\r\n            algorithm shared by MRA",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "GET /api/v1/stock/warehouse-inventory": {
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "description": "Page number (minimum: 1, default: 1)",
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": 1
+          }
+        },
+        {
+          "name": "pageSize",
+          "in": "query",
+          "description": "Number of items per page (default: 50, maximum: 200)",
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          }
+        }
+      ]
+    },
+    "GET /api/v1/raw-material/get-raw-material": {
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "description": "Page number (minimum: 1, default: 1)",
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": 1
+          }
+        },
+        {
+          "name": "pageSize",
+          "in": "query",
+          "description": "Number of items per page (default: 50, maximum: 200)",
+          "schema": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          }
+        }
+      ]
+    }
+  },
+  "mentions": {
+    "authorization": {
+      "x-signature": 1,
+      "authorization": 10,
+      "Authorization": 23,
+      "jwtToken": 1,
+      "secretKey": 1
+    }
+  }
+}

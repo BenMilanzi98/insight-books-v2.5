@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/emailService';
+import prisma from '@/lib/prisma';
+import { captureLead, CRM_CAPTURE_SOURCE } from '@/lib/admin/crm';
 
 export async function POST(request) {
   try {
@@ -22,6 +24,59 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Invalid email format' },
         { status: 400 }
+      );
+    }
+
+    // Persist CrmLead via shared capture (idempotent). Keep email send below.
+    let captureMeta = { created: false, idempotent: false, leadNumber: null };
+    try {
+      const capture = await captureLead(prisma, {
+        sourceCode: CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM,
+        businessName: body.businessName,
+        contactName: body.clientName,
+        email: body.email,
+        phone: body.phone,
+        message: body.body,
+        preferredAt: body.dateTime || null,
+        consentPurposes: body.consentPurposes,
+        // Client idempotency keys ignored — captureLead derives stable identity server-side.
+        website: body.website,
+        companyUrl: body.companyUrl,
+        hp_field: body.hp_field,
+      });
+
+      if (!capture.ok) {
+        if (capture.error === 'spam_rejected') {
+          return NextResponse.json({ error: 'Unable to submit request' }, { status: 400 });
+        }
+        if (capture.error === 'payload_too_large' || capture.error === 'rate_limited') {
+          return NextResponse.json(
+            { error: capture.error === 'rate_limited' ? 'Too many requests' : 'Payload too large' },
+            { status: 429 }
+          );
+        }
+        if (capture.status === 'NOT_AVAILABLE') {
+          return NextResponse.json(
+            { error: 'Channel not available', status: 'NOT_AVAILABLE' },
+            { status: 501 }
+          );
+        }
+        return NextResponse.json(
+          { error: capture.error || 'Failed to record request' },
+          { status: 400 }
+        );
+      }
+
+      captureMeta = {
+        created: capture.created !== false,
+        idempotent: Boolean(capture.idempotent),
+        leadNumber: capture.lead?.leadNumber || null,
+      };
+    } catch (captureError) {
+      console.error('Demo request CRM capture failed:', captureError);
+      return NextResponse.json(
+        { error: 'Failed to submit demo request. Please try again.' },
+        { status: 500 }
       );
     }
 
@@ -148,6 +203,7 @@ export async function POST(request) {
           <div style="text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #6b7280; font-size: 14px; margin: 0;">
               This demo request was submitted via the InsightBooks contact form.
+              ${captureMeta.leadNumber ? ` Lead ${captureMeta.leadNumber}.` : ''}
             </p>
             <p style="color: #9ca3af; font-size: 12px; margin: 8px 0 0 0;">
               Please respond promptly to schedule the demo.
@@ -157,7 +213,7 @@ export async function POST(request) {
       `
     };
 
-    // Send the email
+    // Send the email (Lead already persisted)
     try {
       const emailResult = await sendEmail({
         //to: 'benmilanzi8@gmail.com', // For testing purposes
@@ -171,19 +227,24 @@ export async function POST(request) {
       return NextResponse.json({
         success: true,
         message: 'Demo request submitted successfully! We will contact you soon.',
-        messageId: emailResult.messageId
+        messageId: emailResult.messageId,
+        leadNumber: captureMeta.leadNumber,
+        created: captureMeta.created,
+        idempotent: captureMeta.idempotent,
       });
     } catch (emailError) {
       console.error('Failed to send demo request email:', emailError);
 
-      // For demo purposes, still return success but log the error
-      // In production, you might want to store the request in database and retry later
+      // Lead persisted; email may retry later
       console.log('⚠️ Email sending failed, but demo request recorded successfully');
 
       return NextResponse.json({
         success: true,
         message: 'Demo request submitted successfully! We will contact you soon.',
-        note: 'Email delivery may be delayed due to technical issues.'
+        note: 'Email delivery may be delayed due to technical issues.',
+        leadNumber: captureMeta.leadNumber,
+        created: captureMeta.created,
+        idempotent: captureMeta.idempotent,
       });
     }
 

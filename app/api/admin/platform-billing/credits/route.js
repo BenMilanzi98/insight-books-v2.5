@@ -22,6 +22,18 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
+    if (typeof prisma.platformCredit?.findMany !== 'function') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Platform credit model unavailable. Stop the Next.js server, run `npx prisma generate`, then start it again.',
+          credits: [],
+        },
+        { status: 500 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId') || undefined;
     const credits = await prisma.platformCredit.findMany({
@@ -40,7 +52,14 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('credits GET error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to list credits' }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to list credits',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+      },
+      { status: 500 }
+    );
   }
 }
 

@@ -1,0 +1,20 @@
+{
+  "login": "Lowani",
+  "logout": "Tulani",
+  "signup": "Lembetsani",
+  "email": "Imelo",
+  "password": "Mawu achinsinsi",
+  "rememberMe": "Ndikumbukireni",
+  "forgotPassword": "Mwayiwala mawu achinsinsi?",
+  "resetPassword": "Sinthani mawu achinsinsi",
+  "confirmPassword": "Tsimikizani mawu achinsinsi",
+  "createAccount": "Pangani akaunti",
+  "welcomeBack": "Takulandiraninso",
+  "signInToContinue": "Lowani kuti mupitirize ku InsightBooks",
+  "invalidCredentials": "Imelo kapena mawu achinsinsi olakwika",
+  "authenticationFailed": "Kuloŵa kwalephera",
+  "accountCreated": "Akaunti yapangidwa! Chonde lowani.",
+  "chooseBusiness": "Sankhani bizinesi yomwe mukufuna, kenako yesaninso.",
+  "sessionExpired": "Nthawi yanu yatha. Chonde lowaninso.",
+  "accessDenied": "Simuloledwa"
+}

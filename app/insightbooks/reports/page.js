@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Building2, CreditCard, Download, Handshake, RefreshCw, Upload } from 'lucide-react';
@@ -12,7 +15,7 @@ import {
 } from '@/components/admin';
 
 async function fetchReport(type) {
-  const res = await fetch(`/api/admin/platform-reports?type=${encodeURIComponent(type)}`, {
+  const res = await adminFetch(`/api/admin/platform-reports?type=${encodeURIComponent(type)}`, {
     credentials: 'include',
   });
   const body = await res.json().catch(() => ({}));
@@ -39,6 +42,7 @@ function StatusBreakdown({ byStatus }) {
 }
 
 export default function PlatformReportsPage() {
+  const { t } = useI18n();
   const [tenants, setTenants] = useState(null);
   const [subscriptions, setSubscriptions] = useState(null);
   const [affiliates, setAffiliates] = useState(null);
@@ -94,7 +98,7 @@ export default function PlatformReportsPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Platform Reports"
+        title={t('admin-pages.reports.title')}
         description="Real summary metrics for tenants, subscriptions, and affiliates. Errors do not show fake zeros."
         actions={
           <div className="flex flex-wrap gap-2">

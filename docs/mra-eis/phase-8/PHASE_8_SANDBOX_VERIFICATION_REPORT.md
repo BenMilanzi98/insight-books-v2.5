@@ -1,0 +1,6 @@
+# Sandbox Verification Report
+
+**Status:** NOT EXECUTED against live MRA. Mock scenarios cover success/conflict/block/partial.
+
+---
+*Phase 8 implementation. No Sale submission. No fiscal number/QR. No Journal/Stock/local-tax mutations. Snapshots immutable. Activation atomic. Offline remains disabled.*

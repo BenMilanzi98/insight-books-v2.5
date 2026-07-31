@@ -52,6 +52,8 @@ import {
   COA_ACCOUNT_TYPES,
   normalizeCoaAccountType,
 } from '@/lib/coaAccountListWhere.js';
+import { createAccountingContext } from '@/lib/accountingV2/domain/accountingContext.js';
+import { getBusinessLedgerSummary } from '@/lib/accountingV2/ledger/ledgerQueryService.js';
 
 // Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
@@ -451,10 +453,40 @@ export async function GET(request) {
       console.error('Error bulk-loading GL for chart of accounts:', e);
     }
 
+    /** Phase 4: prefer Accounting V2 ledger closing balances over Account.balance. */
+    const v2ClosingByAccountId = new Map();
+    try {
+      const context = createAccountingContext({
+        businessId: user.tenantId,
+        userId: user.id,
+        branchId: glBranchFilter.branchId || null,
+        sourceChannel: 'api',
+      });
+      const summary = await getBusinessLedgerSummary(prisma, context, {
+        startDate: dateRange.from || undefined,
+        endDate: dateRange.to || undefined,
+        branchId: glBranchFilter.branchId || null,
+        includeZeroActivity: false,
+      });
+      for (const row of summary.accounts || []) {
+        const accountId = row?.accountId || row?.id;
+        if (!accountId) continue;
+        const display = Number(row.closing?.display ?? 0);
+        v2ClosingByAccountId.set(accountId, {
+          balance: Number.isFinite(display) ? display : 0,
+          lineCount: Number(row.lineCount) || 0,
+          hasDirectActivity: !!row.hasDirectActivity,
+        });
+      }
+    } catch (e) {
+      console.warn('CoA V2 ledger overlay unavailable; using posted GL aggregates:', e?.message || e);
+    }
+
     const accountsWithBalances = accounts.map((account) => {
       try {
         const ja = journalBySurvivor.get(account.id) || { debit: 0, credit: 0, lineCount: 0 };
         const txAgg = txnBySurvivor.get(account.id) || { debit: 0, credit: 0, lineCount: 0 };
+        const v2 = v2ClosingByAccountId.get(account.id);
 
         const totalDebits = ja.debit + txAgg.debit;
         const totalCredits = ja.credit + txAgg.credit;
@@ -470,7 +502,7 @@ export async function GET(request) {
         }
         const postedGlLineCount =
           (Number(ja.lineCount) || 0) + (Number(txAgg.lineCount) || 0);
-        const hasPostedGlActivity = postedGlLineCount > 0;
+        const hasPostedGlActivity = postedGlLineCount > 0 || !!v2?.hasDirectActivity;
         const draftEntryCount = draftBySurvivor.get(account.id) || 0;
 
         const accountCode = String(account.accountCode || account.code || '').trim();
@@ -522,16 +554,18 @@ export async function GET(request) {
 
         const legacyBalance = parseFloat(account.balance) || 0;
 
-        /** Displayed balance must reconcile to posted GL when activity exists (no GL + subledger double-count). */
+        /** Prefer V2 ledger; never use stored Account.balance for statement figures. */
         let finalBalance;
-        if (isAccountsReceivableLeaf || isInventoryLedger) {
+        let balanceSource = 'none';
+        if (v2?.hasDirectActivity) {
+          finalBalance = v2.balance;
+          balanceSource = 'v2_ledger';
+        } else if (isAccountsReceivableLeaf || isInventoryLedger) {
           finalBalance = balance;
         } else if (hasPostedGlActivity) {
           finalBalance = balance;
         } else if (subledgerOverlayBeforeSuppress > 0) {
           finalBalance = subledgerOverlayBeforeSuppress;
-        } else if (!hasChildren && legacyBalance !== 0 && !hasPostedGlActivity) {
-          finalBalance = legacyBalance;
         } else {
           finalBalance = 0;
         }
@@ -539,17 +573,16 @@ export async function GET(request) {
         finalBalance = roundCents(finalBalance);
         balance = roundCents(balance);
 
-        let balanceSource = 'none';
-        if (hasPostedGlActivity) {
-          balanceSource = 'posted_gl';
-        } else if (isAccountsReceivableLeaf) {
-          balanceSource = 'ar_subledger';
-        } else if (isInventoryLedger) {
-          balanceSource = hasDateFilter ? 'inventory_subledger_as_of' : 'inventory_subledger';
-        } else if (subledgerOverlayBeforeSuppress > 0) {
-          balanceSource = 'subledger_estimate';
-        } else if (!hasChildren && legacyBalance !== 0) {
-          balanceSource = 'legacy_account_balance';
+        if (balanceSource === 'none') {
+          if (hasPostedGlActivity) {
+            balanceSource = 'posted_gl';
+          } else if (isAccountsReceivableLeaf) {
+            balanceSource = 'ar_subledger';
+          } else if (isInventoryLedger) {
+            balanceSource = hasDateFilter ? 'inventory_subledger_as_of' : 'inventory_subledger';
+          } else if (subledgerOverlayBeforeSuppress > 0) {
+            balanceSource = 'subledger_estimate';
+          }
         }
 
         const accountResult = {
@@ -557,15 +590,14 @@ export async function GET(request) {
           /** Posted GL (and documented sub-ledgers) on this account id only (before parent/child rollup). */
           postedDirectBalance: finalBalance,
           currentBalance: finalBalance,
-          transactionCount: postedGlLineCount,
-          postedEntryCount: postedGlLineCount,
+          transactionCount: v2?.hasDirectActivity ? v2.lineCount : postedGlLineCount,
+          postedEntryCount: v2?.hasDirectActivity ? v2.lineCount : postedGlLineCount,
           draftEntryCount,
           additionalBalance,
           journalEntryBalance: balance,
-          postedGlNet: balance,
+          postedGlNet: v2?.hasDirectActivity ? finalBalance : balance,
           balanceSource,
-          legacyStoredBalanceIgnored:
-            hasChildren && !hasPostedGlActivity && legacyBalance !== 0 ? legacyBalance : 0,
+          legacyStoredBalanceIgnored: legacyBalance !== 0 ? legacyBalance : 0,
           subledgerOverlaySuppressed:
             hasPostedGlActivity && subledgerOverlayBeforeSuppress > 0
               ? subledgerOverlayBeforeSuppress

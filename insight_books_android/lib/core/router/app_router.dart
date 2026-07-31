@@ -23,6 +23,31 @@ import 'package:insightbooks_android/features/quotation/presentation/create_quot
 import 'package:insightbooks_android/features/expense/presentation/expense_list_screen.dart';
 import 'package:insightbooks_android/features/expense/presentation/expense_details_screen.dart';
 import 'package:insightbooks_android/features/expense/presentation/create_expense_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/stock_hub_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/stock_details_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/create_edit_product_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/create_edit_service_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/create_transfer_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/expiry_alerts_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/receiving_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/bulk_stock_screen.dart';
+import 'package:insightbooks_android/features/stock/presentation/basic_stock_import_export_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/purchases_hub_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/suppliers_list_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/create_edit_supplier_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/supplier_details_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/orders_list_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/create_edit_order_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/order_details_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/receipts_list_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/create_receipt_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/bills_list_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/create_bill_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/bill_details_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/payments_list_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/create_payment_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/payment_details_screen.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/receipts_provider.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import 'package:insightbooks_android/shared/widgets/coming_soon_screen.dart';
 
@@ -132,10 +157,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      final required = requiredPermissionForLocation(location);
-      if (required != null &&
-          required.isNotEmpty &&
-          !satisfiesPermission(permissions, required)) {
+      if (!canAccessLocation(permissions, location)) {
         return firstAccessibleRoute(
           permissions,
           tenantCount: tenantCountForRoute,
@@ -285,11 +307,231 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/stock',
             pageBuilder: (context, state) => _FadePage(
               key: state.pageKey,
-              child: const ComingSoonScreen(
-                title: 'Stock & Inventory',
-                icon: Icons.inventory_2_rounded,
-              ),
+              child: const StockHubScreen(),
             ),
+          ),
+          GoRoute(
+            path: '/stock/products/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreateEditProductScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/stock/products/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: StockDetailsScreen(productId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/stock/products/:id/edit',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: CreateEditProductScreen(productId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/stock/services/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreateEditServiceScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/stock/services/:id/edit',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: CreateEditServiceScreen(productId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/stock/transfers/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreateTransferScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/stock/expiry',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const ExpiryAlertsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/stock/receiving',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const ReceivingScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/stock/bulk',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const BulkStockScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/stock/basic-import',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const BasicStockImportExportScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const PurchasesHubScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/suppliers',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const SuppliersListScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/suppliers/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreateEditSupplierScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/suppliers/:id/edit',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: CreateEditSupplierScreen(supplierId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/purchases/suppliers/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: SupplierDetailsScreen(supplierId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/purchases/orders',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const OrdersListScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/orders/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreateEditOrderScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/orders/:id/edit',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: CreateEditOrderScreen(orderId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/purchases/orders/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: OrderDetailsScreen(orderId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/purchases/receipts',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const ReceiptsListScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/receipts/create',
+            pageBuilder: (context, state) {
+              final modeParam =
+                  state.uri.queryParameters['mode']?.toLowerCase();
+              final mode = modeParam == 'service'
+                  ? ReceiptMode.service
+                  : ReceiptMode.inventory;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: CreateReceiptScreen(mode: mode),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/purchases/bills',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const BillsListScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/bills/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreateBillScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/bills/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: BillDetailsScreen(billId: id),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/purchases/payments',
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const PaymentsListScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/payments/create',
+            pageBuilder: (context, state) => _SlideUpFadePage(
+              key: state.pageKey,
+              child: const CreatePaymentScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/purchases/payments/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return _SlideUpFadePage(
+                key: state.pageKey,
+                child: PaymentDetailsScreen(paymentId: id),
+              );
+            },
           ),
           GoRoute(
             path: '/account',

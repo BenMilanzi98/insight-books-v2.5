@@ -24,6 +24,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: PR-FAST quality gates (Phase 16 invariants + critical engines)
+        run: npm run test:pr-fast
+
       - name: Unit tests
         run: npm test
 

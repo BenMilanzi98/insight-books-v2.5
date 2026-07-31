@@ -27,9 +27,30 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { grossSalary, deductionIds = [], customDeductions = [] } = body;
+    const {
+      grossSalary,
+      deductionIds = [],
+      customDeductions = [],
+      employeeId = null,
+      periodEnd = null,
+      asOf = null,
+    } = body;
 
-    const grossNum = toPayrollNumber(grossSalary);
+    let compensation = null;
+    if (employeeId) {
+      const { resolveEmployeeCompensation } = await import(
+        '@/lib/resolveEmployeeCompensation'
+      );
+      compensation = await resolveEmployeeCompensation({
+        tenantId: user.tenantId,
+        employeeId,
+        asOf: periodEnd || asOf || new Date(),
+      });
+    }
+
+    const grossNum =
+      toPayrollNumber(grossSalary) ??
+      (compensation ? compensation.basicSalary : null);
     if (grossNum == null || grossNum <= 0) {
       return NextResponse.json(
         { error: 'Gross salary must be a positive number' },
@@ -84,8 +105,15 @@ export async function POST(request) {
     });
 
     return NextResponse.json({
-      calculation: payrollCalculation,
-      deductions: allDeductions
+      calculation: {
+        ...payrollCalculation,
+        compensationSource: compensation?.source || 'request',
+        contractId: compensation?.contractId || null,
+        contractVersion: compensation?.contractVersion || null,
+        payBasis: compensation?.payBasis || null,
+      },
+      deductions: allDeductions,
+      compensation,
     });
 
   } catch (error) {

@@ -1,0 +1,3732 @@
+﻿# Review package — Phase 14 Task 2
+
+diff --git a/lib/admin/crm/demos/agendas.js b/lib/admin/crm/demos/agendas.js
+new file mode 100644
+index 0000000..9767b2f
+--- /dev/null
++++ b/lib/admin/crm/demos/agendas.js
+@@ -0,0 +1,351 @@
++/**
++ * Demo Agenda versions ΓÇö Phase 14 Wave 2.
++ * ACTIVE immutable in place; SoD approve; customer-safe projection for invitations.
++ */
++
++import {
++  CRM_DEMO_PROJECTION_SURFACE,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  isExternalSurface,
++  nextVersionNumber,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoAgendaModel(prisma) {
++  return typeof prisma?.crmDemoAgenda?.create === 'function';
++}
++
++function serializeAgenda(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    itemsJson: row.itemsJson ?? null,
++    customerSafeSummary: row.customerSafeSummary || null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++async function loadAgenda(prisma, agendaId) {
++  const id = agendaId ? String(agendaId).trim() : '';
++  if (!id || !hasCrmDemoAgendaModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoAgenda.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createAgendaVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_agenda_code' };
++
++  let customerSafeSummary;
++  let itemsJson;
++  try {
++    customerSafeSummary = assertSafeDemoContentText(args.customerSafeSummary || '');
++    itemsJson =
++      args.itemsJson !== undefined ? assertSafeJsonTree(args.itemsJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoAgenda, code);
++
++  const row = await prisma.crmDemoAgenda.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      itemsJson,
++      customerSafeSummary: customerSafeSummary || null,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    agenda: serializeAgenda(row),
++    meta: {
++      activeDirectlyEditable: false,
++      sodRequired: true,
++      inventExecutableForbidden: true,
++    },
++  };
++}
++
++export async function updateAgendaVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadAgenda(prisma, args.agendaId);
++  if (!row) return { ok: false, notFound: true, error: 'agenda_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      agenda: serializeAgenda(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'agenda_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.customerSafeSummary !== undefined) {
++      data.customerSafeSummary = assertSafeDemoContentText(patch.customerSafeSummary || '') || null;
++    }
++    if (patch.itemsJson !== undefined) {
++      data.itemsJson = patch.itemsJson != null ? assertSafeJsonTree(patch.itemsJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoAgenda.update({ where: { id: row.id }, data });
++  return { ok: true, agenda: serializeAgenda(updated), meta: { activeDirectlyEditable: false } };
++}
++
++export async function requestAgendaApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_request_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadAgenda(prisma, args.agendaId);
++  if (!row) return { ok: false, notFound: true, error: 'agenda_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'agenda_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoAgenda.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, agenda: serializeAgenda(updated), meta: { sodRequired: true } };
++}
++
++export async function approveAgendaVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_approve_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadAgenda(prisma, args.agendaId);
++  if (!row) return { ok: false, notFound: true, error: 'agenda_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'agenda_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoAgenda, row.code, now);
++
++  const updated = await prisma.crmDemoAgenda.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    agenda: serializeAgenda(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listAgendaVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_agenda_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoAgenda.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeAgenda),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++/**
++ * Customer / invitation: summary only. Internal: full items.
++ */
++export function projectAgendaForSurface(agenda, opts = {}) {
++  if (!agenda) {
++    return { ok: true, allowed: false, agenda: null, reason: 'agenda_missing' };
++  }
++  const surface = String(opts.surface || CRM_DEMO_PROJECTION_SURFACE.INTERNAL)
++    .trim()
++    .toUpperCase();
++
++  if (isExternalSurface(surface)) {
++    return {
++      ok: true,
++      allowed: true,
++      agenda: {
++        id: agenda.id,
++        code: agenda.code,
++        version: agenda.version,
++        status: agenda.status,
++        name: agenda.name || null,
++        customerSafeSummary: agenda.customerSafeSummary || null,
++      },
++      meta: { surface, itemsOmitted: true },
++    };
++  }
++
++  return {
++    ok: true,
++    allowed: true,
++    agenda: serializeAgenda(agenda),
++    meta: { surface },
++  };
++}
++
++export async function pinAgendaToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const agenda = await loadAgenda(prisma, args.agendaId);
++  if (!agenda) return { ok: false, notFound: true, error: 'agenda_not_found' };
++  if (agenda.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: agenda.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedAgendaId: agenda.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    agenda: serializeAgenda(agenda),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeAgenda };
+diff --git a/lib/admin/crm/demos/scripts.js b/lib/admin/crm/demos/scripts.js
+new file mode 100644
+index 0000000..d776be8
+--- /dev/null
++++ b/lib/admin/crm/demos/scripts.js
+@@ -0,0 +1,456 @@
++/**
++ * Demo Script versions ΓÇö Phase 14 Wave 2.
++ * RESTRICTED never on Customer/invitation surfaces; en/ny label foundations.
++ * ACTIVE immutable; SoD approve.
++ */
++
++import {
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_PROJECTION_SURFACE,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  isExternalSurface,
++  nextVersionNumber,
++  normalizeClassification,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoScriptModel(prisma) {
++  return typeof prisma?.crmDemoScript?.create === 'function';
++}
++
++function serializeScript(row, { omitInternal = false } = {}) {
++  if (!row) return null;
++  const base = {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    classification: row.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    bodyCustomerSafe: row.bodyCustomerSafe || null,
++    labelsJson: row.labelsJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++  if (!omitInternal) {
++    base.bodyInternal = row.bodyInternal || null;
++  }
++  return base;
++}
++
++async function loadScript(prisma, scriptId) {
++  const id = scriptId ? String(scriptId).trim() : '';
++  if (!id || !hasCrmDemoScriptModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoScript.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createScriptVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_script_code' };
++
++  const classification = normalizeClassification(args.classification);
++  if (!classification) {
++    return {
++      ok: false,
++      error: 'invalid_classification',
++      allowed: Object.values(CRM_DEMO_CONTENT_CLASSIFICATION),
++    };
++  }
++
++  let bodyInternal;
++  let bodyCustomerSafe;
++  let labelsJson;
++  try {
++    bodyInternal = assertSafeDemoContentText(args.bodyInternal || '');
++    bodyCustomerSafe = assertSafeDemoContentText(args.bodyCustomerSafe || '');
++    labelsJson =
++      args.labelsJson !== undefined ? assertSafeJsonTree(args.labelsJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoScript, code);
++
++  const row = await prisma.crmDemoScript.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      classification,
++      bodyInternal: bodyInternal || null,
++      bodyCustomerSafe: bodyCustomerSafe || null,
++      labelsJson,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    script: serializeScript(row),
++    meta: {
++      activeDirectlyEditable: false,
++      sodRequired: true,
++      restrictedNeverOnCustomer: true,
++      inventAiScriptForbidden: true,
++    },
++  };
++}
++
++export async function updateScriptVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScript(prisma, args.scriptId);
++  if (!row) return { ok: false, notFound: true, error: 'script_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      script: serializeScript(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'script_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.classification !== undefined) {
++      const c = normalizeClassification(patch.classification);
++      if (!c) return { ok: false, error: 'invalid_classification' };
++      data.classification = c;
++    }
++    if (patch.bodyInternal !== undefined) {
++      data.bodyInternal = assertSafeDemoContentText(patch.bodyInternal || '') || null;
++    }
++    if (patch.bodyCustomerSafe !== undefined) {
++      data.bodyCustomerSafe =
++        assertSafeDemoContentText(patch.bodyCustomerSafe || '') || null;
++    }
++    if (patch.labelsJson !== undefined) {
++      data.labelsJson =
++        patch.labelsJson != null ? assertSafeJsonTree(patch.labelsJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoScript.update({ where: { id: row.id }, data });
++  return { ok: true, script: serializeScript(updated), meta: { activeDirectlyEditable: false } };
++}
++
++export async function requestScriptApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_request_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScript(prisma, args.scriptId);
++  if (!row) return { ok: false, notFound: true, error: 'script_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'script_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoScript.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, script: serializeScript(updated), meta: { sodRequired: true } };
++}
++
++export async function approveScriptVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_approve_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScript(prisma, args.scriptId);
++  if (!row) return { ok: false, notFound: true, error: 'script_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'script_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoScript, row.code, now);
++
++  const updated = await prisma.crmDemoScript.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    script: serializeScript(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listScriptVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_script_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoScript.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  const canRestricted = Boolean(access.canViewRestrictedNotes || access.isSuperAdmin);
++  return {
++    ok: true,
++    items: (rows || []).map((r) => {
++      if (
++        r.classification === CRM_DEMO_CONTENT_CLASSIFICATION.RESTRICTED &&
++        !canRestricted
++      ) {
++        return serializeScript(r, { omitInternal: true });
++      }
++      return serializeScript(r);
++    }),
++    meta: {
++      count: (rows || []).length,
++      activeDirectlyEditable: false,
++      restrictedOmitted: !canRestricted,
++    },
++  };
++}
++
++/**
++ * Fail-closed: RESTRICTED never on CUSTOMER / INVITATION.
++ * INTERNAL surface still requires canViewRestricted for RESTRICTED bodies.
++ */
++export function projectScriptForSurface(script, opts = {}) {
++  if (!script) {
++    return { ok: true, allowed: false, script: null, reason: 'script_missing' };
++  }
++
++  const surface = String(opts.surface || CRM_DEMO_PROJECTION_SURFACE.INTERNAL)
++    .trim()
++    .toUpperCase();
++  const classification = String(
++    script.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL
++  )
++    .trim()
++    .toUpperCase();
++  const canViewRestricted = Boolean(opts.canViewRestricted);
++
++  if (classification === CRM_DEMO_CONTENT_CLASSIFICATION.RESTRICTED) {
++    if (isExternalSurface(surface)) {
++      return {
++        ok: true,
++        allowed: false,
++        script: null,
++        reason: 'restricted_script_forbidden_on_customer_surface',
++        meta: { surface, classification },
++      };
++    }
++    if (!canViewRestricted) {
++      return {
++        ok: true,
++        allowed: false,
++        script: null,
++        reason: 'restricted_script_privilege_required',
++        meta: { surface, classification },
++      };
++    }
++    return {
++      ok: true,
++      allowed: true,
++      script: serializeScript(script),
++      meta: { surface, classification },
++    };
++  }
++
++  if (isExternalSurface(surface)) {
++    if (classification === CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL) {
++      return {
++        ok: true,
++        allowed: Boolean(script.bodyCustomerSafe),
++        script: script.bodyCustomerSafe
++          ? {
++              id: script.id,
++              code: script.code,
++              version: script.version,
++              status: script.status,
++              name: script.name || null,
++              classification,
++              bodyCustomerSafe: script.bodyCustomerSafe,
++              labelsJson: script.labelsJson ?? null,
++            }
++          : null,
++        reason: script.bodyCustomerSafe
++          ? null
++          : 'internal_script_has_no_customer_safe_body',
++        meta: { surface, classification, bodyInternalOmitted: true },
++      };
++    }
++    // CUSTOMER_SAFE
++    return {
++      ok: true,
++      allowed: true,
++      script: {
++        id: script.id,
++        code: script.code,
++        version: script.version,
++        status: script.status,
++        name: script.name || null,
++        classification,
++        bodyCustomerSafe: script.bodyCustomerSafe || null,
++        labelsJson: script.labelsJson ?? null,
++      },
++      meta: { surface, classification, bodyInternalOmitted: true },
++    };
++  }
++
++  return {
++    ok: true,
++    allowed: true,
++    script: serializeScript(script),
++    meta: { surface, classification },
++  };
++}
++
++export async function pinScriptToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const script = await loadScript(prisma, args.scriptId);
++  if (!script) return { ok: false, notFound: true, error: 'script_not_found' };
++  if (script.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: script.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedScriptId: script.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    script: serializeScript(script),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeScript };
+diff --git a/lib/admin/crm/demos/scenarios.js b/lib/admin/crm/demos/scenarios.js
+new file mode 100644
+index 0000000..d55eac5
+--- /dev/null
++++ b/lib/admin/crm/demos/scenarios.js
+@@ -0,0 +1,320 @@
++/**
++ * Demo Scenario versions ΓÇö Phase 14 Wave 2.
++ * ACTIVE immutable; SoD approve; pin to Demo.
++ */
++
++import {
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  nextVersionNumber,
++  normalizeClassification,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoScenarioModel(prisma) {
++  return typeof prisma?.crmDemoScenario?.create === 'function';
++}
++
++function serializeScenario(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    classification: row.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    bodyJson: row.bodyJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++async function loadScenario(prisma, scenarioId) {
++  const id = scenarioId ? String(scenarioId).trim() : '';
++  if (!id || !hasCrmDemoScenarioModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoScenario.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createScenarioVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_scenario_code' };
++
++  const classification = normalizeClassification(
++    args.classification,
++    CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL
++  );
++  if (!classification) return { ok: false, error: 'invalid_classification' };
++
++  let bodyJson;
++  try {
++    bodyJson = args.bodyJson !== undefined ? assertSafeJsonTree(args.bodyJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoScenario, code);
++
++  const row = await prisma.crmDemoScenario.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      classification,
++      bodyJson,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    scenario: serializeScenario(row),
++    meta: { activeDirectlyEditable: false, sodRequired: true },
++  };
++}
++
++export async function updateScenarioVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScenario(prisma, args.scenarioId);
++  if (!row) return { ok: false, notFound: true, error: 'scenario_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      scenario: serializeScenario(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'scenario_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.classification !== undefined) {
++      const c = normalizeClassification(patch.classification);
++      if (!c) return { ok: false, error: 'invalid_classification' };
++      data.classification = c;
++    }
++    if (patch.bodyJson !== undefined) {
++      data.bodyJson = patch.bodyJson != null ? assertSafeJsonTree(patch.bodyJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoScenario.update({ where: { id: row.id }, data });
++  return {
++    ok: true,
++    scenario: serializeScenario(updated),
++    meta: { activeDirectlyEditable: false },
++  };
++}
++
++export async function requestScenarioApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_request_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScenario(prisma, args.scenarioId);
++  if (!row) return { ok: false, notFound: true, error: 'scenario_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'scenario_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoScenario.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, scenario: serializeScenario(updated), meta: { sodRequired: true } };
++}
++
++export async function approveScenarioVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_approve_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScenario(prisma, args.scenarioId);
++  if (!row) return { ok: false, notFound: true, error: 'scenario_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'scenario_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoScenario, row.code, now);
++
++  const updated = await prisma.crmDemoScenario.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    scenario: serializeScenario(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listScenarioVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_scenario_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoScenario.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeScenario),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++export async function pinScenarioToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const scenario = await loadScenario(prisma, args.scenarioId);
++  if (!scenario) return { ok: false, notFound: true, error: 'scenario_not_found' };
++  if (scenario.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: scenario.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedScenarioId: scenario.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    scenario: serializeScenario(scenario),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeScenario };
+diff --git a/lib/admin/crm/demos/content.js b/lib/admin/crm/demos/content.js
+new file mode 100644
+index 0000000..d99f198
+--- /dev/null
++++ b/lib/admin/crm/demos/content.js
+@@ -0,0 +1,346 @@
++/**
++ * Demo Content library versions ΓÇö Phase 14 Wave 2.
++ * ACTIVE immutable; SoD approve; pin to Demo.
++ */
++
++import {
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_CONTENT_KIND,
++  CRM_DEMO_CONTENT_KINDS,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  nextVersionNumber,
++  normalizeClassification,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++const KIND_SET = new Set(CRM_DEMO_CONTENT_KINDS);
++
++export function hasCrmDemoContentModel(prisma) {
++  return typeof prisma?.crmDemoContent?.create === 'function';
++}
++
++function serializeContent(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    kind: row.kind || CRM_DEMO_CONTENT_KIND.OTHER,
++    classification: row.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    assetRef: row.assetRef || null,
++    bodyJson: row.bodyJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++async function loadContent(prisma, contentId) {
++  const id = contentId ? String(contentId).trim() : '';
++  if (!id || !hasCrmDemoContentModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoContent.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createContentVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_content_code' };
++
++  const kind = String(args.kind || CRM_DEMO_CONTENT_KIND.OTHER).trim().toUpperCase();
++  if (!KIND_SET.has(kind)) {
++    return { ok: false, error: 'invalid_content_kind', allowed: CRM_DEMO_CONTENT_KINDS };
++  }
++
++  const classification = normalizeClassification(
++    args.classification,
++    CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL
++  );
++  if (!classification) return { ok: false, error: 'invalid_classification' };
++
++  let assetRef;
++  let bodyJson;
++  try {
++    assetRef = args.assetRef != null ? assertSafeDemoContentText(args.assetRef) : null;
++    bodyJson = args.bodyJson !== undefined ? assertSafeJsonTree(args.bodyJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoContent, code);
++
++  const row = await prisma.crmDemoContent.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      kind,
++      classification,
++      assetRef: assetRef || null,
++      bodyJson,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    content: serializeContent(row),
++    meta: { activeDirectlyEditable: false, sodRequired: true },
++  };
++}
++
++export async function updateContentVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadContent(prisma, args.contentId);
++  if (!row) return { ok: false, notFound: true, error: 'content_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      content: serializeContent(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'content_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.kind !== undefined) {
++      const k = String(patch.kind).trim().toUpperCase();
++      if (!KIND_SET.has(k)) return { ok: false, error: 'invalid_content_kind' };
++      data.kind = k;
++    }
++    if (patch.classification !== undefined) {
++      const c = normalizeClassification(patch.classification);
++      if (!c) return { ok: false, error: 'invalid_classification' };
++      data.classification = c;
++    }
++    if (patch.assetRef !== undefined) {
++      data.assetRef =
++        patch.assetRef != null ? assertSafeDemoContentText(patch.assetRef) || null : null;
++    }
++    if (patch.bodyJson !== undefined) {
++      data.bodyJson = patch.bodyJson != null ? assertSafeJsonTree(patch.bodyJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoContent.update({ where: { id: row.id }, data });
++  return {
++    ok: true,
++    content: serializeContent(updated),
++    meta: { activeDirectlyEditable: false },
++  };
++}
++
++export async function requestContentApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_request_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadContent(prisma, args.contentId);
++  if (!row) return { ok: false, notFound: true, error: 'content_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'content_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoContent.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, content: serializeContent(updated), meta: { sodRequired: true } };
++}
++
++export async function approveContentVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_approve_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadContent(prisma, args.contentId);
++  if (!row) return { ok: false, notFound: true, error: 'content_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'content_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoContent, row.code, now);
++
++  const updated = await prisma.crmDemoContent.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    content: serializeContent(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listContentVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_content_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  if (args.kind) where.kind = String(args.kind).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoContent.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeContent),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++export async function pinContentToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const content = await loadContent(prisma, args.contentId);
++  if (!content) return { ok: false, notFound: true, error: 'content_not_found' };
++  if (content.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: content.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedContentId: content.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    content: serializeContent(content),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeContent };
+diff --git a/scripts/sql/crm-demo-phase14-wave2.sql b/scripts/sql/crm-demo-phase14-wave2.sql
+new file mode 100644
+index 0000000..dee696e
+--- /dev/null
++++ b/scripts/sql/crm-demo-phase14-wave2.sql
+@@ -0,0 +1,102 @@
++-- Phase 14 Wave 2 ΓÇö Demo Agenda / Script / Scenario / Content versioning + Demo pin columns.
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- ACTIVE versions are not directly editable; SoD author Γëá approver for material approve.
++-- RESTRICTED Script never on invitations / Customer APIs.
++-- Historical Demo retains pinned version ids.
++
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "pinnedAgendaId" TEXT;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "pinnedScriptId" TEXT;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "pinnedScenarioId" TEXT;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "pinnedContentId" TEXT;
++CREATE INDEX IF NOT EXISTS "CrmDemo_pinnedAgendaId_idx" ON "CrmDemo"("pinnedAgendaId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_pinnedScriptId_idx" ON "CrmDemo"("pinnedScriptId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_pinnedScenarioId_idx" ON "CrmDemo"("pinnedScenarioId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_pinnedContentId_idx" ON "CrmDemo"("pinnedContentId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoAgenda" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "itemsJson" JSONB,
++  "customerSafeSummary" TEXT,
++  "authoredByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoAgenda_code_version_key" ON "CrmDemoAgenda"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmDemoAgenda_code_status_idx" ON "CrmDemoAgenda"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoAgenda_status_idx" ON "CrmDemoAgenda"("status");
++CREATE INDEX IF NOT EXISTS "CrmDemoAgenda_authoredByAdminId_idx" ON "CrmDemoAgenda"("authoredByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoAgenda_approvedByAdminId_idx" ON "CrmDemoAgenda"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoScript" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "classification" TEXT NOT NULL DEFAULT 'INTERNAL',
++  "bodyInternal" TEXT,
++  "bodyCustomerSafe" TEXT,
++  "labelsJson" JSONB,
++  "authoredByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoScript_code_version_key" ON "CrmDemoScript"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmDemoScript_code_status_idx" ON "CrmDemoScript"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoScript_status_classification_idx" ON "CrmDemoScript"("status", "classification");
++CREATE INDEX IF NOT EXISTS "CrmDemoScript_authoredByAdminId_idx" ON "CrmDemoScript"("authoredByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoScript_approvedByAdminId_idx" ON "CrmDemoScript"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoScenario" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "classification" TEXT NOT NULL DEFAULT 'INTERNAL',
++  "bodyJson" JSONB,
++  "authoredByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoScenario_code_version_key" ON "CrmDemoScenario"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmDemoScenario_code_status_idx" ON "CrmDemoScenario"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoScenario_status_idx" ON "CrmDemoScenario"("status");
++CREATE INDEX IF NOT EXISTS "CrmDemoScenario_authoredByAdminId_idx" ON "CrmDemoScenario"("authoredByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoScenario_approvedByAdminId_idx" ON "CrmDemoScenario"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoContent" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "kind" TEXT NOT NULL DEFAULT 'OTHER',
++  "classification" TEXT NOT NULL DEFAULT 'INTERNAL',
++  "assetRef" TEXT,
++  "bodyJson" JSONB,
++  "authoredByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoContent_code_version_key" ON "CrmDemoContent"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmDemoContent_code_status_idx" ON "CrmDemoContent"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoContent_kind_status_idx" ON "CrmDemoContent"("kind", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoContent_status_classification_idx" ON "CrmDemoContent"("status", "classification");
++CREATE INDEX IF NOT EXISTS "CrmDemoContent_authoredByAdminId_idx" ON "CrmDemoContent"("authoredByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoContent_approvedByAdminId_idx" ON "CrmDemoContent"("approvedByAdminId");
+diff --git a/test/systemAdmin.crm.demoWave2.test.js b/test/systemAdmin.crm.demoWave2.test.js
+new file mode 100644
+index 0000000..1ba6be1
+--- /dev/null
++++ b/test/systemAdmin.crm.demoWave2.test.js
+@@ -0,0 +1,622 @@
++/**
++ * Phase 14 Wave 2 ΓÇö Agenda / Script / Scenario / Content versioning.
++ * ACTIVE immutable in place; SoD approve; restricted Script never on Customer/invitation;
++ * Demo pins version ids historically.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  CRM_DEMO_VERSION_STATUS,
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_CONTENT_KIND,
++  CRM_DEMO_PROJECTION_SURFACE,
++  createAgendaVersion,
++  updateAgendaVersion,
++  requestAgendaApproval,
++  approveAgendaVersion,
++  pinAgendaToDemo,
++  projectAgendaForSurface,
++  createScriptVersion,
++  updateScriptVersion,
++  requestScriptApproval,
++  approveScriptVersion,
++  pinScriptToDemo,
++  projectScriptForSurface,
++  createScenarioVersion,
++  approveScenarioVersion,
++  requestScenarioApproval,
++  pinScenarioToDemo,
++  createContentVersion,
++  requestContentApproval,
++  approveContentVersion,
++  pinContentToDemo,
++  createDemo,
++  getDemo,
++  evaluateDemoReadiness,
++  getDemoDomainContract,
++} from '@/lib/admin/crm';
++
++function makeAdmin(id, crmPerms = {}, role = 'Platform Support') {
++  return {
++    id,
++    role,
++    permissions: {
++      systemAdmin: {
++        crm: {
++          view: true,
++          viewLeads: true,
++          editLeads: true,
++          mergeLeads: true,
++          activities: { view: true, edit: true },
++          opportunities: { view: true, edit: true },
++          ...crmPerms,
++        },
++      },
++    },
++  };
++}
++
++function makePrisma(overrides = {}) {
++  const seqStore = overrides._seqStore || [];
++  const demoStore = overrides._demoStore || [];
++  const agendaStore = overrides._agendaStore || [];
++  const scriptStore = overrides._scriptStore || [];
++  const scenarioStore = overrides._scenarioStore || [];
++  const contentStore = overrides._contentStore || [];
++  const timelineStore = overrides._timelineStore || [];
++  const demoParticipantStore = overrides._demoParticipantStore || [];
++  const meetingStore = overrides._meetingStore || [];
++  const calendarStore = overrides._calendarStore || [];
++
++  const versionCrud = (store, prefix) => ({
++    findUnique: vi.fn(async ({ where = {} } = {}) => {
++      if (where.id) return store.find((r) => r.id === where.id) || null;
++      if (where.code_version) {
++        return (
++          store.find(
++            (r) =>
++              r.code === where.code_version.code &&
++              r.version === where.code_version.version
++          ) || null
++        );
++      }
++      return null;
++    }),
++    findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
++      let rows = [...store];
++      if (where.code) rows = rows.filter((r) => r.code === where.code);
++      if (where.status) rows = rows.filter((r) => r.status === where.status);
++      if (orderBy?.version === 'desc') rows.sort((a, b) => b.version - a.version);
++      return rows[0] || null;
++    }),
++    findMany: vi.fn(async ({ where = {}, take, orderBy } = {}) => {
++      let rows = [...store];
++      if (where.code) rows = rows.filter((r) => r.code === where.code);
++      if (where.status) rows = rows.filter((r) => r.status === where.status);
++      if (orderBy?.[0]?.version === 'desc' || orderBy?.version === 'desc') {
++        rows.sort((a, b) => b.version - a.version);
++      }
++      if (typeof take === 'number') rows = rows.slice(0, take);
++      return rows;
++    }),
++    create: vi.fn(async ({ data }) => {
++      const row = {
++        id: data.id || `${prefix}-${store.length + 1}`,
++        createdAt: data.createdAt || new Date(),
++        updatedAt: data.updatedAt || new Date(),
++        approvedAt: data.approvedAt ?? null,
++        approvedByAdminId: data.approvedByAdminId ?? null,
++        ...data,
++      };
++      store.push(row);
++      return row;
++    }),
++    update: vi.fn(async ({ where, data }) => {
++      const row = store.find((r) => r.id === where.id);
++      if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++      return row;
++    }),
++    updateMany: vi.fn(async ({ where, data }) => {
++      let count = 0;
++      for (const row of store) {
++        if (where.code && row.code !== where.code) continue;
++        if (where.status && row.status !== where.status) continue;
++        Object.assign(row, data);
++        count += 1;
++      }
++      return { count };
++    }),
++  });
++
++  const prisma = {
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    _agendaStore: agendaStore,
++    _scriptStore: scriptStore,
++    _scenarioStore: scenarioStore,
++    _contentStore: contentStore,
++    _demoStore: demoStore,
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmDemoAgenda: versionCrud(agendaStore, 'agenda'),
++    crmDemoScript: versionCrud(scriptStore, 'script'),
++    crmDemoScenario: versionCrud(scenarioStore, 'scenario'),
++    crmDemoContent: versionCrud(contentStore, 'content'),
++    crmDemo: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return demoStore.find((r) => r.id === where.id) || null;
++        if (where.demoNumber) {
++          return demoStore.find((r) => r.demoNumber === where.demoNumber) || null;
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `demo-${demoStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          readinessStatus: data.readinessStatus || 'NOT_READY',
++          readinessJson: data.readinessJson ?? null,
++          pinnedAgendaId: data.pinnedAgendaId ?? null,
++          pinnedScriptId: data.pinnedScriptId ?? null,
++          pinnedScenarioId: data.pinnedScenarioId ?? null,
++          pinnedContentId: data.pinnedContentId ?? null,
++          ...data,
++        };
++        demoStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = demoStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++      findMany: vi.fn(async () => [...demoStore]),
++    },
++    crmDemoParticipant: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...demoParticipantStore];
++        if (where.demoId) rows = rows.filter((r) => r.demoId === where.demoId);
++        return rows;
++      }),
++    },
++    crmMeeting: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return meetingStore.find((r) => r.id === where.id) || null;
++      }),
++    },
++    crmCalendarEvent: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...calendarStore];
++        if (where.meetingId) rows = rows.filter((r) => r.meetingId === where.meetingId);
++        return rows;
++      }),
++    },
++    crmTimelineEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
++        timelineStore.push(row);
++        return row;
++      }),
++    },
++  };
++
++  return prisma;
++}
++
++async function activateAgenda(prisma, author, approver, fields = {}) {
++  const created = await createAgendaVersion(prisma, {
++    admin: author,
++    code: fields.code || 'STD_AGENDA',
++    name: fields.name || 'Standard Agenda',
++    itemsJson: fields.itemsJson || [{ title: 'Intro', minutes: 5 }],
++    customerSafeSummary: fields.customerSafeSummary || 'Intro and product walkthrough',
++  });
++  expect(created.ok).toBe(true);
++  await requestAgendaApproval(prisma, { admin: author, agendaId: created.agenda.id });
++  const approved = await approveAgendaVersion(prisma, {
++    admin: approver,
++    agendaId: created.agenda.id,
++  });
++  expect(approved.ok).toBe(true);
++  return approved.agenda;
++}
++
++async function activateScript(prisma, author, approver, fields = {}) {
++  const created = await createScriptVersion(prisma, {
++    admin: author,
++    code: fields.code || 'STD_SCRIPT',
++    name: fields.name || 'Standard Script',
++    classification: fields.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    bodyInternal: fields.bodyInternal || 'Internal talking track',
++    bodyCustomerSafe: fields.bodyCustomerSafe || 'Customer-safe talking points',
++    labelsJson: fields.labelsJson || {
++      en: { opener: 'Welcome' },
++      ny: { opener: 'Takulandirani' },
++    },
++  });
++  expect(created.ok).toBe(true);
++  await requestScriptApproval(prisma, { admin: author, scriptId: created.script.id });
++  const approved = await approveScriptVersion(prisma, {
++    admin: approver,
++    scriptId: created.script.id,
++  });
++  expect(approved.ok).toBe(true);
++  return approved.script;
++}
++
++describe('Phase 14 Wave 2 ΓÇö Agenda versioning + SoD', () => {
++  it('creates versions; ACTIVE not directly editable; SoD blocks self-approve', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('author-1');
++    const approver = makeAdmin('approver-1');
++
++    const created = await createAgendaVersion(prisma, {
++      admin: author,
++      code: 'AGENDA_A',
++      name: 'Agenda A',
++      itemsJson: [{ title: 'Welcome', minutes: 3 }],
++      customerSafeSummary: 'Welcome and overview',
++    });
++    expect(created.ok).toBe(true);
++    expect(created.agenda.status).toBe(CRM_DEMO_VERSION_STATUS.DRAFT);
++    expect(created.agenda.activeDirectlyEditable).toBe(false);
++    expect(created.meta.sodRequired).toBe(true);
++
++    const selfReq = await requestAgendaApproval(prisma, {
++      admin: author,
++      agendaId: created.agenda.id,
++    });
++    expect(selfReq.ok).toBe(true);
++    expect(selfReq.agenda.status).toBe(CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL);
++
++    const selfApprove = await approveAgendaVersion(prisma, {
++      admin: author,
++      agendaId: created.agenda.id,
++    });
++    expect(selfApprove.ok).toBe(false);
++    expect(selfApprove.error).toBe('demo_content_self_approval_blocked');
++
++    const approved = await approveAgendaVersion(prisma, {
++      admin: approver,
++      agendaId: created.agenda.id,
++    });
++    expect(approved.ok).toBe(true);
++    expect(approved.agenda.status).toBe(CRM_DEMO_VERSION_STATUS.ACTIVE);
++
++    const blocked = await updateAgendaVersion(prisma, {
++      admin: author,
++      agendaId: created.agenda.id,
++      patch: { name: 'Changed' },
++    });
++    expect(blocked.ok).toBe(false);
++    expect(blocked.error).toBe('active_demo_content_not_directly_editable');
++
++    const v2 = await createAgendaVersion(prisma, {
++      admin: author,
++      code: 'AGENDA_A',
++      name: 'Agenda A v2',
++      itemsJson: [{ title: 'Welcome', minutes: 4 }],
++      customerSafeSummary: 'Updated welcome',
++    });
++    expect(v2.ok).toBe(true);
++    expect(v2.agenda.version).toBe(2);
++
++    await requestAgendaApproval(prisma, { admin: author, agendaId: v2.agenda.id });
++    await approveAgendaVersion(prisma, { admin: approver, agendaId: v2.agenda.id });
++
++    const prior = prisma._agendaStore.find((r) => r.id === created.agenda.id);
++    expect(prior.status).toBe(CRM_DEMO_VERSION_STATUS.RETIRED);
++  });
++
++  it('rejects executable template expressions in agenda text', async () => {
++    const prisma = makePrisma();
++    const bad = await createAgendaVersion(prisma, {
++      admin: makeAdmin('a1'),
++      code: 'BAD_AGENDA',
++      customerSafeSummary: '${process.env.SECRET}',
++    });
++    expect(bad.ok).toBe(false);
++    expect(bad.error).toBe('executable_template_expressions_forbidden');
++  });
++});
++
++describe('Phase 14 Wave 2 ΓÇö Script restricted projection + en/ny', () => {
++  it('never exposes RESTRICTED script on Customer/invitation surfaces', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('author-s');
++    const approver = makeAdmin('approver-s');
++
++    const script = await activateScript(prisma, author, approver, {
++      code: 'RESTRICTED_SCRIPT',
++      classification: CRM_DEMO_CONTENT_CLASSIFICATION.RESTRICTED,
++      bodyInternal: 'Never show externally',
++      bodyCustomerSafe: 'Should not leak via restricted class',
++      labelsJson: {
++        en: { tip: 'Internal tip' },
++        ny: { tip: 'Uthenga wa mkati' },
++      },
++    });
++    expect(script.classification).toBe(CRM_DEMO_CONTENT_CLASSIFICATION.RESTRICTED);
++    expect(script.labelsJson.en.tip).toBe('Internal tip');
++    expect(script.labelsJson.ny.tip).toBe('Uthenga wa mkati');
++
++    const customer = projectScriptForSurface(script, {
++      surface: CRM_DEMO_PROJECTION_SURFACE.CUSTOMER,
++    });
++    expect(customer.ok).toBe(true);
++    expect(customer.allowed).toBe(false);
++    expect(customer.script).toBeNull();
++    expect(customer.reason).toBe('restricted_script_forbidden_on_customer_surface');
++
++    const invitation = projectScriptForSurface(script, {
++      surface: CRM_DEMO_PROJECTION_SURFACE.INVITATION,
++    });
++    expect(invitation.allowed).toBe(false);
++    expect(invitation.script).toBeNull();
++
++    const internal = projectScriptForSurface(script, {
++      surface: CRM_DEMO_PROJECTION_SURFACE.INTERNAL,
++      canViewRestricted: true,
++    });
++    expect(internal.allowed).toBe(true);
++    expect(internal.script.bodyInternal).toBe('Never show externally');
++
++    const internalNoPriv = projectScriptForSurface(script, {
++      surface: CRM_DEMO_PROJECTION_SURFACE.INTERNAL,
++      canViewRestricted: false,
++    });
++    expect(internalNoPriv.allowed).toBe(false);
++  });
++
++  it('projects customer-safe script bodies for CUSTOMER surface', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('author-cs');
++    const approver = makeAdmin('approver-cs');
++    const script = await activateScript(prisma, author, approver, {
++      code: 'SAFE_SCRIPT',
++      classification: CRM_DEMO_CONTENT_CLASSIFICATION.CUSTOMER_SAFE,
++      bodyInternal: 'Internal only',
++      bodyCustomerSafe: 'Safe talking points',
++    });
++
++    const projected = projectScriptForSurface(script, {
++      surface: CRM_DEMO_PROJECTION_SURFACE.CUSTOMER,
++    });
++    expect(projected.allowed).toBe(true);
++    expect(projected.script.bodyCustomerSafe).toBe('Safe talking points');
++    expect(projected.script.bodyInternal).toBeUndefined();
++  });
++
++  it('blocks direct ACTIVE script edit; create new version instead', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('a1');
++    const approver = makeAdmin('a2');
++    const script = await activateScript(prisma, author, approver, { code: 'EDIT_SCRIPT' });
++
++    const blocked = await updateScriptVersion(prisma, {
++      admin: author,
++      scriptId: script.id,
++      patch: { bodyInternal: 'changed' },
++    });
++    expect(blocked.ok).toBe(false);
++    expect(blocked.error).toBe('active_demo_content_not_directly_editable');
++  });
++});
++
++describe('Phase 14 Wave 2 ΓÇö Scenario / Content versioning + Demo pins', () => {
++  it('pins ACTIVE agenda/script/scenario/content ids; historical pin retained', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('pin-author');
++    const approver = makeAdmin('pin-approver');
++
++    const demoCreated = await createDemo(prisma, {
++      admin: author,
++      title: 'Pin Demo',
++      contactId: 'con-1',
++    });
++    expect(demoCreated.ok).toBe(true);
++    const demoId = demoCreated.demo.id;
++
++    const agenda = await activateAgenda(prisma, author, approver, { code: 'PIN_AGENDA' });
++    const script = await activateScript(prisma, author, approver, {
++      code: 'PIN_SCRIPT',
++      classification: CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    });
++
++    const scenarioDraft = await createScenarioVersion(prisma, {
++      admin: author,
++      code: 'PIN_SCENARIO',
++      name: 'Retail walkthrough',
++      bodyJson: { steps: ['login', 'sale'] },
++    });
++    await requestScenarioApproval(prisma, {
++      admin: author,
++      scenarioId: scenarioDraft.scenario.id,
++    });
++    const scenario = (
++      await approveScenarioVersion(prisma, {
++        admin: approver,
++        scenarioId: scenarioDraft.scenario.id,
++      })
++    ).scenario;
++
++    const contentDraft = await createContentVersion(prisma, {
++      admin: author,
++      code: 'PIN_CONTENT',
++      name: 'Slide pack',
++      kind: CRM_DEMO_CONTENT_KIND.SLIDE_PACK,
++      assetRef: 'slides/retail-v1',
++      classification: CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    });
++    await requestContentApproval(prisma, {
++      admin: author,
++      contentId: contentDraft.content.id,
++    });
++    const content = (
++      await approveContentVersion(prisma, {
++        admin: approver,
++        contentId: contentDraft.content.id,
++      })
++    ).content;
++
++    const pinA = await pinAgendaToDemo(prisma, {
++      admin: author,
++      demoId,
++      agendaId: agenda.id,
++    });
++    expect(pinA.ok).toBe(true);
++    expect(pinA.demo.pinnedAgendaId).toBe(agenda.id);
++
++    const pinS = await pinScriptToDemo(prisma, {
++      admin: author,
++      demoId,
++      scriptId: script.id,
++    });
++    expect(pinS.ok).toBe(true);
++
++    const pinSc = await pinScenarioToDemo(prisma, {
++      admin: author,
++      demoId,
++      scenarioId: scenario.id,
++    });
++    expect(pinSc.ok).toBe(true);
++
++    const pinC = await pinContentToDemo(prisma, {
++      admin: author,
++      demoId,
++      contentId: content.id,
++    });
++    expect(pinC.ok).toBe(true);
++
++    // New ACTIVE agenda version must not rewrite historical Demo pin
++    const agendaV2Draft = await createAgendaVersion(prisma, {
++      admin: author,
++      code: 'PIN_AGENDA',
++      name: 'Agenda v2',
++      itemsJson: [{ title: 'New', minutes: 10 }],
++      customerSafeSummary: 'New summary',
++    });
++    await requestAgendaApproval(prisma, {
++      admin: author,
++      agendaId: agendaV2Draft.agenda.id,
++    });
++    await approveAgendaVersion(prisma, {
++      admin: approver,
++      agendaId: agendaV2Draft.agenda.id,
++    });
++
++    const demo = await getDemo(prisma, { admin: author, demoId });
++    expect(demo.ok).toBe(true);
++    expect(demo.demo.pinnedAgendaId).toBe(agenda.id);
++    expect(demo.demo.pinnedScriptId).toBe(script.id);
++    expect(demo.demo.pinnedScenarioId).toBe(scenario.id);
++    expect(demo.demo.pinnedContentId).toBe(content.id);
++  });
++
++  it('refuses to pin non-ACTIVE versions', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('a1');
++    const demoCreated = await createDemo(prisma, {
++      admin: author,
++      title: 'Draft pin',
++      contactId: 'con-1',
++    });
++    const draft = await createAgendaVersion(prisma, {
++      admin: author,
++      code: 'DRAFT_ONLY',
++      name: 'Draft',
++      customerSafeSummary: 'Draft summary',
++    });
++    const pin = await pinAgendaToDemo(prisma, {
++      admin: author,
++      demoId: demoCreated.demo.id,
++      agendaId: draft.agenda.id,
++    });
++    expect(pin.ok).toBe(false);
++    expect(pin.error).toBe('demo_content_not_active');
++  });
++});
++
++describe('Phase 14 Wave 2 ΓÇö Agenda customer-safe projection + readiness pins', () => {
++  it('customer/invitation agenda projection omits internal itemsJson', async () => {
++    const agenda = {
++      id: 'ag-1',
++      code: 'A',
++      version: 1,
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      itemsJson: [{ title: 'Internal cue', minutes: 5 }],
++      customerSafeSummary: 'Public summary',
++    };
++    const projected = projectAgendaForSurface(agenda, {
++      surface: CRM_DEMO_PROJECTION_SURFACE.INVITATION,
++    });
++    expect(projected.allowed).toBe(true);
++    expect(projected.agenda.customerSafeSummary).toBe('Public summary');
++    expect(projected.agenda.itemsJson).toBeUndefined();
++  });
++
++  it('readiness marks agenda/script pins when present', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('r-author');
++    const approver = makeAdmin('r-approver');
++    const demoCreated = await createDemo(prisma, {
++      admin: author,
++      title: 'Ready pins',
++      contactId: 'con-1',
++    });
++    const agenda = await activateAgenda(prisma, author, approver, { code: 'RDY_AG' });
++    const script = await activateScript(prisma, author, approver, { code: 'RDY_SC' });
++    await pinAgendaToDemo(prisma, {
++      admin: author,
++      demoId: demoCreated.demo.id,
++      agendaId: agenda.id,
++    });
++    await pinScriptToDemo(prisma, {
++      admin: author,
++      demoId: demoCreated.demo.id,
++      scriptId: script.id,
++    });
++
++    const readiness = await evaluateDemoReadiness(prisma, {
++      admin: author,
++      demoId: demoCreated.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    expect(readiness.ok).toBe(true);
++    const agendaItem = readiness.items.find((i) => i.key === 'agenda_version');
++    const scriptItem = readiness.items.find((i) => i.key === 'script_version');
++    expect(agendaItem.ok).toBe(true);
++    expect(scriptItem.ok).toBe(true);
++  });
++
++  it('domain contract wave is 2', () => {
++    const contract = getDemoDomainContract();
++    expect(contract.wave).toBe(2);
++    expect(contract.restrictedScriptOnCustomerForbidden).toBe(true);
++    expect(contract.activeDirectlyEditable).toBe(false);
++  });
++});
+diff --git a/lib/admin/crm/demos/agendas.js b/lib/admin/crm/demos/agendas.js
+new file mode 100644
+index 0000000..9767b2f
+--- /dev/null
++++ b/lib/admin/crm/demos/agendas.js
+@@ -0,0 +1,351 @@
++/**
++ * Demo Agenda versions ΓÇö Phase 14 Wave 2.
++ * ACTIVE immutable in place; SoD approve; customer-safe projection for invitations.
++ */
++
++import {
++  CRM_DEMO_PROJECTION_SURFACE,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  isExternalSurface,
++  nextVersionNumber,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoAgendaModel(prisma) {
++  return typeof prisma?.crmDemoAgenda?.create === 'function';
++}
++
++function serializeAgenda(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    itemsJson: row.itemsJson ?? null,
++    customerSafeSummary: row.customerSafeSummary || null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++async function loadAgenda(prisma, agendaId) {
++  const id = agendaId ? String(agendaId).trim() : '';
++  if (!id || !hasCrmDemoAgendaModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoAgenda.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createAgendaVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_agenda_code' };
++
++  let customerSafeSummary;
++  let itemsJson;
++  try {
++    customerSafeSummary = assertSafeDemoContentText(args.customerSafeSummary || '');
++    itemsJson =
++      args.itemsJson !== undefined ? assertSafeJsonTree(args.itemsJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoAgenda, code);
++
++  const row = await prisma.crmDemoAgenda.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      itemsJson,
++      customerSafeSummary: customerSafeSummary || null,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    agenda: serializeAgenda(row),
++    meta: {
++      activeDirectlyEditable: false,
++      sodRequired: true,
++      inventExecutableForbidden: true,
++    },
++  };
++}
++
++export async function updateAgendaVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadAgenda(prisma, args.agendaId);
++  if (!row) return { ok: false, notFound: true, error: 'agenda_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      agenda: serializeAgenda(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'agenda_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.customerSafeSummary !== undefined) {
++      data.customerSafeSummary = assertSafeDemoContentText(patch.customerSafeSummary || '') || null;
++    }
++    if (patch.itemsJson !== undefined) {
++      data.itemsJson = patch.itemsJson != null ? assertSafeJsonTree(patch.itemsJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoAgenda.update({ where: { id: row.id }, data });
++  return { ok: true, agenda: serializeAgenda(updated), meta: { activeDirectlyEditable: false } };
++}
++
++export async function requestAgendaApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_request_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadAgenda(prisma, args.agendaId);
++  if (!row) return { ok: false, notFound: true, error: 'agenda_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'agenda_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoAgenda.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, agenda: serializeAgenda(updated), meta: { sodRequired: true } };
++}
++
++export async function approveAgendaVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_approve_forbidden' };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadAgenda(prisma, args.agendaId);
++  if (!row) return { ok: false, notFound: true, error: 'agenda_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'agenda_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoAgenda, row.code, now);
++
++  const updated = await prisma.crmDemoAgenda.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    agenda: serializeAgenda(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listAgendaVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoAgendaModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_agenda_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoAgenda.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeAgenda),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++/**
++ * Customer / invitation: summary only. Internal: full items.
++ */
++export function projectAgendaForSurface(agenda, opts = {}) {
++  if (!agenda) {
++    return { ok: true, allowed: false, agenda: null, reason: 'agenda_missing' };
++  }
++  const surface = String(opts.surface || CRM_DEMO_PROJECTION_SURFACE.INTERNAL)
++    .trim()
++    .toUpperCase();
++
++  if (isExternalSurface(surface)) {
++    return {
++      ok: true,
++      allowed: true,
++      agenda: {
++        id: agenda.id,
++        code: agenda.code,
++        version: agenda.version,
++        status: agenda.status,
++        name: agenda.name || null,
++        customerSafeSummary: agenda.customerSafeSummary || null,
++      },
++      meta: { surface, itemsOmitted: true },
++    };
++  }
++
++  return {
++    ok: true,
++    allowed: true,
++    agenda: serializeAgenda(agenda),
++    meta: { surface },
++  };
++}
++
++export async function pinAgendaToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_agenda_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoAgendaModel(prisma)) {
++    return { ok: false, error: 'crm_demo_agenda_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const agenda = await loadAgenda(prisma, args.agendaId);
++  if (!agenda) return { ok: false, notFound: true, error: 'agenda_not_found' };
++  if (agenda.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: agenda.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedAgendaId: agenda.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    agenda: serializeAgenda(agenda),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeAgenda };
+diff --git a/lib/admin/crm/demos/content.js b/lib/admin/crm/demos/content.js
+new file mode 100644
+index 0000000..d99f198
+--- /dev/null
++++ b/lib/admin/crm/demos/content.js
+@@ -0,0 +1,346 @@
++/**
++ * Demo Content library versions ΓÇö Phase 14 Wave 2.
++ * ACTIVE immutable; SoD approve; pin to Demo.
++ */
++
++import {
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_CONTENT_KIND,
++  CRM_DEMO_CONTENT_KINDS,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  nextVersionNumber,
++  normalizeClassification,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++const KIND_SET = new Set(CRM_DEMO_CONTENT_KINDS);
++
++export function hasCrmDemoContentModel(prisma) {
++  return typeof prisma?.crmDemoContent?.create === 'function';
++}
++
++function serializeContent(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    kind: row.kind || CRM_DEMO_CONTENT_KIND.OTHER,
++    classification: row.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    assetRef: row.assetRef || null,
++    bodyJson: row.bodyJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++async function loadContent(prisma, contentId) {
++  const id = contentId ? String(contentId).trim() : '';
++  if (!id || !hasCrmDemoContentModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoContent.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createContentVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_content_code' };
++
++  const kind = String(args.kind || CRM_DEMO_CONTENT_KIND.OTHER).trim().toUpperCase();
++  if (!KIND_SET.has(kind)) {
++    return { ok: false, error: 'invalid_content_kind', allowed: CRM_DEMO_CONTENT_KINDS };
++  }
++
++  const classification = normalizeClassification(
++    args.classification,
++    CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL
++  );
++  if (!classification) return { ok: false, error: 'invalid_classification' };
++
++  let assetRef;
++  let bodyJson;
++  try {
++    assetRef = args.assetRef != null ? assertSafeDemoContentText(args.assetRef) : null;
++    bodyJson = args.bodyJson !== undefined ? assertSafeJsonTree(args.bodyJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoContent, code);
++
++  const row = await prisma.crmDemoContent.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      kind,
++      classification,
++      assetRef: assetRef || null,
++      bodyJson,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    content: serializeContent(row),
++    meta: { activeDirectlyEditable: false, sodRequired: true },
++  };
++}
++
++export async function updateContentVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadContent(prisma, args.contentId);
++  if (!row) return { ok: false, notFound: true, error: 'content_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      content: serializeContent(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'content_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.kind !== undefined) {
++      const k = String(patch.kind).trim().toUpperCase();
++      if (!KIND_SET.has(k)) return { ok: false, error: 'invalid_content_kind' };
++      data.kind = k;
++    }
++    if (patch.classification !== undefined) {
++      const c = normalizeClassification(patch.classification);
++      if (!c) return { ok: false, error: 'invalid_classification' };
++      data.classification = c;
++    }
++    if (patch.assetRef !== undefined) {
++      data.assetRef =
++        patch.assetRef != null ? assertSafeDemoContentText(patch.assetRef) || null : null;
++    }
++    if (patch.bodyJson !== undefined) {
++      data.bodyJson = patch.bodyJson != null ? assertSafeJsonTree(patch.bodyJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoContent.update({ where: { id: row.id }, data });
++  return {
++    ok: true,
++    content: serializeContent(updated),
++    meta: { activeDirectlyEditable: false },
++  };
++}
++
++export async function requestContentApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_request_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadContent(prisma, args.contentId);
++  if (!row) return { ok: false, notFound: true, error: 'content_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'content_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoContent.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, content: serializeContent(updated), meta: { sodRequired: true } };
++}
++
++export async function approveContentVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_approve_forbidden' };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadContent(prisma, args.contentId);
++  if (!row) return { ok: false, notFound: true, error: 'content_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'content_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoContent, row.code, now);
++
++  const updated = await prisma.crmDemoContent.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    content: serializeContent(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listContentVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoContentModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_content_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  if (args.kind) where.kind = String(args.kind).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoContent.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeContent),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++export async function pinContentToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_content_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoContentModel(prisma)) {
++    return { ok: false, error: 'crm_demo_content_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const content = await loadContent(prisma, args.contentId);
++  if (!content) return { ok: false, notFound: true, error: 'content_not_found' };
++  if (content.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: content.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedContentId: content.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    content: serializeContent(content),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeContent };
+diff --git a/lib/admin/crm/demos/scenarios.js b/lib/admin/crm/demos/scenarios.js
+new file mode 100644
+index 0000000..d55eac5
+--- /dev/null
++++ b/lib/admin/crm/demos/scenarios.js
+@@ -0,0 +1,320 @@
++/**
++ * Demo Scenario versions ΓÇö Phase 14 Wave 2.
++ * ACTIVE immutable; SoD approve; pin to Demo.
++ */
++
++import {
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  nextVersionNumber,
++  normalizeClassification,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoScenarioModel(prisma) {
++  return typeof prisma?.crmDemoScenario?.create === 'function';
++}
++
++function serializeScenario(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    classification: row.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    bodyJson: row.bodyJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++async function loadScenario(prisma, scenarioId) {
++  const id = scenarioId ? String(scenarioId).trim() : '';
++  if (!id || !hasCrmDemoScenarioModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoScenario.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createScenarioVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_scenario_code' };
++
++  const classification = normalizeClassification(
++    args.classification,
++    CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL
++  );
++  if (!classification) return { ok: false, error: 'invalid_classification' };
++
++  let bodyJson;
++  try {
++    bodyJson = args.bodyJson !== undefined ? assertSafeJsonTree(args.bodyJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoScenario, code);
++
++  const row = await prisma.crmDemoScenario.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      classification,
++      bodyJson,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    scenario: serializeScenario(row),
++    meta: { activeDirectlyEditable: false, sodRequired: true },
++  };
++}
++
++export async function updateScenarioVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScenario(prisma, args.scenarioId);
++  if (!row) return { ok: false, notFound: true, error: 'scenario_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      scenario: serializeScenario(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'scenario_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.classification !== undefined) {
++      const c = normalizeClassification(patch.classification);
++      if (!c) return { ok: false, error: 'invalid_classification' };
++      data.classification = c;
++    }
++    if (patch.bodyJson !== undefined) {
++      data.bodyJson = patch.bodyJson != null ? assertSafeJsonTree(patch.bodyJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoScenario.update({ where: { id: row.id }, data });
++  return {
++    ok: true,
++    scenario: serializeScenario(updated),
++    meta: { activeDirectlyEditable: false },
++  };
++}
++
++export async function requestScenarioApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_request_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScenario(prisma, args.scenarioId);
++  if (!row) return { ok: false, notFound: true, error: 'scenario_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'scenario_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoScenario.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, scenario: serializeScenario(updated), meta: { sodRequired: true } };
++}
++
++export async function approveScenarioVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_approve_forbidden' };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScenario(prisma, args.scenarioId);
++  if (!row) return { ok: false, notFound: true, error: 'scenario_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'scenario_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoScenario, row.code, now);
++
++  const updated = await prisma.crmDemoScenario.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    scenario: serializeScenario(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listScenarioVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoScenarioModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_scenario_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoScenario.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeScenario),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++export async function pinScenarioToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_scenario_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoScenarioModel(prisma)) {
++    return { ok: false, error: 'crm_demo_scenario_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const scenario = await loadScenario(prisma, args.scenarioId);
++  if (!scenario) return { ok: false, notFound: true, error: 'scenario_not_found' };
++  if (scenario.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: scenario.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedScenarioId: scenario.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    scenario: serializeScenario(scenario),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeScenario };
+diff --git a/lib/admin/crm/demos/scripts.js b/lib/admin/crm/demos/scripts.js
+new file mode 100644
+index 0000000..d776be8
+--- /dev/null
++++ b/lib/admin/crm/demos/scripts.js
+@@ -0,0 +1,456 @@
++/**
++ * Demo Script versions ΓÇö Phase 14 Wave 2.
++ * RESTRICTED never on Customer/invitation surfaces; en/ny label foundations.
++ * ACTIVE immutable; SoD approve.
++ */
++
++import {
++  CRM_DEMO_CONTENT_CLASSIFICATION,
++  CRM_DEMO_PROJECTION_SURFACE,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  isExternalSurface,
++  nextVersionNumber,
++  normalizeClassification,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoScriptModel(prisma) {
++  return typeof prisma?.crmDemoScript?.create === 'function';
++}
++
++function serializeScript(row, { omitInternal = false } = {}) {
++  if (!row) return null;
++  const base = {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    classification: row.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL,
++    bodyCustomerSafe: row.bodyCustomerSafe || null,
++    labelsJson: row.labelsJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++  if (!omitInternal) {
++    base.bodyInternal = row.bodyInternal || null;
++  }
++  return base;
++}
++
++async function loadScript(prisma, scriptId) {
++  const id = scriptId ? String(scriptId).trim() : '';
++  if (!id || !hasCrmDemoScriptModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoScript.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createScriptVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_script_code' };
++
++  const classification = normalizeClassification(args.classification);
++  if (!classification) {
++    return {
++      ok: false,
++      error: 'invalid_classification',
++      allowed: Object.values(CRM_DEMO_CONTENT_CLASSIFICATION),
++    };
++  }
++
++  let bodyInternal;
++  let bodyCustomerSafe;
++  let labelsJson;
++  try {
++    bodyInternal = assertSafeDemoContentText(args.bodyInternal || '');
++    bodyCustomerSafe = assertSafeDemoContentText(args.bodyCustomerSafe || '');
++    labelsJson =
++      args.labelsJson !== undefined ? assertSafeJsonTree(args.labelsJson) : null;
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoScript, code);
++
++  const row = await prisma.crmDemoScript.create({
++    data: {
++      code,
++      version,
++      status: CRM_DEMO_VERSION_STATUS.DRAFT,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      classification,
++      bodyInternal: bodyInternal || null,
++      bodyCustomerSafe: bodyCustomerSafe || null,
++      labelsJson,
++      authoredByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    script: serializeScript(row),
++    meta: {
++      activeDirectlyEditable: false,
++      sodRequired: true,
++      restrictedNeverOnCustomer: true,
++      inventAiScriptForbidden: true,
++    },
++  };
++}
++
++export async function updateScriptVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScript(prisma, args.scriptId);
++  if (!row) return { ok: false, notFound: true, error: 'script_not_found' };
++
++  if (row.status === CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_demo_content_not_directly_editable',
++      reason: 'create_new_version_required',
++      script: serializeScript(row),
++    };
++  }
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'script_not_editable', status: row.status };
++  }
++
++  const patch = args.patch || {};
++  const now = args.now || new Date();
++  const data = { updatedAt: now };
++
++  try {
++    if (patch.name !== undefined) {
++      data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++    }
++    if (patch.classification !== undefined) {
++      const c = normalizeClassification(patch.classification);
++      if (!c) return { ok: false, error: 'invalid_classification' };
++      data.classification = c;
++    }
++    if (patch.bodyInternal !== undefined) {
++      data.bodyInternal = assertSafeDemoContentText(patch.bodyInternal || '') || null;
++    }
++    if (patch.bodyCustomerSafe !== undefined) {
++      data.bodyCustomerSafe =
++        assertSafeDemoContentText(patch.bodyCustomerSafe || '') || null;
++    }
++    if (patch.labelsJson !== undefined) {
++      data.labelsJson =
++        patch.labelsJson != null ? assertSafeJsonTree(patch.labelsJson) : null;
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const updated = await prisma.crmDemoScript.update({ where: { id: row.id }, data });
++  return { ok: true, script: serializeScript(updated), meta: { activeDirectlyEditable: false } };
++}
++
++export async function requestScriptApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_request_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScript(prisma, args.scriptId);
++  if (!row) return { ok: false, notFound: true, error: 'script_not_found' };
++
++  if (
++    row.status !== CRM_DEMO_VERSION_STATUS.DRAFT &&
++    row.status !== CRM_DEMO_VERSION_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'script_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoScript.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      authoredByAdminId: args.admin?.id || row.authoredByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  return { ok: true, script: serializeScript(updated), meta: { sodRequired: true } };
++}
++
++export async function approveScriptVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_approve_forbidden' };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadScript(prisma, args.scriptId);
++  if (!row) return { ok: false, notFound: true, error: 'script_not_found' };
++
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'script_not_pending_approval', status: row.status };
++  }
++
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoScript, row.code, now);
++
++  const updated = await prisma.crmDemoScript.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    script: serializeScript(updated),
++    meta: { sodRequired: true, activeDirectlyEditable: false },
++  };
++}
++
++export async function listScriptVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_list_forbidden', items: [] };
++  }
++  if (!hasCrmDemoScriptModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_demo_script_model_unavailable' },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim().toUpperCase();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoScript.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  const canRestricted = Boolean(access.canViewRestrictedNotes || access.isSuperAdmin);
++  return {
++    ok: true,
++    items: (rows || []).map((r) => {
++      if (
++        r.classification === CRM_DEMO_CONTENT_CLASSIFICATION.RESTRICTED &&
++        !canRestricted
++      ) {
++        return serializeScript(r, { omitInternal: true });
++      }
++      return serializeScript(r);
++    }),
++    meta: {
++      count: (rows || []).length,
++      activeDirectlyEditable: false,
++      restrictedOmitted: !canRestricted,
++    },
++  };
++}
++
++/**
++ * Fail-closed: RESTRICTED never on CUSTOMER / INVITATION.
++ * INTERNAL surface still requires canViewRestricted for RESTRICTED bodies.
++ */
++export function projectScriptForSurface(script, opts = {}) {
++  if (!script) {
++    return { ok: true, allowed: false, script: null, reason: 'script_missing' };
++  }
++
++  const surface = String(opts.surface || CRM_DEMO_PROJECTION_SURFACE.INTERNAL)
++    .trim()
++    .toUpperCase();
++  const classification = String(
++    script.classification || CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL
++  )
++    .trim()
++    .toUpperCase();
++  const canViewRestricted = Boolean(opts.canViewRestricted);
++
++  if (classification === CRM_DEMO_CONTENT_CLASSIFICATION.RESTRICTED) {
++    if (isExternalSurface(surface)) {
++      return {
++        ok: true,
++        allowed: false,
++        script: null,
++        reason: 'restricted_script_forbidden_on_customer_surface',
++        meta: { surface, classification },
++      };
++    }
++    if (!canViewRestricted) {
++      return {
++        ok: true,
++        allowed: false,
++        script: null,
++        reason: 'restricted_script_privilege_required',
++        meta: { surface, classification },
++      };
++    }
++    return {
++      ok: true,
++      allowed: true,
++      script: serializeScript(script),
++      meta: { surface, classification },
++    };
++  }
++
++  if (isExternalSurface(surface)) {
++    if (classification === CRM_DEMO_CONTENT_CLASSIFICATION.INTERNAL) {
++      return {
++        ok: true,
++        allowed: Boolean(script.bodyCustomerSafe),
++        script: script.bodyCustomerSafe
++          ? {
++              id: script.id,
++              code: script.code,
++              version: script.version,
++              status: script.status,
++              name: script.name || null,
++              classification,
++              bodyCustomerSafe: script.bodyCustomerSafe,
++              labelsJson: script.labelsJson ?? null,
++            }
++          : null,
++        reason: script.bodyCustomerSafe
++          ? null
++          : 'internal_script_has_no_customer_safe_body',
++        meta: { surface, classification, bodyInternalOmitted: true },
++      };
++    }
++    // CUSTOMER_SAFE
++    return {
++      ok: true,
++      allowed: true,
++      script: {
++        id: script.id,
++        code: script.code,
++        version: script.version,
++        status: script.status,
++        name: script.name || null,
++        classification,
++        bodyCustomerSafe: script.bodyCustomerSafe || null,
++        labelsJson: script.labelsJson ?? null,
++      },
++      meta: { surface, classification, bodyInternalOmitted: true },
++    };
++  }
++
++  return {
++    ok: true,
++    allowed: true,
++    script: serializeScript(script),
++    meta: { surface, classification },
++  };
++}
++
++export async function pinScriptToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_script_pin_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoScriptModel(prisma)) {
++    return { ok: false, error: 'crm_demo_script_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const script = await loadScript(prisma, args.scriptId);
++  if (!script) return { ok: false, notFound: true, error: 'script_not_found' };
++  if (script.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active', status: script.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedScriptId: script.id, updatedAt: now },
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    script: serializeScript(script),
++    meta: { pinned: true, historicalPinRetained: true },
++  };
++}
++
++export { serializeScript };

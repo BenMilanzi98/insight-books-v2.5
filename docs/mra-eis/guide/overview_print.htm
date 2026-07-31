@@ -1,0 +1,36 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<base target="_blank" />
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<link href="css/printed.css" media="all" rel="StyleSheet" type="text/css" />
+		<link href="de_style.css" media="all" rel="StyleSheet" type="text/css" />
+		<meta name="generator" content="www.DrExplain.com" />
+				<title>1.1. Overview</title>
+	</head>
+	<body>
+		<table class="pagetable">
+			<tr class="page" style="border-color: #ffffff;">
+				<td class="page_area" style="border-color: #ffffff; width: 100%;"><div class="description_on_page"><div class="p" style="text-align: center; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="ic"><h1><strong>1.1. Overview</strong></h1></div></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><img  alt="Overview" style="border: solid 0px;  " width="600" height="296" class=" de_780D01ADE8" src="images/drex_overview_custom.png"/></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">The figure shows a high level life cycle of Electronic Invoicing System (EIS). Taxpayers will start by making an application for a terminal, this process is called the Terminal Acquisition. The taxpayer will login to a portal hosted by MRA where they can apply for terminals. At the end of the terminal acquisition process, the tax payer will be issued a </span><a class="local_link" href="terminal_activation_code__tac_.htm"><span class="de_AC776ED092">Terminal Activation Code</span></a><span class="de_D66F0623DB">(TAC)&#160; which will be used when activating their Point Of Sale System.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">The terminal (POS software) will get activated through the API hosted at MRA. The API has exposed necessary endpoint to facilitate </span><a class="local_link" href="onboarding.htm"><span class="de_AC776ED092">terminal onboarding</span></a><span class="de_D66F0623DB">. In principle, the Terminal Activation Code&#160; and a few other parameters will be sent to MRA terminal activation endpoint which will internally validate the TAC and return configurations that must be saved on the terminal for subsequent communication with MRA. Once the configuration details are saved on the terminal, a new request will be sent by the terminal to </span><a class="local_link" href="terminal_activated_confirmation.htm"><span class="de_AC776ED092"><strong>confirm </strong></span></a><span class="de_D66F0623DB">that the terminal has been configured. Once the confirmation is received, the TAC expires and can not be used to get any activation configuration from MRA.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">Once the device is activated, it is expected that it should regularly check for any changes in the configuration through the </span><a class="local_link" href="get_latest_configuration.htm"><span class="de_AC776ED092">getLatestConfig </span></a><span class="de_D66F0623DB">end point. At minimum, it is mandatory that at the beginning of the day and/or every time the terminal gets (re)started, the end point must be called.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">During the business day, the terminal can be used to make sales and for every receipt, an API call MUST be made to </span><a class="local_link" href="sale_transaction.htm"><span class="de_AC776ED092">inform MRA of the sale</span></a><span class="de_D66F0623DB">. MRA will respond with an invoice validation signature which must be converted to a QRCode that will appear at the bottom of a receipt. For terminals </span><a class="local_link" href="api_compliance_certification.htm"><span class="de_AC776ED092">certified </span></a><span class="de_D66F0623DB">to work offline, transactions can be queued offline (eg in an embedded portable database) if there is any connectivity challenge with MRA APIs. Since receipts need to have a QRCode printed at the bottom, the offline transactions will have a light weight algorithm that will enable terminals generate a QRCode that can be validated. The algorithm will make use of terminal specific keys that will be provided by MRA through configuration from the device onboarding process. Once connectivity is restored, the offline queue will need to be pushed to MRA.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">MRA has provided 2 additional end points that will enable terminals to view the </span><a class="local_link" href="last_online_transaction.htm"><span class="de_AC776ED092">last online transaction</span></a><span class="de_D66F0623DB"> and </span><a class="local_link" href="last_offline_transaction.htm"><span class="de_AC776ED092">last offline transaction </span></a><span class="de_D66F0623DB">submitted by the terminal.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">The EIS API has provided additional endpoints under utilities. At the time of writting this documentation, the following utility end points are available;</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">1. </span><a class="local_link" href="ping.htm"><span class="de_AC776ED092">Ping </span></a><span class="de_D66F0623DB">: To enable terminals check if MRA API is up and running.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_D66F0623DB">2. </span><a class="local_link" href="product_status.htm"><span class="de_AC776ED092">Product Status</span></a><span class="de_D66F0623DB"> : To check the status of a product if it is mapped to a standardized category code defined by MRA. This will also respond with stock levels.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+</div>				</td>
+			</tr>
+		</table>
+	</body>
+</html>

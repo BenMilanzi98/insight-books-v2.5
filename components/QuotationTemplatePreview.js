@@ -152,7 +152,10 @@ const QuotationTemplatePreview = forwardRef(({
               const perItemDiscount = item.discountAmount || 0;
               const lineDiscount = multiplyMoney(perItemDiscount, item.quantity || 0);
               const netAmount = subtractMoney(lineTotal, lineDiscount);
-              const taxAmountItem = percentOfMoney(netAmount, item.taxRate || 0);
+              const itemTaxes = item.itemTaxes || item.taxes || [];
+              const taxAmountItem = itemTaxes.length
+                ? itemTaxes.reduce((s, t) => addMoney(s, Number(t.taxAmount) || 0), 0)
+                : percentOfMoney(netAmount, item.taxRate || 0);
               const finalAmount = addMoney(netAmount, taxAmountItem);
               return (
                 <tr key={index} className={index % 2 === 1 ? 'bg-gray-50/50' : ''}>
@@ -163,7 +166,13 @@ const QuotationTemplatePreview = forwardRef(({
                   <td className="py-3.5 text-right text-gray-600">{item.quantity}</td>
                   <td className="py-3.5 text-right text-gray-600">{formatAmount(item.unitPrice)}</td>
                   <td className="py-3.5 text-right">{lineDiscount > 0 ? <span className="text-red-600">-{formatAmount(lineDiscount)}</span> : <span className="text-gray-400">—</span>}</td>
-                  <td className="py-3.5 text-right text-gray-600">{(item.taxRate || 0) > 0 ? `${item.taxRate}% · ${formatAmount(taxAmountItem)}` : '—'}</td>
+                  <td className="py-3.5 text-right text-gray-600">
+                    {itemTaxes.length > 0
+                      ? itemTaxes.map((t) => `${t.taxName}: ${formatAmount(t.taxAmount)}`).join(' · ')
+                      : (item.taxRate || 0) > 0
+                        ? `${item.taxRate}% · ${formatAmount(taxAmountItem)}`
+                        : '—'}
+                  </td>
                   <td className="py-3.5 text-right font-medium text-gray-900">{formatAmount(finalAmount)}</td>
                 </tr>
               );

@@ -68,7 +68,7 @@ export async function PUT(request, { params }) {
     }
 
     // Check if budget exists and is not locked
-    const existingBudget = await prisma.budget.findFirst({
+    const existingBudget = await prisma.legacyBudget.findFirst({
       where: { id: params.id, tenantId: user.tenantId }
     });
 
@@ -162,7 +162,7 @@ export async function PATCH(request, { params }) {
     const { action } = body;
 
     // Check if budget exists
-    const existingBudget = await prisma.budget.findFirst({
+    const existingBudget = await prisma.legacyBudget.findFirst({
       where: { id: params.id, tenantId: user.tenantId }
     });
 

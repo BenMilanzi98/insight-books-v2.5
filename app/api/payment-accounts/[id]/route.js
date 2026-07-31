@@ -131,21 +131,46 @@ export async function PUT(request, { params }) {
       }, { status: 400 });
     }
 
-    // Check if name is being changed and if new name already exists
-    if (name && name.trim() !== existing.name) {
-      const nameExists = await prisma.paymentAccount.findUnique({
-        where: {
-          tenantId_name: {
-            tenantId: user.tenantId,
-            name: name.trim()
-          }
-        }
-      });
+    // Same name allowed; account number (reference) must stay unique per tenant.
+    const nextReference =
+      reference !== undefined
+        ? String(reference ?? '').trim() || null
+        : existing.reference;
+    const nextType =
+      accountType !== undefined
+        ? String(accountType).trim()
+        : String(existing.accountType || '').trim();
 
-      if (nameExists && nameExists.id !== id) {
-        return NextResponse.json({ 
-          error: 'Payment account with this name already exists' 
-        }, { status: 400 });
+    if (nextType !== 'Cash' && !nextReference && !existing.isSystem) {
+      return NextResponse.json(
+        {
+          error: 'Account number / reference is required for this account type.',
+          code: 'PAYMENT_ACCOUNT_REFERENCE_REQUIRED',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      nextReference &&
+      nextReference !== (existing.reference || null)
+    ) {
+      const refExists = await prisma.paymentAccount.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          reference: nextReference,
+          NOT: { id },
+        },
+        select: { id: true, name: true },
+      });
+      if (refExists) {
+        return NextResponse.json(
+          {
+            error: `Account number "${nextReference}" is already used by "${refExists.name}". Use a different account number.`,
+            code: 'PAYMENT_ACCOUNT_REFERENCE_DUPLICATE',
+          },
+          { status: 409 }
+        );
       }
     }
 
@@ -153,7 +178,7 @@ export async function PUT(request, { params }) {
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
     if (accountType !== undefined) updateData.accountType = accountType;
-    if (reference !== undefined) updateData.reference = reference?.trim() || null;
+    if (reference !== undefined) updateData.reference = nextReference;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (
       accountType !== undefined &&
@@ -252,7 +277,7 @@ export async function PUT(request, { params }) {
     if (code === 'P2002') {
       return NextResponse.json(
         {
-          error: 'A payment account or ledger code already exists for this business.',
+          error: 'That account number is already in use, or a matching ledger code already exists.',
           code: 'PAYMENT_ACCOUNT_DUPLICATE',
         },
         { status: 409 }

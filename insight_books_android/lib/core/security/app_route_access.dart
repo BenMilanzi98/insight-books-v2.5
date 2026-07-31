@@ -14,6 +14,7 @@ const List<RoutePermissionRule> kRoutePermissionRules = [
   RoutePermissionRule('/quotation', 'quotations.view'),
   RoutePermissionRule('/expenses', 'expenses.view'),
   RoutePermissionRule('/stock', 'stock.view'),
+  RoutePermissionRule('/purchases', 'purchases.view'),
   RoutePermissionRule('/reports', 'reports.view'),
   RoutePermissionRule('/account', 'system.view'),
   RoutePermissionRule('/payments', 'payments.view'),
@@ -44,6 +45,7 @@ String firstAccessibleRoute(
   if (satisfiesPermission(permissions, 'invoices.view')) return '/invoice';
   if (satisfiesPermission(permissions, 'quotations.view')) return '/quotation';
   if (satisfiesPermission(permissions, 'expenses.view')) return '/expenses';
+  if (canAccessPurchasesRoute(permissions)) return '/purchases';
   if (satisfiesPermission(permissions, 'system.view')) return '/account';
   if (tenantCount != null &&
       tenantCount > 1 &&
@@ -57,6 +59,23 @@ String firstAccessibleRoute(
   // Do not send users to `/pos` (or any guarded shell route) without the matching
   // permission — that causes an infinite GoRouter redirect and a blank screen.
   return '/access-denied';
+}
+
+/// Hub and child routes allow `purchases.view` **or** `suppliers.view`.
+bool canAccessPurchasesRoute(Set<String> permissions) {
+  return satisfiesPermission(permissions, 'purchases.view') ||
+      satisfiesPermission(permissions, 'suppliers.view');
+}
+
+/// Whether the user may open [matchedLocation] (ShellRoute children).
+bool canAccessLocation(Set<String> permissions, String matchedLocation) {
+  if (matchedLocation == '/purchases' ||
+      matchedLocation.startsWith('/purchases/')) {
+    return canAccessPurchasesRoute(permissions);
+  }
+  final required = requiredPermissionForLocation(matchedLocation);
+  if (required == null || required.isEmpty) return true;
+  return satisfiesPermission(permissions, required);
 }
 
 /// Returns the permission key for the current path, or null if no rule / open.

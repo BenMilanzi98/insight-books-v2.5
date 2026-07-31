@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2, Calendar, CheckCircle, Copy, KeyRound, Lock, Pencil, Plus,
@@ -16,7 +19,7 @@ const PAGE_SIZE = 10;
 async function fetchRolesForTenant(tenantId) {
   if (!tenantId) return [];
   try {
-    const res = await fetch(`/api/admin/roles?tenantId=${encodeURIComponent(tenantId)}`, {
+    const res = await adminFetch(`/api/admin/roles?tenantId=${encodeURIComponent(tenantId)}`, {
       cache: 'no-store', credentials: 'include',
     });
     if (!res.ok) return [];
@@ -86,6 +89,7 @@ const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radiu
 const btnPrimary = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function UserManagementPage() {
+  const { t } = useI18n();
   const [users, setUsers] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +117,7 @@ export default function UserManagementPage() {
       if (search) params.set('search', search);
       if (role !== 'all') params.set('role', role);
       if (status !== 'all') params.set('status', status);
-      const res = await fetch(`/api/admin/users?${params}`, { credentials: 'include' });
+      const res = await adminFetch(`/api/admin/users?${params}`, { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Failed to load users (${res.status})`);
       setUsers(Array.isArray(data.users) ? data.users : []);
@@ -132,7 +136,7 @@ export default function UserManagementPage() {
     setStatsLoading(true);
     setStatsError(false);
     try {
-      const res = await fetch('/api/admin/users/stats', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/users/stats', { credentials: 'include' });
       if (!res.ok) throw new Error('stats unavailable');
       setStats(await res.json());
     } catch {
@@ -148,7 +152,7 @@ export default function UserManagementPage() {
     fetchStats();
     (async () => {
       try {
-        const res = await fetch('/api/admin/tenants', { credentials: 'include' });
+        const res = await adminFetch('/api/admin/tenants', { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         setTenants(Array.isArray(data.tenants) ? data.tenants : []);
@@ -177,7 +181,7 @@ export default function UserManagementPage() {
     setActionLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -209,7 +213,7 @@ export default function UserManagementPage() {
     setActionLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/users/update', {
+      const res = await adminFetch('/api/admin/users/update', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -237,7 +241,7 @@ export default function UserManagementPage() {
     setError('');
     try {
       if (confirm.type === 'delete') {
-        const res = await fetch('/api/admin/users/delete', {
+        const res = await adminFetch('/api/admin/users/delete', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -248,7 +252,7 @@ export default function UserManagementPage() {
         showSuccess('User deleted successfully');
       } else {
         const { user, action } = confirm;
-        const res = await fetch('/api/admin/users/actions', {
+        const res = await adminFetch('/api/admin/users/actions', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -343,7 +347,7 @@ export default function UserManagementPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="User Management"
+        title={t('admin-pages.users.title')}
         description="Create, update, and secure users across tenants."
         actions={
           <>
@@ -529,7 +533,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
     (async () => {
       setDetailLoading(true);
       try {
-        const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}`, { cache: 'no-store', credentials: 'include' });
+        const res = await adminFetch(`/api/admin/users/${encodeURIComponent(user.id)}`, { cache: 'no-store', credentials: 'include' });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Failed to load user');
         if (cancelled) return;
@@ -564,7 +568,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/admin/departments?tenantId=${encodeURIComponent(primaryTenantId)}`, { cache: 'no-store', credentials: 'include' });
+        const res = await adminFetch(`/api/admin/departments?tenantId=${encodeURIComponent(primaryTenantId)}`, { cache: 'no-store', credentials: 'include' });
         const data = await res.json().catch(() => []);
         if (!cancelled) setDepartments(Array.isArray(data) ? data : []);
       } catch {
@@ -610,7 +614,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
     setActivationMessage('');
     setFormError('');
     try {
-      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/manual-activation`, { method: 'POST', credentials: 'include' });
+      const res = await adminFetch(`/api/admin/users/${encodeURIComponent(user.id)}/manual-activation`, { method: 'POST', credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed to manually activate user');
       setVerification({ isEmailVerified: true, otpCode: null, otpExpiry: null });

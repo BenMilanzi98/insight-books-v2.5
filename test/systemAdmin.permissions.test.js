@@ -90,5 +90,9 @@ describe('systemAdmin permissions catalog', () => {
     expect(NAV_PERMISSION_MAP['/insightbooks/billing']).toBe(
       SYSTEM_ADMIN_PERMISSIONS.billing.view
     );
+    expect(NAV_PERMISSION_MAP['/insightbooks/billing/mra-eis-plans']).toBe(
+      SYSTEM_ADMIN_PERMISSIONS.billing.view
+    );
+    expect(SYSTEM_ADMIN_PERMISSIONS.mraPlans.view).toBe('systemAdmin.mraPlans.view');
   });
 });

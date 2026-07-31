@@ -6,7 +6,6 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { validateTransactionBalance, validateBalanceSheetEquation } from '@/lib/accountingValidation';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { mergeWizardStep } from '@/lib/setupWizardService';
-import { postGlEntry } from '@/lib/accountingEngine/postGlEntry';
 import { resolveOpeningBalanceEquityAccount } from '@/lib/openingBalanceEquityAccount';
 import { validateOpeningBalanceAccount } from '@/lib/openingBalanceService';
 import { buildOpeningBalanceIdempotencyKey } from '@/lib/postingRules/openingBalancePostingRules';
@@ -322,58 +321,14 @@ export async function POST(request) {
         },
       });
 
-      const transaction = await postGlEntry({
-        tenantId: user.tenantId,
-        userId: user.id,
-        entryDate,
-        description: 'Opening balances — onboarding',
-        sourceType: 'onboarding',
-        sourceId: bulkSourceId,
-        entryType: 'Opening',
-        lines: transactionLines,
-        tx,
-      });
-
-      try {
-        await tx.transaction.update({
-          where: { id: transaction.id },
-          data: { notes: JSON.stringify({ openingBalanceType: 'opening_bulk' }) },
-        });
-      } catch {
-        /* notes optional */
-      }
-
-      const allAccounts = await tx.account.findMany({
-        where: { tenantId: user.tenantId, isActive: true },
-        select: { id: true, accountType: true, balance: true },
-      });
-
-      const assetTotal = allAccounts
-        .filter((a) => a.accountType === 'Asset')
-        .reduce((sum, a) => sum + parseFloat(a.balance || 0), 0);
-      const liabilityTotal = Math.max(
-        0,
-        allAccounts
-          .filter((a) => a.accountType === 'Liability')
-          .reduce((sum, a) => sum + parseFloat(a.balance || 0), 0),
+      // Fresh-books V2: legacy Transaction opening-balance writer removed.
+      // Use Accounting V2 opening-balance batches (/api/accounting-v2/opening-balances).
+      const err = new Error(
+        'Legacy opening-balance postGlEntry path removed (LEGACY_POSTING_REMOVED). ' +
+          'Use V2 opening-balance batches (postOpeningBalanceBatch). Fresh-books cutover starts ledgers at zero.'
       );
-      const equityTotal = allAccounts
-        .filter((a) => a.accountType === 'Equity')
-        .reduce((sum, a) => sum + parseFloat(a.balance || 0), 0);
-
-      const balanceSheetValidation = validateBalanceSheetEquation({
-        assetTotal,
-        liabilityTotal,
-        equityTotal,
-      });
-
-      if (!balanceSheetValidation.isValid) {
-        throw new Error(
-          `Balance sheet does not balance after setting opening balances: ${balanceSheetValidation.error}`,
-        );
-      }
-
-      return { transaction, balanceSheetValidation };
+      err.code = 'LEGACY_POSTING_REMOVED';
+      throw err;
     });
 
     try {

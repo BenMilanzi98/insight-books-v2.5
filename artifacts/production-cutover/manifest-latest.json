@@ -1,0 +1,15 @@
+{
+  "migrationRunId": "MR-20260722100522",
+  "releaseVersion": "unreleased",
+  "sourceEnvironment": "UNKNOWN",
+  "targetEnvironment": "UNKNOWN",
+  "sourceCommit": null,
+  "targetCommit": "5b59a68",
+  "targetSchemaVersion": "20260721200000_security_governance_v2",
+  "migrationScriptVersion": "phase18-framework-1",
+  "migrationScopeVersion": "DRAFT",
+  "status": "NOT_STARTED",
+  "notes": "Framework only — production cutover not executed.",
+  "createdAt": "2026-07-22T10:05:22.847Z",
+  "checksum": "ba23d90a4e1eead2f5adf17dc2172a4695b8a3df078a44926392969d8c74d34a"
+}

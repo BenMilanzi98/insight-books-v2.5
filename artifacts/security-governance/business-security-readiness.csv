@@ -1,0 +1,21 @@
+businessId,area,status,notes
+*,authentication,READY_WITH_WARNINGS,Signed sessions when SESSION_SIGNING_SECRET set; legacy unsigned still accepted unless ALLOW_LEGACY_UNSIGNED_SESSION=false
+*,session_revocation,READY,SecV2UserSession tracking + revoke APIs
+*,mfa_policy,REQUIRES_CRITICAL_REMEDIATION,Foundations (SecV2MfaCredential) present; TOTP challenge not fully wired into login
+*,membership,READY_WITH_WARNINGS,TenantMembership enforced on session; SecV2 enrichment optional
+*,authorization_engine,READY,lib/securityGovernance/domain/authorizationEngine.js
+*,approval_policy_engine,READY,Versioned policies + checksum invalidation
+*,segregation_of_duties,READY,Maker-checker engine + loan readiness hard SoD
+*,audit_trail,READY,Append-only SecV2AuditEvent with hash chaining
+*,audit_integrity,READY,verifyAuditChain + integrity API
+*,file_security,READY_WITH_WARNINGS,assertSafeUpload + bank recon; public /uploads still needs controlled signed download cutover
+*,export_security,READY_WITH_WARNINGS,Framework + lender/board packs; watermarks deferred
+*,api_keys,READY,Hashed SecV2ApiKey with revoke
+*,webhooks,READY,Signature + replay helpers (adopt per integration)
+*,ai_governance,READY,Platform helpers; module AI remains review-only
+*,security_monitoring,READY_WITH_WARNINGS,Alerts + dashboard; SIEM integration deferred
+*,impersonation,REQUIRES_PERMISSION_REVIEW,Models + permissions present; UI workflow opt-in via flag
+*,emergency_access,REQUIRES_PERMISSION_REVIEW,Models present; flag not default-enabled
+*,cross_business_isolation,READY_WITH_WARNINGS,Engine + V2 guards; legacy SEC-1/SEC-2 residual paths still documented
+*,secrets,READY_WITH_WARNINGS,Policy docs; set SESSION_SIGNING_SECRET in production; no plaintext password storage
+*,phase16_test_factories,REQUIRES_CRITICAL_REMEDIATION,Partial unit coverage; full E2E suite deferred to Phase 16

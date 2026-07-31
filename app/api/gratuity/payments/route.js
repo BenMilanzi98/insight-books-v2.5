@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
-import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 
 /**
  * POST - Record a gratuity payment
@@ -123,20 +122,19 @@ export async function POST(request) {
         }
       });
 
-      // GL via createExpenseJournalEntry (postGlEntry)
+      // LEGACY_POSTING_REMOVED: createExpenseJournalEntry is gone.
+      // This route creates expense rows for register visibility but does not resolve expenseAccountId,
+      // so V2 postExpenseAccounting / postApprovedExpenseJournalIfMissing cannot post yet.
       try {
-        await createExpenseJournalEntry({
-          tenantId: user.tenantId,
-          userId: user.id,
-          expenseId: expense.id,
-          expenseDate: payDate,
-          amount: payAmount,
-          category: 'Gratuity',
-          paymentMethod: method,
-          tx
-        });
+        const err = new Error(
+          'Gratuity payment GL posting is removed (LEGACY_POSTING_REMOVED). ' +
+            'Assign expenseAccountId on the gratuity expense and use postExpenseAccounting ' +
+            '(or postApprovedExpenseJournalIfMissing) from @/lib/accountingV2/adapters / @/lib/expenseGlPosting.'
+        );
+        err.code = 'LEGACY_POSTING_REMOVED';
+        throw err;
       } catch (journalError) {
-        console.warn('Gratuity expense journal entry failed (continuing):', journalError?.message || journalError);
+        console.warn('Gratuity expense journal entry skipped:', journalError?.message || journalError);
       }
 
       return { gratuityPayment, updatedAccount, expense };

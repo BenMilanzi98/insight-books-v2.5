@@ -1,0 +1,4377 @@
+﻿# Review package — Phase 10 Task 2 (WORKING_TREE)
+# Scoped to Wave 2 paths (+ support lib deltas)
+
+diff --git a/lib/admin/support/messages.js b/lib/admin/support/messages.js
+new file mode 100644
+index 0000000..b515c47
+--- /dev/null
++++ b/lib/admin/support/messages.js
+@@ -0,0 +1,208 @@
++/**
+
++ * Support messages ΓÇö public reply / internal / restricted notes (Phase 10 Wave 2).
+
++ * Enforcement is API/service-layer ΓÇö never CSS-only.
+
++ * projectForCustomer never includes INTERNAL_NOTE or RESTRICTED_INTERNAL_NOTE.
+
++ */
+
++
+
++import {
+
++  SUPPORT_MESSAGE_TYPE,
+
++  SUPPORT_CUSTOMER_VISIBLE_MESSAGE_TYPES,
+
++  SUPPORT_CUSTOMER_SAFE_SYSTEM_EVENT_CODES,
+
++} from './catalogue.js';
+
++import { resolveSupportAccess } from './authz.js';
+
++import { findSupportTicket } from './ticketLookup.js';
+
++
+
++export function hasSupportMessageModel(prisma) {
+
++  return typeof prisma?.supportMessage?.create === 'function';
+
++}
+
++
+
++function serializeMessage(row) {
+
++  if (!row) return null;
+
++  return {
+
++    id: row.id,
+
++    ticketId: row.ticketId,
+
++    type: row.type,
+
++    body: row.body,
+
++    authorAdminId: row.authorAdminId || null,
+
++    visibility: row.visibility || null,
+
++    systemEventCode: row.systemEventCode || null,
+
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+
++  };
+
++}
+
++
+
++/**
+
++ * Customer portal projection (portal deferred). Fail closed on internal/restricted.
+
++ *
+
++ * @param {Array<object>} messages ΓÇö already-serialized or raw rows
+
++ * @returns {Array<object>}
+
++ */
+
++export function projectForCustomer(messages) {
+
++  const list = Array.isArray(messages) ? messages : [];
+
++  const safeSystem = new Set(SUPPORT_CUSTOMER_SAFE_SYSTEM_EVENT_CODES);
+
++  return list
+
++    .filter((m) => {
+
++      const type = String(m?.type || '');
+
++      if (
+
++        type === SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE ||
+
++        type === SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE
+
++      ) {
+
++        return false;
+
++      }
+
++      if (type === SUPPORT_MESSAGE_TYPE.SYSTEM_EVENT) {
+
++        return safeSystem.has(String(m?.systemEventCode || ''));
+
++      }
+
++      return SUPPORT_CUSTOMER_VISIBLE_MESSAGE_TYPES.includes(type);
+
++    })
+
++    .map((m) => serializeMessage(m));
+
++}
+
++
+
++/**
+
++ * Message types visible to this admin in agent list view.
+
++ * @param {ReturnType<typeof resolveSupportAccess>} access
+
++ */
+
++export function visibleMessageTypesForAdmin(access) {
+
++  const types = [
+
++    SUPPORT_MESSAGE_TYPE.CUSTOMER_MESSAGE,
+
++    SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY,
+
++    SUPPORT_MESSAGE_TYPE.SYSTEM_EVENT,
+
++  ];
+
++  if (access.canAddInternalNotes || access.isSuperAdmin) {
+
++    types.push(SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE);
+
++  }
+
++  if (access.canViewRestrictedNotes || access.isSuperAdmin) {
+
++    types.push(SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE);
+
++  }
+
++  return types;
+
++}
+
++
+
++async function createMessage(prisma, { admin, ticketId, type, body, visibility, systemEventCode }) {
+
++  const access = resolveSupportAccess(admin);
+
++  if (!access.canViewTickets) {
+
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden' };
+
++  }
+
++
+
++  const text = body != null ? String(body).trim() : '';
+
++  if (!text) return { ok: false, error: 'body_required' };
+
++
+
++  if (!hasSupportMessageModel(prisma)) {
+
++    return { ok: false, error: 'support_message_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  const ticket = await findSupportTicket(prisma, ticketId);
+
++  if (!ticket) return { ok: false, notFound: true, error: 'ticket_not_found' };
+
++
+
++  const now = new Date();
+
++  const row = await prisma.supportMessage.create({
+
++    data: {
+
++      ticketId: ticket.id,
+
++      type,
+
++      body: text,
+
++      authorAdminId: admin?.id || null,
+
++      visibility: visibility || null,
+
++      systemEventCode: systemEventCode || null,
+
++      createdAt: now,
+
++    },
+
++  });
+
++
+
++  return { ok: true, message: serializeMessage(row) };
+
++}
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ admin: object, ticketId: string, body: string }} args
+
++ */
+
++export async function addPublicReply(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canReplyPublicly) {
+
++    return { ok: false, forbidden: true, reason: 'support_reply_public_forbidden' };
+
++  }
+
++  return createMessage(prisma, {
+
++    admin: args.admin,
+
++    ticketId: args.ticketId,
+
++    type: SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY,
+
++    body: args.body,
+
++    visibility: 'PUBLIC',
+
++  });
+
++}
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ admin: object, ticketId: string, body: string }} args
+
++ */
+
++export async function addInternalNote(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canAddInternalNotes) {
+
++    return { ok: false, forbidden: true, reason: 'support_internal_note_forbidden' };
+
++  }
+
++  return createMessage(prisma, {
+
++    admin: args.admin,
+
++    ticketId: args.ticketId,
+
++    type: SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE,
+
++    body: args.body,
+
++    visibility: 'INTERNAL',
+
++  });
+
++}
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ admin: object, ticketId: string, body: string }} args
+
++ */
+
++export async function addRestrictedNote(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canAddRestrictedNotes) {
+
++    return { ok: false, forbidden: true, reason: 'support_restricted_note_forbidden' };
+
++  }
+
++  return createMessage(prisma, {
+
++    admin: args.admin,
+
++    ticketId: args.ticketId,
+
++    type: SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE,
+
++    body: args.body,
+
++    visibility: 'RESTRICTED',
+
++  });
+
++}
+
++
+
++/**
+
++ * List messages for admin agent view (permission-filtered).
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ admin: object, ticketId: string }} args
+
++ */
+
++export async function listMessages(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canViewTickets) {
+
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden', items: [] };
+
++  }
+
++
+
++  if (!hasSupportMessageModel(prisma)) {
+
++    return {
+
++      ok: true,
+
++      items: [],
+
++      meta: { unavailable: true, reason: 'support_message_model_unavailable' },
+
++    };
+
++  }
+
++
+
++  const ticket = await findSupportTicket(prisma, args.ticketId);
+
++  if (!ticket) return { ok: false, notFound: true, error: 'ticket_not_found', items: [] };
+
++
+
++  const allowedTypes = visibleMessageTypesForAdmin(access);
+
++  let rows = [];
+
++  try {
+
++    rows = await prisma.supportMessage.findMany({
+
++      where: {
+
++        ticketId: ticket.id,
+
++        type: { in: allowedTypes },
+
++      },
+
++      orderBy: { createdAt: 'asc' },
+
++    });
+
++  } catch {
+
++    rows = [];
+
++  }
+
++
+
++  return {
+
++    ok: true,
+
++    items: (rows || []).map(serializeMessage),
+
++    meta: { count: (rows || []).length, ticketId: ticket.id },
+
++  };
+
++}
+
++
+
++export { serializeMessage };
+
+diff --git a/lib/admin/support/attachments.js b/lib/admin/support/attachments.js
+new file mode 100644
+index 0000000..4dc3823
+--- /dev/null
++++ b/lib/admin/support/attachments.js
+@@ -0,0 +1,305 @@
++/**
+
++ * Support attachments ΓÇö private storage + scan-state download gate (Phase 10 Wave 2).
+
++ *
+
++ * Storage choice: local private directory under `storage/support-attachments/`
+
++ * (gitignored). Override with SUPPORT_ATTACHMENT_STORAGE_ROOT env.
+
++ * Keys are opaque (`{ticketId}/{uuid}`) ΓÇö never under `public/uploads`.
+
++ * New uploads default to PENDING_SCAN (fail closed). Only CLEAN + ACL downloadable.
+
++ */
+
++
+
++import fs from 'node:fs/promises';
+
++import path from 'node:path';
+
++import crypto from 'node:crypto';
+
++import {
+
++  SUPPORT_ATTACHMENT_STATE,
+
++  SUPPORT_ATTACHMENT_STATES,
+
++  SUPPORT_ALLOWED_MIME_TYPES,
+
++  SUPPORT_ATTACHMENT_MAX_BYTES,
+
++} from './catalogue.js';
+
++import { resolveSupportAccess } from './authz.js';
+
++import { findSupportTicket } from './ticketLookup.js';
+
++
+
++const MIME_SET = new Set(SUPPORT_ALLOWED_MIME_TYPES);
+
++const STATE_SET = new Set(SUPPORT_ATTACHMENT_STATES);
+
++
+
++function defaultStorageRoot() {
+
++  if (process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT) {
+
++    return path.resolve(process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT);
+
++  }
+
++  return path.resolve(process.cwd(), 'storage', 'support-attachments');
+
++}
+
++
+
++/** Resolved at call time so tests can override via env. */
+
++export function getSupportAttachmentStorageRoot() {
+
++  return defaultStorageRoot();
+
++}
+
++
+
++/** Documented constant for tests / docs (may lag env override ΓÇö prefer getter). */
+
++export const SUPPORT_ATTACHMENT_STORAGE_ROOT =
+
++  process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT ||
+
++  path.join('storage', 'support-attachments');
+
++
+
++export function hasSupportAttachmentModel(prisma) {
+
++  return typeof prisma?.supportAttachment?.create === 'function';
+
++}
+
++
+
++function serializeAttachment(row) {
+
++  if (!row) return null;
+
++  return {
+
++    id: row.id,
+
++    ticketId: row.ticketId,
+
++    fileName: row.fileName,
+
++    mimeType: row.mimeType,
+
++    sizeBytes: row.sizeBytes,
+
++    storageKey: row.storageKey,
+
++    scanState: row.scanState,
+
++    uploadedByAdminId: row.uploadedByAdminId || null,
+
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+
++    scannedAt: row.scannedAt ? new Date(row.scannedAt).toISOString() : null,
+
++  };
+
++}
+
++
+
++/**
+
++ * @param {object|null} attachment
+
++ * @param {object|null|undefined} admin
+
++ * @returns {boolean}
+
++ */
+
++export function canDownloadAttachment(attachment, admin) {
+
++  if (!attachment) return false;
+
++  if (attachment.scanState !== SUPPORT_ATTACHMENT_STATE.CLEAN) return false;
+
++  const access = resolveSupportAccess(admin);
+
++  return access.canViewTickets;
+
++}
+
++
+
++function absolutePathForKey(storageKey) {
+
++  const root = getSupportAttachmentStorageRoot();
+
++  const resolved = path.resolve(root, storageKey);
+
++  if (!resolved.startsWith(root)) {
+
++    throw new Error('invalid_storage_key');
+
++  }
+
++  return resolved;
+
++}
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{
+
++ *   admin: object,
+
++ *   ticketId: string,
+
++ *   fileName: string,
+
++ *   mimeType: string,
+
++ *   sizeBytes?: number,
+
++ *   content?: Buffer|Uint8Array|string,
+
++ * }} args
+
++ */
+
++export async function createAttachment(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canViewTickets) {
+
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden' };
+
++  }
+
++  // Uploads require replyPublicly or createTickets (agent acting on ticket)
+
++  if (!access.canReplyPublicly && !access.canCreateTickets && !access.isSuperAdmin) {
+
++    return { ok: false, forbidden: true, reason: 'support_attachment_upload_forbidden' };
+
++  }
+
++
+
++  if (!hasSupportAttachmentModel(prisma)) {
+
++    return { ok: false, error: 'support_attachment_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  const fileName = args.fileName ? String(args.fileName).trim() : '';
+
++  const mimeType = args.mimeType ? String(args.mimeType).trim().toLowerCase() : '';
+
++  if (!fileName) return { ok: false, error: 'fileName_required' };
+
++  if (!MIME_SET.has(mimeType)) {
+
++    return { ok: false, error: 'invalid_mime_type', mimeType };
+
++  }
+
++
+
++  const ticket = await findSupportTicket(prisma, args.ticketId);
+
++  if (!ticket) return { ok: false, notFound: true, error: 'ticket_not_found' };
+
++
+
++  let content = args.content;
+
++  if (typeof content === 'string') content = Buffer.from(content);
+
++  if (content && !Buffer.isBuffer(content)) content = Buffer.from(content);
+
++
+
++  const sizeBytes =
+
++    typeof args.sizeBytes === 'number' && Number.isFinite(args.sizeBytes)
+
++      ? args.sizeBytes
+
++      : content
+
++        ? content.length
+
++        : 0;
+
++
+
++  if (sizeBytes <= 0) return { ok: false, error: 'sizeBytes_required' };
+
++  if (sizeBytes > SUPPORT_ATTACHMENT_MAX_BYTES) {
+
++    return { ok: false, error: 'file_too_large', maxBytes: SUPPORT_ATTACHMENT_MAX_BYTES };
+
++  }
+
++
+
++  const objectId = crypto.randomUUID();
+
++  const storageKey = path.posix.join(ticket.id, objectId);
+
++  const abs = absolutePathForKey(storageKey);
+
++
+
++  await fs.mkdir(path.dirname(abs), { recursive: true });
+
++  if (content) {
+
++    await fs.writeFile(abs, content);
+
++  } else {
+
++    // Metadata-only create still reserves opaque key (empty placeholder)
+
++    await fs.writeFile(abs, Buffer.alloc(0));
+
++  }
+
++
+
++  const now = new Date();
+
++  const row = await prisma.supportAttachment.create({
+
++    data: {
+
++      ticketId: ticket.id,
+
++      fileName,
+
++      mimeType,
+
++      sizeBytes,
+
++      storageKey,
+
++      scanState: SUPPORT_ATTACHMENT_STATE.PENDING_SCAN,
+
++      uploadedByAdminId: args.admin?.id || null,
+
++      createdAt: now,
+
++      updatedAt: now,
+
++      scannedAt: null,
+
++    },
+
++  });
+
++
+
++  return { ok: true, attachment: serializeAttachment(row) };
+
++}
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ admin: object, ticketId: string }} args
+
++ */
+
++export async function listAttachments(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canViewTickets) {
+
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden', items: [] };
+
++  }
+
++
+
++  if (!hasSupportAttachmentModel(prisma)) {
+
++    return {
+
++      ok: true,
+
++      items: [],
+
++      meta: { unavailable: true, reason: 'support_attachment_model_unavailable' },
+
++    };
+
++  }
+
++
+
++  const ticket = await findSupportTicket(prisma, args.ticketId);
+
++  if (!ticket) return { ok: false, notFound: true, error: 'ticket_not_found', items: [] };
+
++
+
++  let rows = [];
+
++  try {
+
++    rows = await prisma.supportAttachment.findMany({
+
++      where: {
+
++        ticketId: ticket.id,
+
++        scanState: { not: SUPPORT_ATTACHMENT_STATE.DELETED },
+
++      },
+
++      orderBy: { createdAt: 'desc' },
+
++    });
+
++  } catch {
+
++    try {
+
++      rows = await prisma.supportAttachment.findMany({
+
++        where: { ticketId: ticket.id },
+
++      });
+
++      rows = (rows || []).filter((r) => r.scanState !== SUPPORT_ATTACHMENT_STATE.DELETED);
+
++    } catch {
+
++      rows = [];
+
++    }
+
++  }
+
++
+
++  return {
+
++    ok: true,
+
++    items: (rows || []).map(serializeAttachment),
+
++    meta: { count: (rows || []).length, ticketId: ticket.id },
+
++  };
+
++}
+
++
+
++/**
+
++ * Mark scan result (tests / future scanner). Defaults fail closed.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ attachmentId: string, scanState: string, now?: Date }} args
+
++ */
+
++export async function markScanResult(prisma, args = {}) {
+
++  if (!hasSupportAttachmentModel(prisma)) {
+
++    return { ok: false, error: 'support_attachment_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  const attachmentId = args.attachmentId ? String(args.attachmentId).trim() : '';
+
++  const scanState = String(args.scanState || '').trim().toUpperCase();
+
++  if (!attachmentId) return { ok: false, error: 'attachmentId_required' };
+
++  if (!STATE_SET.has(scanState)) {
+
++    return { ok: false, error: 'invalid_scan_state', scanState };
+
++  }
+
++
+
++  const existing = await prisma.supportAttachment.findUnique({ where: { id: attachmentId } });
+
++  if (!existing) return { ok: false, notFound: true, error: 'attachment_not_found' };
+
++
+
++  const now = args.now || new Date();
+
++  const updated = await prisma.supportAttachment.update({
+
++    where: { id: attachmentId },
+
++    data: {
+
++      scanState,
+
++      scannedAt: now,
+
++      updatedAt: now,
+
++    },
+
++  });
+
++
+
++  return { ok: true, attachment: serializeAttachment(updated) };
+
++}
+
++
+
++/**
+
++ * Download gate ΓÇö CLEAN only + ACL. Returns buffer or absolutePath.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ admin: object, attachmentId: string }} args
+
++ */
+
++export async function getAttachmentDownload(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canViewTickets) {
+
++    return { ok: false, forbidden: true, reason: 'support_view_forbidden' };
+
++  }
+
++
+
++  if (!hasSupportAttachmentModel(prisma)) {
+
++    return { ok: false, error: 'support_attachment_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  const attachmentId = args.attachmentId ? String(args.attachmentId).trim() : '';
+
++  if (!attachmentId) return { ok: false, error: 'attachmentId_required' };
+
++
+
++  const row = await prisma.supportAttachment.findUnique({ where: { id: attachmentId } });
+
++  if (!row || row.scanState === SUPPORT_ATTACHMENT_STATE.DELETED) {
+
++    return { ok: false, notFound: true, error: 'attachment_not_found' };
+
++  }
+
++
+
++  if (!canDownloadAttachment(row, args.admin)) {
+
++    return {
+
++      ok: false,
+
++      forbidden: true,
+
++      reason: 'attachment_not_downloadable',
+
++      scanState: row.scanState,
+
++    };
+
++  }
+
++
+
++  let absolutePath;
+
++  try {
+
++    absolutePath = absolutePathForKey(row.storageKey);
+
++  } catch {
+
++    return { ok: false, notFound: true, error: 'storage_key_invalid' };
+
++  }
+
++
+
++  let buffer = null;
+
++  try {
+
++    buffer = await fs.readFile(absolutePath);
+
++  } catch {
+
++    return { ok: false, notFound: true, error: 'storage_object_missing' };
+
++  }
+
++
+
++  return {
+
++    ok: true,
+
++    attachment: serializeAttachment(row),
+
++    buffer,
+
++    absolutePath,
+
++    mimeType: row.mimeType,
+
++    fileName: row.fileName,
+
++  };
+
++}
+
++
+
++export { serializeAttachment };
+
+diff --git a/lib/admin/support/queues.js b/lib/admin/support/queues.js
+new file mode 100644
+index 0000000..9007236
+--- /dev/null
++++ b/lib/admin/support/queues.js
+@@ -0,0 +1,98 @@
++/**
+
++ * Support queues ΓÇö QUEUE_TEAM_MATRIX catalogue (Phase 10 Wave 2).
+
++ * Seed definitions only; liveStatus remains NOT_FOUND (no fabricated staffing).
+
++ */
+
++
+
++import { SUPPORT_QUEUE_CODES, SUPPORT_QUEUE_DEFINITIONS } from './catalogue.js';
+
++
+
++export function hasSupportQueueModel(prisma) {
+
++  return typeof prisma?.supportQueue?.upsert === 'function';
+
++}
+
++
+
++function definitionRows() {
+
++  return SUPPORT_QUEUE_DEFINITIONS.map((q) => ({
+
++    code: q.code,
+
++    typicalOwnership: q.typicalOwnership,
+
++    liveStatus: 'NOT_FOUND',
+
++  }));
+
++}
+
++
+
++/**
+
++ * List queue definitions.
+
++ * - No prisma ΓåÆ sync catalogue response
+
++ * - With prisma ΓåÆ Promise; merges DB rows but never invents staffing metrics
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} [prisma]
+
++ */
+
++export function listQueues(prisma) {
+
++  if (prisma == null) {
+
++    return { ok: true, items: definitionRows(), source: 'catalogue' };
+
++  }
+
++  return listQueuesWithPrisma(prisma);
+
++}
+
++
+
++async function listQueuesWithPrisma(prisma) {
+
++  if (!hasSupportQueueModel(prisma)) {
+
++    return { ok: true, items: definitionRows(), source: 'catalogue' };
+
++  }
+
++
+
++  let rows = [];
+
++  try {
+
++    rows = await prisma.supportQueue.findMany({ orderBy: { code: 'asc' } });
+
++  } catch {
+
++    rows = [];
+
++  }
+
++
+
++  if (!rows?.length) {
+
++    return { ok: true, items: definitionRows(), source: 'catalogue' };
+
++  }
+
++
+
++  const byCode = new Map(rows.map((r) => [r.code, r]));
+
++  const items = SUPPORT_QUEUE_CODES.map((code) => {
+
++    const def = SUPPORT_QUEUE_DEFINITIONS.find((d) => d.code === code);
+
++    const db = byCode.get(code);
+
++    return {
+
++      code,
+
++      typicalOwnership: def?.typicalOwnership || db?.typicalOwnership || null,
+
++      liveStatus: 'NOT_FOUND',
+
++      name: db?.name || code,
+
++      active: db?.active !== false,
+
++    };
+
++  });
+
++
+
++  return { ok: true, items, source: 'db+catalogue' };
+
++}
+
++
+
++/**
+
++ * Seed SupportQueue rows from QUEUE_TEAM_MATRIX codes.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ */
+
++export async function seedQueueCatalogue(prisma) {
+
++  if (!hasSupportQueueModel(prisma)) {
+
++    return { ok: false, error: 'support_queue_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  let count = 0;
+
++  for (const def of SUPPORT_QUEUE_DEFINITIONS) {
+
++    await prisma.supportQueue.upsert({
+
++      where: { code: def.code },
+
++      create: {
+
++        code: def.code,
+
++        name: def.code,
+
++        typicalOwnership: def.typicalOwnership || null,
+
++        liveStatus: 'NOT_FOUND',
+
++        active: true,
+
++      },
+
++      update: {
+
++        typicalOwnership: def.typicalOwnership || null,
+
++        liveStatus: 'NOT_FOUND',
+
++        active: true,
+
++      },
+
++    });
+
++    count += 1;
+
++  }
+
++
+
++  return { ok: true, count, codes: [...SUPPORT_QUEUE_CODES] };
+
++}
+
++
+\ No newline at end of file
+diff --git a/lib/admin/support/teams.js b/lib/admin/support/teams.js
+new file mode 100644
+index 0000000..dd82d9f
+--- /dev/null
++++ b/lib/admin/support/teams.js
+@@ -0,0 +1,91 @@
++/**
+
++ * Support teams ΓÇö membership stubs for assignment eligibility (Phase 10 Wave 2).
+
++ * Full roster / staffing metrics deferred; do not invent live headcount.
+
++ */
+
++
+
++import { SUPPORT_TEAM_DEFINITIONS } from './catalogue.js';
+
++
+
++export function hasSupportTeamModel(prisma) {
+
++  return typeof prisma?.supportTeam?.findMany === 'function';
+
++}
+
++
+
++/**
+
++ * Catalogue team stubs (sync).
+
++ */
+
++export function listTeams(prisma) {
+
++  if (prisma == null || !hasSupportTeamModel(prisma)) {
+
++    return {
+
++      ok: true,
+
++      stub: true,
+
++      items: SUPPORT_TEAM_DEFINITIONS.map((t) => ({
+
++        code: t.code,
+
++        name: t.name,
+
++        queueCodes: [...t.queueCodes],
+
++      })),
+
++      source: 'catalogue',
+
++    };
+
++  }
+
++  return listTeamsWithPrisma(prisma);
+
++}
+
++
+
++async function listTeamsWithPrisma(prisma) {
+
++  let rows = [];
+
++  try {
+
++    rows = await prisma.supportTeam.findMany();
+
++  } catch {
+
++    rows = [];
+
++  }
+
++
+
++  if (!rows?.length) {
+
++    return listTeams(null);
+
++  }
+
++
+
++  return {
+
++    ok: true,
+
++    stub: true,
+
++    items: rows.map((r) => ({
+
++      code: r.code,
+
++      name: r.name || r.code,
+
++      queueCodes: Array.isArray(r.queueCodes) ? r.queueCodes : [],
+
++    })),
+
++    source: 'db',
+
++  };
+
++}
+
++
+
++/**
+
++ * Wave 2 eligibility stub: any assigneeAdminId is accepted when assigner has
+
++ * assignTickets. Optional membership rows can tighten later.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{ adminId: string, queueCode?: string|null }} args
+
++ */
+
++export async function isEligibleAssignee(prisma, args = {}) {
+
++  const adminId = args.adminId ? String(args.adminId).trim() : '';
+
++  if (!adminId) return { ok: false, eligible: false, reason: 'adminId_required' };
+
++
+
++  if (typeof prisma?.supportTeamMembership?.findMany !== 'function') {
+
++    return { ok: true, eligible: true, stub: true, reason: 'membership_model_absent' };
+
++  }
+
++
+
++  try {
+
++    const memberships = await prisma.supportTeamMembership.findMany({
+
++      where: { adminId },
+
++    });
+
++    if (!memberships?.length) {
+
++      // Stub: no membership rows ΓçÆ allow (definitions only; not live ops lockout)
+
++      return { ok: true, eligible: true, stub: true, reason: 'no_membership_rows' };
+
++    }
+
++    if (!args.queueCode) {
+
++      return { ok: true, eligible: true, stub: true };
+
++    }
+
++    const queueCode = String(args.queueCode).toUpperCase();
+
++    const teamCodes = new Set(memberships.map((m) => m.teamCode));
+
++    const matched = SUPPORT_TEAM_DEFINITIONS.some(
+
++      (t) => teamCodes.has(t.code) && t.queueCodes.includes(queueCode)
+
++    );
+
++    return { ok: true, eligible: matched, stub: true };
+
++  } catch {
+
++    return { ok: true, eligible: true, stub: true, reason: 'membership_lookup_failed' };
+
++  }
+
++}
+
++
+\ No newline at end of file
+diff --git a/lib/admin/support/assignment.js b/lib/admin/support/assignment.js
+new file mode 100644
+index 0000000..b38080b
+--- /dev/null
++++ b/lib/admin/support/assignment.js
+@@ -0,0 +1,178 @@
++/**
+
++ * Support ticket assignment + history (Phase 10 Wave 2).
+
++ * Same assignee + same queue ΓåÆ noop (no history spam).
+
++ * Status moves to ASSIGNED only via state machine when transition is allowed.
+
++ */
+
++
+
++import { SUPPORT_TICKET_STATUS, SUPPORT_QUEUE_CODES } from './catalogue.js';
+
++import { resolveSupportAccess } from './authz.js';
+
++import { canTransition, assertTransition } from './stateMachine.js';
+
++import { findSupportTicket } from './ticketLookup.js';
+
++import { serializeTicket } from './tickets.js';
+
++import { isEligibleAssignee } from './teams.js';
+
++
+
++const QUEUE_SET = new Set(SUPPORT_QUEUE_CODES);
+
++
+
++export function hasSupportAssignmentHistoryModel(prisma) {
+
++  return typeof prisma?.supportAssignmentHistory?.create === 'function';
+
++}
+
++
+
++function serializeAssignmentHistory(row) {
+
++  if (!row) return null;
+
++  return {
+
++    id: row.id,
+
++    ticketId: row.ticketId,
+
++    fromAssigneeAdminId: row.fromAssigneeAdminId || null,
+
++    toAssigneeAdminId: row.toAssigneeAdminId || null,
+
++    fromQueueCode: row.fromQueueCode || null,
+
++    toQueueCode: row.toQueueCode || null,
+
++    changedByAdminId: row.changedByAdminId || null,
+
++    reason: row.reason || null,
+
++    at: row.at ? new Date(row.at).toISOString() : null,
+
++  };
+
++}
+
++
+
++async function appendAssignmentHistory(prisma, data) {
+
++  if (!hasSupportAssignmentHistoryModel(prisma)) return null;
+
++  return prisma.supportAssignmentHistory.create({ data });
+
++}
+
++
+
++async function appendStatusHistory(prisma, data) {
+
++  if (typeof prisma.supportTicketStatusHistory?.create !== 'function') return null;
+
++  return prisma.supportTicketStatusHistory.create({ data });
+
++}
+
++
+
++/**
+
++ * Assign / reassign a ticket.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{
+
++ *   admin: object,
+
++ *   ticketId: string,
+
++ *   assigneeAdminId: string,
+
++ *   queueCode?: string|null,
+
++ *   reason?: string|null,
+
++ *   now?: Date,
+
++ * }} args
+
++ */
+
++export async function assignTicket(prisma, args = {}) {
+
++  const access = resolveSupportAccess(args.admin);
+
++  if (!access.canAssignTickets) {
+
++    return { ok: false, forbidden: true, reason: 'support_assign_forbidden' };
+
++  }
+
++
+
++  if (typeof prisma?.supportTicket?.update !== 'function') {
+
++    return { ok: false, error: 'support_ticket_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  const ticketId = args.ticketId ? String(args.ticketId).trim() : '';
+
++  const assigneeAdminId = args.assigneeAdminId ? String(args.assigneeAdminId).trim() : '';
+
++  if (!ticketId) return { ok: false, error: 'ticketId_required' };
+
++  if (!assigneeAdminId) return { ok: false, error: 'assigneeAdminId_required' };
+
++
+
++  let queueCode =
+
++    args.queueCode != null && String(args.queueCode).trim() !== ''
+
++      ? String(args.queueCode).trim().toUpperCase()
+
++      : null;
+
++
+
++  if (queueCode && !QUEUE_SET.has(queueCode)) {
+
++    return { ok: false, error: 'invalid_queue_code', queueCode };
+
++  }
+
++
+
++  const ticket = await findSupportTicket(prisma, ticketId);
+
++  if (!ticket) return { ok: false, notFound: true, error: 'ticket_not_found' };
+
++
+
++  // When queue omitted on reassign, keep existing queue for noop comparison
+
++  if (queueCode == null) {
+
++    queueCode = ticket.queueCode || null;
+
++  }
+
++
+
++  const eligibility = await isEligibleAssignee(prisma, {
+
++    adminId: assigneeAdminId,
+
++    queueCode,
+
++  });
+
++  if (!eligibility.eligible) {
+
++    return { ok: false, error: 'assignee_not_eligible', reason: eligibility.reason };
+
++  }
+
++
+
++  const sameAssignee = (ticket.assigneeAdminId || null) === assigneeAdminId;
+
++  const sameQueue = (ticket.queueCode || null) === (queueCode || null);
+
++  if (sameAssignee && sameQueue) {
+
++    return {
+
++      ok: true,
+
++      noop: true,
+
++      ticket: serializeTicket(ticket),
+
++    };
+
++  }
+
++
+
++  const now = args.now || new Date();
+
++  const fromAssignee = ticket.assigneeAdminId || null;
+
++  const fromQueue = ticket.queueCode || null;
+
++
+
++  const data = {
+
++    assigneeAdminId,
+
++    queueCode: queueCode || null,
+
++    updatedAt: now,
+
++  };
+
++
+
++  // Optionally move toward ASSIGNED when state machine allows (never bypass)
+
++  let statusTransitioned = false;
+
++  if (
+
++    ticket.status !== SUPPORT_TICKET_STATUS.ASSIGNED &&
+
++    canTransition(ticket.status, SUPPORT_TICKET_STATUS.ASSIGNED)
+
++  ) {
+
++    const gate = assertTransition(ticket.status, SUPPORT_TICKET_STATUS.ASSIGNED, {
+
++      reason: args.reason,
+
++    });
+
++    if (gate.ok) {
+
++      data.status = SUPPORT_TICKET_STATUS.ASSIGNED;
+
++      statusTransitioned = true;
+
++    }
+
++  }
+
++
+
++  const updated = await prisma.supportTicket.update({
+
++    where: { id: ticket.id },
+
++    data,
+
++  });
+
++
+
++  await appendAssignmentHistory(prisma, {
+
++    ticketId: ticket.id,
+
++    fromAssigneeAdminId: fromAssignee,
+
++    toAssigneeAdminId: assigneeAdminId,
+
++    fromQueueCode: fromQueue,
+
++    toQueueCode: queueCode || null,
+
++    changedByAdminId: args.admin?.id || null,
+
++    reason: args.reason != null ? String(args.reason) : null,
+
++    at: now,
+
++  });
+
++
+
++  if (statusTransitioned) {
+
++    await appendStatusHistory(prisma, {
+
++      ticketId: ticket.id,
+
++      fromStatus: ticket.status,
+
++      toStatus: SUPPORT_TICKET_STATUS.ASSIGNED,
+
++      changedByAdminId: args.admin?.id || null,
+
++      reason: args.reason || 'assigned',
+
++      at: now,
+
++    });
+
++  }
+
++
+
++  return {
+
++    ok: true,
+
++    noop: false,
+
++    ticket: serializeTicket(updated),
+
++    assignmentHistory: serializeAssignmentHistory({
+
++      ticketId: ticket.id,
+
++      fromAssigneeAdminId: fromAssignee,
+
++      toAssigneeAdminId: assigneeAdminId,
+
++      fromQueueCode: fromQueue,
+
++      toQueueCode: queueCode || null,
+
++      changedByAdminId: args.admin?.id || null,
+
++      reason: args.reason != null ? String(args.reason) : null,
+
++      at: now,
+
++    }),
+
++  };
+
++}
+
++
+
++export { serializeAssignmentHistory };
+
++
+\ No newline at end of file
+diff --git a/scripts/sql/support-ops-phase10-wave2.sql b/scripts/sql/support-ops-phase10-wave2.sql
+new file mode 100644
+index 0000000..bacd343
+--- /dev/null
++++ b/scripts/sql/support-ops-phase10-wave2.sql
+@@ -0,0 +1,247 @@
++-- Phase 10 Wave 2 ΓÇö SupportMessage, SupportAttachment, SupportQueue, SupportTeam,
++-- SupportTeamMembership, SupportAssignmentHistory (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine,
++-- or when applying schema without a full generate cycle.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Apply steps (EPERM fallback):
++--   1. Ensure Wave 1 tables exist (scripts/sql/support-ops-phase10-wave1.sql)
++--   2. psql "$DATABASE_URL" -f scripts/sql/support-ops-phase10-wave2.sql
++--   3. App guards: hasSupportMessageModel / hasSupportAttachmentModel /
++--      hasSupportQueueModel / hasSupportAssignmentHistoryModel
++--   4. Retry `npx prisma generate` when the query-engine file lock clears.
++--
++-- Storage: attachment bytes live under storage/support-attachments/ (gitignored),
++-- opaque storageKey in DB ΓÇö never public/uploads.
++-- Support Ticket Γëá CsCase Γëá PlatformSupportAccess.
++
++CREATE TABLE IF NOT EXISTS "SupportMessage" (
++  "id" TEXT PRIMARY KEY,
++  "ticketId" TEXT NOT NULL,
++  "type" TEXT NOT NULL,
++  "body" TEXT NOT NULL,
++  "authorAdminId" TEXT,
++  "visibility" TEXT,
++  "systemEventCode" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE INDEX IF NOT EXISTS "SupportMessage_ticketId_createdAt_idx"
++  ON "SupportMessage"("ticketId", "createdAt");
++CREATE INDEX IF NOT EXISTS "SupportMessage_ticketId_type_idx"
++  ON "SupportMessage"("ticketId", "type");
++CREATE INDEX IF NOT EXISTS "SupportMessage_authorAdminId_idx"
++  ON "SupportMessage"("authorAdminId");
++
++CREATE TABLE IF NOT EXISTS "SupportAttachment" (
++  "id" TEXT PRIMARY KEY,
++  "ticketId" TEXT NOT NULL,
++  "fileName" TEXT NOT NULL,
++  "mimeType" TEXT NOT NULL,
++  "sizeBytes" INTEGER NOT NULL,
++  "storageKey" TEXT NOT NULL,
++  "scanState" TEXT NOT NULL DEFAULT 'PENDING_SCAN',
++  "uploadedByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "scannedAt" TIMESTAMP(3)
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "SupportAttachment_storageKey_key"
++  ON "SupportAttachment"("storageKey");
++CREATE INDEX IF NOT EXISTS "SupportAttachment_ticketId_scanState_idx"
++  ON "SupportAttachment"("ticketId", "scanState");
++CREATE INDEX IF NOT EXISTS "SupportAttachment_scanState_idx"
++  ON "SupportAttachment"("scanState");
++CREATE INDEX IF NOT EXISTS "SupportAttachment_uploadedByAdminId_idx"
++  ON "SupportAttachment"("uploadedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "SupportQueue" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "typicalOwnership" TEXT,
++  "liveStatus" TEXT NOT NULL DEFAULT 'NOT_FOUND',
++  "active" BOOLEAN NOT NULL DEFAULT TRUE,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "SupportQueue_code_key"
++  ON "SupportQueue"("code");
++CREATE INDEX IF NOT EXISTS "SupportQueue_active_idx"
++  ON "SupportQueue"("active");
++
++CREATE TABLE IF NOT EXISTS "SupportTeam" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "queueCodes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
++  "active" BOOLEAN NOT NULL DEFAULT TRUE,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "SupportTeam_code_key"
++  ON "SupportTeam"("code");
++CREATE INDEX IF NOT EXISTS "SupportTeam_active_idx"
++  ON "SupportTeam"("active");
++
++CREATE TABLE IF NOT EXISTS "SupportTeamMembership" (
++  "id" TEXT PRIMARY KEY,
++  "teamCode" TEXT NOT NULL,
++  "adminId" TEXT NOT NULL,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "SupportTeamMembership_teamCode_adminId_key"
++  ON "SupportTeamMembership"("teamCode", "adminId");
++CREATE INDEX IF NOT EXISTS "SupportTeamMembership_adminId_idx"
++  ON "SupportTeamMembership"("adminId");
++
++CREATE TABLE IF NOT EXISTS "SupportAssignmentHistory" (
++  "id" TEXT PRIMARY KEY,
++  "ticketId" TEXT NOT NULL,
++  "fromAssigneeAdminId" TEXT,
++  "toAssigneeAdminId" TEXT,
++  "fromQueueCode" TEXT,
++  "toQueueCode" TEXT,
++  "changedByAdminId" TEXT,
++  "reason" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE INDEX IF NOT EXISTS "SupportAssignmentHistory_ticketId_at_idx"
++  ON "SupportAssignmentHistory"("ticketId", "at");
++CREATE INDEX IF NOT EXISTS "SupportAssignmentHistory_changedByAdminId_idx"
++  ON "SupportAssignmentHistory"("changedByAdminId");
++CREATE INDEX IF NOT EXISTS "SupportAssignmentHistory_toAssigneeAdminId_idx"
++  ON "SupportAssignmentHistory"("toAssigneeAdminId");
++
++-- Foreign keys (idempotent; matches prisma/schema.prisma Support* onDelete)
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportMessage_ticketId_fkey'
++  ) THEN
++    ALTER TABLE "SupportMessage"
++      ADD CONSTRAINT "SupportMessage_ticketId_fkey"
++      FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportMessage_authorAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportMessage"
++      ADD CONSTRAINT "SupportMessage_authorAdminId_fkey"
++      FOREIGN KEY ("authorAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportAttachment_ticketId_fkey'
++  ) THEN
++    ALTER TABLE "SupportAttachment"
++      ADD CONSTRAINT "SupportAttachment_ticketId_fkey"
++      FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportAttachment_uploadedByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportAttachment"
++      ADD CONSTRAINT "SupportAttachment_uploadedByAdminId_fkey"
++      FOREIGN KEY ("uploadedByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportTeamMembership_teamCode_fkey'
++  ) THEN
++    ALTER TABLE "SupportTeamMembership"
++      ADD CONSTRAINT "SupportTeamMembership_teamCode_fkey"
++      FOREIGN KEY ("teamCode") REFERENCES "SupportTeam"("code") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportTeamMembership_adminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportTeamMembership"
++      ADD CONSTRAINT "SupportTeamMembership_adminId_fkey"
++      FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportAssignmentHistory_ticketId_fkey'
++  ) THEN
++    ALTER TABLE "SupportAssignmentHistory"
++      ADD CONSTRAINT "SupportAssignmentHistory_ticketId_fkey"
++      FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'SupportAssignmentHistory_changedByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "SupportAssignmentHistory"
++      ADD CONSTRAINT "SupportAssignmentHistory_changedByAdminId_fkey"
++      FOREIGN KEY ("changedByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++-- Optional seed of queue catalogue (definitions only; liveStatus = NOT_FOUND)
++INSERT INTO "SupportQueue" ("id", "code", "name", "typicalOwnership", "liveStatus", "active")
++VALUES
++  (md5(random()::text || clock_timestamp()::text), 'GENERAL_SUPPORT', 'GENERAL_SUPPORT', 'Support', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'ACCOUNT_ACCESS', 'ACCOUNT_ACCESS', 'Support/Technical', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'BILLING', 'BILLING', 'Support/Finance', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'MRA_EIS', 'MRA_EIS', 'EIS specialists', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'PRODUCT', 'PRODUCT', 'Product/Support', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'TECHNICAL', 'TECHNICAL', 'Technical', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'ANDROID', 'ANDROID', 'Mobile', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'SECURITY', 'SECURITY', 'Security', 'NOT_FOUND', TRUE),
++  (md5(random()::text || clock_timestamp()::text), 'ESCALATIONS', 'ESCALATIONS', 'Managers', 'NOT_FOUND', TRUE)
++ON CONFLICT ("code") DO NOTHING;
+diff --git a/test/systemAdmin.support.messages.test.js b/test/systemAdmin.support.messages.test.js
+new file mode 100644
+index 0000000..7cc3608
+--- /dev/null
++++ b/test/systemAdmin.support.messages.test.js
+@@ -0,0 +1,281 @@
++/**
++ * Phase 10 Wave 2 ΓÇö Support messages + customer projection boundary.
++ * INTERNAL / RESTRICTED never appear in projectForCustomer.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  SUPPORT_MESSAGE_TYPE,
++  addPublicReply,
++  addInternalNote,
++  addRestrictedNote,
++  listMessages,
++  projectForCustomer,
++  hasSupportMessageModel,
++} from '@/lib/admin/support';
++import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
++
++function makePrisma(overrides = {}) {
++  const ticketStore = overrides._ticketStore || [
++    {
++      id: 'st-1',
++      ticketNumber: 'SUP-2026-000001',
++      tenantId: 'tenant-1',
++      status: 'NEW',
++      type: 'QUESTION',
++      title: 'Help',
++      description: 'desc',
++      assigneeAdminId: null,
++      queueCode: null,
++      createdAt: new Date('2026-07-30T12:00:00.000Z'),
++      updatedAt: new Date('2026-07-30T12:00:00.000Z'),
++    },
++  ];
++  const messageStore = overrides._messageStore || [];
++
++  const prisma = {
++    supportTicket: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return ticketStore.find((r) => r.id === where.id) || null;
++        if (where.ticketNumber) {
++          return ticketStore.find((r) => r.ticketNumber === where.ticketNumber) || null;
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where?.OR) {
++          return (
++            ticketStore.find((r) =>
++              where.OR.some(
++                (c) => (c.id && r.id === c.id) || (c.ticketNumber && r.ticketNumber === c.ticketNumber)
++              )
++            ) || null
++          );
++        }
++        return ticketStore[0] || null;
++      }),
++    },
++    supportMessage: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `msg-${messageStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          ...data,
++        };
++        messageStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {}, orderBy } = {}) => {
++        let rows = [...messageStore];
++        if (where?.ticketId) rows = rows.filter((r) => r.ticketId === where.ticketId);
++        if (where?.type?.in) {
++          const set = new Set(where.type.in);
++          rows = rows.filter((r) => set.has(r.type));
++        } else if (where?.type?.notIn) {
++          const set = new Set(where.type.notIn);
++          rows = rows.filter((r) => !set.has(r.type));
++        }
++        if (orderBy?.createdAt === 'asc') {
++          rows.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
++        }
++        return rows;
++      }),
++    },
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++  };
++
++  prisma._ticketStore = ticketStore;
++  prisma._messageStore = messageStore;
++  return prisma;
++}
++
++const superAdmin = { id: 'a-super', role: 'Super Admin', permissions: {} };
++
++const agentFull = {
++  id: 'admin-agent',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        replyPublicly: true,
++        addInternalNotes: true,
++        addRestrictedNotes: true,
++      },
++    },
++  },
++};
++
++const agentPublicOnly = {
++  id: 'admin-public',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        replyPublicly: true,
++      },
++    },
++  },
++};
++
++const viewerOnly = {
++  id: 'admin-viewer',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: { viewTickets: true },
++    },
++  },
++};
++
++describe('systemAdmin.support.messages', () => {
++  it('wires reply / note permissions from SECURITY_MATRIX', () => {
++    expect(SYSTEM_ADMIN_PERMISSIONS.support.replyPublicly).toBe(
++      'systemAdmin.support.replyPublicly'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.support.addInternalNotes).toBe(
++      'systemAdmin.support.addInternalNotes'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.support.addRestrictedNotes).toBe(
++      'systemAdmin.support.addRestrictedNotes'
++    );
++  });
++
++  it('adds public reply and lists it for agents', async () => {
++    const prisma = makePrisma();
++    expect(hasSupportMessageModel(prisma)).toBe(true);
++
++    const created = await addPublicReply(prisma, {
++      admin: agentFull,
++      ticketId: 'st-1',
++      body: 'We are looking into this.',
++    });
++    expect(created.ok).toBe(true);
++    expect(created.message.type).toBe(SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY);
++    expect(created.message.body).toBe('We are looking into this.');
++
++    const listed = await listMessages(prisma, { admin: agentFull, ticketId: 'st-1' });
++    expect(listed.ok).toBe(true);
++    expect(listed.items).toHaveLength(1);
++    expect(listed.items[0].type).toBe(SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY);
++  });
++
++  it('forbids public reply without replyPublicly', async () => {
++    const prisma = makePrisma();
++    const result = await addPublicReply(prisma, {
++      admin: viewerOnly,
++      ticketId: 'st-1',
++      body: 'Nope',
++    });
++    expect(result.ok).toBe(false);
++    expect(result.forbidden).toBe(true);
++    expect(prisma.supportMessage.create).not.toHaveBeenCalled();
++  });
++
++  it('adds internal note; viewer without internal perm does not see it in list', async () => {
++    const prisma = makePrisma();
++    const note = await addInternalNote(prisma, {
++      admin: agentFull,
++      ticketId: 'st-1',
++      body: 'Looks like password reset loop',
++    });
++    expect(note.ok).toBe(true);
++    expect(note.message.type).toBe(SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE);
++
++    const forAgent = await listMessages(prisma, { admin: agentFull, ticketId: 'st-1' });
++    expect(forAgent.items.some((m) => m.type === SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE)).toBe(true);
++
++    const forViewer = await listMessages(prisma, { admin: viewerOnly, ticketId: 'st-1' });
++    expect(forViewer.ok).toBe(true);
++    expect(forViewer.items.some((m) => m.type === SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE)).toBe(false);
++  });
++
++  it('adds restricted note only with addRestrictedNotes; public-only agent cannot', async () => {
++    const prisma = makePrisma();
++    const denied = await addRestrictedNote(prisma, {
++      admin: agentPublicOnly,
++      ticketId: 'st-1',
++      body: 'Security token leak suspected',
++    });
++    expect(denied.ok).toBe(false);
++    expect(denied.forbidden).toBe(true);
++
++    const ok = await addRestrictedNote(prisma, {
++      admin: agentFull,
++      ticketId: 'st-1',
++      body: 'Security token leak suspected',
++    });
++    expect(ok.ok).toBe(true);
++    expect(ok.message.type).toBe(SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE);
++
++    const forPublic = await listMessages(prisma, { admin: agentPublicOnly, ticketId: 'st-1' });
++    expect(
++      forPublic.items.some((m) => m.type === SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE)
++    ).toBe(false);
++  });
++
++  it('projectForCustomer never includes INTERNAL or RESTRICTED notes', async () => {
++    const prisma = makePrisma();
++    await addPublicReply(prisma, {
++      admin: superAdmin,
++      ticketId: 'st-1',
++      body: 'Public update',
++    });
++    await addInternalNote(prisma, {
++      admin: superAdmin,
++      ticketId: 'st-1',
++      body: 'Internal only',
++    });
++    await addRestrictedNote(prisma, {
++      admin: superAdmin,
++      ticketId: 'st-1',
++      body: 'Restricted only',
++    });
++
++    // Seed a customer message + system event directly
++    await prisma.supportMessage.create({
++      data: {
++        ticketId: 'st-1',
++        type: SUPPORT_MESSAGE_TYPE.CUSTOMER_MESSAGE,
++        body: 'Still broken',
++        authorAdminId: null,
++        visibility: 'CUSTOMER',
++      },
++    });
++    await prisma.supportMessage.create({
++      data: {
++        ticketId: 'st-1',
++        type: SUPPORT_MESSAGE_TYPE.SYSTEM_EVENT,
++        body: 'Ticket created',
++        authorAdminId: null,
++        visibility: 'SYSTEM',
++        systemEventCode: 'TICKET_CREATED',
++      },
++    });
++
++    const all = await listMessages(prisma, { admin: superAdmin, ticketId: 'st-1' });
++    const projected = projectForCustomer(all.items);
++    const types = projected.map((m) => m.type);
++
++    expect(types).toContain(SUPPORT_MESSAGE_TYPE.PUBLIC_AGENT_REPLY);
++    expect(types).toContain(SUPPORT_MESSAGE_TYPE.CUSTOMER_MESSAGE);
++    expect(types).not.toContain(SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE);
++    expect(types).not.toContain(SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE);
++    // SYSTEM_EVENT limited ΓÇö only customer-safe codes (or excluded entirely if not safe)
++    for (const m of projected) {
++      expect(m.type).not.toBe(SUPPORT_MESSAGE_TYPE.INTERNAL_NOTE);
++      expect(m.type).not.toBe(SUPPORT_MESSAGE_TYPE.RESTRICTED_INTERNAL_NOTE);
++    }
++  });
++
++  it('rejects empty body on message create', async () => {
++    const prisma = makePrisma();
++    const result = await addPublicReply(prisma, {
++      admin: agentFull,
++      ticketId: 'st-1',
++      body: '   ',
++    });
++    expect(result.ok).toBe(false);
++    expect(result.error).toBe('body_required');
++  });
++});
+diff --git a/test/systemAdmin.support.attachments.test.js b/test/systemAdmin.support.attachments.test.js
+new file mode 100644
+index 0000000..0a591a7
+--- /dev/null
++++ b/test/systemAdmin.support.attachments.test.js
+@@ -0,0 +1,252 @@
++/**
++ * Phase 10 Wave 2 ΓÇö Support attachments boundary (scan states + private storage).
++ * PENDING_SCAN / non-CLEAN are not downloadable.
++ */
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import os from 'node:os';
++import {
++  SUPPORT_ATTACHMENT_STATE,
++  createAttachment,
++  listAttachments,
++  getAttachmentDownload,
++  markScanResult,
++  canDownloadAttachment,
++  hasSupportAttachmentModel,
++  SUPPORT_ATTACHMENT_STORAGE_ROOT,
++} from '@/lib/admin/support';
++
++function makePrisma(overrides = {}) {
++  const ticketStore = overrides._ticketStore || [
++    {
++      id: 'st-1',
++      ticketNumber: 'SUP-2026-000001',
++      tenantId: 'tenant-1',
++      status: 'IN_PROGRESS',
++      type: 'QUESTION',
++      title: 'Help',
++      description: 'desc',
++    },
++  ];
++  const attachmentStore = overrides._attachmentStore || [];
++
++  const prisma = {
++    supportTicket: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return ticketStore.find((r) => r.id === where.id) || null;
++        if (where.ticketNumber) {
++          return ticketStore.find((r) => r.ticketNumber === where.ticketNumber) || null;
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where?.OR) {
++          return (
++            ticketStore.find((r) =>
++              where.OR.some(
++                (c) => (c.id && r.id === c.id) || (c.ticketNumber && r.ticketNumber === c.ticketNumber)
++              )
++            ) || null
++          );
++        }
++        return null;
++      }),
++    },
++    supportAttachment: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `att-${attachmentStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        attachmentStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return attachmentStore.find((r) => r.id === where.id) || null;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...attachmentStore];
++        if (where?.ticketId) rows = rows.filter((r) => r.ticketId === where.ticketId);
++        if (where?.scanState?.not) {
++          rows = rows.filter((r) => r.scanState !== where.scanState.not);
++        }
++        return rows;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = attachmentStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: new Date() });
++        return row;
++      }),
++    },
++  };
++
++  prisma._ticketStore = ticketStore;
++  prisma._attachmentStore = attachmentStore;
++  return prisma;
++}
++
++const agent = {
++  id: 'admin-agent',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        replyPublicly: true,
++      },
++    },
++  },
++};
++
++const noPerms = {
++  id: 'admin-none',
++  role: 'Platform Support',
++  permissions: { systemAdmin: {} },
++};
++
++describe('systemAdmin.support.attachments', () => {
++  let tmpRoot;
++  let prevRoot;
++
++  beforeEach(async () => {
++    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'support-att-'));
++    prevRoot = process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT;
++    process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT = tmpRoot;
++  });
++
++  afterEach(async () => {
++    if (prevRoot === undefined) delete process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT;
++    else process.env.SUPPORT_ATTACHMENT_STORAGE_ROOT = prevRoot;
++    try {
++      await fs.rm(tmpRoot, { recursive: true, force: true });
++    } catch {
++      /* ignore */
++    }
++  });
++
++  it('uses private storage root (not public/uploads)', () => {
++    expect(SUPPORT_ATTACHMENT_STORAGE_ROOT).not.toMatch(/public[/\\]uploads/);
++    expect(String(SUPPORT_ATTACHMENT_STORAGE_ROOT)).toMatch(/support-attachments|SUPPORT_ATTACHMENT/);
++  });
++
++  it('creates attachment as PENDING_SCAN with opaque storage key', async () => {
++    const prisma = makePrisma();
++    expect(hasSupportAttachmentModel(prisma)).toBe(true);
++
++    const result = await createAttachment(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      fileName: 'screenshot.png',
++      mimeType: 'image/png',
++      sizeBytes: 12,
++      content: Buffer.from('fake-png-bytes'),
++    });
++
++    expect(result.ok).toBe(true);
++    expect(result.attachment.scanState).toBe(SUPPORT_ATTACHMENT_STATE.PENDING_SCAN);
++    expect(result.attachment.storageKey).toBeTruthy();
++    expect(result.attachment.storageKey).not.toMatch(/^public\//);
++    expect(result.attachment.fileName).toBe('screenshot.png');
++    expect(result.attachment.mimeType).toBe('image/png');
++  });
++
++  it('rejects invalid MIME types server-side', async () => {
++    const prisma = makePrisma();
++    const result = await createAttachment(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      fileName: 'evil.exe',
++      mimeType: 'application/x-msdownload',
++      sizeBytes: 4,
++      content: Buffer.from('MZ'),
++    });
++    expect(result.ok).toBe(false);
++    expect(result.error).toBe('invalid_mime_type');
++    expect(prisma.supportAttachment.create).not.toHaveBeenCalled();
++  });
++
++  it('PENDING_SCAN and other non-CLEAN states are not downloadable', async () => {
++    const prisma = makePrisma();
++    const created = await createAttachment(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      fileName: 'doc.pdf',
++      mimeType: 'application/pdf',
++      sizeBytes: 8,
++      content: Buffer.from('%PDF-fake'),
++    });
++    expect(created.ok).toBe(true);
++    const id = created.attachment.id;
++
++    expect(canDownloadAttachment(created.attachment, agent)).toBe(false);
++
++    const pendingDl = await getAttachmentDownload(prisma, { admin: agent, attachmentId: id });
++    expect(pendingDl.ok).toBe(false);
++    expect(pendingDl.forbidden || pendingDl.notFound).toBe(true);
++
++    for (const state of [
++      SUPPORT_ATTACHMENT_STATE.QUARANTINED,
++      SUPPORT_ATTACHMENT_STATE.INFECTED,
++      SUPPORT_ATTACHMENT_STATE.SCAN_FAILED,
++      SUPPORT_ATTACHMENT_STATE.REJECTED,
++      SUPPORT_ATTACHMENT_STATE.DELETED,
++      SUPPORT_ATTACHMENT_STATE.UPLOADED,
++    ]) {
++      await markScanResult(prisma, { attachmentId: id, scanState: state });
++      const row = prisma._attachmentStore.find((a) => a.id === id);
++      expect(canDownloadAttachment(row, agent)).toBe(false);
++      const dl = await getAttachmentDownload(prisma, { admin: agent, attachmentId: id });
++      expect(dl.ok).toBe(false);
++    }
++  });
++
++  it('CLEAN attachments downloadable only with ACL (viewTickets)', async () => {
++    const prisma = makePrisma();
++    const created = await createAttachment(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      fileName: 'ok.pdf',
++      mimeType: 'application/pdf',
++      sizeBytes: 8,
++      content: Buffer.from('%PDF-okok'),
++    });
++    const id = created.attachment.id;
++
++    const marked = await markScanResult(prisma, {
++      attachmentId: id,
++      scanState: SUPPORT_ATTACHMENT_STATE.CLEAN,
++    });
++    expect(marked.ok).toBe(true);
++    expect(marked.attachment.scanState).toBe(SUPPORT_ATTACHMENT_STATE.CLEAN);
++
++    expect(canDownloadAttachment(marked.attachment, agent)).toBe(true);
++    const dl = await getAttachmentDownload(prisma, { admin: agent, attachmentId: id });
++    expect(dl.ok).toBe(true);
++    expect(dl.buffer || dl.stream || dl.absolutePath).toBeTruthy();
++
++    const denied = await getAttachmentDownload(prisma, { admin: noPerms, attachmentId: id });
++    expect(denied.ok).toBe(false);
++    expect(denied.forbidden).toBe(true);
++  });
++
++  it('lists attachments for ticket viewers (metadata only; no raw path leak of public/uploads)', async () => {
++    const prisma = makePrisma();
++    await createAttachment(prisma, {
++      admin: agent,
++      ticketId: 'st-1',
++      fileName: 'a.png',
++      mimeType: 'image/png',
++      sizeBytes: 4,
++      content: Buffer.from('img'),
++    });
++    const listed = await listAttachments(prisma, { admin: agent, ticketId: 'st-1' });
++    expect(listed.ok).toBe(true);
++    expect(listed.items).toHaveLength(1);
++    expect(listed.items[0].storageKey).toBeTruthy();
++    expect(JSON.stringify(listed.items[0])).not.toMatch(/public[/\\]uploads/);
++  });
++});
+diff --git a/test/systemAdmin.support.assignment.test.js b/test/systemAdmin.support.assignment.test.js
+new file mode 100644
+index 0000000..c5f0c3a
+--- /dev/null
++++ b/test/systemAdmin.support.assignment.test.js
+@@ -0,0 +1,334 @@
++/**
++ * Phase 10 Wave 2 ΓÇö Queues / teams stubs + ticket assignment history.
++ * Same assignee+queue ΓåÆ noop; no silent reassign loops.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  SUPPORT_QUEUE_CODES,
++  SUPPORT_TICKET_STATUS,
++  listQueues,
++  seedQueueCatalogue,
++  listTeams,
++  assignTicket,
++  hasSupportAssignmentHistoryModel,
++  canTransition,
++} from '@/lib/admin/support';
++import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
++
++function makePrisma(overrides = {}) {
++  const ticketStore = overrides._ticketStore || [
++    {
++      id: 'st-1',
++      ticketNumber: 'SUP-2026-000001',
++      tenantId: 'tenant-1',
++      status: SUPPORT_TICKET_STATUS.TRIAGE,
++      type: 'QUESTION',
++      title: 'Help',
++      description: 'desc',
++      assigneeAdminId: null,
++      queueCode: null,
++      resolutionCategory: null,
++      createdAt: new Date(),
++      updatedAt: new Date(),
++      resolvedAt: null,
++      closedAt: null,
++    },
++  ];
++  const historyStore = overrides._historyStore || [];
++  const statusHistoryStore = overrides._statusHistoryStore || [];
++  const queueStore = overrides._queueStore || [];
++  const teamStore = overrides._teamStore || [];
++  const membershipStore = overrides._membershipStore || [];
++
++  const prisma = {
++    supportTicket: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return ticketStore.find((r) => r.id === where.id) || null;
++        if (where.ticketNumber) {
++          return ticketStore.find((r) => r.ticketNumber === where.ticketNumber) || null;
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where?.OR) {
++          return (
++            ticketStore.find((r) =>
++              where.OR.some(
++                (c) => (c.id && r.id === c.id) || (c.ticketNumber && r.ticketNumber === c.ticketNumber)
++              )
++            ) || null
++          );
++        }
++        return null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = ticketStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: new Date() });
++        return row;
++      }),
++    },
++    supportTicketStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `sth-${statusHistoryStore.length + 1}`, at: data.at || new Date(), ...data };
++        statusHistoryStore.push(row);
++        return row;
++      }),
++    },
++    supportAssignmentHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: `sah-${historyStore.length + 1}`,
++          at: data.at || new Date(),
++          ...data,
++        };
++        historyStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.ticketId) rows = rows.filter((r) => r.ticketId === where.ticketId);
++        return rows;
++      }),
++    },
++    supportQueue: {
++      findMany: vi.fn(async () => [...queueStore]),
++      upsert: vi.fn(async ({ where, create, update }) => {
++        let row = queueStore.find((r) => r.code === where.code);
++        if (!row) {
++          row = { id: `q-${queueStore.length + 1}`, ...create };
++          queueStore.push(row);
++        } else {
++          Object.assign(row, update || {});
++        }
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return queueStore.find((r) => r.code === where.code) || null;
++      }),
++    },
++    supportTeam: {
++      findMany: vi.fn(async () => [...teamStore]),
++    },
++    supportTeamMembership: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...membershipStore];
++        if (where?.adminId) rows = rows.filter((r) => r.adminId === where.adminId);
++        if (where?.teamCode) rows = rows.filter((r) => r.teamCode === where.teamCode);
++        return rows;
++      }),
++    },
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++  };
++
++  prisma._ticketStore = ticketStore;
++  prisma._historyStore = historyStore;
++  prisma._statusHistoryStore = statusHistoryStore;
++  prisma._queueStore = queueStore;
++  prisma._teamStore = teamStore;
++  prisma._membershipStore = membershipStore;
++  return prisma;
++}
++
++const assigner = {
++  id: 'admin-assigner',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: {
++        viewTickets: true,
++        assignTickets: true,
++        transitionStatus: true,
++      },
++    },
++  },
++};
++
++const viewer = {
++  id: 'admin-viewer',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      support: { viewTickets: true },
++    },
++  },
++};
++
++describe('systemAdmin.support.assignment', () => {
++  it('wires assignTickets permission', () => {
++    expect(SYSTEM_ADMIN_PERMISSIONS.support.assignTickets).toBe(
++      'systemAdmin.support.assignTickets'
++    );
++  });
++
++  it('exposes QUEUE_TEAM_MATRIX seed codes as definitions (not live ops metrics)', () => {
++    const expected = [
++      'GENERAL_SUPPORT',
++      'ACCOUNT_ACCESS',
++      'BILLING',
++      'MRA_EIS',
++      'PRODUCT',
++      'TECHNICAL',
++      'ANDROID',
++      'SECURITY',
++      'ESCALATIONS',
++    ];
++    expect(SUPPORT_QUEUE_CODES).toEqual(expected);
++
++    const listed = listQueues();
++    expect(listed.ok).toBe(true);
++    expect(listed.items.map((q) => q.code)).toEqual(expected);
++    for (const q of listed.items) {
++      expect(q.liveStatus).toBe('NOT_FOUND');
++      expect(q).not.toHaveProperty('openTicketCount');
++      expect(q).not.toHaveProperty('staffing');
++    }
++  });
++
++  it('seeds queue catalogue into SupportQueue without inventing live staffing', async () => {
++    const prisma = makePrisma();
++    const seeded = await seedQueueCatalogue(prisma);
++    expect(seeded.ok).toBe(true);
++    expect(seeded.count).toBe(SUPPORT_QUEUE_CODES.length);
++    expect(prisma.supportQueue.upsert).toHaveBeenCalled();
++
++    const fromDb = await listQueues(prisma);
++    expect(fromDb.items.every((q) => q.liveStatus === 'NOT_FOUND')).toBe(true);
++  });
++
++  it('lists team stubs for assignment eligibility', () => {
++    const teams = listTeams();
++    expect(teams.ok).toBe(true);
++    expect(teams.items.length).toBeGreaterThan(0);
++    expect(teams.items[0]).toHaveProperty('code');
++    expect(teams.stub).toBe(true);
++  });
++
++  it('assigns ticket, appends assignment history, and may move TRIAGEΓåÆASSIGNED via state machine', async () => {
++    const prisma = makePrisma();
++    expect(hasSupportAssignmentHistoryModel(prisma)).toBe(true);
++    expect(canTransition(SUPPORT_TICKET_STATUS.TRIAGE, SUPPORT_TICKET_STATUS.ASSIGNED)).toBe(true);
++
++    const result = await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-agent-2',
++      queueCode: 'GENERAL_SUPPORT',
++      reason: 'Initial ownership',
++    });
++
++    expect(result.ok).toBe(true);
++    expect(result.noop).not.toBe(true);
++    expect(result.ticket.assigneeAdminId).toBe('admin-agent-2');
++    expect(result.ticket.queueCode).toBe('GENERAL_SUPPORT');
++    expect(result.ticket.status).toBe(SUPPORT_TICKET_STATUS.ASSIGNED);
++    expect(prisma._historyStore).toHaveLength(1);
++    expect(prisma._historyStore[0].toAssigneeAdminId).toBe('admin-agent-2');
++    expect(prisma._historyStore[0].toQueueCode).toBe('GENERAL_SUPPORT');
++  });
++
++  it('same assignee + same queue is a noop with no duplicate history', async () => {
++    const prisma = makePrisma();
++    await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-agent-2',
++      queueCode: 'BILLING',
++    });
++    expect(prisma._historyStore).toHaveLength(1);
++
++    const again = await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-agent-2',
++      queueCode: 'BILLING',
++      reason: 'retry',
++    });
++    expect(again.ok).toBe(true);
++    expect(again.noop).toBe(true);
++    expect(prisma._historyStore).toHaveLength(1);
++  });
++
++  it('reassign appends history (reason optional)', async () => {
++    const prisma = makePrisma();
++    await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-a',
++      queueCode: 'TECHNICAL',
++    });
++    const re = await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-b',
++      queueCode: 'TECHNICAL',
++    });
++    expect(re.ok).toBe(true);
++    expect(re.noop).not.toBe(true);
++    expect(prisma._historyStore).toHaveLength(2);
++    expect(prisma._historyStore[1].fromAssigneeAdminId).toBe('admin-a');
++    expect(prisma._historyStore[1].toAssigneeAdminId).toBe('admin-b');
++  });
++
++  it('forbids assign without assignTickets', async () => {
++    const prisma = makePrisma();
++    const result = await assignTicket(prisma, {
++      admin: viewer,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-x',
++      queueCode: 'GENERAL_SUPPORT',
++    });
++    expect(result.ok).toBe(false);
++    expect(result.forbidden).toBe(true);
++    expect(prisma.supportTicket.update).not.toHaveBeenCalled();
++  });
++
++  it('does not bypass state machine when NEW cannot go directly to ASSIGNED', async () => {
++    const prisma = makePrisma({
++      _ticketStore: [
++        {
++          id: 'st-new',
++          ticketNumber: 'SUP-2026-000099',
++          tenantId: 'tenant-1',
++          status: SUPPORT_TICKET_STATUS.NEW,
++          type: 'QUESTION',
++          title: 'New',
++          description: 'd',
++          assigneeAdminId: null,
++          queueCode: null,
++          resolutionCategory: null,
++          createdAt: new Date(),
++          updatedAt: new Date(),
++          resolvedAt: null,
++          closedAt: null,
++        },
++      ],
++    });
++
++    expect(canTransition(SUPPORT_TICKET_STATUS.NEW, SUPPORT_TICKET_STATUS.ASSIGNED)).toBe(false);
++
++    const result = await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-new',
++      assigneeAdminId: 'admin-agent-2',
++      queueCode: 'GENERAL_SUPPORT',
++    });
++    expect(result.ok).toBe(true);
++    expect(result.ticket.assigneeAdminId).toBe('admin-agent-2');
++    // Status stays NEW ΓÇö assignment recorded without illegal transition
++    expect(result.ticket.status).toBe(SUPPORT_TICKET_STATUS.NEW);
++    expect(prisma._statusHistoryStore.filter((h) => h.toStatus === 'ASSIGNED')).toHaveLength(0);
++  });
++
++  it('rejects unknown queue codes', async () => {
++    const prisma = makePrisma();
++    const result = await assignTicket(prisma, {
++      admin: assigner,
++      ticketId: 'st-1',
++      assigneeAdminId: 'admin-x',
++      queueCode: 'FAKE_QUEUE',
++    });
++    expect(result.ok).toBe(false);
++    expect(result.error).toBe('invalid_queue_code');
++  });
++});
+diff --git a/app/api/admin/support/queues/route.js b/app/api/admin/support/queues/route.js
+new file mode 100644
+index 0000000..1c57cfd
+--- /dev/null
++++ b/app/api/admin/support/queues/route.js
+@@ -0,0 +1,34 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { listQueues, resolveSupportAccess } from '@/lib/admin/support';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const access = resolveSupportAccess(admin);
++    if (!access.canViewTickets) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    const result = await listQueues(prisma);
++    return NextResponse.json({
++      success: true,
++      items: result.items,
++      source: result.source,
++    });
++  } catch (error) {
++    console.error('Support queues list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list support queues' },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/app/api/admin/support/tickets/route.js b/app/api/admin/support/tickets/route.js
+new file mode 100644
+index 0000000..1b082be
+--- /dev/null
++++ b/app/api/admin/support/tickets/route.js
+@@ -0,0 +1,88 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { createTicket, listTickets } from '@/lib/admin/support';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listTickets(prisma, {
++      admin,
++      status: searchParams.get('status') || undefined,
++      tenantId: searchParams.get('tenantId') || undefined,
++      limit: searchParams.get('limit') || '50',
++      offset: searchParams.get('offset') || undefined,
++      cursor: searchParams.get('cursor') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('Support tickets list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list support tickets' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await createTicket(prisma, {
++      admin,
++      tenantId: body.tenantId,
++      title: body.title,
++      description: body.description,
++      type: body.type,
++      impact: body.impact,
++      urgency: body.urgency,
++      priority: body.priority,
++      severity: body.severity,
++      portfolioId: body.portfolioId || null,
++      assigneeAdminId: body.assigneeAdminId || null,
++      queueCode: body.queueCode || null,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to create ticket', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json(
++      { success: true, ticket: result.ticket, ticketNumber: result.ticket?.ticketNumber },
++      { status: 201 }
++    );
++  } catch (error) {
++    console.error('Support tickets create error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to create support ticket' },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/lib/admin/permissions.js b/lib/admin/permissions.js
+index a7c04b3..0ab1626 100644
+--- a/lib/admin/permissions.js
++++ b/lib/admin/permissions.js
+@@ -1,8 +1,10 @@
+ /**
+  * Granular systemAdmin.* permission catalog for the platform control plane.
+- * Stored on Admin.permissions as nested objects; Super Admin bypasses checks.
++ * Stored on Admin.permissions as nested objects; Super Admin is break-glass via decision service.
+  */
+ 
++import { authorizeAdminDecision } from './authorization/authorizeAdminDecision.js';
++
+ export const SYSTEM_ADMIN_PERMISSIONS = {
+   dashboard: {
+     view: 'systemAdmin.dashboard.view',
+@@ -71,6 +73,18 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     reconciliation: 'systemAdmin.billing.reconciliation',
+     reportsExport: 'systemAdmin.billing.reports.export',
+   },
++  mraPlans: {
++    view: 'systemAdmin.mraPlans.view',
++    create: 'systemAdmin.mraPlans.create',
++    editDraft: 'systemAdmin.mraPlans.editDraft',
++    approve: 'systemAdmin.mraPlans.approve',
++    publish: 'systemAdmin.mraPlans.publish',
++    suspend: 'systemAdmin.mraPlans.suspend',
++    retire: 'systemAdmin.mraPlans.retire',
++    version: 'systemAdmin.mraPlans.version',
++    preview: 'systemAdmin.mraPlans.preview',
++    export: 'systemAdmin.mraPlans.export',
++  },
+   email: {
+     view: 'systemAdmin.email.view',
+     configurationManage: 'systemAdmin.email.configuration.manage',
+@@ -103,6 +117,56 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     cancelJobs: 'systemAdmin.health.cancelJobs',
+     manageIncidents: 'systemAdmin.health.manageIncidents',
+   },
++  /** Intelligence ΓÇö Phase 5 executive summaries (routes gated; default deny until granted). */
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    /** Wave 3 ΓÇö create portfolios / assign ownership (view still customersRead). */
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    /** Phase 8 Wave 1 ΓÇö Customer Health */
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    /** Phase 9 Wave 1 ΓÇö Product Analytics */
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  /** Phase 8 Wave 2/3 ΓÇö Customer Success Ops. */
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  /**
++   * Phase 10 Wave 1 ΓÇö Support Ops (Γëá CsCase Γëá PlatformSupportAccess).
++   * Active: viewTickets / createTickets / transitionStatus.
++   * Remaining keys stubbed from SUPPORT_SECURITY_MATRIX for later waves.
++   */
++  support: {
++    view: 'systemAdmin.support.viewTickets',
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
+ };
+ 
+ export const ADMIN_ROLES = {
+@@ -118,6 +182,7 @@ export const ADMIN_ROLES = {
+ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/dashboard': SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+   '/insightbooks/tenant-management': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
++  '/insightbooks/tenant-identity-transfer': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
+   '/insightbooks/user-management': SYSTEM_ADMIN_PERMISSIONS.users.view,
+   '/insightbooks/global-settings': SYSTEM_ADMIN_PERMISSIONS.settings.view,
+   '/insightbooks/feature-entitlements': SYSTEM_ADMIN_PERMISSIONS.settings.features,
+@@ -126,17 +191,185 @@ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/affiliate/commissions': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/affiliate/payouts': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/billing': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/overview': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/mra-eis-plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/subscriptions': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/invoices': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/payments': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/credits': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/reconciliation': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/reports': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/imports': SYSTEM_ADMIN_PERMISSIONS.tenants.create,
+   '/insightbooks/email-management': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/templates': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/suppression': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/mra-eis': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/centre': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/terminals': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/configuration': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/mappings': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/catalogue': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
+   '/insightbooks/audit': SYSTEM_ADMIN_PERMISSIONS.audit.view,
+   '/insightbooks/security': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/monitoring': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/compliance': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/system-health': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/analytics-pipeline': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/intelligence': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/executive': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/revenue': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/overview': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/recurring': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mrr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/arr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/movements': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/billing': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/collections': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/receivables': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/payment-performance':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/credits-refunds':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/customers': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/segments': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/concentration': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/retention': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/cohorts': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/subscriptions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/plans': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/forecast': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reconciliation': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reports': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/settings': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/customers': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/overview': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/directory': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/lifecycle': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/engagement': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/commercial': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/renewals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/adoption': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/support': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/signals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/portfolios': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reports': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/settings': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customer-health':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/snapshots':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/product-analytics':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/modules':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/features':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/adoption':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/activation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/first-value':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/funnels':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/cohorts':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/signals':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsExport,
++  '/insightbooks/customer-success': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/command-centre':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/cases': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/tasks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/interventions':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.manageCases,
++  '/insightbooks/customer-success/renewals': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/playbooks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/success-plans':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/onboarding': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/training': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/surveys': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/handoffs': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/reports': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/support': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/tickets': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/my-work': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/queues': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/sla': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/reports': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++};
++
++/** Future Intelligence / CRM keys ΓÇö scaffold only; default deny until later phases. */
++export const INTEL_CRM_PERMISSION_SCAFFOLD = {
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  support: {
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
++  crm: {
++    leadsView: 'systemAdmin.crm.leads.view',
++    leadsManage: 'systemAdmin.crm.leads.manage',
++    pipelineView: 'systemAdmin.crm.pipeline.view',
++    pipelineManage: 'systemAdmin.crm.pipeline.manage',
++  },
+ };
+ 
+ /**
+@@ -160,28 +393,9 @@ export function permissionKeyParts(permission) {
+ 
+ /**
+  * Client-safe permission check (no Prisma / JWT imports).
+- * Super Admin always allowed. Supports systemAdmin.* and legacy category.action.
++ * Delegates to canonical authorizeAdminDecision (default deny; Super Admin break-glass).
++ * Supports systemAdmin.* and legacy category.action.
+  */
+ export function adminHasPermission(admin, permission) {
+-  if (!admin) return false;
+-  if (admin.role === 'Super Admin' || admin.role === ADMIN_ROLES.SUPER_ADMIN) {
+-    return true;
+-  }
+-  if (!admin.permissions || typeof admin.permissions !== 'object') {
+-    return false;
+-  }
+-  const parts = permissionKeyParts(permission);
+-  if (!parts) return false;
+-
+-  if (parts.root === 'systemAdmin') {
+-    const bucket = admin.permissions.systemAdmin?.[parts.category];
+-    if (bucket && typeof bucket === 'object') {
+-      return bucket[parts.action] === true;
+-    }
+-    // Flat key fallback: permissions['systemAdmin.tenants.view']
+-    if (admin.permissions[permission] === true) return true;
+-    return false;
+-  }
+-
+-  return admin.permissions[parts.category]?.[parts.action] === true;
++  return authorizeAdminDecision({ admin, permission }).allowed === true;
+ }
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 110ea53..4e6e44d 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -27,6 +27,21 @@ model Tenant {
+   AccountBalance               AccountBalance[]
+   accountSubscriptions         AccountSubscription[]
+   adminAccess                  AdminTenantAccess[]
++  customerOwnerships           CustomerOwnership[]
++  customerSegmentMemberships   CustomerSegmentMembership[]
++  customerSignals              CustomerSignal[]
++  customerHealthSnapshots      CustomerHealthSnapshot[]
++  csCases                      CsCase[]
++  csTasks                      CsTask[]
++  csInterventions              CsIntervention[]
++  csRenewalWorkspaces          CsRenewalWorkspace[]
++  csPlaybookExecutions         CsPlaybookExecution[]
++  csSuccessPlans               CsSuccessPlan[]
++  csExpansionHandoffs          CsExpansionHandoff[]
++  csOnboardingRecords          CsOnboardingRecord[]
++  csTrainingRecords            CsTrainingRecord[]
++  csSurveyResponses            CsSurveyResponse[]
++  supportTickets               SupportTicket[]
+   affiliateReferrals           AffiliateReferral[]
+   assets                       Asset[]
+   assetCategories              AssetCategory[]
+@@ -238,6 +253,8 @@ model TenantSettings {
+   businessEmail                    String?
+   businessPhone                    String?
+   receiptFooter                    String?
++  /// Preferred thermal receipt roll width in mm (58ΓÇô90). Used by web + Android POS print.
++  receiptPaperWidthMm              Int       @default(80)
+   defaultBankDetails               String? // Default bank account details for invoice/quotation/receipt footers
+   // NPS rates are tenant-configurable; null means "not configured".
+   // Calculation code should treat null as 0% unless explicitly set.
+@@ -531,9 +548,30 @@ model Admin {
+   phone          String?
+   department     String?
+   notes          String?
+-  adminAuditLogs AdminAuditLog[]
+-  managedTenants AdminTenantAccess[]
+-  emailLogs      EmailLog[]          @relation("EmailLogAdminSender")
++  adminAuditLogs              AdminAuditLog[]
++  managedTenants              AdminTenantAccess[]
++  emailLogs                   EmailLog[]               @relation("EmailLogAdminSender")
++  ownedCustomerPortfolios     CustomerPortfolio[]      @relation("PortfolioOwner")
++  customerOwnerships          CustomerOwnership[]      @relation("OwnershipOwner")
++  assignedCustomerOwnerships  CustomerOwnership[]      @relation("OwnershipAssignedBy")
++  csCasesOpened               CsCase[]                 @relation("CsCaseOpenedBy")
++  csCasesOwned                CsCase[]                 @relation("CsCaseOwner")
++  csTasksAssigned             CsTask[]                 @relation("CsTaskAssignee")
++  csTasksCreated              CsTask[]                 @relation("CsTaskCreatedBy")
++  csInterventionsPerformed    CsIntervention[]         @relation("CsInterventionPerformedBy")
++  csRenewalsOpened            CsRenewalWorkspace[]     @relation("CsRenewalOpenedBy")
++  csRenewalsOutcomeBy         CsRenewalWorkspace[]     @relation("CsRenewalOutcomeBy")
++  csPlaybookExecutionsStarted CsPlaybookExecution[]    @relation("CsPlaybookExecutionStartedBy")
++  csSuccessPlansOwned         CsSuccessPlan[]          @relation("CsSuccessPlanOwner")
++  csSuccessPlansCreated       CsSuccessPlan[]          @relation("CsSuccessPlanCreatedBy")
++  csExpansionHandoffsCreated  CsExpansionHandoff[]     @relation("CsExpansionHandoffCreatedBy")
++  supportTicketsCreated       SupportTicket[]          @relation("SupportTicketCreatedBy")
++  supportTicketsAssigned      SupportTicket[]          @relation("SupportTicketAssignee")
++  supportTicketStatusChanges  SupportTicketStatusHistory[] @relation("SupportTicketStatusChangedBy")
++  supportMessagesAuthored     SupportMessage[]         @relation("SupportMessageAuthor")
++  supportAttachmentsUploaded  SupportAttachment[]      @relation("SupportAttachmentUploadedBy")
++  supportAssignmentChanges    SupportAssignmentHistory[] @relation("SupportAssignmentChangedBy")
++  supportTeamMemberships      SupportTeamMembership[]
+ 
+   @@index([email])
+   @@index([role])
+@@ -1421,11 +1459,29 @@ model InvoiceItem {
+   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   product        Product? @relation(fields: [productId], references: [id])
+   account        Account? @relation(fields: [accountId], references: [id])
++  itemTaxes      InvoiceItemTax[]
+ 
+   @@index([invoiceId])
+   @@index([accountId])
+ }
+ 
++model InvoiceItemTax {
++  id               String      @id @default(cuid())
++  invoiceItemId    String
++  taxTypeId        String
++  taxName          String
++  taxCode          String      @default("")
++  taxRate          Float
++  calculationType  String      @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime    @default(now())
++  invoiceItem      InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType     @relation(fields: [taxTypeId], references: [id])
++
++  @@index([invoiceItemId])
++  @@index([taxTypeId])
++}
++
+ model InvoiceRefund {
+   id              String    @id @default(cuid())
+   invoiceId       String
+@@ -3141,6 +3197,8 @@ model TaxType {
+   updatedAt          DateTime            @updatedAt
+   productTaxes       ProductTax[]
+   saleItemTaxes      SaleItemTax[]
++  invoiceItemTaxes   InvoiceItemTax[]
++  quotationItemTaxes QuotationItemTax[]
+   purchaseOrderItems PurchaseOrderItem[]
+   expenses           Expense[]
+   account            Account             @relation("TaxTypeAccount", fields: [accountId], references: [id])
+@@ -3635,11 +3693,29 @@ model QuotationItem {
+   netAmount      Float     @default(0)
+   product        Product?  @relation(fields: [productId], references: [id])
+   quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
++  itemTaxes      QuotationItemTax[]
+ 
+   @@index([quotationId])
+   @@index([productId])
+ }
+ 
++model QuotationItemTax {
++  id               String        @id @default(cuid())
++  quotationItemId  String
++  taxTypeId        String
++  taxName          String
++  taxCode          String        @default("")
++  taxRate          Float
++  calculationType  String        @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime      @default(now())
++  quotationItem    QuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType       @relation(fields: [taxTypeId], references: [id])
++
++  @@index([quotationItemId])
++  @@index([taxTypeId])
++}
++
+ model AccountSubscription {
+   id              String       @id @default(cuid())
+   tenantId        String
+@@ -10314,19 +10390,35 @@ model PlatformPayment {
+ }
+ 
+ /// Versioned SaaS subscription plans ΓÇö price edits create a new version.
++/// planCategory: CORE | MRA_EIS (and future product families).
+ model PlatformPlanVersion {
+   id               String    @id @default(cuid())
+   planCode         String
+   version          Int
+   name             String
++  publicName       String?
+   description      String?
++  planCategory     String    @default("CORE")
++  productCode      String?
+   currency         String    @default("MWK")
+   basePrice        Decimal   @db.Decimal(18, 2)
+   billingFrequency String    @default("month")
+   userLimit        Int?
+   businessLimit    Int?
+   featuresJson     Json      @default("[]")
++  limitsJson       Json      @default("{}")
++  eligibilityJson  Json      @default("{}")
++  billingCyclesJson Json     @default("[]")
++  presentationJson Json      @default("{}")
++  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ACTIVE | SUSPENDED | RETIRED | SUPERSEDED
+   status           String    @default("ACTIVE")
++  isPublic         Boolean   @default(false)
++  isFeatured       Boolean   @default(false)
++  displayOrder     Int       @default(0)
++  trialEnabled     Boolean   @default(false)
++  trialDays        Int?
++  ctaText          String?
++  highlightText    String?
+   effectiveFrom    DateTime  @default(now())
+   effectiveTo      DateTime?
+   createdAt        DateTime  @default(now())
+@@ -10336,6 +10428,8 @@ model PlatformPlanVersion {
+   @@unique([planCode, version])
+   @@index([planCode])
+   @@index([status])
++  @@index([planCategory])
++  @@index([isPublic, planCategory, displayOrder])
+ }
+ 
+ /// Platform credits (e.g. overpayment) ΓÇö separate from tenant AR.
+@@ -10437,3 +10531,810 @@ model PlatformFeatureEntitlement {
+   @@index([featureCode])
+   @@index([status])
+ }
++
++/// Platform analytics transactional outbox (BI plane ΓÇö not AcctV2/MraEis).
++model AnalyticsOutbox {
++  id             String    @id @default(cuid())
++  tenantId       String?
++  aggregateType  String
++  aggregateId    String
++  eventType      String
++  schemaVersion  String    @default("1")
++  payload        Json
++  payloadChecksum String
++  idempotencyKey String    @unique
++  status         String    @default("PENDING")
++  availableAt    DateTime  @default(now())
++  claimedAt      DateTime?
++  claimExpiresAt DateTime?
++  claimedBy      String?
++  processedAt    DateTime?
++  attemptCount   Int       @default(0)
++  nextAttemptAt  DateTime?
++  lastError      String?
++  correlationId  String?
++  requestId      String?
++  privacyClass   String    @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  occurredAt     DateTime  @default(now())
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  @@index([status, availableAt])
++  @@index([tenantId, eventType])
++  @@index([aggregateType, aggregateId])
++}
++
++/// Append-only canonical analytics events (derived, rebuildable).
++model AnalyticsEvent {
++  id             String   @id @default(cuid())
++  eventType      String
++  schemaVersion  String   @default("1")
++  tenantId       String?
++  sourceType     String
++  sourceId       String
++  idempotencyKey String   @unique
++  occurredAt     DateTime
++  ingestedAt     DateTime @default(now())
++  privacyClass   String   @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  correlationId  String?
++  requestId      String?
++  payload        Json
++  outboxId       String?
++
++  @@index([eventType, occurredAt])
++  @@index([tenantId, occurredAt])
++  @@index([sourceType, sourceId])
++}
++
++model AnalyticsConsumerCheckpoint {
++  id           String   @id @default(cuid())
++  consumerName String   @unique
++  lastEventId  String?
++  lastOccurredAt DateTime?
++  cursor       Json?
++  updatedAt    DateTime @updatedAt
++}
++
++model AnalyticsDeadLetter {
++  id             String   @id @default(cuid())
++  outboxId       String?
++  eventId        String?
++  eventType      String?
++  errorCode      String?
++  errorMessage   String
++  payload        Json?
++  attemptCount   Int      @default(0)
++  createdAt      DateTime @default(now())
++  resolvedAt     DateTime?
++
++  @@index([createdAt])
++  @@index([eventType])
++}
++
++model AnalyticsFactPlatformBilling {
++  id              String   @id @default(cuid())
++  tenantId        String
++  sourceType      String
++  sourceId        String
++  eventType       String
++  amount          Decimal  @db.Decimal(18, 2)
++  currency        String   @default("MWK")
++  occurredAt      DateTime
++  idempotencyKey  String   @unique
++  createdAt       DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++model AnalyticsFactSubscription {
++  id             String   @id @default(cuid())
++  tenantId       String
++  subscriptionId String
++  eventType      String
++  planCode       String?
++  amount         Decimal? @db.Decimal(18, 2)
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([subscriptionId])
++}
++
++model AnalyticsFactTenantActivity {
++  id             String   @id @default(cuid())
++  tenantId       String
++  eventType      String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö product usage facts from instrumented commerce events.
++model AnalyticsFactProductUsage {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, featureCode, occurredAt])
++  @@index([tenantId, eventType, occurredAt])
++  @@index([featureCode, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö first-value uniqueness per tenant + feature + ruleVersion.
++model ProductFirstValueFact {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  ruleVersion    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  sourceEventId  String?
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@unique([tenantId, featureCode, ruleVersion])
++  @@index([tenantId, featureCode])
++}
++
++/// Phase 9 Wave 2 ΓÇö append-only adoption state history (never silent overwrite).
++model ProductAdoptionStateHistory {
++  id                String   @id @default(cuid())
++  tenantId          String
++  featureCode       String
++  state             String
++  previousState     String?
++  ruleVersion       String
++  definitionVersion String
++  reasonCode        String?
++  evidence          Json?
++  observedAt        DateTime @default(now())
++  createdAt         DateTime @default(now())
++
++  @@index([tenantId, featureCode, observedAt])
++  @@index([tenantId, featureCode, state])
++}
++
++model AnalyticsDailySnapshot {
++  id             String   @id @default(cuid())
++  snapshotDate   DateTime @db.Date
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([snapshotDate, metricKey, tenantId])
++  @@index([metricKey, snapshotDate])
++}
++
++model AnalyticsMonthlySnapshot {
++  id             String   @id @default(cuid())
++  yearMonth      String
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([yearMonth, metricKey, tenantId])
++  @@index([metricKey, yearMonth])
++}
++
++model AnalyticsDataFreshness {
++  id              String   @id @default(cuid())
++  sourceKey       String   @unique
++  lastSuccessAt   DateTime?
++  lastAttemptAt   DateTime?
++  lagSeconds      Int?
++  status          String   @default("UNKNOWN")
++  detail          Json?
++  updatedAt       DateTime @updatedAt
++}
++
++model AnalyticsReconciliationRun {
++  id           String   @id @default(cuid())
++  checkKey     String
++  periodStart  DateTime
++  periodEnd    DateTime
++  expected     Int
++  actual       Int
++  variance     Int
++  status       String
++  detail       Json?
++  createdAt    DateTime @default(now())
++
++  @@index([checkKey, createdAt])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS portfolio (not AdminTenantAccess / Tenant.ownerUserId)
++model CustomerPortfolio {
++  id           String              @id @default(cuid())
++  code         String              @unique
++  name         String
++  description  String?
++  type         String              @default("CUSTOMER_SUCCESS")
++  status       String              @default("ACTIVE")
++  ownerAdminId String?
++  ownerAdmin   Admin?              @relation("PortfolioOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdAt    DateTime            @default(now())
++  updatedAt    DateTime            @updatedAt
++  ownerships     CustomerOwnership[]
++  csCases        CsCase[]
++  supportTickets SupportTicket[]
++
++  @@index([status])
++  @@index([ownerAdminId])
++  @@index([type])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS ownership assignment (tenant ΓåÆ CS owner / portfolio)
++model CustomerOwnership {
++  id                String             @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  ownerAdminId      String
++  assignmentType    String             @default("CUSTOMER_SUCCESS_OWNER")
++  isPrimary         Boolean            @default(true)
++  startAt           DateTime           @default(now())
++  endAt             DateTime?
++  reason            String?
++  assignedByAdminId String?
++  status            String             @default("ACTIVE")
++  createdAt         DateTime           @default(now())
++  updatedAt         DateTime           @updatedAt
++  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin              @relation("OwnershipOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
++  assignedByAdmin   Admin?             @relation("OwnershipAssignedBy", fields: [assignedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId, status])
++  @@index([status, endAt])
++  @@index([isPrimary, status])
++}
++
++/// Optional segment foundation (Wave 3). Dynamic engine deferred; system filters in code.
++model CustomerSegment {
++  id          String                       @id @default(cuid())
++  code        String                       @unique
++  name        String
++  description String?
++  kind        String                       @default("SYSTEM")
++  status      String                       @default("ACTIVE")
++  createdAt   DateTime                     @default(now())
++  updatedAt   DateTime                     @updatedAt
++  memberships CustomerSegmentMembership[]
++
++  @@index([status])
++  @@index([kind])
++}
++
++model CustomerSegmentMembership {
++  id        String          @id @default(cuid())
++  segmentId String
++  tenantId  String
++  status    String          @default("ACTIVE")
++  startAt   DateTime        @default(now())
++  endAt     DateTime?
++  createdAt DateTime        @default(now())
++  updatedAt DateTime        @updatedAt
++  segment   CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
++  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([segmentId, tenantId])
++  @@index([tenantId, status])
++  @@index([segmentId, status])
++}
++
++/// Phase 7 Wave 4 ΓÇö deterministic customer signals (verified sources only).
++/// Status: NEW | ACKNOWLEDGED | RESOLVED_BY_SOURCE | DISMISSED
++/// Ephemeral evaluation is used when this table/client is unavailable.
++model CustomerSignal {
++  id              String   @id @default(cuid())
++  tenantId        String
++  code            String
++  severity        String
++  status          String   @default("NEW")
++  payload         Json?
++  firstDetectedAt DateTime @default(now())
++  lastDetectedAt  DateTime @default(now())
++  ruleVersion     String
++  createdAt       DateTime @default(now())
++  updatedAt       DateTime @updatedAt
++  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([tenantId, code])
++  @@index([tenantId, status])
++  @@index([status, severity])
++  @@index([code, status])
++  @@index([lastDetectedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö versioned health definition (optional DB override of builtin).
++model CustomerHealthDefinition {
++  id          String    @id @default(cuid())
++  version     String    @unique
++  name        String?
++  isActive    Boolean   @default(false)
++  payload     Json
++  activatedAt DateTime?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++
++  @@index([isActive, activatedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö immutable health snapshot (rebuild creates a new row).
++model CustomerHealthSnapshot {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  definitionVersion  String
++  score              Float?
++  band               String
++  confidence         String
++  asOf               DateTime
++  payload            Json?
++  createdAt          DateTime @default(now())
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, createdAt])
++  @@index([band, createdAt])
++  @@index([definitionVersion])
++  @@index([asOf])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS case (not a support ticket; not signal ACK substitute).
++/// Status: OPEN | IN_PROGRESS | RESOLVED | CLOSED
++/// triggerType: SIGNAL | HEALTH | MANUAL
++model CsCase {
++  id                String           @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  status            String           @default("OPEN")
++  priority          String           @default("MEDIUM")
++  severity          String?
++  title             String
++  summary           String?
++  triggerType       String
++  triggerCode       String?
++  definitionVersion String?
++  idempotencyKey    String
++  signalId          String?
++  snapshotId        String?
++  ownerAdminId      String?
++  openedByAdminId   String?
++  openedAt          DateTime         @default(now())
++  closedAt          DateTime?
++  resolvedAt        DateTime?
++  payload           Json?
++  createdAt         DateTime         @default(now())
++  updatedAt         DateTime         @updatedAt
++  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin?           @relation("CsCaseOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  openedByAdmin     Admin?           @relation("CsCaseOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  tasks             CsTask[]
++  interventions     CsIntervention[]
++  playbookExecutions CsPlaybookExecution[]
++
++  // Open-only uniqueness (OPEN/IN_PROGRESS) is enforced by partial unique index
++  // CsCase_open_idempotencyKey_key in scripts/sql/customer-success-phase08.sql ΓÇö
++  // closed/resolved cases may reuse the same key so re-triggers can open a new case.
++  @@index([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([status, openedAt])
++  @@index([triggerType, triggerCode])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS task (assignee = System Admin id).
++model CsTask {
++  id                String    @id @default(cuid())
++  caseId            String?
++  tenantId          String
++  title             String
++  status            String    @default("OPEN")
++  assigneeAdminId   String?
++  dueAt             DateTime?
++  stepId            String?
++  executionId       String?
++  idempotencyKey    String?
++  notes             String?
++  createdByAdminId  String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  assigneeAdmin     Admin?    @relation("CsTaskAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?    @relation("CsTaskCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([caseId, status])
++  @@index([assigneeAdminId, status])
++  @@index([executionId, stepId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS intervention log (not a support ticket).
++model CsIntervention {
++  id                  String   @id @default(cuid())
++  caseId              String?
++  tenantId            String
++  type                String
++  notes               String?
++  channel             String?
++  performedByAdminId  String?
++  performedAt         DateTime @default(now())
++  payload             Json?
++  createdAt           DateTime @default(now())
++  case                CsCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  performedByAdmin    Admin?   @relation("CsInterventionPerformedBy", fields: [performedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, performedAt])
++  @@index([caseId, performedAt])
++  @@index([type])
++}
++
++/// Phase 8 Wave 3 ΓÇö renewal workspace; outcome requires AccountSubscription evidence.
++model CsRenewalWorkspace {
++  id                String    @id @default(cuid())
++  tenantId          String
++  periodKey         String
++  status            String    @default("OPEN")
++  outcome           String?
++  outcomeAt         DateTime?
++  outcomeByAdminId  String?
++  subscriptionId    String?
++  evidenceNote      String?
++  notes             String?
++  openedByAdminId   String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  openedByAdmin     Admin?    @relation("CsRenewalOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  outcomeByAdmin    Admin?    @relation("CsRenewalOutcomeBy", fields: [outcomeByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([tenantId, periodKey])
++  @@index([tenantId, status])
++  @@index([outcome])
++  @@index([periodKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö versioned playbook definition (steps JSON ΓåÆ tasks on execute).
++model CsPlaybook {
++  id          String                @id @default(cuid())
++  key         String
++  name        String
++  version     String
++  description String?
++  status      String                @default("ACTIVE")
++  steps       Json
++  createdAt   DateTime              @default(now())
++  updatedAt   DateTime              @updatedAt
++  executions  CsPlaybookExecution[]
++
++  @@unique([key, version])
++  @@index([status, key])
++}
++
++/// Phase 8 Wave 4 ΓÇö playbook run; idempotent per key+version+tenant+case.
++model CsPlaybookExecution {
++  id                String    @id @default(cuid())
++  playbookId        String
++  tenantId          String
++  caseId            String?
++  status            String    @default("RUNNING")
++  playbookVersion   String
++  idempotencyKey    String?   @unique
++  startedByAdminId  String?
++  startedAt         DateTime  @default(now())
++  completedAt       DateTime?
++  payload           Json?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  playbook          CsPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  startedByAdmin    Admin?    @relation("CsPlaybookExecutionStartedBy", fields: [startedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([playbookId, startedAt])
++  @@index([caseId])
++}
++
++/// Phase 8 Wave 4 ΓÇö success plan (no invented progress %).
++model CsSuccessPlan {
++  id                String          @id @default(cuid())
++  tenantId          String
++  title             String
++  status            String          @default("ACTIVE")
++  summary           String?
++  ownerAdminId      String?
++  createdByAdminId  String?
++  startedAt         DateTime?
++  targetAt          DateTime?
++  createdAt         DateTime        @default(now())
++  updatedAt         DateTime        @updatedAt
++  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  ownerAdmin        Admin?          @relation("CsSuccessPlanOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?          @relation("CsSuccessPlanCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  goals             CsSuccessGoal[]
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++}
++
++/// Phase 8 Wave 4 ΓÇö success goal under a plan.
++model CsSuccessGoal {
++  id         String        @id @default(cuid())
++  planId     String
++  title      String
++  status     String        @default("OPEN")
++  targetNote String?
++  dueAt      DateTime?
++  sortOrder  Int           @default(0)
++  createdAt  DateTime      @default(now())
++  updatedAt  DateTime      @updatedAt
++  plan       CsSuccessPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
++
++  @@index([planId, status])
++  @@index([planId, sortOrder])
++}
++
++/// Phase 8 Wave 4 ΓÇö expansion handoff record-only (no CRM opportunity / auto upgrade).
++model CsExpansionHandoff {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  status             String   @default("OPEN")
++  reason             String?
++  notes              String?
++  recommendedAction  String   @default("OTHER")
++  createdByAdminId   String?
++  payload            Json?
++  createdAt          DateTime @default(now())
++  updatedAt          DateTime @updatedAt
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  createdByAdmin     Admin?   @relation("CsExpansionHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([recommendedAction])
++  @@index([createdAt])
++}
++
++/// Phase 8 Wave 4 ΓÇö onboarding foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsOnboardingRecord {
++  id           String    @id @default(cuid())
++  tenantId     String
++  checklistKey String?
++  status       String?
++  completedAt  DateTime?
++  sourceNote   String?
++  createdAt    DateTime  @default(now())
++  updatedAt    DateTime  @updatedAt
++  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([checklistKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö training foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsTrainingRecord {
++  id          String    @id @default(cuid())
++  tenantId    String
++  moduleKey   String?
++  status      String?
++  completedAt DateTime?
++  sourceNote  String?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([moduleKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö survey foundation rows only (empty ΓåÆ NOT_INSTRUMENTED; never invent NPS).
++model CsSurveyResponse {
++  id         String    @id @default(cuid())
++  tenantId   String
++  surveyKey  String?
++  status     String?
++  score      Int?
++  completedAt DateTime?
++  sourceNote String?
++  createdAt  DateTime  @default(now())
++  updatedAt  DateTime  @updatedAt
++  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([surveyKey])
++}
++
++/// Phase 10 Wave 1 ΓÇö per-UTC-year sequence for SUP-YYYY-###### (concurrency-safe CAS).
++model SupportTicketNumberSeq {
++  year       Int      @id
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++}
++
++/// Phase 10 Wave 1 ΓÇö Support ticket (Γëá CsCase Γëá PlatformSupportAccess).
++/// Never store Tenant GL lines, MRA credentials, or payment secrets.
++model SupportTicket {
++  id                 String    @id @default(cuid())
++  ticketNumber       String    @unique
++  tenantId           String
++  portfolioId        String?
++  status             String    @default("NEW")
++  type               String
++  impact             String?
++  urgency            String?
++  priority           String?
++  severity           String?
++  title              String
++  description        String    @db.Text
++  resolutionCategory String?
++  createdByAdminId   String?
++  assigneeAdminId    String?
++  queueCode          String?
++  sourceChannel      String    @default("ADMIN_MANUAL")
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  resolvedAt         DateTime?
++  closedAt           DateTime?
++  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio          CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  createdByAdmin     Admin?    @relation("SupportTicketCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  assigneeAdmin      Admin?    @relation("SupportTicketAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  statusHistory      SupportTicketStatusHistory[]
++  messages           SupportMessage[]
++  attachments        SupportAttachment[]
++  assignmentHistory  SupportAssignmentHistory[]
++
++  @@index([tenantId, status])
++  @@index([status, createdAt])
++  @@index([assigneeAdminId, status])
++  @@index([queueCode, status])
++  @@index([portfolioId])
++  @@index([sourceChannel])
++}
++
++/// Phase 10 Wave 1 ΓÇö append-only status history (evidence preserved on terminal statuses).
++model SupportTicketStatusHistory {
++  id               String   @id @default(cuid())
++  ticketId         String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("SupportTicketStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 10 Wave 2 ΓÇö ticket messages (PUBLIC / INTERNAL / RESTRICTED). Never expose INTERNAL/RESTRICTED to customers.
++model SupportMessage {
++  id              String   @id @default(cuid())
++  ticketId        String
++  type            String
++  body            String   @db.Text
++  authorAdminId   String?
++  visibility      String?
++  systemEventCode String?
++  createdAt       DateTime @default(now())
++  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  authorAdmin     Admin?   @relation("SupportMessageAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([ticketId, type])
++  @@index([authorAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö attachment metadata; bytes in private storage/support-attachments/ (not public/uploads).
++model SupportAttachment {
++  id                 String    @id @default(cuid())
++  ticketId           String
++  fileName           String
++  mimeType           String
++  sizeBytes          Int
++  storageKey         String
++  scanState          String    @default("PENDING_SCAN")
++  uploadedByAdminId  String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  scannedAt          DateTime?
++  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  uploadedByAdmin    Admin?    @relation("SupportAttachmentUploadedBy", fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([storageKey])
++  @@index([ticketId, scanState])
++  @@index([scanState])
++  @@index([uploadedByAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö queue catalogue (QUEUE_TEAM_MATRIX). liveStatus stays NOT_FOUND until real owners exist.
++model SupportQueue {
++  id                String   @id @default(cuid())
++  code              String   @unique
++  name              String
++  typicalOwnership  String?
++  liveStatus        String   @default("NOT_FOUND")
++  active            Boolean  @default(true)
++  createdAt         DateTime @default(now())
++  updatedAt         DateTime @updatedAt
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö team stub definitions for assignment eligibility.
++model SupportTeam {
++  id         String   @id @default(cuid())
++  code       String   @unique
++  name       String
++  queueCodes String[] @default([])
++  active     Boolean  @default(true)
++  createdAt  DateTime @default(now())
++  updatedAt  DateTime @updatedAt
++  memberships SupportTeamMembership[]
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö optional team membership (stub; empty ΓçÆ eligibility not locked out).
++model SupportTeamMembership {
++  id        String   @id @default(cuid())
++  teamCode  String
++  adminId   String
++  createdAt DateTime @default(now())
++  team      SupportTeam @relation(fields: [teamCode], references: [code], onDelete: Cascade)
++  admin     Admin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
++
++  @@unique([teamCode, adminId])
++  @@index([adminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö append-only assignment / queue change history.
++model SupportAssignmentHistory {
++  id                   String   @id @default(cuid())
++  ticketId             String
++  fromAssigneeAdminId  String?
++  toAssigneeAdminId    String?
++  fromQueueCode        String?
++  toQueueCode          String?
++  changedByAdminId     String?
++  reason               String?
++  at                   DateTime @default(now())
++  ticket               SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin       Admin?   @relation("SupportAssignmentChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toAssigneeAdminId])
++}

@@ -1,0 +1,72 @@
+[
+  {
+    "file": "app/expenses/page.js",
+    "titleKey": "expenses.title",
+    "exists": true
+  },
+  {
+    "file": "app/stock/page.js",
+    "titleKey": "inventory.title",
+    "exists": true
+  },
+  {
+    "file": "app/clients/page.js",
+    "titleKey": "sales.customers",
+    "exists": true
+  },
+  {
+    "file": "app/invoice/page.js",
+    "titleKey": "sales.invoices",
+    "exists": true
+  },
+  {
+    "file": "app/quotations/page.js",
+    "titleKey": "sales.quotations",
+    "exists": true
+  },
+  {
+    "file": "app/pos/page.js",
+    "titleKey": "sales.pos",
+    "exists": true
+  },
+  {
+    "file": "app/purchases/orders/page.js",
+    "titleKey": "purchases.orders",
+    "exists": true
+  },
+  {
+    "file": "app/asset-management/page.js",
+    "titleKey": "assets-liabilities.title",
+    "exists": true
+  },
+  {
+    "file": "app/bank-reconciliation/page.js",
+    "titleKey": "banking.reconciliation",
+    "exists": true
+  },
+  {
+    "file": "app/budget-forecast/budgets/page.js",
+    "titleKey": "budgets-forecasts.budget",
+    "exists": true
+  },
+  {
+    "file": "app/hr/payroll/page.js",
+    "titleKey": "hr-payroll.payroll",
+    "exists": true
+  },
+  {
+    "file": "app/reports-v2/page.js",
+    "titleKey": "reports.title",
+    "exists": true
+  },
+  {
+    "file": "app/general-ledger-v2/page.js",
+    "titleKey": "accounting.generalLedger",
+    "exists": true
+  },
+  {
+    "file": "app/chart-of-accounts/page.js",
+    "titleKey": "accounting.chartOfAccounts",
+    "exists": true
+  }
+]

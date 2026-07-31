@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 import ProductSearchSelect from "@/components/ProductSearchSelect";
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
+import PageHeader from "@/components/shell/PageHeader";
+
 
 const statusColors = {
   Draft: "bg-gray-100 text-gray-800",
@@ -1356,20 +1358,20 @@ export default function PurchaseOrdersPage() {
           {toast.message}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Purchase Orders</h1>
-          <p className="text-sm text-gray-500">
-            Track procurement requests, approvals, receipts, and remaining balances.
-          </p>
-        </div>
-        <button
-          onClick={openCreateForm}
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white  hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        >
-          New Purchase Order
-        </button>
-      </div>
+      <PageHeader
+        title="Purchase Orders"
+        description="Track procurement requests, approvals, receipts, and remaining balances."
+        actions={
+          <button
+            type="button"
+            onClick={openCreateForm}
+            className="rounded-[var(--radius-sm)] bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+          >
+            New Purchase Order
+          </button>
+        }
+      />
+
 
       <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard label="Total Orders" value={stats.total} helper="All time" />

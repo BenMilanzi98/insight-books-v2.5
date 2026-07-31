@@ -1,0 +1,1847 @@
+﻿# Review package — Phase 16 Task 2
+8668	lib/admin/crm/conversions/customerMatch.js
+5325	lib/admin/crm/conversions/customerProvision.js
+8806	lib/admin/crm/conversions/tenantProvision.js
+7269	lib/admin/crm/conversions/businessBranch.js
+4687	lib/admin/crm/conversions/invitations.js
+1015	lib/admin/crm/conversions/isolation.js
+1532	lib/admin/crm/conversions/accountingBoundary.js
+25401	lib/admin/crm/conversions/orchestrator.js
+
+===== lib/admin/crm/conversions/customerMatch.js =====
+
+/**
+ * Platform Customer match engine â€” Phase 16 Wave 2.
+ * No auto-merge on similar names. POSSIBLE_MATCH blocks create.
+ */
+
+import { CRM_CUSTOMER_MATCH_STATE } from './catalogue.js';
+import { resolveConversionActor } from './model.js';
+
+function norm(v) {
+  return v == null ? '' : String(v).trim().toLowerCase();
+}
+
+function hasHardIdentity(evidence = {}) {
+  return Boolean(
+    evidence.existingCustomerId ||
+      evidence.registrationNumber ||
+      evidence.taxId ||
+      evidence.domain ||
+      evidence.verifiedEmail ||
+      evidence.verifiedPhone
+  );
+}
+
+/** Soft name similarity only â€” never auto-merge; drives POSSIBLE_MATCH. */
+function namesSimilar(a, b) {
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const ta = na.split(/\s+/).filter(Boolean);
+  const tb = nb.split(/\s+/).filter(Boolean);
+  if (ta[0] && tb[0] && ta[0] === tb[0] && ta[0].length >= 3) return true;
+  let i = 0;
+  while (i < na.length && i < nb.length && na[i] === nb[i]) i += 1;
+  return i >= 6;
+}
+
+function scoreCandidate(evidence, candidate) {
+  let hard = 0;
+  let soft = 0;
+  const reasons = [];
+
+  if (evidence.existingCustomerId && candidate.id === evidence.existingCustomerId) {
+    hard += 3;
+    reasons.push('existing_customer_id');
+  }
+  if (
+    evidence.registrationNumber &&
+    norm(candidate.registrationNumber) === norm(evidence.registrationNumber)
+  ) {
+    hard += 2;
+    reasons.push('registration_number');
+  }
+  if (evidence.taxId && norm(candidate.taxId) === norm(evidence.taxId)) {
+    hard += 2;
+    reasons.push('tax_id');
+  }
+  if (evidence.domain && norm(candidate.domain) === norm(evidence.domain)) {
+    hard += 1;
+    reasons.push('domain');
+  }
+  if (evidence.verifiedEmail && norm(candidate.email) === norm(evidence.verifiedEmail)) {
+    hard += 1;
+    reasons.push('verified_email');
+  }
+  if (evidence.displayName && namesSimilar(candidate.displayName, evidence.displayName)) {
+    soft += 1;
+    reasons.push('display_name_similarity');
+  }
+
+  return { hard, soft, reasons, candidate };
+}
+
+async function loadCandidates(prisma, evidence = {}) {
+  const rows = [];
+
+  if (typeof prisma?.platformCustomer?.findMany === 'function') {
+    const all = await prisma.platformCustomer.findMany({});
+    rows.push(...(all || []));
+  }
+
+  if (evidence.accountCustomerId) {
+    rows.push({
+      id: evidence.accountCustomerId,
+      displayName: evidence.displayName || null,
+      registrationNumber: evidence.registrationNumber || null,
+      taxId: evidence.taxId || null,
+      domain: evidence.domain || null,
+      via: 'crm_account_customerId',
+    });
+  }
+
+  const byId = new Map();
+  for (const r of rows) {
+    if (r?.id && !byId.has(r.id)) byId.set(r.id, r);
+  }
+  return [...byId.values()];
+}
+
+export async function matchPlatformCustomer(prisma, args = {}) {
+  let evidence = { ...(args.evidence || {}) };
+
+  if (args.accountId && typeof prisma?.crmAccount?.findUnique === 'function') {
+    const account = await prisma.crmAccount.findUnique({
+      where: { id: args.accountId },
+    });
+    if (account) {
+      evidence = {
+        displayName: evidence.displayName || account.displayName || null,
+        registrationNumber:
+          evidence.registrationNumber || account.registrationNumber || null,
+        taxId: evidence.taxId || account.taxId || null,
+        domain: evidence.domain || account.domain || null,
+        existingCustomerId:
+          evidence.existingCustomerId || account.customerId || null,
+        accountCustomerId: account.customerId || null,
+        accountId: account.id,
+        ...evidence,
+      };
+    }
+  }
+
+  const candidates = await loadCandidates(prisma, evidence);
+  const scored = candidates
+    .map((c) => scoreCandidate(evidence, c))
+    .sort((a, b) => b.hard - a.hard || b.soft - a.soft);
+
+  const hardHits = scored.filter((s) => s.hard > 0);
+  const softOnly = scored.filter((s) => s.hard === 0 && s.soft > 0);
+
+  if (hardHits.length > 1) {
+    const distinctIds = new Set(hardHits.map((s) => s.candidate.id));
+    if (distinctIds.size > 1) {
+      return {
+        ok: true,
+        matchState: CRM_CUSTOMER_MATCH_STATE.CONFLICT,
+        candidates: hardHits.map((s) => ({
+          customerId: s.candidate.id,
+          reasons: s.reasons,
+          hard: s.hard,
+          soft: s.soft,
+        })),
+        primaryCandidateId: null,
+        reasons: ['multiple_hard_identity_matches'],
+        evidence,
+      };
+    }
+  }
+
+  if (hardHits.length === 1 && hardHits[0].hard >= 3) {
+    return {
+      ok: true,
+      matchState: CRM_CUSTOMER_MATCH_STATE.EXACT_EXISTING_CUSTOMER,
+      candidates: [
+        {
+          customerId: hardHits[0].candidate.id,
+          reasons: hardHits[0].reasons,
+          hard: hardHits[0].hard,
+          soft: hardHits[0].soft,
+        },
+      ],
+      primaryCandidateId: hardHits[0].candidate.id,
+      reasons: hardHits[0].reasons,
+      evidence,
+    };
+  }
+
+  if (hardHits.length === 1 && hardHits[0].hard >= 1) {
+    return {
+      ok: true,
+      matchState: CRM_CUSTOMER_MATCH_STATE.HIGH_CONFIDENCE_MATCH,
+      candidates: [
+        {
+          customerId: hardHits[0].candidate.id,
+          reasons: hardHits[0].reasons,
+          hard: hardHits[0].hard,
+          soft: hardHits[0].soft,
+        },
+      ],
+      primaryCandidateId: hardHits[0].candidate.id,
+      reasons: hardHits[0].reasons,
+      evidence,
+    };
+  }
+
+  if (softOnly.length > 0) {
+    return {
+      ok: true,
+      matchState: CRM_CUSTOMER_MATCH_STATE.POSSIBLE_MATCH,
+      candidates: softOnly.map((s) => ({
+        customerId: s.candidate.id,
+        reasons: s.reasons,
+        hard: s.hard,
+        soft: s.soft,
+      })),
+      primaryCandidateId: softOnly[0].candidate.id,
+      reasons: hasHardIdentity(evidence)
+        ? ['soft_match_with_unmatched_hard_evidence']
+        : ['display_name_similarity_only'],
+      evidence,
+    };
+  }
+
+  return {
+    ok: true,
+    matchState: CRM_CUSTOMER_MATCH_STATE.NO_MATCH,
+    candidates: [],
+    primaryCandidateId: null,
+    reasons: ['no_candidates'],
+    evidence,
+  };
+}
+
+export async function decideCustomerCreateOrLink(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const match = args.match || {};
+  const matchState = match.matchState;
+  const action = String(args.action || '').toUpperCase();
+
+  let ok = false;
+  let error = null;
+  let decision = null;
+  let requiresReview = false;
+
+  if (matchState === CRM_CUSTOMER_MATCH_STATE.POSSIBLE_MATCH) {
+    ok = false;
+    error = 'possible_match_blocks_create';
+    requiresReview = true;
+    decision = 'BLOCKED_REVIEW';
+  } else if (matchState === CRM_CUSTOMER_MATCH_STATE.CONFLICT) {
+    ok = false;
+    error = 'conflict_blocks_create';
+    requiresReview = true;
+    decision = 'BLOCKED_CONFLICT';
+  } else if (
+    matchState === CRM_CUSTOMER_MATCH_STATE.EXACT_EXISTING_CUSTOMER ||
+    matchState === CRM_CUSTOMER_MATCH_STATE.HIGH_CONFIDENCE_MATCH
+  ) {
+    if (action === 'CREATE') {
+      ok = false;
+      error = 'exact_or_high_confidence_requires_link';
+      decision = 'LINK_REQUIRED';
+    } else {
+      ok = true;
+      decision = 'LINK';
+    }
+  } else if (matchState === CRM_CUSTOMER_MATCH_STATE.NO_MATCH) {
+    if (action === 'LINK') {
+      ok = false;
+      error = 'no_match_cannot_link';
+      decision = 'CREATE_REQUIRED';
+    } else {
+      ok = true;
+      decision = 'CREATE';
+    }
+  } else {
+    ok = false;
+    error = 'manual_review_required';
+    requiresReview = true;
+    decision = 'MANUAL_REVIEW_REQUIRED';
+  }
+
+  const audited = Boolean(args.conversionId);
+
+  if (
+    args.conversionId &&
+    typeof prisma?.crmConversionMatchDecision?.create === 'function'
+  ) {
+    await prisma.crmConversionMatchDecision.create({
+      data: {
+        conversionId: args.conversionId,
+        decisionType: 'CUSTOMER',
+        matchState: matchState || null,
+        decision,
+        actionRequested: action || null,
+        ok,
+        errorCode: error,
+        candidateJson: match.candidates || [],
+        actorAdminId: admin?.id || null,
+        createdAt: args.now || new Date(),
+      },
+    });
+  }
+
+  return {
+    ok,
+    decision,
+    matchState,
+    error,
+    requiresReview,
+    audited,
+    customerId: match.primaryCandidateId || null,
+  };
+}
+
+export { CRM_CUSTOMER_MATCH_STATE };
+
+===== lib/admin/crm/conversions/tenantProvision.js =====
+
+/**
+ * CREATE_OR_LINK_TENANT â€” Phase 16 Wave 2.
+ * Wraps Tenant create carefully: reserved slug block, unique subdomain,
+ * status PROVISIONING (never ACTIVE before Wave 3 activation), step idempotency.
+ * Does NOT call admin tenants POST (which sets active + trial subscription).
+ */
+
+import {
+  CRM_CONVERSION_RESOURCE_TYPE,
+  CRM_TENANT_PROVISION_STATUS,
+  RESERVED_TENANT_SLUGS,
+} from './catalogue.js';
+import { assertNoTenantAccountingSideEffects } from './accountingBoundary.js';
+import { resolveConversionActor } from './model.js';
+
+function normalizeSlug(slug) {
+  return String(slug || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export function isReservedTenantSlug(slug) {
+  const s = normalizeSlug(slug);
+  return !s || RESERVED_TENANT_SLUGS.includes(s);
+}
+
+function hasResourceModel(prisma) {
+  return typeof prisma?.crmConversionResource?.create === 'function';
+}
+
+function hasTenantModel(prisma) {
+  return (
+    typeof prisma?.tenant?.create === 'function' &&
+    typeof prisma?.tenant?.findUnique === 'function'
+  );
+}
+
+/**
+ * Audited tenant create-or-link decision.
+ */
+export async function decideTenantCreateOrLink(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const action = String(args.action || 'CREATE').toUpperCase();
+  const slug = normalizeSlug(args.slug);
+  let ok = true;
+  let error = null;
+  let decision = action === 'LINK' ? 'LINK' : 'CREATE';
+
+  if (action === 'CREATE') {
+    if (isReservedTenantSlug(slug)) {
+      ok = false;
+      error = 'tenant_slug_reserved';
+      decision = 'BLOCKED';
+    } else if (args.existingTenantId) {
+      ok = false;
+      error = 'existing_tenant_requires_link';
+      decision = 'LINK_REQUIRED';
+    } else if (hasTenantModel(prisma) && slug) {
+      const existing = await prisma.tenant.findUnique({ where: { subdomain: slug } });
+      if (existing) {
+        ok = false;
+        error = 'tenant_slug_collision';
+        decision = 'BLOCKED';
+      }
+    }
+  } else if (action === 'LINK') {
+    if (!args.existingTenantId) {
+      ok = false;
+      error = 'link_target_missing';
+      decision = 'CREATE_REQUIRED';
+    }
+  }
+
+  const audited = Boolean(args.conversionId);
+  if (
+    args.conversionId &&
+    typeof prisma?.crmConversionMatchDecision?.create === 'function'
+  ) {
+    await prisma.crmConversionMatchDecision.create({
+      data: {
+        conversionId: args.conversionId,
+        decisionType: 'TENANT',
+        matchState: args.existingTenantId ? 'EXACT_EXISTING' : 'NO_MATCH',
+        decision,
+        actionRequested: action,
+        ok,
+        errorCode: error,
+        candidateJson: args.existingTenantId
+          ? [{ tenantId: args.existingTenantId, slug }]
+          : [{ slug }],
+        actorAdminId: admin?.id || null,
+        createdAt: args.now || new Date(),
+      },
+    });
+  }
+
+  return {
+    ok,
+    decision,
+    error,
+    audited,
+    slug,
+    tenantId: args.existingTenantId || null,
+  };
+}
+
+/**
+ * Create or link Tenant for conversion. Status = PROVISIONING (not ACTIVE).
+ */
+export async function createOrLinkTenant(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const conversionId = args.conversionId ? String(args.conversionId) : null;
+  const slug = normalizeSlug(args.slug);
+  const idempotencyKey =
+    args.idempotencyKey ||
+    (conversionId ? `tenant:${conversionId}:${slug || 'link'}` : null);
+
+  if (hasResourceModel(prisma) && conversionId && idempotencyKey) {
+    const existingRes = await prisma.crmConversionResource.findFirst({
+      where: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+        idempotencyKey,
+      },
+    });
+    if (existingRes?.resourceId) {
+      return {
+        ok: true,
+        action: existingRes.action || 'CREATE',
+        tenantId: existingRes.resourceId,
+        status: existingRes.status || CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+        idempotentReplay: true,
+        tenantCreated: existingRes.action === 'CREATE',
+        tenantLinked: existingRes.action === 'LINK',
+      };
+    }
+  }
+
+  let decision = args.decision;
+  if (!decision || decision.ok === undefined) {
+    decision = await decideTenantCreateOrLink(prisma, {
+      conversionId,
+      slug,
+      existingTenantId: args.existingTenantId || null,
+      admin,
+      action: args.action || (args.existingTenantId ? 'LINK' : 'CREATE'),
+      now: args.now,
+    });
+  }
+
+  // Enforce reserved / collision even if caller passed a loose decision
+  if (isReservedTenantSlug(slug) && (decision.decision === 'CREATE' || !args.existingTenantId)) {
+    return { ok: false, error: 'tenant_slug_reserved', status: 'BLOCKED' };
+  }
+
+  if (!hasTenantModel(prisma)) {
+    return {
+      ok: false,
+      error: 'tenant_model_unavailable',
+      status: 'NOT_AVAILABLE',
+    };
+  }
+
+  if (args.existingTenantId || decision.decision === 'LINK') {
+    const tenantId = args.existingTenantId || decision.tenantId;
+    if (!tenantId) {
+      return { ok: false, error: 'link_target_missing', status: 'NOT_AVAILABLE' };
+    }
+    if (hasResourceModel(prisma) && conversionId) {
+      await prisma.crmConversionResource.create({
+        data: {
+          conversionId,
+          resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+          resourceId: tenantId,
+          action: 'LINK',
+          status: 'LINKED',
+          idempotencyKey,
+          metaJson: { slug },
+          actorAdminId: admin?.id || null,
+          createdAt: args.now || new Date(),
+          updatedAt: args.now || new Date(),
+        },
+      });
+    }
+    return {
+      ok: true,
+      action: 'LINK',
+      tenantId,
+      status: 'LINKED',
+      tenantCreated: false,
+      tenantLinked: true,
+    };
+  }
+
+  if (decision.ok === false && decision.error) {
+    return {
+      ok: false,
+      error: decision.error,
+      status: 'BLOCKED',
+    };
+  }
+
+  const collision = await prisma.tenant.findUnique({ where: { subdomain: slug } });
+  if (collision) {
+    return { ok: false, error: 'tenant_slug_collision', status: 'BLOCKED' };
+  }
+
+  let tenant;
+  try {
+    tenant = await prisma.tenant.create({
+      data: {
+        name: (args.name || slug || 'Conversion Tenant').trim(),
+        subdomain: slug,
+        subscriptionPlan: args.subscriptionPlan || '1month',
+        // Never ACTIVE before Wave 3 activation policy
+        status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+        logoUrl: null,
+        primaryColor: null,
+        secondaryColor: null,
+      },
+    });
+  } catch (err) {
+    if (err?.code === 'P2002') {
+      return { ok: false, error: 'tenant_slug_collision', status: 'BLOCKED' };
+    }
+    return {
+      ok: false,
+      error: err?.message || 'tenant_create_failed',
+      status: 'NOT_AVAILABLE',
+    };
+  }
+
+  // Optional CoA/period init â€” never journals. Opt-in (orchestrator enables explicitly).
+  if (args.initFinancialDefaults === true) {
+    try {
+      const { initializeNewTenantFinancialDefaults } = await import(
+        '@/lib/initializeNewTenantFinancialDefaults.js'
+      );
+      if (typeof initializeNewTenantFinancialDefaults === 'function') {
+        await initializeNewTenantFinancialDefaults(tenant.id, prisma);
+      }
+    } catch {
+      /* CoA init optional in unit tests / EPERM environments */
+    }
+  }
+
+  const boundary = await assertNoTenantAccountingSideEffects(prisma, {
+    tenantId: tenant.id,
+    conversionId,
+  });
+  if (!boundary.ok) {
+    return {
+      ok: false,
+      error: boundary.error,
+      tenantId: tenant.id,
+      status: 'FAILED',
+      accountingBoundary: boundary,
+    };
+  }
+
+  if (hasResourceModel(prisma) && conversionId) {
+    await prisma.crmConversionResource.create({
+      data: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+        resourceId: tenant.id,
+        action: 'CREATE',
+        status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+        idempotencyKey,
+        metaJson: { slug, customerId: args.customerId || null },
+        actorAdminId: admin?.id || null,
+        createdAt: args.now || new Date(),
+        updatedAt: args.now || new Date(),
+      },
+    });
+  }
+
+  // Isolation / security baseline â€” seed roles when available (opt-in)
+  if (args.seedRoles === true) {
+    try {
+      const { seedDefaultRolesForTenant } = await import('@/lib/seedTenantRoles.js');
+      if (typeof seedDefaultRolesForTenant === 'function') {
+        await seedDefaultRolesForTenant(tenant.id, prisma);
+      }
+    } catch {
+      /* optional in unit tests */
+    }
+  }
+
+  return {
+    ok: true,
+    action: 'CREATE',
+    tenantId: tenant.id,
+    status: tenant.status || CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+    tenantCreated: true,
+    tenantLinked: false,
+    slug,
+    accountingBoundary: boundary,
+  };
+}
+
+
+===== lib/admin/crm/conversions/invitations.js =====
+
+/**
+ * Initial User invitations â€” Phase 16 Wave 2.
+ * Hash-only tokens; no default/shared passwords; exact retry â†’ same invite.
+ * Never grants Platform Super Admin. Never stores raw tokens.
+ */
+
+import { createHash, randomBytes } from 'crypto';
+import { CRM_CONVERSION_RESOURCE_TYPE } from './catalogue.js';
+import { assertTenantIsolation } from './isolation.js';
+import { resolveConversionActor } from './model.js';
+
+const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+function hashToken(raw) {
+  return createHash('sha256').update(String(raw)).digest('hex');
+}
+
+function hasInviteModel(prisma) {
+  return typeof prisma?.crmConversionInvitation?.create === 'function';
+}
+
+function hasResourceModel(prisma) {
+  return typeof prisma?.crmConversionResource?.create === 'function';
+}
+
+/**
+ * Create initial user invitation (hash-only). Exact idempotencyKey retry returns same invite.
+ */
+export async function createInitialUserInvitation(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const conversionId = args.conversionId ? String(args.conversionId) : null;
+  const tenantId = args.tenantId ? String(args.tenantId) : null;
+  const email = args.email ? String(args.email).trim().toLowerCase() : null;
+  const contactId = args.contactId || null;
+  const idempotencyKey =
+    args.idempotencyKey ||
+    (conversionId && contactId
+      ? `invite:${conversionId}:${contactId}`
+      : conversionId && email
+        ? `invite:${conversionId}:${email}`
+        : null);
+
+  if (!tenantId) {
+    return { ok: false, error: 'tenantId_required', status: 'NOT_AVAILABLE' };
+  }
+  if (!email) {
+    return { ok: false, error: 'email_required', status: 'NOT_AVAILABLE' };
+  }
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotencyKey_required' };
+  }
+
+  const isolation = assertTenantIsolation({
+    lockedTenantId: tenantId,
+    requestedTenantId: tenantId,
+    resource: 'USER_INVITATION',
+  });
+  if (!isolation.ok) {
+    return { ok: false, error: isolation.error };
+  }
+
+  if (!hasInviteModel(prisma)) {
+    return {
+      ok: false,
+      error: 'invitation_model_unavailable',
+      status: 'NOT_AVAILABLE',
+    };
+  }
+
+  const existing = await prisma.crmConversionInvitation.findFirst({
+    where: { conversionId, idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      invitationId: existing.id,
+      tokenHash: existing.tokenHash,
+      idempotentReplay: true,
+      status: existing.status || 'PENDING',
+      expiresAt: existing.expiresAt || null,
+    };
+  }
+
+  const rawToken = randomBytes(32).toString('hex');
+  const tokenHash = hashToken(rawToken);
+  const now = args.now || new Date();
+  const expiresAt = args.expiresAt || new Date(now.getTime() + DEFAULT_EXPIRY_MS);
+
+  // Persist hash only â€” never raw token / password fields
+  const invite = await prisma.crmConversionInvitation.create({
+    data: {
+      conversionId,
+      tenantId,
+      contactId,
+      email,
+      tokenHash,
+      status: 'PENDING',
+      expiresAt,
+      idempotencyKey,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  if (hasResourceModel(prisma) && conversionId) {
+    await prisma.crmConversionResource.create({
+      data: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.USER_INVITATION,
+        resourceId: invite.id,
+        action: 'CREATE',
+        status: 'PENDING',
+        idempotencyKey,
+        metaJson: { tenantId, contactId, email },
+        actorAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  // Raw token is intentionally not returned on durable create for conversion
+  // (delivery channel may obtain one-time plaintext via separate send helper later).
+  return {
+    ok: true,
+    invitationId: invite.id,
+    tokenHash,
+    status: 'PENDING',
+    expiresAt,
+    idempotentReplay: false,
+  };
+}
+
+/**
+ * Revoke a pending invitation (compensation-friendly).
+ */
+export async function revokeConversionInvitation(prisma, args = {}) {
+  if (!hasInviteModel(prisma) || typeof prisma.crmConversionInvitation.update !== 'function') {
+    return { ok: false, error: 'invitation_model_unavailable', status: 'NOT_AVAILABLE' };
+  }
+  const id = args.invitationId;
+  if (!id) return { ok: false, error: 'invitationId_required' };
+  // Soft-status update if update available on mock/real
+  try {
+    const updated = await prisma.crmConversionInvitation.update({
+      where: { id },
+      data: { status: 'REVOKED', updatedAt: args.now || new Date() },
+    });
+    return { ok: true, invitation: updated };
+  } catch (err) {
+    return { ok: false, error: err?.message || 'revoke_failed' };
+  }
+}
+
+
+===== lib/admin/crm/conversions/accountingBoundary.js =====
+
+/**
+ * Tenant accounting boundary â€” Phase 16 Wave 2.
+ * Conversion may init CoA/period templates; never journals / balances / AR / revenue.
+ */
+
+/**
+ * Assert conversion has not posted Tenant journals or account balances.
+ */
+export async function assertNoTenantAccountingSideEffects(prisma, args = {}) {
+  const tenantId = args.tenantId ? String(args.tenantId).trim() : '';
+  if (!tenantId) {
+    return { ok: false, error: 'tenantId_required' };
+  }
+
+  let journalCount = 0;
+  let balanceCount = 0;
+
+  if (typeof prisma?.journalEntry?.count === 'function') {
+    journalCount = await prisma.journalEntry.count({ where: { tenantId } });
+  } else if (typeof prisma?.journalEntry?.findMany === 'function') {
+    const rows = await prisma.journalEntry.findMany({ where: { tenantId } });
+    journalCount = rows.length;
+  }
+
+  if (typeof prisma?.accountBalance?.count === 'function') {
+    balanceCount = await prisma.accountBalance.count({ where: { tenantId } });
+  } else if (typeof prisma?.accountBalance?.findMany === 'function') {
+    const rows = await prisma.accountBalance.findMany({ where: { tenantId } });
+    balanceCount = rows.length;
+  }
+
+  if (journalCount > 0 || balanceCount > 0) {
+    return {
+      ok: false,
+      error: 'tenant_accounting_side_effect_detected',
+      journalCount,
+      balanceCount,
+      conversionId: args.conversionId || null,
+      tenantId,
+    };
+  }
+
+  return {
+    ok: true,
+    journalCount: 0,
+    balanceCount: 0,
+    conversionId: args.conversionId || null,
+    tenantId,
+  };
+}
+
+
+===== test/systemAdmin.crm.conversionWave2.test.js =====
+
+/**
+ * Phase 16 Wave 2 â€” Customer match/create-link, Tenant/Business/Branch, invitations.
+ * POSSIBLE_MATCH blocks create; no auto-merge; invite hash-only; no Tenant GL; no Subscription.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createHash, randomBytes } from 'crypto';
+import * as closeModule from '@/lib/admin/crm/opportunities/close.js';
+import {
+  matchPlatformCustomer,
+  decideCustomerCreateOrLink,
+  decideTenantCreateOrLink,
+  createOrLinkPlatformCustomer,
+  createOrLinkTenant,
+  createPrimaryBusinessBranch,
+  createInitialUserInvitation,
+  assertNoTenantAccountingSideEffects,
+  assertTenantIsolation,
+  executeClosedWonConversion,
+  CRM_CUSTOMER_MATCH_STATE,
+  CRM_CONVERSION_STEP_CODE,
+  CRM_CONVERSION_STEP_STATUS,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-cvn-w2') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.pipeline.transitionStages': true,
+    },
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const requestStore = overrides._requestStore || [];
+  const requestHistoryStore = overrides._requestHistoryStore || [];
+  const planStore = overrides._planStore || [];
+  const planVersionStore = overrides._planVersionStore || [];
+  const conversionStore = overrides._conversionStore || [];
+  const conversionHistoryStore = overrides._conversionHistoryStore || [];
+  const stepStore = overrides._stepStore || [];
+  const attemptStore = overrides._attemptStore || [];
+  const failureStore = overrides._failureStore || [];
+  const matchDecisionStore = overrides._matchDecisionStore || [];
+  const resourceStore = overrides._resourceStore || [];
+  const inviteStore = overrides._inviteStore || [];
+  const journalStore = overrides._journalStore || [];
+  const balanceStore = overrides._balanceStore || [];
+  const branchStore = overrides._branchStore || [];
+  const businessStore = overrides._businessStore || [];
+  const tenantStore = overrides._tenantStore || [];
+  const customerStore = overrides._customerStore || [];
+  const accountStore = overrides._accountStore || [
+    {
+      id: 'acct-1',
+      accountNumber: 'ACC-001',
+      displayName: 'Acme Trading',
+      customerId: null,
+      tenantId: null,
+      status: 'ACTIVE',
+      registrationNumber: 'REG-100',
+      taxId: 'TAX-100',
+      domain: 'acme.example',
+    },
+  ];
+  const contactStore = overrides._contactStore || [
+    {
+      id: 'con-1',
+      contactNumber: 'CON-001',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@acme.example',
+      phone: '+265999000111',
+      accountId: 'acct-1',
+    },
+  ];
+  const handoffStore = overrides._handoffStore || [
+    {
+      id: 'handoff-1',
+      acceptanceId: 'accp-1',
+      documentVersionId: 'ver-1',
+      opportunityId: 'opp-1',
+      payloadJson: {
+        type: 'CRM_CLOSED_WON_CONVERSION_HANDOFF',
+        acceptanceId: 'accp-1',
+        opportunityId: 'opp-1',
+        accountId: 'acct-1',
+        contactId: 'con-1',
+        checksumSha256: 'abc123',
+        documentVersionId: 'ver-1',
+        currency: 'MWK',
+      },
+      idempotencyKey: 'closed-won-handoff:accp-1',
+      createdByAdminId: 'super-cvn-w2',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+  ];
+  const opportunityStore = overrides._opportunityStore || [
+    {
+      id: 'opp-1',
+      opportunityNumber: 'OPP-2026-000001',
+      stageCode: 'NEGOTIATION',
+      status: 'OPEN',
+      accountId: 'acct-1',
+      contactId: 'con-1',
+      currency: 'MWK',
+      amount: 5000,
+      version: 1,
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+      updatedAt: new Date('2026-07-01T00:00:00Z'),
+    },
+  ];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _tenantStore: tenantStore,
+    _customerStore: customerStore,
+    _inviteStore: inviteStore,
+    _journalStore: journalStore,
+    _balanceStore: balanceStore,
+    _branchStore: branchStore,
+    _businessStore: businessStore,
+    _matchDecisionStore: matchDecisionStore,
+    _resourceStore: resourceStore,
+    _stepStore: stepStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmClosedWonConversionHandoff: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return handoffStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return handoffStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...handoffStore];
+        if (where.acceptanceId) {
+          rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+        }
+        return rows[0] || null;
+      }),
+    },
+    crmConversionRequest: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cvr-${requestStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        requestStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return requestStore.find((r) => r.id === where.id) || null;
+        if (where.requestNumber) {
+          return requestStore.find((r) => r.requestNumber === where.requestNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return requestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.acceptanceId) {
+          rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+        }
+        if (where.handoffId) rows = rows.filter((r) => r.handoffId === where.handoffId);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async () => [...requestStore]),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = requestStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionRequestStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cvrh-${requestHistoryStore.length + 1}`, ...data };
+        requestHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionPlan: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `plan-${planStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planStore.find((r) => r.id === where.id) || null;
+        if (where.conversionRequestId) {
+          return planStore.find((r) => r.conversionRequestId === where.conversionRequestId) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = planStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionPlanVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `pv-${planVersionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planVersionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planVersionStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...planVersionStore];
+        if (where.planId) rows = rows.filter((r) => r.planId === where.planId);
+        return rows[0] || null;
+      }),
+    },
+    crmConversion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cvn-${conversionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        conversionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return conversionStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return conversionStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = conversionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cvnh-${conversionHistoryStore.length + 1}`, ...data };
+        conversionHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionStep: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `step-${stepStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        stepStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...stepStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (orderBy?.stepOrder === 'asc') {
+          rows.sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
+        }
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...stepStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.stepCode) rows = rows.filter((r) => r.stepCode === where.stepCode);
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = stepStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionAttempt: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `att-${attemptStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        attemptStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...attemptStore]),
+    },
+    crmConversionFailure: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `fail-${failureStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        failureStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionMatchDecision: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `match-${matchDecisionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        matchDecisionStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...matchDecisionStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...matchDecisionStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.decisionType) {
+          rows = rows.filter((r) => r.decisionType === where.decisionType);
+        }
+        return rows[0] || null;
+      }),
+    },
+    crmConversionResource: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `res-${resourceStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        resourceStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...resourceStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.resourceType) {
+          rows = rows.filter((r) => r.resourceType === where.resourceType);
+        }
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...resourceStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.resourceType) {
+          rows = rows.filter((r) => r.resourceType === where.resourceType);
+        }
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = resourceStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionInvitation: {
+      create: vi.fn(async ({ data }) => {
+        if (data.rawToken || data.token || data.password || data.temporaryPassword) {
+          throw new Error('raw_token_or_password_forbidden');
+        }
+        const row = {
+          id: data.id || `inv-${inviteStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        inviteStore.push(row);
+        return row;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...inviteStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        if (where.email) rows = rows.filter((r) => r.email === where.email);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async () => [...inviteStore]),
+    },
+    crmAccount: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return accountStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...accountStore];
+        if (where.OR) {
+          rows = rows.filter((r) =>
+            where.OR.some((clause) => {
+              if (clause.registrationNumber) {
+                return r.registrationNumber === clause.registrationNumber.equals ||
+                  r.registrationNumber === clause.registrationNumber;
+              }
+              if (clause.taxId) {
+                return r.taxId === clause.taxId.equals || r.taxId === clause.taxId;
+              }
+              if (clause.domain) {
+                return r.domain === clause.domain.equals || r.domain === clause.domain;
+              }
+              if (clause.customerId) return r.customerId === clause.customerId;
+              if (clause.tenantId) return r.tenantId === clause.tenantId;
+              if (clause.displayName) {
+                const q = clause.displayName.equals || clause.displayName.contains || clause.displayName;
+                return String(r.displayName || '')
+                  .toLowerCase()
+                  .includes(String(q).toLowerCase());
+              }
+              return false;
+            })
+          );
+        }
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = accountStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data);
+        return row;
+      }),
+    },
+    crmContact: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return contactStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...contactStore];
+        if (where.accountId) rows = rows.filter((r) => r.accountId === where.accountId);
+        return rows;
+      }),
+    },
+    crmOpportunity: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return opportunityStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = opportunityStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    platformCustomer: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `pcust-${customerStore.length + 1}`,
+          status: data.status || 'PROVISIONING',
+          ...data,
+        };
+        customerStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return customerStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...customerStore];
+        if (where.externalKey) {
+          rows = rows.filter((r) => r.externalKey === where.externalKey);
+        }
+        if (where.registrationNumber) {
+          rows = rows.filter((r) => r.registrationNumber === where.registrationNumber);
+        }
+        if (where.taxId) rows = rows.filter((r) => r.taxId === where.taxId);
+        if (where.domain) rows = rows.filter((r) => r.domain === where.domain);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...customerStore];
+        if (where.OR) {
+          rows = rows.filter((r) =>
+            where.OR.some((clause) => {
+              const key = Object.keys(clause)[0];
+              const val = clause[key]?.equals ?? clause[key];
+              return r[key] === val;
+            })
+          );
+        }
+        return rows;
+      }),
+    },
+    tenant: {
+      create: vi.fn(async ({ data }) => {
+        if (tenantStore.some((t) => t.subdomain === data.subdomain)) {
+          const err = new Error('Unique constraint failed');
+          err.code = 'P2002';
+          throw err;
+        }
+        const row = {
+          id: data.id || `ten-${tenantStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        tenantStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return tenantStore.find((r) => r.id === where.id) || null;
+        if (where.subdomain) {
+          return tenantStore.find((r) => r.subdomain === where.subdomain) || null;
+        }
+        return null;
+      }),
+      findMany: vi.fn(async () => [...tenantStore]),
+    },
+    branch: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `br-${branchStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        branchStore.push(row);
+        return row;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...branchStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        if (where.name) rows = rows.filter((r) => r.name === where.name);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async () => [...branchStore]),
+    },
+    // Conversion "Business" proxy store (no first-class Business model)
+    conversionBusiness: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `biz-${businessStore.length + 1}`,
+          ...data,
+        };
+        businessStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...businessStore]),
+    },
+    journalEntry: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `je-${journalStore.length + 1}`, ...data };
+        journalStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...journalStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows;
+      }),
+      count: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...journalStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows.length;
+      }),
+    },
+    accountBalance: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `bal-${balanceStore.length + 1}`, ...data };
+        balanceStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...balanceStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows;
+      }),
+      count: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...balanceStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows.length;
+      }),
+    },
+    ...overrides,
+  };
+
+  return prisma;
+}
+
+describe('Phase 16 Wave 2 â€” Customer / Tenant / invitations', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('POSSIBLE_MATCH blocks Customer create (no auto-merge)', async () => {
+    const prisma = makePrisma({
+      _customerStore: [
+        {
+          id: 'pcust-similar',
+          displayName: 'Acme Tradng',
+          registrationNumber: null,
+          taxId: null,
+          domain: null,
+        },
+      ],
+    });
+
+    const match = await matchPlatformCustomer(prisma, {
+      accountId: 'acct-1',
+      evidence: {
+        displayName: 'Acme Trading',
+        registrationNumber: null,
+        taxId: null,
+        domain: null,
+      },
+    });
+
+    expect(match.ok).toBe(true);
+    expect(match.matchState).toBe(CRM_CUSTOMER_MATCH_STATE.POSSIBLE_MATCH);
+
+    const decision = await decideCustomerCreateOrLink(prisma, {
+      conversionId: 'cvn-test',
+      match,
+      admin: superAdmin(),
+      action: 'CREATE',
+    });
+
+    expect(decision.ok).toBe(false);
+    expect(decision.error).toBe('possible_match_blocks_create');
+    expect(decision.requiresReview).toBe(true);
+
+    const provision = await createOrLinkPlatformCustomer(prisma, {
+      conversionId: 'cvn-test',
+      accountId: 'acct-1',
+      match,
+      decision,
+      admin: superAdmin(),
+    });
+    expect(provision.ok).toBe(false);
+    expect(provision.error).toBe('possible_match_blocks_create');
+    expect(prisma._customerStore.filter((c) => c.id !== 'pcust-similar')).toHaveLength(0);
+  });
+
+  it('exact link does not create duplicate Customer', async () => {
+    const prisma = makePrisma({
+      _customerStore: [
+        {
+          id: 'pcust-exact',
+          displayName: 'Acme Trading',
+          registrationNumber: 'REG-100',
+          taxId: 'TAX-100',
+          domain: 'acme.example',
+          status: 'ACTIVE',
+        },
+      ],
+      _accountStore: [
+        {
+          id: 'acct-1',
+          accountNumber: 'ACC-001',
+          displayName: 'Acme Trading',
+          customerId: 'pcust-exact',
+          tenantId: null,
+          status: 'ACTIVE',
+          registrationNumber: 'REG-100',
+          taxId: 'TAX-100',
+          domain: 'acme.example',
+        },
+      ],
+    });
+
+    const match = await matchPlatformCustomer(prisma, {
+      accountId: 'acct-1',
+      evidence: {
+        existingCustomerId: 'pcust-exact',
+        registrationNumber: 'REG-100',
+        taxId: 'TAX-100',
+        domain: 'acme.example',
+        displayName: 'Acme Trading',
+      },
+    });
+
+    expect(match.matchState).toBe(CRM_CUSTOMER_MATCH_STATE.EXACT_EXISTING_CUSTOMER);
+
+    const decision = await decideCustomerCreateOrLink(prisma, {
+      conversionId: 'cvn-link',
+      match,
+      admin: superAdmin(),
+      action: 'LINK',
+    });
+    expect(decision.ok).toBe(true);
+    expect(decision.decision).toBe('LINK');
+    expect(decision.audited).toBe(true);
+
+    const before = prisma._customerStore.length;
+    const provision = await createOrLinkPlatformCustomer(prisma, {
+      conversionId: 'cvn-link',
+      accountId: 'acct-1',
+      match,
+      decision,
+      admin: superAdmin(),
+      idempotencyKey: 'cust:cvn-link',
+    });
+
+    expect(provision.ok).toBe(true);
+    expect(provision.action).toBe('LINK');
+    expect(provision.customerId).toBe('pcust-exact');
+    expect(prisma._customerStore).toHaveLength(before);
+  });
+
+  it('Tenant slug unique / reserved blocked; status not ACTIVE', async () => {
+    const prisma = makePrisma({
+      _tenantStore: [{ id: 'ten-existing', name: 'Taken', subdomain: 'taken', status: 'active' }],
+    });
+
+    const reserved = await createOrLinkTenant(prisma, {
+      conversionId: 'cvn-t1',
+      customerId: 'pcust-1',
+      slug: 'admin',
+      name: 'Admin Corp',
+      admin: superAdmin(),
+      decision: { ok: true, decision: 'CREATE' },
+      idempotencyKey: 'tenant:cvn-t1:admin',
+    });
+    expect(reserved.ok).toBe(false);
+    expect(reserved.error).toBe('tenant_slug_reserved');
+
+    const collision = await createOrLinkTenant(prisma, {
+      conversionId: 'cvn-t2',
+      customerId: 'pcust-1',
+      slug: 'taken',
+      name: 'Taken Again',
+      admin: superAdmin(),
+      decision: { ok: true, decision: 'CREATE' },
+      idempotencyKey: 'tenant:cvn-t2:taken',
+    });
+    expect(collision.ok).toBe(false);
+    expect(collision.error).toBe('tenant_slug_collision');
+
+    const tenantDecision = await decideTenantCreateOrLink(prisma, {
+      conversionId: 'cvn-t3',
+      slug: 'acme-trading',
+      existingTenantId: null,
+      admin: superAdmin(),
+      action: 'CREATE',
+    });
+    expect(tenantDecision.ok).toBe(true);
+    expect(tenantDecision.audited).toBe(true);
+
+    const created = await createOrLinkTenant(prisma, {
+      conversionId: 'cvn-t3',
+      customerId: 'pcust-1',
+      slug: 'acme-trading',
+      name: 'Acme Trading',
+      admin: superAdmin(),
+      decision: tenantDecision,
+      idempotencyKey: 'tenant:cvn-t3:acme',
+      initFinancialDefaults: false,
+      seedRoles: false,
+    });
+    expect(created.ok).toBe(true);
+    expect(created.tenantId).toBeTruthy();
+    expect(created.status).not.toBe('active');
+    expect(created.status).not.toBe('ACTIVE');
+    expect(['PROVISIONING', 'pending', 'PENDING']).toContain(created.status);
+  });
+
+  it('invitation exact retry returns same invite; hash only; no default password', async () => {
+    const prisma = makePrisma();
+    const args = {
+      conversionId: 'cvn-inv',
+      tenantId: 'ten-1',
+      contactId: 'con-1',
+      email: 'ada@acme.example',
+      admin: superAdmin(),
+      idempotencyKey: 'invite:cvn-inv:con-1',
+    };
+
+    const first = await createInitialUserInvitation(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.invitationId).toBeTruthy();
+    expect(first.tokenHash).toBeTruthy();
+    expect(first.rawToken).toBeUndefined();
+    expect(first.token).toBeUndefined();
+    expect(first.temporaryPassword).toBeUndefined();
+    expect(first.password).toBeUndefined();
+
+    const stored = prisma._inviteStore[0];
+    expect(stored.tokenHash).toBe(first.tokenHash);
+    expect(stored.rawToken).toBeUndefined();
+    expect(stored.token).toBeUndefined();
+    expect(stored.temporaryPassword).toBeUndefined();
+
+    const second = await createInitialUserInvitation(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.invitationId).toBe(first.invitationId);
+    expect(second.idempotentReplay).toBe(true);
+    expect(prisma._inviteStore).toHaveLength(1);
+  });
+
+  it('accounting boundary: no journal/balance posts from conversion init', async () => {
+    const prisma = makePrisma();
+    const tenantId = 'ten-acct-1';
+    prisma._tenantStore.push({
+      id: tenantId,
+      name: 'Acme',
+      subdomain: 'acme-acct',
+      status: 'PROVISIONING',
+    });
+
+    const ok = await assertNoTenantAccountingSideEffects(prisma, {
+      tenantId,
+      conversionId: 'cvn-acct',
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.journalCount).toBe(0);
+    expect(ok.balanceCount).toBe(0);
+
+    await prisma.journalEntry.create({
+      data: { tenantId, description: 'forbidden from conversion', amount: 100 },
+    });
+    const violated = await assertNoTenantAccountingSideEffects(prisma, {
+      tenantId,
+      conversionId: 'cvn-acct',
+    });
+    expect(violated.ok).toBe(false);
+    expect(violated.error).toBe('tenant_accounting_side_effect_detected');
+  });
+
+  it('cross-Tenant Business create denied', async () => {
+    const prisma = makePrisma({
+      _tenantStore: [
+        { id: 'ten-a', subdomain: 'a', name: 'A', status: 'PROVISIONING' },
+        { id: 'ten-b', subdomain: 'b', name: 'B', status: 'PROVISIONING' },
+      ],
+    });
+
+    const isolation = await assertTenantIsolation({
+      lockedTenantId: 'ten-a',
+      requestedTenantId: 'ten-b',
+      resource: 'BUSINESS',
+    });
+    expect(isolation.ok).toBe(false);
+    expect(isolation.error).toBe('cross_tenant_denied');
+
+    const denied = await createPrimaryBusinessBranch(prisma, {
+      conversionId: 'cvn-biz',
+      lockedTenantId: 'ten-a',
+      tenantId: 'ten-b',
+      businessName: 'Wrong Tenant Biz',
+      branchName: 'HQ',
+      admin: superAdmin(),
+      requireBusiness: true,
+      idempotencyKey: 'biz:cvn-biz',
+    });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toBe('cross_tenant_denied');
+    expect(prisma._businessStore).toHaveLength(0);
+    expect(prisma._branchStore).toHaveLength(0);
+  });
+
+  it('orchestrator runs Wave 2 steps after Closed Won (not SKIPPED)', async () => {
+    vi.spyOn(closeModule, 'closeOpportunityWon').mockResolvedValue({
+      ok: true,
+      toStageCode: 'CLOSED_WON',
+    });
+
+    const prisma = makePrisma();
+    // READY conversion request + plan version
+    const request = await prisma.crmConversionRequest.create({
+      data: {
+        id: 'cvr-w2',
+        requestNumber: 'CVR-2026-000001',
+        status: 'READY',
+        source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+        conversionType: 'NEW_CUSTOMER_NEW_TENANT',
+        acceptanceId: 'accp-1',
+        handoffId: 'handoff-1',
+        opportunityId: 'opp-1',
+        accountId: 'acct-1',
+        contactId: 'con-1',
+        documentVersionId: 'ver-1',
+        checksumSha256: 'abc123',
+        currency: 'MWK',
+        idempotencyKey: 'cvr:accp-1',
+        createdByAdminId: 'super-cvn-w2',
+      },
+    });
+    const plan = await prisma.crmConversionPlan.create({
+      data: {
+        id: 'plan-w2',
+        conversionRequestId: request.id,
+        latestVersionNumber: 1,
+        createdByAdminId: 'super-cvn-w2',
+      },
+    });
+    const planVersion = await prisma.crmConversionPlanVersion.create({
+      data: {
+        id: 'pv-w2',
+        planId: plan.id,
+        versionNumber: 1,
+        planChecksum: 'chk-w2',
+        contentJson: {
+          conversionType: 'NEW_CUSTOMER_NEW_TENANT',
+          tenantSlug: 'acme-wave2',
+          tenantName: 'Acme Wave2',
+          requireBusiness: true,
+          requireBranch: true,
+          inviteContacts: true,
+        },
+        immutable: true,
+        createdByAdminId: 'super-cvn-w2',
+      },
+    });
+    await prisma.crmConversionPlan.update({
+      where: { id: plan.id },
+      data: { currentVersionId: planVersion.id },
+    });
+
+    const result = await executeClosedWonConversion(prisma, {
+      admin: superAdmin(),
+      conversionRequestId: request.id,
+      conversionPlanVersionId: planVersion.id,
+      idempotencyKey: 'exec-w2-1',
+      winReason: 'BEST_FIT',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.customerCreated || result.customerLinked).toBe(true);
+    expect(result.tenantCreated || result.tenantLinked).toBe(true);
+    expect(result.subscriptionCreated).toBe(false);
+    expect(result.invoiceCreated).toBe(false);
+
+    const customerStep = result.steps.find(
+      (s) => s.stepCode === CRM_CONVERSION_STEP_CODE.CREATE_OR_LINK_PLATFORM_CUSTOMER
+    );
+    const tenantStep = result.steps.find(
+      (s) => s.stepCode === CRM_CONVERSION_STEP_CODE.CREATE_OR_LINK_TENANT
+    );
+    expect(customerStep?.status).not.toBe(CRM_CONVERSION_STEP_STATUS.SKIPPED_NOT_APPLICABLE);
+    expect(tenantStep?.status).not.toBe(CRM_CONVERSION_STEP_STATUS.SKIPPED_NOT_APPLICABLE);
+    expect([
+      CRM_CONVERSION_STEP_STATUS.COMPLETED,
+      CRM_CONVERSION_STEP_STATUS.COMPLETED_WITH_WARNING,
+      CRM_CONVERSION_STEP_STATUS.BLOCKED,
+      CRM_CONVERSION_STEP_STATUS.MANUAL_INTERVENTION_REQUIRED,
+    ]).toContain(customerStep?.status);
+
+    const tenant = prisma._tenantStore.find((t) => t.subdomain === 'acme-wave2');
+    if (tenant) {
+      expect(tenant.status).not.toBe('active');
+      const boundary = await assertNoTenantAccountingSideEffects(prisma, {
+        tenantId: tenant.id,
+        conversionId: result.conversion.id,
+      });
+      expect(boundary.ok).toBe(true);
+    }
+  });
+});

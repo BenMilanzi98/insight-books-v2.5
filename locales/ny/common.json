@@ -1,0 +1,78 @@
+{
+  "actions": {
+    "save": "Sungani",
+    "cancel": "Letsani",
+    "close": "Tsekani",
+    "delete": "Chotsani",
+    "edit": "Sinthani",
+    "view": "Onani",
+    "create": "Pangani",
+    "add": "Onjezani",
+    "search": "Sakani",
+    "filter": "Sefani",
+    "reset": "Bwezerani",
+    "clear": "Chotsani zonse",
+    "submit": "Tumizani",
+    "approve": "Vomereani",
+    "reject": "Kanani",
+    "confirm": "Tsimikizani",
+    "continue": "Pitirizani",
+    "back": "Bwererani",
+    "next": "Patsogolo",
+    "previous": "Mmbuyo",
+    "download": "Tsitsani",
+    "upload": "Kwezani",
+    "import": "Lowetsani",
+    "export": "Tulutsani",
+    "print": "Sindikizani",
+    "refresh": "Tsitsaninso",
+    "retry": "Yesaninso",
+    "help": "Thandizo",
+    "more": "Zina",
+    "apply": "Gwiritsani"
+  },
+  "status": {
+    "draft": "Zosungidwa",
+    "pending": "Zikudikira",
+    "pendingApproval": "Zikudikira kuvomerezedwa",
+    "approved": "Zavomerezedwa",
+    "rejected": "Zakanidwa",
+    "active": "Zikugwira",
+    "inactive": "Sizikugwira",
+    "posted": "Zalembedwa",
+    "unposted": "Sizinalembedwe",
+    "paid": "Zalipidwa",
+    "unpaid": "Sizinalipidwe",
+    "partiallyPaid": "Zalipidwa pang'ono",
+    "overdue": "Nthawi yatha",
+    "completed": "Zamalizidwa",
+    "failed": "Zalephera",
+    "cancelled": "Zalekedwa",
+    "reversed": "Zabwezedwa",
+    "archived": "Zasungidwa",
+    "open": "Zotseguka",
+    "closed": "Zatsekedwa",
+    "processing": "Zikuchitika"
+  },
+  "empty": {
+    "noRecords": "Palibe zolemba",
+    "noResults": "Palibe zotsatira",
+    "nothingHere": "Palibe chowonetsa pano"
+  },
+  "loading": {
+    "default": "Zikuyenda…",
+    "pleaseWait": "Dikirani choncho…"
+  },
+  "error": {
+    "generic": "Chinachake chalakwika",
+    "tryAgain": "Chonde yesaninso"
+  },
+  "language": {
+    "label": "Chilankhulo",
+    "english": "Chingerezi",
+    "chichewa": "Chichewa",
+    "switchTo": "Sinthani chilankhulo"
+  },
+  "yes": "Inde",
+  "no": "Ayi"
+}

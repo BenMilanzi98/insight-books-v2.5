@@ -1,0 +1,1108 @@
+﻿# Review package — Phase 14 Task 0
+
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_AGENDA_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_AGENDA_AUDIT.md
+new file mode 100644
+index 0000000..65eee13
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_AGENDA_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Agenda Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmDemoAgenda / versioned agenda | NOT_FOUND | No Prisma model; no `lib/admin/crm/demos/agenda*` |
++| Agenda pin on Demo | NOT_FOUND | ΓÇö |
++| Customer-safe agenda projection | NOT_FOUND | ΓÇö |
++| Activity/Task templates (adjacent) | FOUNDATION pattern | `lib/admin/crm/templates.js` ΓÇö versioned; ACTIVE not directly editable ΓÇö pattern for Wave 2 Demo content, not Demo Agenda |
++| Meeting description as agenda | WRONG_DOMAIN / FORBIDDEN alias | Meeting fields must not become Demo Agenda truth |
++| SoD agenda approve | NOT_FOUND | Automation SoD exists for Activity rules ΓÇö not Agenda |
++
++**Implication:** Wave 2 greenfield versioned Agenda; pin ACTIVE version to Demo; never edit ACTIVE in place.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ARCHITECTURE_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ARCHITECTURE_AUDIT.md
+new file mode 100644
+index 0000000..6cddd1f
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ARCHITECTURE_AUDIT.md
+@@ -0,0 +1,20 @@
++# Current Demo Architecture Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Canonical CrmDemo parent | NOT_FOUND | No `CrmDemo` / `DEMO-` numbering in Prisma (`rg model Crm` ΓåÆ no Demo*) or `lib/admin/crm/demos/*` (glob 0 files) |
++| CrmDemoRequest | NOT_FOUND | No `CrmDemoRequest` / `DMR-` numbering |
++| Demo hub UI | NOT_FOUND | No `/insightbooks/crm/demos` under `app/insightbooks/crm` (activities/meetings/pipeline present; demos absent) |
++| Demo APIs | NOT_FOUND | No `app/api/admin/crm/demos/**` or `demo-requests/**` (70 CRM admin routes; none Demo) |
++| Lead DEMO_REQUEST type | FOUNDATION | `lib/admin/crm/catalogue.js` `CRM_LEAD_TYPE.DEMO_REQUEST`; capture maps `REQUEST_DEMO` ΓåÆ type (`capture.js` `defaultLeadType`) |
++| Public request-demo capture | FOUNDATION | `app/request-demo/page.js` ΓåÆ `POST /api/request-demo` ΓåÆ `handlePublicCapturePost(..., REQUEST_DEMO)` |
++| Meeting as schedule substrate | EXTEND / CORRECT_AND_REUSABLE | `lib/admin/crm/meetings/*` + Prisma `CrmMeeting`; Meeting Γëá Demo (`meetings/index.js` header; P13 MEETING_STATE_MATRIX) |
++| Calendar reconcile substrate | EXTEND | `lib/admin/crm/calendar/*` + `CrmCalendarEvent`; Google/Outlook `NOT_CONNECTED` |
++| MRA EIS sandbox | WRONG_DOMAIN / FORBIDDEN | `lib/mraEis/application/entitlementService.js` sandboxAllowed; Tenant fiscal sandbox ΓÇö not Sales Demo Environment |
++| Foundations deferral | CORRECT_AND_REUSABLE | `foundations.js` ACTIVITY_SPINE: "Demo/Proposal/Tenant provision deferred" |
++| Target architecture mention | FOUNDATION (docs) | `docs/admin-intelligence-crm/TARGET_ARCHITECTURE.md` lists `CrmDemo` as future; Tenant quotations wrong plane |
++| One Demo / many projections rule | NOT_FOUND | Design locked; not implemented ΓÇö Wave 1 |
++
++**Implication:** Wave 1 greenfield `lib/admin/crm/demos/*` + CrmDemo/CrmDemoRequest. Reuse Lead capture as intake; schedule via Meeting; never alias MRA sandbox or Meeting-as-Demo.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ATTENDANCE_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ATTENDANCE_AUDIT.md
+new file mode 100644
+index 0000000..dd61b54
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ATTENDANCE_AUDIT.md
+@@ -0,0 +1,13 @@
++# Current Demo Attendance Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo attendance records | NOT_FOUND | No Demo attendance plane |
++| Source-backed attendance rule | NOT_FOUND (design locked) | Must not fabricate |
++| Meeting RSVP Γëá attendance | CORRECT_AND_REUSABLE | `catalogue.js` CRM_MEETING_RSVP; `meetings/service.js` `recordRsvp` vs authorised attendance; inventAttendanceFromRsvpForbidden in foundations |
++| Meeting attendance confirm | EXTEND pattern | Authorised confirmation API path ΓÇö pattern for Demo; Demo attendance remains separate entity |
++| Fabricated attendance import | FORBIDDEN | Must remain forbidden |
++
++**Implication:** Wave 4 Demo attendance source-backed; may project from authorised Meeting attendance when linked, but RSVP alone never marks attended.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CHECKLIST_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CHECKLIST_AUDIT.md
+new file mode 100644
+index 0000000..89db5df
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CHECKLIST_AUDIT.md
+@@ -0,0 +1,13 @@
++# Current Demo Checklist Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo delivery checklist | NOT_FOUND | No Demo checklist models/services |
++| Critical fail ΓåÆ block READY_TO_DELIVER | NOT_FOUND | Design locked for Wave 3 |
++| Opportunity proposal/conversion checklist | FOUNDATION pattern | `proposalReadiness.js` / `conversionReadiness.js` checklist items ΓÇö handoff readiness, not Demo delivery checklist |
++| Activity automation checklist task | FOUNDATION pattern | `OPPORTUNITY_STAGE_ENTRY` ΓåÆ `CREATE_CHECKLIST_TASK` ΓÇö Activity plane |
++| Task checklist depth | PARTIAL (P13) | Task checklist foundations ΓÇö not Demo readiness checklist |
++
++**Implication:** Wave 3 Demo checklists distinct from Proposal readiness; Critical fails block Demo readiness.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CONTENT_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CONTENT_AUDIT.md
+new file mode 100644
+index 0000000..dbf035d
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CONTENT_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Content Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo content library (slides/assets/scenarios) | NOT_FOUND | No demos content modules |
++| Scenario versioning | NOT_FOUND | ΓÇö |
++| Content pin to Demo | NOT_FOUND | ΓÇö |
++| Marketing site demo copy | WRONG_DOMAIN | Public `/request-demo` form copy ΓÇö capture UX only |
++| Product help / docs as Demo content | WRONG_DOMAIN | Not versioned Demo content plane |
++| Tenant document store | WRONG_DOMAIN | Tenant plane ΓÇö not Sales Demo content |
++
++**Implication:** Wave 2 content/scenario versioning under `lib/admin/crm/demos/`; historical Demo pins versions.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CREDENTIAL_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CREDENTIAL_AUDIT.md
+new file mode 100644
+index 0000000..2a76041
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_CREDENTIAL_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Credential Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo environment credentials store | NOT_FOUND | No Demo credential vault / refs |
++| Credential expiry tied to env | NOT_FOUND | ΓÇö |
++| Production credential reuse in Demo | FORBIDDEN / absent | Must block |
++| MRA TAC / secret provider refs | WRONG_DOMAIN | MRA EIS secret leases ΓÇö not Demo env credentials |
++| Admin auth / CRM FLS | CORRECT_AND_REUSABLE | `authz.js` `resolveCrmAccess` ΓÇö Demo APIs must use same FLS pattern |
++| Public capture passwords | N/A | Public forms have no Demo env credentials |
++
++**Implication:** Wave 3 protect Demo credentials; never store Production secrets on Demo env records; expire with environment.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_DATA_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_DATA_AUDIT.md
+new file mode 100644
+index 0000000..4629106
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_DATA_AUDIT.md
+@@ -0,0 +1,15 @@
++# Current Demo Data Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo data packs | NOT_FOUND | No `dataPacks` under CRM demos |
++| Safe synthetic pack catalogue | NOT_FOUND | ΓÇö |
++| Production data clone into Demo | FORBIDDEN / absent | Must reject if attempted in Wave 3 |
++| Customer/Production data detection | NOT_FOUND | Design: reject Production credentials/data |
++| Financial planning "pilot defaults for demos" | WRONG_DOMAIN | `lib/financialPlanning/application/historicalDatasetService.js` comment ΓÇö FP pilot UI, not CRM Demo data packs |
++| Seed/fixture test data | WRONG_DOMAIN | Vitest fixtures ΓÇö not Demo Environment packs |
++| Lead/Opportunity CRM data as Demo pack | FORBIDDEN | CRM operational data Γëá Demo Environment data |
++
++**Implication:** Wave 3 safe data packs with Production-data detection; never clone Production Tenant DB.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_DELIVERY_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_DELIVERY_AUDIT.md
+new file mode 100644
+index 0000000..a8bf05c
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_DELIVERY_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Delivery Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo delivery session | NOT_FOUND | No delivery session model |
++| Live questions / issues capture | NOT_FOUND | ΓÇö |
++| Delivery status machine | NOT_FOUND | ΓÇö |
++| Meeting COMPLETED as delivery | FORBIDDEN alias | Meeting completion Γëá Demo delivered |
++| Activity COMPLETED as delivery | FORBIDDEN alias | Activity spine Γëá Demo delivery |
++| Presenter assignment | NOT_FOUND | Participants design in Wave 1; delivery ops Wave 4 |
++
++**Implication:** Wave 4 delivery session under Demo; Meeting remains schedule substrate only.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ENVIRONMENT_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ENVIRONMENT_AUDIT.md
+new file mode 100644
+index 0000000..5551a90
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_ENVIRONMENT_AUDIT.md
+@@ -0,0 +1,17 @@
++# Current Demo Environment Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmDemoEnvironment / DENV numbering | NOT_FOUND | No Demo env models; no `lib/admin/crm/demos/environments*` |
++| Logical provisioner | NOT_FOUND | Design: governance + local/logical READY; no cloud fabricate |
++| Production Tenant clone | FORBIDDEN / absent | Must never implement as Demo Environment |
++| MRA EIS sandbox entitlement | WRONG_DOMAIN / FORBIDDEN | `entitlementService.js` sandboxAllowed; `lib/admin/customers/mraEis.js`; Tenant MRA settings UI ΓÇö fiscal sandbox Γëá Sales Demo env |
++| EIS_ENVIRONMENT sandbox | WRONG_DOMAIN | `lib/eisService.js` `process.env.EIS_ENVIRONMENT \|\| 'sandbox'` ΓÇö MRA connector |
++| DEMO banner / isolation flags | NOT_FOUND | No Demo env UI banner |
++| Expiry / reset / deprovision | NOT_FOUND | ΓÇö |
++| Provision idempotency | NOT_FOUND | ΓÇö |
++| Production connection guards | NOT_FOUND | Design: no Production DB/payment/MRA EIS endpoint/email sender on Demo env |
++
++**Implication:** Wave 3 logical provisioner only. Explicitly reject aliasing MRA EIS sandbox or Production Tenant as Demo Environment.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_EXPORT_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_EXPORT_AUDIT.md
+new file mode 100644
+index 0000000..2c7b208
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_EXPORT_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Export Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo export API | NOT_FOUND | No demos export |
++| CRM Lead/entity export | FOUNDATION pattern | `lib/admin/crm/export.js` + `/api/admin/crm/export` ΓÇö permission recheck pattern |
++| Restricted script in export | NOT_FOUND (must block) | Wave 2 rule: restricted Script never on default exports |
++| Recording consent data in export | NOT_FOUND | Wave 4 ΓÇö minimize; FLS |
++| Customer-safe agenda export | NOT_FOUND | ΓÇö |
++| ICS as Demo export | PARTIAL / WRONG_SHAPE | Calendar ICS exports Meeting events ΓÇö not Demo package export |
++
++**Implication:** Wave 4+ Demo exports must recheck FLS, strip restricted scripts, never include Production credentials.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_FEEDBACK_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_FEEDBACK_AUDIT.md
+new file mode 100644
+index 0000000..94b9386
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_FEEDBACK_AUDIT.md
+@@ -0,0 +1,13 @@
++# Current Demo Feedback Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo feedback forms / responses | NOT_FOUND | Absent |
++| Feedback completeness Γëá Demo success | NOT_FOUND (design locked) | Outcome completeness rule |
++| NPS / survey elsewhere | WRONG_DOMAIN if present | Must not invent Demo feedback from unrelated surveys |
++| Fabricated feedback | FORBIDDEN | ΓÇö |
++| Email open/reply as feedback | FORBIDDEN | Email Activity honesty: no fabricated opens/replies |
++
++**Implication:** Wave 4 feedback forms optional; never invent scores; completeness Γëá outcome success.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_FOLLOW_UP_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_FOLLOW_UP_AUDIT.md
+new file mode 100644
+index 0000000..aff09b1
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_FOLLOW_UP_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Follow-Up Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo-linked Follow-Up create | NOT_FOUND | No Demo ΓåÆ Follow-Up bridge |
++| CrmFollowUp / Next-Action | READY / EXTEND | `lib/admin/crm/followUps.js`, `nextAction.js`; APIs `/api/admin/crm/follow-ups`, `/next-action` |
++| Consent-blocked never auto-run | CORRECT_AND_REUSABLE | P13 rule ΓÇö preserve |
++| Due Γëá complete | CORRECT_AND_REUSABLE | Follow-Up semantics |
++| Reminder as Follow-Up | FORBIDDEN alias | Reminder delivery Γëá Activity/Follow-Up complete |
++| CS playbook follow-up | WRONG_DOMAIN | CsTask / CS plane |
++
++**Implication:** Wave 4 create Follow-Ups from Demo outcome via Phase 13 services; subject link includes Demo when model exists.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_OUTCOME_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_OUTCOME_AUDIT.md
+new file mode 100644
+index 0000000..07f1712
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_OUTCOME_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Outcome Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmDemoOutcome | NOT_FOUND | Absent |
++| Outcome Γëá win probability | NOT_FOUND (design locked) | Must not auto-set Opportunity probability |
++| Outcome Γëá Closed Won / Revenue | CORRECT_AND_REUSABLE boundary | Opportunity close + Closed Won evidence exist; Demo must not auto-close |
++| Auto Opportunity stage mutation from Demo | FORBIDDEN / absent | Stage transitions only via `transitionOpportunityStage` with human path ΓÇö Demo must not call silently |
++| Proposal readiness after Demo | CORRECT_AND_REUSABLE | `evaluateProposalReadiness` ΓÇö re-eval OK; create Proposal FORBIDDEN this phase |
++| Conversion readiness after Demo | CORRECT_AND_REUSABLE | Handoff payload only |
++
++**Implication:** Wave 4 outcome records + optional human-gated follow actions; never auto-mutate Opportunity stage/probability/close date.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_RECORDING_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_RECORDING_AUDIT.md
+new file mode 100644
+index 0000000..90240f7
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_RECORDING_AUDIT.md
+@@ -0,0 +1,15 @@
++# Current Demo Recording Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo recording governance (request/consent/approve/deny) | NOT_FOUND | No Demo recording models |
++| Recording media provider | NOT_AVAILABLE | Design locked; Call recording also `CRM_CALL_RECORDING_STATUS = 'NOT_AVAILABLE'` |
++| Recording files / storage | NOT_AVAILABLE / FORBIDDEN invent | Must not fabricate files |
++| Call recording boundary | WRONG_DOMAIN / NOT_AVAILABLE | `lib/admin/crm/calls/*` telephony recording ΓÇö Call plane, not Demo recording |
++| Consent UNKNOWN Γëá GRANTED | CORRECT_AND_REUSABLE | `consent.js` / eligibility fail-closed ΓÇö reuse for recording consent |
++| Recording off by default | NOT_FOUND (design locked) | Wave 4 default OFF |
++| Foundations recording flag | CORRECT_AND_REUSABLE | `foundations.js` ACTIVITY_SPINE `recording: 'NOT_AVAILABLE'` |
++
++**Implication:** Wave 4 governance-only; provider stays NOT_AVAILABLE; UNKNOWN consent Γëá GRANTED; no fabricated recordings.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REHEARSAL_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REHEARSAL_AUDIT.md
+new file mode 100644
+index 0000000..dec7647
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REHEARSAL_AUDIT.md
+@@ -0,0 +1,12 @@
++# Current Demo Rehearsal Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmDemoRehearsal | NOT_FOUND | Absent |
++| Rehearsal pass/fail ΓåÆ readiness | NOT_FOUND | Design: Critical fails block READY_TO_DELIVER |
++| Meeting practice / calendar hold | WRONG_DOMAIN alias risk | A Meeting is not a Rehearsal record |
++| Call practice log | WRONG_DOMAIN | Call Activity Γëá Demo rehearsal |
++
++**Implication:** Wave 3 greenfield rehearsal records linked to Demo + checklist; do not invent rehearsal from Meeting RSVP.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REPORT_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REPORT_AUDIT.md
+new file mode 100644
+index 0000000..a2984ea
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REPORT_AUDIT.md
+@@ -0,0 +1,15 @@
++# Current Demo Report Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo reporting centre | NOT_FOUND | No demo reports module/UI |
++| Demo report schedules | NOT_FOUND | ΓÇö |
++| Honesty gate (EMPTY/UNAVAILABLE) | FOUNDATION pattern | Activity `activities/reports.js` + Pipeline reports ΓÇö never false zeroes |
++| Activity report schedules | CORRECT_AND_REUSABLE pattern | `reportSchedules.js` audited create/list/run |
++| Pipeline report centre | CORRECT_AND_REUSABLE pattern | Opportunity/Pipeline reporting ΓÇö currency-separated |
++| Fabricated Demo volume KPIs | FORBIDDEN | No Demo entity ΓåÆ any Demo KPI today would be invented |
++| Weighted Pipeline totals | NOT_AVAILABLE / Phase 16 | `WEIGHTED_PIPELINE_UI_ENABLED === false` |
++
++**Implication:** Wave 4 Demo reporting centre + schedules; gate fail ΓåÆ EMPTY/UNAVAILABLE; never invent Demo volume from Lead DEMO_REQUEST counts alone without honest labelling.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REQUEST_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REQUEST_AUDIT.md
+new file mode 100644
+index 0000000..de1473e
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_REQUEST_AUDIT.md
+@@ -0,0 +1,18 @@
++# Current Demo Request Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmDemoRequest model | NOT_FOUND | Absent from Prisma |
++| DMR numbering | NOT_FOUND | No `DMR-YYYY-######` generator |
++| Qualify / convert Demo Request | NOT_FOUND | No qualify/convert services under demos |
++| Lead type DEMO_REQUEST | FOUNDATION | `CRM_LEAD_TYPE.DEMO_REQUEST` in `catalogue.js`; tests `systemAdmin.crm.capture.test.js` assert type on REQUEST_DEMO |
++| Capture source REQUEST_DEMO | FOUNDATION | `CRM_CAPTURE_SOURCE.REQUEST_DEMO`; `capture.js` ΓåÆ Lead create idempotent |
++| Dedicated page/API | FOUNDATION | `app/request-demo/page.js`; `app/api/request-demo/route.js` |
++| Contact form overlap | FOUNDATION / DISTINCT | `POST /api/contact/demo-request` uses `WEBSITE_CONTACT_FORM` (not REQUEST_DEMO) ΓÇö intentional distinct codes (P11) |
++| Lead ΓåÆ Opportunity path | CORRECT_AND_REUSABLE (adjacent) | Opportunity from READY handoff exists; not Demo Request convert |
++| Demo Request state machine | NOT_FOUND | Design: qualify ΓåÆ convert ΓåÆ CrmDemo |
++| Admin Demo Request UI/API | NOT_FOUND | No `/crm/demos/requests` or demo-requests API |
++
++**Implication:** Wave 1 introduces CrmDemoRequest from Lead/capture foundations; convert idempotent to CrmDemo. Do not treat Lead itself as Demo Request entity long-term ΓÇö Lead remains CRM subject; DMR is Demo plane.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_SCHEDULING_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_SCHEDULING_AUDIT.md
+new file mode 100644
+index 0000000..5a1d7c5
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_SCHEDULING_AUDIT.md
+@@ -0,0 +1,17 @@
++# Current Demo Scheduling Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo.schedule ΓåÆ Meeting link | NOT_FOUND | No Demo entity to link |
++| Required Meeting on schedule | NOT_FOUND (design locked) | Spec: schedule must create/reconcile CrmMeeting + Calendar Event |
++| CrmMeeting create/reschedule | READY / EXTEND | `lib/admin/crm/meetings/service.js` `createMeeting`, `rescheduleMeeting`; APIs `/api/admin/crm/meetings` |
++| Calendar Event + conflicts | READY / EXTEND | `lib/admin/crm/calendar/service.js`; conflict detect; ICS export |
++| Timezone model (Meeting) | READY / EXTEND | Meeting service: explicit timezone; end-before-start blocked |
++| Google / Outlook sync | NOT_CONNECTED | `CRM_CALENDAR_INTEGRATION_STATUS = 'NOT_CONNECTED'`; foundations meta |
++| Meeting Γëá Demo | CORRECT_AND_REUSABLE | `meetings/index.js`; P13 `MEETING_STATE_MATRIX` "Demo Meeting FORBIDDEN alias" |
++| Demo calendar hub | NOT_FOUND | CRM calendar hubs exist for Activity Meetings only (`/insightbooks/crm/calendar/*`) |
++| Availability / working hours | FOUNDATION (P13) | Calendar availability ΓÇö reuse for Demo schedule conflicts; not Demo-specific |
++
++**Implication:** Wave 1 `scheduleDemo` must call Phase 13 Meeting + Calendar; reconcile Demo start/end/timezone with Meeting. Never invent external calendar CONNECTED.
+diff --git a/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_SCRIPT_AUDIT.md b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_SCRIPT_AUDIT.md
+new file mode 100644
+index 0000000..abe38a6
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/CURRENT_DEMO_SCRIPT_AUDIT.md
+@@ -0,0 +1,14 @@
++# Current Demo Script Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| CrmDemoScript / versions | NOT_FOUND | No script models under CRM Demo |
++| Restricted vs customer-safe script | NOT_FOUND | Design: restricted Script never on invitations/Customer APIs |
++| en/ny script foundations | NOT_FOUND | Locale UI exists elsewhere; no Demo script i18n packs |
++| AI-generated scripts | FORBIDDEN | Design out of scope; must not invent |
++| Email templates as script | WRONG_DOMAIN | `lib/admin/crm/emails/templates.js` ΓÇö Email Activity plane |
++| Activity templates as script | WRONG_DOMAIN / pattern only | `templates.js` Activity/Task ΓÇö do not alias as Demo Script |
++
++**Implication:** Wave 2 Script versioning + SoD; restricted projection fail-closed on Customer/invitation surfaces.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_AGENDA_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_AGENDA_MATRIX.md
+new file mode 100644
+index 0000000..2e85525
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_AGENDA_MATRIX.md
+@@ -0,0 +1,10 @@
++# Demo Agenda Matrix
++
++| Aspect | Today | Wave 2 target | Class |
++|--------|-------|---------------|-------|
++| Versioned agenda | NOT_FOUND | Create versions; ACTIVE immutable edit | NOT_FOUND |
++| Pin to Demo | NOT_FOUND | Historical pin | NOT_FOUND |
++| Customer-safe projection | NOT_FOUND | Invitations / Customer APIs | NOT_FOUND |
++| SoD approve | NOT_FOUND | Requester Γëá approver | NOT_FOUND |
++| Meeting description substitute | FORBIDDEN | ΓÇö | FORBIDDEN alias |
++| Activity template substitute | WRONG_DOMAIN | Pattern only | WRONG_DOMAIN |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_DATA_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_DATA_MATRIX.md
+new file mode 100644
+index 0000000..6ead99d
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_DATA_MATRIX.md
+@@ -0,0 +1,15 @@
++# Demo Data Matrix
++
++| Pack / data class | Today | Allowed in Demo env | Class |
++|-------------------|-------|---------------------|-------|
++| Safe synthetic data pack | NOT_FOUND | Yes | NOT_FOUND ΓåÆ Wave 3 |
++| Anonymised synthetic catalogue | NOT_FOUND | Yes if non-Production | NOT_FOUND |
++| Production Tenant DB clone | Absent | Never | FORBIDDEN |
++| Live Customer PII pack | Absent | Never | FORBIDDEN |
++| Production payment credentials | Absent | Never | FORBIDDEN |
++| MRA EIS production secrets | MRA plane | Never on Demo env | WRONG_DOMAIN / FORBIDDEN |
++| CRM Lead/Opportunity rows as env pack | CRM plane | Never as env data | FORBIDDEN |
++| FP historical "demo" defaults | FP plane | Never alias | WRONG_DOMAIN |
++| Vitest fixtures | Test plane | Not runtime packs | WRONG_DOMAIN |
++
++**Rule:** Production-data detection must fail closed on provision/reset.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_DATA_QUALITY_AUDIT.md b/docs/admin-intelligence-crm/phase-14/DEMO_DATA_QUALITY_AUDIT.md
+new file mode 100644
+index 0000000..6534176
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_DATA_QUALITY_AUDIT.md
+@@ -0,0 +1,15 @@
++# Demo Data Quality Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo DQ service | NOT_FOUND | No `demos/dataQuality.js` |
++| Activity DQ pattern | CORRECT_AND_REUSABLE pattern | `lib/admin/crm/activities/dataQuality.js` honesty-gated |
++| CRM recon honesty helper | CORRECT_AND_REUSABLE | Shared recon honesty patterns in CRM |
++| Lead DEMO_REQUEST volume as Demo DQ | PARTIAL / mislabel risk | Lead counts Γëá Demo Request DMR counts until Wave 1 |
++| Orphan Meeting "demos" | N/A | Meetings are not Demos ΓÇö DQ must not count Meetings as Demos |
++| Duplicate Demo Requests | NOT_FOUND | Convert/qualify idempotency Wave 1 |
++| Env expiry overdue | NOT_FOUND | Wave 3 |
++
++**Implication:** Wave 4 Demo DQ foundations; never invent DQ scores; Lead DEMO_REQUEST is capture quality, not Demo delivery quality.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_DOMAIN_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_DOMAIN_MATRIX.md
+new file mode 100644
+index 0000000..fcf0152
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_DOMAIN_MATRIX.md
+@@ -0,0 +1,21 @@
++# Demo Domain Matrix
++
++| Concept | Canonical plane | Alias risk | Class |
++|---------|-----------------|------------|-------|
++| CrmDemoRequest (DMR) | Phase 14 Demo | Lead-as-DMR forever | FOUNDATION Lead ΓåÆ EXTEND Wave 1 |
++| CrmDemo (DEMO) | Phase 14 Demo | Meeting-as-Demo | NOT_FOUND ΓåÆ Wave 1 |
++| CrmMeeting | Phase 13 Activity | Demo without Meeting when scheduled | EXTEND schedule |
++| Calendar Event | Phase 13 | External Google Event as truth | NOT_CONNECTED / EXTEND ICS |
++| Demo Environment (DENV) | Phase 14 logical | MRA EIS sandbox / Production Tenant | NOT_FOUND; alias FORBIDDEN |
++| Demo Data Pack | Phase 14 | Production clone / FP pilot data | NOT_FOUND; clone FORBIDDEN |
++| Agenda / Script / Content | Phase 14 | Email/Activity templates | NOT_FOUND; templates = pattern only |
++| Checklist / Rehearsal | Phase 14 | Proposal readiness checklist | NOT_FOUND; distinct |
++| Attendance | Phase 14 (+ Meeting confirm pattern) | RSVP-as-attended | Meeting rule CORRECT_AND_REUSABLE |
++| Recording governance | Phase 14 | Call recording / media files | NOT_AVAILABLE provider |
++| Feedback / Outcome | Phase 14 | Win probability / Closed Won | NOT_FOUND; auto-mutate FORBIDDEN |
++| Follow-Up | Phase 13 | Reminder / CsTask | EXTEND Follow-Up |
++| Proposal / Trial | Phase 15 / later | Create from Demo | Handoff CORRECT_AND_REUSABLE |
++| Opportunity | Phase 12 | Stage auto-change from outcome | Boundary CORRECT_AND_REUSABLE |
++| CsTask / Support | CS / Support | Demo task alias | WRONG_DOMAIN |
++| Tenant POS sales | Tenant | Demo sales | WRONG_DOMAIN |
++| analytics-pipeline | Ops | Demo KPI | WRONG_DOMAIN |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_ENVIRONMENT_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_ENVIRONMENT_MATRIX.md
+new file mode 100644
+index 0000000..ee0719e
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_ENVIRONMENT_MATRIX.md
+@@ -0,0 +1,13 @@
++# Demo Environment Matrix
++
++| Aspect | Today | Wave 3 target | Class |
++|--------|-------|---------------|-------|
++| Logical Demo Environment | NOT_FOUND | DENV-YYYY-######; governance + logical READY | NOT_FOUND |
++| Cloud/container provision | NOT_AVAILABLE | Explicit NOT_AVAILABLE ΓÇö do not fabricate | NOT_AVAILABLE |
++| Production Tenant clone | FORBIDDEN | Reject | FORBIDDEN |
++| MRA EIS sandbox entitlement | WRONG_DOMAIN | Never alias | WRONG_DOMAIN / FORBIDDEN |
++| Expiry required | NOT_FOUND | Required; block READY if expired | NOT_FOUND |
++| Reset / deprovision idempotent | NOT_FOUND | Idempotent | NOT_FOUND |
++| DEMO banner | NOT_FOUND | Visible in env UI | NOT_FOUND |
++| No Production DB/payment/MRA/email sender | NOT_FOUND | Hard guards | NOT_FOUND |
++| Health status | NOT_FOUND | Typed health | NOT_FOUND |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_OUTCOME_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_OUTCOME_MATRIX.md
+new file mode 100644
+index 0000000..ce8d260
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_OUTCOME_MATRIX.md
+@@ -0,0 +1,15 @@
++# Demo Outcome Matrix
++
++| Outcome / action | Today | Allowed | Class |
++|------------------|-------|---------|-------|
++| Record Demo outcome | NOT_FOUND | Wave 4 | NOT_FOUND |
++| Outcome completeness flag | NOT_FOUND | Γëá success | NOT_FOUND |
++| Auto set Opportunity probability | Probability service READY | Never from Demo | FORBIDDEN |
++| Auto stage transition | Stage SM READY | Never silent from Demo | FORBIDDEN |
++| Auto Closed Won | Close READY | Never from Demo | FORBIDDEN |
++| Emit Proposal handoff payload | proposalReadiness READY | Idempotent payload only | CORRECT_AND_REUSABLE |
++| Create Proposal / Quotation | NOT this phase | Phase 15 | NOT_AVAILABLE / handoff-only |
++| Emit Trial handoff payload | NOT_FOUND Demo side | Payload only; no Trial provision | NOT_FOUND ΓåÆ Wave 4 |
++| Create Tenant / Subscription / Invoice | FORBIDDEN | Never | FORBIDDEN |
++| Create Follow-Up | Follow-Up READY | Via Phase 13 | EXTEND |
++| Feedback required for outcome | NOT_FOUND | Completeness optional Γëá block invent | NOT_FOUND |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_PARTICIPANT_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_PARTICIPANT_MATRIX.md
+new file mode 100644
+index 0000000..7aae21a
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_PARTICIPANT_MATRIX.md
+@@ -0,0 +1,14 @@
++# Demo Participant Matrix
++
++| Role / signal | Today | Wave | Class |
++|---------------|-------|------|-------|
++| Demo participant CRUD | NOT_FOUND | 1 | NOT_FOUND |
++| Presenter | NOT_FOUND | 1 | NOT_FOUND |
++| Activity participant pattern | READY | pattern | EXTEND pattern ΓÇö `CrmActivityParticipant` |
++| Meeting participant + RSVP | READY | schedule | EXTEND ΓÇö RSVP Γëá attendance |
++| Meeting authorised attendance | READY | 4 project | EXTEND pattern |
++| Recording consent on participant | NOT_FOUND | 4 | NOT_FOUND |
++| Customer Contact link | FOUNDATION | 1 | Lead/Contact exist ΓÇö link only |
++| Eligibility for invitation email | READY | 2ΓÇô4 | CORRECT_AND_REUSABLE |
++
++**Rule:** RSVP Γëá attendance; recording consent Γëá RSVP; UNKNOWN Γëá GRANTED.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_PERFORMANCE_AUDIT.md b/docs/admin-intelligence-crm/phase-14/DEMO_PERFORMANCE_AUDIT.md
+new file mode 100644
+index 0000000..4f48904
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_PERFORMANCE_AUDIT.md
+@@ -0,0 +1,15 @@
++# Demo Performance Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo list pagination | NOT_FOUND | No Demo lists |
++| CRM list pagination pattern | CORRECT_AND_REUSABLE pattern | Activities/Opportunities/Leads server pagination/filter/sort |
++| N+1 Meeting join on Demo list | N/A until Wave 1 | Design: schedule via Meeting ΓÇö plan indexed FK + batch |
++| Env provision latency | NOT_AVAILABLE (logical) | Logical READY path ΓÇö no cloud provision SLA this phase |
++| Report schedule fan-out | FOUNDATION pattern | Activity/Pipeline schedules ΓÇö keep audited + bounded |
++| Public capture throttle | FOUNDATION | 8/min/email process-local ΓÇö not Demo API perf |
++| Rich UI hubs | PARTIAL (P13 carry) | Thin stubs common ΓÇö Demo hubs may start thin |
++
++**Implication:** Wave 1+ server-side pagination; avoid loading restricted scripts on list endpoints; logical env avoids fake cloud latency claims.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_PRIVACY_AUDIT.md b/docs/admin-intelligence-crm/phase-14/DEMO_PRIVACY_AUDIT.md
+new file mode 100644
+index 0000000..e7f4ecf
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_PRIVACY_AUDIT.md
+@@ -0,0 +1,17 @@
++# Demo Privacy Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo-specific privacy controls | NOT_FOUND | No Demo plane |
++| Consent / DNC / prefs | CORRECT_AND_REUSABLE | `lib/admin/crm/consent.js` |
++| Eligibility gate outbound | CORRECT_AND_REUSABLE | `eligibility.js` ΓÇö invitations / follow-up emails |
++| Recording consent separate from RSVP | NOT_FOUND (design) | Wave 4 |
++| Restricted Script exposure | NOT_FOUND (must enforce) | Wave 2 ΓÇö never on Customer APIs / invitations |
++| Restricted Notes pattern | CORRECT_AND_REUSABLE | `notes.js` INTERNAL/RESTRICTED ΓÇö pattern for restricted Demo content |
++| Public capture PII | FOUNDATION | `capture.js` sanitizes; throttle; idempotent ΓÇö Lead PII, not Demo env PII |
++| Production customer data in Demo env | FORBIDDEN | Wave 3 reject |
++| Tracking pixels on Demo emails | FORBIDDEN | Email Activity: pixels off |
++
++**Implication:** Privacy fail-closed; recording UNKNOWN Γëá GRANTED; no Production PII in Demo packs; restricted content never customer-facing.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_READINESS_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_READINESS_MATRIX.md
+new file mode 100644
+index 0000000..6cda909
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_READINESS_MATRIX.md
+@@ -0,0 +1,19 @@
++# Demo Readiness Matrix
++
++| Gate | Today | Blocks READY_TO_DELIVER | Wave | Class |
++|------|-------|-------------------------|------|-------|
++| Demo exists + number | NOT_FOUND | Yes | 1 | NOT_FOUND |
++| Qualified request / convert | NOT_FOUND | Soft/Hard per design | 1 | NOT_FOUND |
++| Meeting + Calendar linked; times reconcile | Meeting READY; link NOT_FOUND | Yes when scheduled | 1 | EXTEND Meeting |
++| Presenter assigned | NOT_FOUND | Yes | 1 | NOT_FOUND |
++| Agenda version pinned | NOT_FOUND | Yes | 2 | NOT_FOUND |
++| Script version pinned (internal) | NOT_FOUND | Yes | 2 | NOT_FOUND |
++| Logical env READY + not expired | NOT_FOUND | Yes (if required) | 3 | NOT_FOUND |
++| Data pack safe / Production rejected | NOT_FOUND | Yes | 3 | NOT_FOUND |
++| Checklist Critical pass | NOT_FOUND | Yes | 3 | NOT_FOUND |
++| Rehearsal Critical pass | NOT_FOUND | Yes | 3 | NOT_FOUND |
++| Recording consent (if recording requested) | NOT_FOUND | Yes if requested | 4 | NOT_AVAILABLE provider |
++| Proposal readiness (Opportunity) | READY handoff eval | No (orthogonal) | ΓÇö | CORRECT_AND_REUSABLE |
++| Scope stub | PARTIAL | No | CARRY | Does not block readiness truth |
++
++**Honesty:** Readiness BLOCKED must list reasons ΓÇö never silent READY.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_RECONCILIATION_AUDIT.md b/docs/admin-intelligence-crm/phase-14/DEMO_RECONCILIATION_AUDIT.md
+new file mode 100644
+index 0000000..0feb9fa
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_RECONCILIATION_AUDIT.md
+@@ -0,0 +1,15 @@
++# Demo Reconciliation Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo recon service | NOT_FOUND | No demos reconciliation |
++| Activity recon pattern | CORRECT_AND_REUSABLE pattern | `activities/reconciliation.js` |
++| CRM recon API | FOUNDATION pattern | `/api/admin/crm/reconciliation` |
++| Demo Γåö Meeting time reconcile | NOT_FOUND (required Wave 1) | Design: Demo times must match linked Meeting/Calendar |
++| Demo Γåö Opportunity projection reconcile | NOT_FOUND | Wave 1 projections |
++| Env provision state recon | NOT_FOUND | Wave 3 idempotent provision/reset |
++| Gate fail ΓåÆ invent zeroes | FORBIDDEN | Preserve EMPTY/UNAVAILABLE |
++
++**Implication:** Wave 1+ recon checks for Meeting link integrity; Wave 3 env state; Wave 4 delivery/attendance honesty.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_RECORDING_CONSENT_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_RECORDING_CONSENT_MATRIX.md
+new file mode 100644
+index 0000000..d4642b0
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_RECORDING_CONSENT_MATRIX.md
+@@ -0,0 +1,13 @@
++# Demo Recording Consent Matrix
++
++| Signal | Today | Wave 4 rule | Class |
++|--------|-------|-------------|-------|
++| Recording request | NOT_FOUND | Explicit request; default OFF | NOT_FOUND |
++| Consent UNKNOWN | Consent service READY | Γëá GRANTED; block recording start | CORRECT_AND_REUSABLE |
++| Consent GRANTED | Consent service READY | Required before approve-to-record | CORRECT_AND_REUSABLE |
++| Consent DENIED | Consent service READY | Deny path; no media | CORRECT_AND_REUSABLE |
++| Approve / deny governance | NOT_FOUND | Admin governance workflow | NOT_FOUND |
++| Media provider | Call recording NOT_AVAILABLE | Demo provider NOT_AVAILABLE | NOT_AVAILABLE |
++| Fabricated recording file | Absent | FORBIDDEN | FORBIDDEN |
++| RSVP ACCEPTED ΓçÆ recording consent | Meeting RSVP READY | FORBIDDEN equivalence | FORBIDDEN |
++| Call recording status field | Call plane | WRONG_DOMAIN for Demo media | WRONG_DOMAIN / NOT_AVAILABLE |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_RELIABILITY_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_RELIABILITY_MATRIX.md
+new file mode 100644
+index 0000000..c184140
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_RELIABILITY_MATRIX.md
+@@ -0,0 +1,15 @@
++# Demo Reliability Matrix
++
++| Signal | Status today | Honesty rule | Class |
++|--------|--------------|--------------|-------|
++| Demo counts | NOT_INSTRUMENTED | Never fabricate zeroes | NOT_FOUND |
++| Demo Request (DMR) counts | NOT_INSTRUMENTED | Lead DEMO_REQUEST Γëá DMR until convert plane | FOUNDATION Lead only |
++| Scheduled Demo vs Meeting reconcile | NOT_INSTRUMENTED | Fail ΓåÆ BLOCKED / UNAVAILABLE | NOT_FOUND |
++| Attendance rates | NOT_INSTRUMENTED | RSVP Γëá attendance; no invent | NOT_FOUND |
++| Recording completion rates | NOT_AVAILABLE | Provider boundary | NOT_AVAILABLE |
++| Env READY health | NOT_INSTRUMENTED | Logical only; no fake cloud uptime | NOT_FOUND |
++| Demo report metrics | NOT_INSTRUMENTED | EMPTY/UNAVAILABLE on gate fail | NOT_FOUND |
++| Activity/Pipeline report patterns | READY (other planes) | Currency/honesty patterns reusable | CORRECT_AND_REUSABLE pattern |
++| Scope stub bias | PARTIAL | My Work / lists may over-include | CARRY |
++
++**Statuses:** AVAILABLE / PARTIAL_HISTORY / RECONCILIATION_FAILED / NOT_INSTRUMENTED / PERMISSION_RESTRICTED / UNAVAILABLE / NOT_CONNECTED / NOT_AVAILABLE.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_REQUEST_STATE_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_REQUEST_STATE_MATRIX.md
+new file mode 100644
+index 0000000..22a6e02
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_REQUEST_STATE_MATRIX.md
+@@ -0,0 +1,14 @@
++# Demo Request State Matrix
++
++| State / transition | Today | Wave 1 target | Class |
++|--------------------|-------|---------------|-------|
++| NEW / SUBMITTED | Lead NEW via capture | DMR NEW | FOUNDATION ΓåÆ EXTEND |
++| QUALIFYING | Lead status machine only | DMR QUALIFYING | NOT_FOUND |
++| QUALIFIED | ΓÇö | DMR QUALIFIED | NOT_FOUND |
++| CONVERTED ΓåÆ Demo | Lead ΓåÆ Opportunity path only | Idempotent convert ΓåÆ CrmDemo | NOT_FOUND (Opp path Γëá Demo) |
++| REJECTED / DISQUALIFIED | Lead disqualify | DMR REJECTED | FOUNDATION pattern |
++| CANCELLED / ARCHIVED | Lead archive | DMR archive | FOUNDATION pattern |
++| Re-convert same DMR | ΓÇö | Idempotent no-op / return existing Demo | NOT_FOUND |
++| Number DMR-YYYY-###### | ΓÇö | Immutable unique | NOT_FOUND |
++
++**Rule:** Convert Demo Request Γëá create Opportunity. Opportunity may already exist on Lead; Demo convert is separate idempotent transaction.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_SCRIPT_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_SCRIPT_MATRIX.md
+new file mode 100644
+index 0000000..4c2b48f
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_SCRIPT_MATRIX.md
+@@ -0,0 +1,10 @@
++# Demo Script Matrix
++
++| Aspect | Today | Wave 2 target | Class |
++|--------|-------|---------------|-------|
++| Versioned script | NOT_FOUND | Versions + pin | NOT_FOUND |
++| Restricted script | NOT_FOUND | Internal only; never invite/Customer/export default | NOT_FOUND |
++| Customer-safe talking points | NOT_FOUND | Optional safe projection | NOT_FOUND |
++| en / ny foundations | NOT_FOUND | Locale packs foundations | NOT_FOUND |
++| AI script generation | FORBIDDEN | Out of scope | FORBIDDEN |
++| Email template as script | WRONG_DOMAIN | ΓÇö | WRONG_DOMAIN |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_SECURITY_AUDIT.md b/docs/admin-intelligence-crm/phase-14/DEMO_SECURITY_AUDIT.md
+new file mode 100644
+index 0000000..480a730
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_SECURITY_AUDIT.md
+@@ -0,0 +1,17 @@
++# Demo Security Audit
++
++**Audited:** 2026-07-30
++
++| Check | Class | Evidence |
++|-------|-------|----------|
++| Demo FLS keys / APIs | NOT_FOUND | No Demo routes to guard |
++| CRM authz pattern | CORRECT_AND_REUSABLE / EXTEND | `resolveCrmAccess` / `resolveCrmScope` in `authz.js` |
++| Scope stub `mode: 'all'` | PARTIAL / CARRY | Lists may over-include until hardened |
++| SoD automation pattern | CORRECT_AND_REUSABLE pattern | `automation/*` requester Γëá approver ΓÇö reuse for content/env approvals |
++| CoA admin | FORBIDDEN / removed | Must stay removed |
++| MRA / payment secrets on Demo | FORBIDDEN | No Production/MRA endpoint connections on Demo env |
++| Cross-Tenant Demo access | FORBIDDEN if attempted | Demo is System Admin CRM plane |
++| SQL + model guards (EPERM) | CARRY / FOUNDATION | P13 `hasCrm*Model` pattern ΓÇö apply to Demo models |
++| Public capture spam guards | FOUNDATION | Size + honeypot + process-local throttle in capture |
++
++**Implication:** All Demo APIs FLS; SoD on sensitive approvals; never expose Production/MRA secrets; SQL fallbacks if Prisma EPERM.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_SECURITY_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_SECURITY_MATRIX.md
+new file mode 100644
+index 0000000..238fe78
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_SECURITY_MATRIX.md
+@@ -0,0 +1,17 @@
++# Demo Security Matrix
++
++| Control | Today | Wave need | Class |
++|---------|-------|-----------|-------|
++| FLS Demo APIs | N/A (absent) | All waves | NOT_FOUND ΓåÆ require |
++| CRM authz reuse | Present | Extend keys for demos | CORRECT_AND_REUSABLE / EXTEND |
++| Owner/team/territory scope | Stub `mode: 'all'` | Harden for Demo lists | PARTIAL / CARRY |
++| Restricted Script projection | Absent | Wave 2 fail-closed | NOT_FOUND |
++| Recording consent gate | Absent | Wave 4 | NOT_FOUND |
++| Env credential protection | Absent | Wave 3 | NOT_FOUND |
++| Production connection guards | Absent | Wave 3 | NOT_FOUND |
++| SoD content/env approve | Automation SoD pattern | Waves 2ΓÇô3 | FOUNDATION pattern |
++| Export permission recheck | Lead export pattern | Demo export | FOUNDATION pattern |
++| Cross-Tenant subjects | Must block | All waves | FORBIDDEN if attempted |
++| CoA / payment / MRA secrets | Removed/forbidden | Keep off Demo | FORBIDDEN |
++| MRA sandbox ACL reuse | Separate | Never authorize Demo | WRONG_DOMAIN |
++| SQL + hasCrm*Model guards | P13 pattern | All Demo models | CARRY / EXTEND |
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_SOURCE_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_SOURCE_MATRIX.md
+new file mode 100644
+index 0000000..7d02210
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_SOURCE_MATRIX.md
+@@ -0,0 +1,20 @@
++# Demo Source Matrix
++
++| Source | Producer today | Creates CrmDemo / DMR | Wave | Class |
++|--------|----------------|----------------------|------|-------|
++| Public `/request-demo` | `captureLead` REQUEST_DEMO | Lead DEMO_REQUEST only | 1 convert | FOUNDATION |
++| `/contact` demo-request | capture WEBSITE_CONTACT_FORM + email | Lead (not DEMO_REQUEST type by default) | 1 optional map | FOUNDATION |
++| Manual admin Lead DEMO_REQUEST | `createLead` type | Lead only | 1 convert | FOUNDATION |
++| CS/Support/Product handoff | `intakeHandoffAsLead` | Lead EXPANSION/etc ΓÇö not Demo | ΓÇö | WRONG_SHAPE for Demo unless retyped |
++| Qualify Demo Request | ΓÇö | No | 1 | NOT_FOUND |
++| Convert Demo Request ΓåÆ Demo | ΓÇö | No | 1 | NOT_FOUND |
++| Manual create Demo | ΓÇö | No | 1 | NOT_FOUND |
++| Schedule Demo | ΓÇö | No (Meeting exists separately) | 1 | NOT_FOUND / Meeting EXTEND |
++| Meeting create alone | `createMeeting` | Meeting Γëá Demo | ΓÇö | FORBIDDEN as Demo source |
++| MRA EIS sandbox grant | entitlementService | No | ΓÇö | WRONG_DOMAIN / FORBIDDEN |
++| Opportunity Closed Won | close.js | No | ΓÇö | FORBIDDEN invent Demo |
++| Fabricated engagement import | ΓÇö | No | ΓÇö | FORBIDDEN |
++| Email/WhatsApp inbound | Foundations | No | ΓÇö | NOT_AVAILABLE |
++| Analytics / POS sales | Ops / Tenant | No | ΓÇö | WRONG_DOMAIN |
++
++**Rule:** Demo Request and Demo are first-class. Lead DEMO_REQUEST is intake foundation ΓÇö convert idempotently. Never invent Demo volume from Meetings, MRA sandbox, or analytics.
+diff --git a/docs/admin-intelligence-crm/phase-14/DEMO_STATE_MATRIX.md b/docs/admin-intelligence-crm/phase-14/DEMO_STATE_MATRIX.md
+new file mode 100644
+index 0000000..6dd8c7e
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/DEMO_STATE_MATRIX.md
+@@ -0,0 +1,15 @@
++# Demo State Matrix
++
++| State | Today | Wave | Notes |
++|-------|-------|------|-------|
++| DRAFT / PLANNED | NOT_FOUND | 1 | Create Demo |
++| SCHEDULED | NOT_FOUND | 1 | Requires Meeting + Calendar; times reconcile |
++| READY_TO_DELIVER | NOT_FOUND | 1 spine / 3 gates | Blocked when checklist/rehearsal/env Critical fail |
++| IN_DELIVERY | NOT_FOUND | 4 | Delivery session |
++| DELIVERED | NOT_FOUND | 4 | Γëá Meeting COMPLETED alone |
++| OUTCOME_RECORDED | NOT_FOUND | 4 | Completeness Γëá success |
++| FOLLOW_UP_PENDING | NOT_FOUND | 4 | Via Phase 13 Follow-Up |
++| CANCELLED / NO_SHOW | NOT_FOUND | 1ΓÇô4 | Attendance source-backed |
++| ARCHIVED | NOT_FOUND | 1+ | ΓÇö |
++
++**Forbidden equivalences:** Meeting COMPLETED ΓçÅ Demo DELIVERED; Opportunity Closed Won ΓçÅ Demo success; RSVP ACCEPTED ΓçÅ attended.
+diff --git a/docs/admin-intelligence-crm/phase-14/FINAL_READINESS_DECISION.md b/docs/admin-intelligence-crm/phase-14/FINAL_READINESS_DECISION.md
+new file mode 100644
+index 0000000..684dd40
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/FINAL_READINESS_DECISION.md
+@@ -0,0 +1,42 @@
++# Final Readiness Decision ΓÇö Exit Wave 0 / Enter Wave 1
++
++**Decision:** **CONDITIONAL GO**
++
++**Date:** 2026-07-30
++
++## Rationale
++
++Phase 13 exited `READY_FOR_PHASE_14_WITH_BLOCKERS` with a trustworthy Activity plane (Meeting + Calendar + Follow-Up + eligibility + honesty-gated reports). Wave 0 forensics confirm:
++
++- **CrmDemo* / demos libs / demos UI/APIs** ΓÇö **NOT_FOUND** (expected greenfield)
++- **Lead `DEMO_REQUEST` + public `REQUEST_DEMO` capture** ΓÇö **FOUNDATION** (intake only; not Demo Request entity)
++- **Meeting / Calendar** ΓÇö **READY / EXTEND** for required schedule reconcile (Meeting Γëá Demo)
++- **MRA EIS sandbox** ΓÇö **WRONG_DOMAIN / FORBIDDEN** as Demo Environment
++- **Proposal / conversion readiness** ΓÇö **CORRECT_AND_REUSABLE** handoff-only (no create)
++- **Recording provider / real cloud infra** ΓÇö **NOT_AVAILABLE** (governance + logical env only ΓÇö locked)
++
++No identity/consent blocker prevents Wave 1 Demo Request + Demo spine. Carry blockers (telephony, Google/Outlook, ingest, scope stub, Prisma EPERM, weighted UI, Proposal/Tenant create) are documented and do not require inventing CONNECTED providers.
++
++## Conditions for Wave 1+
++
++1. Demo Γëá Meeting Γëá Trial Γëá Proposal; Environment Γëá Production Tenant; never alias MRA EIS sandbox.
++2. Schedule requires CrmMeeting + Calendar Event; times reconcile; Google/Outlook stay NOT_CONNECTED.
++3. RSVP Γëá attendance; recording UNKNOWN Γëá GRANTED; provider NOT_AVAILABLE ΓÇö no fabricated media/envs/attendance.
++4. Logical environments only; reject Production data/credentials; expiry + idempotent provision/reset.
++5. Demo outcome never auto-mutates Opportunity stage / probability / close date; Proposal/Trial = handoff payloads only.
++6. Metric/report gate fail ΓåÆ EMPTY/UNAVAILABLE ΓÇö never fabricated zeroes.
++7. `resolveCrmScope` may remain stub; lists must not claim territory-accurate scope until hardened.
++8. SQL + `hasCrm*Model` guards if Prisma EPERM on Windows.
++9. Commits only when user asks; WORKING_TREE OK.
++
++## Wave 0 completion
++
++- [x] Phase input validation PASS
++- [x] CURRENT_* audits (architecture through export)
++- [x] DQ / recon / privacy / security / performance audits
++- [x] Matrices (source through security)
++- [x] Gap register + implementation plan pointer
++- [x] **CONDITIONAL GO** recorded
++
++**Next:** User chooses execution mode for Wave 1 (Subagent-Driven or Inline).  
++**Stop:** Do not write Wave 1 application code until user continues; do not invent CrmDemo from Meeting or MRA sandbox.
+diff --git a/docs/admin-intelligence-crm/phase-14/IMPLEMENTATION_PLAN.md b/docs/admin-intelligence-crm/phase-14/IMPLEMENTATION_PLAN.md
+new file mode 100644
+index 0000000..a744745
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/IMPLEMENTATION_PLAN.md
+@@ -0,0 +1,19 @@
++# Phase 14 Implementation Plan (pointer)
++
++**Authoritative plan:** [`docs/superpowers/plans/2026-07-30-demo-management-phase-14.md`](../../superpowers/plans/2026-07-30-demo-management-phase-14.md)
++
++**Design:** [`docs/superpowers/specs/2026-07-30-demo-management-phase-14-design.md`](../../superpowers/specs/2026-07-30-demo-management-phase-14-design.md)
++
++| Wave | Deliverable |
++|------|-------------|
++| 0 | This forensic pack (done 2026-07-30) |
++| 1 | Demo Request + Demo + numbering; qualify/convert idempotent; schedule via Meeting; participants; readiness spine; Opportunity/Lead projections |
++| 2 | Agenda / Script / Scenario / Content versioning + SoD; customer-safe vs restricted; en/ny foundations |
++| 3 | Logical Environment + data packs + checklist/rehearsal; provision/reset/expiry idempotency; Production-data rejection |
++| 4 | Delivery/attendance/recording gov/feedback/outcome/questions/follow-ups; Proposal/Trial handoffs; reports/schedules; Phase 15 pack |
++
++**Expected exit:** `READY_FOR_PHASE_15_WITH_BLOCKERS`  
++(Recording provider, real cloud Demo infra, telephony, Google/Outlook sync, WhatsApp/Email ingest, Proposal create, Tenant provision, weighted Pipeline UI may remain deferred)
++
++**Execution:** User chooses Subagent-Driven or Inline after Wave 0 GO. **No application code in Wave 0.**  
++**Skip:** `PHASE_15_READINESS_CHECKLIST.md` until Wave 4.
+diff --git a/docs/admin-intelligence-crm/phase-14/PHASE_14_GAP_REGISTER.md b/docs/admin-intelligence-crm/phase-14/PHASE_14_GAP_REGISTER.md
+new file mode 100644
+index 0000000..3120d5e
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/PHASE_14_GAP_REGISTER.md
+@@ -0,0 +1,37 @@
++# Phase 14 Gap Register
++
++**Audited:** 2026-07-30  
++**Inputs:** Phase 13 `PHASE_14_INPUTS.md`, `FINAL_PHASE_13_REPORT.md`, Wave 0 audits, design/plan
++
++| ID | Gap | Severity | Wave | Notes |
++|----|-----|----------|------|-------|
++| G14-01 | No CrmDemoRequest / DMR numbering | BLOCKER | 1 | Greenfield under `lib/admin/crm/demos/*` |
++| G14-02 | No CrmDemo / DEMO numbering | BLOCKER | 1 | First-class; Meeting Γëá Demo |
++| G14-03 | No qualify/convert Demo Request (idempotent) | BLOCKER | 1 | Lead DEMO_REQUEST is FOUNDATION intake only |
++| G14-04 | No scheduleDemo ΓåÆ Meeting + Calendar reconcile | BLOCKER | 1 | Reuse P13 meetings/calendar |
++| G14-05 | No Demo participants / presenters / readiness spine | BLOCKER | 1 | RSVP Γëá attendance |
++| G14-06 | No Demo hub UI/APIs | HIGH | 1 stubs ΓåÆ later | `/insightbooks/crm/demos`, demo-requests APIs |
++| G14-07 | No Opportunity/Lead Demo projections | MEDIUM | 1 | Thin panels OK |
++| G14-08 | No versioned Agenda / Script / Scenario / Content | BLOCKER | 2 | ACTIVE not directly editable; pin versions |
++| G14-09 | No restricted Script projection controls | HIGH | 2 | Never Customer/invite/default export |
++| G14-10 | No en/ny script foundations | MEDIUM | 2 | Foundations only |
++| G14-11 | No logical Demo Environment / DENV | BLOCKER | 3 | No cloud fabricate; no Production clone |
++| G14-12 | No safe data packs + Production-data detection | BLOCKER | 3 | Reject Production credentials/data |
++| G14-13 | No checklist / rehearsal readiness gates | HIGH | 3 | Critical fail blocks READY_TO_DELIVER |
++| G14-14 | No provision/reset/expiry idempotency + DEMO banner | HIGH | 3 | Expiry required |
++| G14-15 | No delivery session / questions / live issues | HIGH | 4 | Meeting COMPLETED Γëá delivered |
++| G14-16 | No source-backed Demo attendance | HIGH | 4 | Never from RSVP alone |
++| G14-17 | No recording governance | HIGH | 4 | Provider NOT_AVAILABLE; default OFF |
++| G14-18 | No feedback / outcome (Γëá auto Opp mutation) | HIGH | 4 | Handoffs only for Proposal/Trial |
++| G14-19 | No Demo ΓåÆ Follow-Up bridge | MEDIUM | 4 | Use P13 followUps |
++| G14-20 | No Demo reports + schedules | HIGH | 4 | Honesty gates; no false zeroes |
++| G14-21 | MRA EIS sandbox alias risk | PROCESS | All | WRONG_DOMAIN docs + guards |
++| G14-22 | resolveCrmScope stub | CARRY | Harden in-phase | `mode: 'all'` |
++| G14-23 | Telephony / Google-Outlook / ingest | CARRY | Orthogonal | NOT_AVAILABLE / NOT_CONNECTED |
++| G14-24 | Proposal/Tenant create transactions | CARRY | Phase 15+ | Handoff payloads only |
++| G14-25 | Weighted Pipeline UI | DEFERRED | Phase 16 | Unrelated to Demo core |
++| G14-26 | Prisma EPERM on Windows | CARRY | All | SQL + hasCrm*Model guards |
++| G14-27 | Recording media provider / real cloud infra | CARRY | Later | NOT_AVAILABLE this phase |
++| G14-28 | Rich UI hubs beyond thin stubs | MEDIUM | 1ΓÇô4 | Match P13 thin-stub acceptable pattern |
++
++**No TBD blocking Wave 1 after CONDITIONAL GO** ΓÇö Lead DEMO_REQUEST / REQUEST_DEMO capture, Meeting/Calendar schedule substrate, consent/eligibility, Opportunity handoff boundaries, and approved design are sufficient to start Demo Request + Demo spine; content/env/delivery/reports follow Waves 2ΓÇô4.
+diff --git a/docs/admin-intelligence-crm/phase-14/PHASE_14_SCOPE.md b/docs/admin-intelligence-crm/phase-14/PHASE_14_SCOPE.md
+new file mode 100644
+index 0000000..856cb5a
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/PHASE_14_SCOPE.md
+@@ -0,0 +1,61 @@
++# Phase 14 Scope ΓÇö Sales Demo Management
++
++**Locked:** 2026-07-30 (design approved)  
++**Sequencing:** Approach B ΓÇö Wave 0 forensic ΓåÆ Waves 1ΓÇô4 implementation
++
++## In scope
++
++1. **Demo Requests** ΓÇö capture qualification path from Lead `DEMO_REQUEST` / `REQUEST_DEMO`; numbering `DMR-YYYY-######`; qualify/convert idempotent
++2. **CrmDemo** ΓÇö first-class entity `DEMO-YYYY-######`; status/readiness spine; Opportunity/Lead projections
++3. **Scheduling** ΓÇö required CrmMeeting + Calendar Event via Phase 13; conflict/timezone reuse; Demo times reconcile
++4. **Participants / Presenters** ΓÇö RSVP Γëá attendance; recording consent separate
++5. **Agenda / Script / Scenario / Content** ΓÇö versioned; SoD approve; customer-safe vs restricted projections; en/ny foundations
++6. **Logical Demo Environments** ΓÇö DENV numbering; governance + local/logical READY path; data packs; Production-data rejection; expiry/reset idempotent; DEMO banner
++7. **Checklist / Rehearsal** ΓÇö block readiness on Critical fails
++8. **Delivery** ΓÇö session, questions, live issues; source-backed attendance
++9. **Recording governance** ΓÇö request/consent/approve/deny only; provider NOT_AVAILABLE
++10. **Feedback / Outcome / Follow-Up** ΓÇö outcome Γëá auto Opportunity mutation; Follow-Up via Phase 13
++11. **Proposal / Trial handoffs** ΓÇö typed payloads only; Phase 15 owns Proposal create
++12. **Demo reporting centre + schedules** ΓÇö honesty-gated; no false zeroes
++13. **Phase 15 pack** ΓÇö FINAL report + inputs + readiness checklist at Wave 4 exit
++
++## Explicitly out of scope
++
++- Proposal/Quotation/e-sign/contracts create
++- Production Tenant / Subscription / Invoice / Payment provision
++- AI scripts / answers / summaries
++- Live recording provider / fabricated recording files
++- Real cloud/container Demo infra (logical provisioner only)
++- Automatic Opportunity stage / probability / close-date changes
++- Full Trial management
++- Production data cloning
++- Sales quotas / commissions
++- Accounting / billing / MRA fiscal changes
++- System CoA admin (stays removed)
++- Weighted Pipeline UI (Phase 16)
++- Live telephony / Google-Outlook sync / Email-WhatsApp ingest (carry NOT_AVAILABLE / NOT_CONNECTED)
++
++## Carry blockers (document; do not invent CONNECTED)
++
++| Blocker | Status |
++|---------|--------|
++| Telephony / Call recording | NOT_AVAILABLE |
++| Google / Outlook calendar sync | NOT_CONNECTED |
++| Email / WhatsApp Lead ingest | NOT_AVAILABLE |
++| `resolveCrmScope` owner/team/territory | stub `mode: 'all'` |
++| Prisma EPERM on Windows | SQL + `hasCrm*Model` guards |
++| Recording media provider | NOT_AVAILABLE |
++| Real cloud Demo infra | NOT_AVAILABLE (logical only) |
++| Weighted Pipeline UI | Phase 16 |
++| Proposal/Tenant create transactions | handoff only |
++
++## Domain boundary
++
++| Concept | Plane |
++|---------|-------|
++| CrmDemo / CrmDemoRequest | Phase 14 Sales Demo |
++| CrmMeeting / Calendar | Phase 13 Activity (schedule reuse) |
++| Lead `DEMO_REQUEST` / capture `REQUEST_DEMO` | Phase 11 foundation ΓåÆ Demo Request convert |
++| MRA EIS sandbox entitlement | WRONG_DOMAIN ΓÇö never alias as Demo Environment |
++| Tenant POS `sales.*` | WRONG_DOMAIN |
++| CsTask / Support | WRONG_DOMAIN |
+diff --git a/docs/admin-intelligence-crm/phase-14/PHASE_INPUT_VALIDATION.md b/docs/admin-intelligence-crm/phase-14/PHASE_INPUT_VALIDATION.md
+new file mode 100644
+index 0000000..3288a90
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/PHASE_INPUT_VALIDATION.md
+@@ -0,0 +1,62 @@
++# Phase 14 Input Validation
++
++**Validated:** 2026-07-30  
++**Upstream exit:** `READY_FOR_PHASE_14_WITH_BLOCKERS` (Phase 13 `FINAL_PHASE_13_REPORT.md`)
++
++## Sources checked
++
++| Source | Path | Result |
++|--------|------|--------|
++| Phase 14 inputs | `docs/admin-intelligence-crm/phase-13/PHASE_14_INPUTS.md` | PRESENT ΓÇö Activity/Meeting/Follow-Up/eligibility consume contracts listed |
++| Readiness checklist | `docs/admin-intelligence-crm/phase-13/PHASE_14_READINESS_CHECKLIST.md` | PRESENT ΓÇö must-be-true items checked; carry blockers listed; Demo deferred to P14 |
++| Final Phase 13 report | `docs/admin-intelligence-crm/phase-13/FINAL_PHASE_13_REPORT.md` | PRESENT ΓÇö exit `READY_FOR_PHASE_14_WITH_BLOCKERS`; Vitest 43/43 |
++| Design | `docs/superpowers/specs/2026-07-30-demo-management-phase-14-design.md` | APPROVED 2026-07-30 |
++| Plan | `docs/superpowers/plans/2026-07-30-demo-management-phase-14.md` | PRESENT ΓÇö Approach B waves; Task 0 = this pack |
++
++## Phase 13 must-be-true (consumed honestly)
++
++| Gate | Evidence class |
++|------|----------------|
++| Canonical CrmActivity + ACT numbering | CORRECT_AND_REUSABLE ΓÇö `lib/admin/crm/activities/*`, Prisma `CrmActivity` |
++| Task / Follow-Up / Note under Activity | CORRECT_AND_REUSABLE ΓÇö `tasks.js`, `followUps.js`, `notes.js` |
++| Call manual/planned; telephony NOT_AVAILABLE | CORRECT_AND_REUSABLE ΓÇö `lib/admin/crm/calls/*` |
++| Email SMTP; accept Γëá delivered | CORRECT_AND_REUSABLE ΓÇö `lib/admin/crm/emails/*` |
++| Meeting + internal Calendar + ICS; RSVP Γëá attendance | CORRECT_AND_REUSABLE / EXTEND for Demo schedule ΓÇö `meetings/*`, `calendar/*` |
++| Google/Outlook NOT_CONNECTED | CORRECT_AND_REUSABLE boundary |
++| Reminders; delivery Γëá Activity complete | CORRECT_AND_REUSABLE |
++| Templates + automation foundations | CORRECT_AND_REUSABLE pattern for Demo templates later |
++| Activity reports honesty-gated | CORRECT_AND_REUSABLE pattern for Demo reports |
++| Lead/Opportunity Activity projections | CORRECT_AND_REUSABLE |
++| `ACTIVITY_SPINE` READY | CORRECT_AND_REUSABLE ΓÇö `foundations.js` |
++| Demo management deferred | CORRECT_AND_REUSABLE (boundary) ΓÇö explicit P13 out-of-scope |
++
++## Phase 14 reuse plane (pre-Wave-1)
++
++| Asset | Path | Class for Demo |
++|-------|------|----------------|
++| Lead `DEMO_REQUEST` type | `catalogue.js` `CRM_LEAD_TYPE.DEMO_REQUEST` | FOUNDATION ΓÇö convert source |
++| Capture `REQUEST_DEMO` | `capture.js`, `/request-demo`, `/api/request-demo` | FOUNDATION ΓÇö intake only |
++| Contact demo-request wire | `app/api/contact/demo-request/route.js` | FOUNDATION ΓÇö Lead + email; not CrmDemoRequest |
++| CrmMeeting create/reschedule/RSVP/attendance | `lib/admin/crm/meetings/*` | EXTEND ΓÇö required on Demo schedule |
++| CrmCalendarEvent + ICS + conflicts | `lib/admin/crm/calendar/*` | EXTEND ΓÇö reconcile Demo times |
++| Follow-Up / Next-Action | `followUps.js`, `nextAction.js` | EXTEND ΓÇö post-Demo follow-ups |
++| Consent / eligibility | `consent.js`, `eligibility.js` | CORRECT_AND_REUSABLE ΓÇö outbound + recording consent patterns |
++| Proposal readiness handoff | `opportunities/proposalReadiness.js` | CORRECT_AND_REUSABLE ΓÇö handoff-only; never create Proposal |
++| Conversion readiness handoff | `opportunities/conversionReadiness.js` | CORRECT_AND_REUSABLE ΓÇö handoff-only |
++| Opportunity stage/probability/close | `opportunities/*` | CORRECT_AND_REUSABLE boundary ΓÇö Demo outcome must not auto-mutate |
++| Activity report honesty | `activities/reports.js` | CORRECT_AND_REUSABLE pattern |
++| `resolveCrmScope` | `authz.js` | PARTIAL / CARRY ΓÇö stub `mode: 'all'` |
++| MRA EIS sandbox entitlement | `lib/mraEis/*`, `lib/admin/customers/mraEis.js` | WRONG_DOMAIN / FORBIDDEN as Demo Environment |
++| Tenant POS sales | Tenant `sales.*` | WRONG_DOMAIN |
++| CsTask / Support | CS / Support planes | WRONG_DOMAIN |
++| CrmDemo* models / `lib/admin/crm/demos/*` | ΓÇö | NOT_FOUND |
++| Demo hub UI `/insightbooks/crm/demos` | ΓÇö | NOT_FOUND |
++| Demo APIs `/api/admin/crm/demos/**` | ΓÇö | NOT_FOUND |
++
++## Identity / consent blockers?
++
++**None** that block Wave 1 Demo Request + Demo spine. Consent/eligibility services exist and fail-closed on UNKNOWN. Recording provider remains NOT_AVAILABLE (governance-only in later waves). Meeting/Calendar READY for schedule reuse.
++
++## Validation verdict
++
++**PASS** ΓÇö Phase 13 exit is honest; design/plan locked; reuse plane identified (Lead DEMO_REQUEST FOUNDATION; Meeting/Calendar EXTEND; MRA sandbox WRONG_DOMAIN; CrmDemo* NOT_FOUND). Proceed to Wave 0 readiness decision (**CONDITIONAL GO** expected).
+diff --git a/docs/admin-intelligence-crm/phase-14/README.md b/docs/admin-intelligence-crm/phase-14/README.md
+new file mode 100644
+index 0000000..4a4e0a6
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-14/README.md
+@@ -0,0 +1,51 @@
++# Phase 14 ΓÇö Sales Demo Management
++
++**Surface:** `/insightbooks/crm/demos` (+ requests, environments, templates, reports)  
++**Architecture:** Extend `lib/admin/crm/demos/*` ΓÇö first-class Demo domain (Demo Γëá Meeting Γëá Trial Γëá Proposal)  
++**Design:** `docs/superpowers/specs/2026-07-30-demo-management-phase-14-design.md`  
++**Plan:** `docs/superpowers/plans/2026-07-30-demo-management-phase-14.md`  
++**Handoff in:** `docs/admin-intelligence-crm/phase-13/PHASE_14_INPUTS.md`  
++**Phase 13 exit:** `READY_FOR_PHASE_14_WITH_BLOCKERS`
++
++## Wave status
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices + CONDITIONAL GO | Complete (2026-07-30) |
++| 1 | Demo Request + Demo + numbering; qualify/convert; schedule via Meeting; participants; readiness spine | Pending |
++| 2 | Agenda / Script / Scenario / Content versioning + SoD approvals | Pending |
++| 3 | Logical Environment + data packs + checklist/rehearsal; provision/reset/expiry | Pending |
++| 4 | Delivery/attendance/recording gov/feedback/outcome/follow-ups; Proposal/Trial handoffs; reports; Phase 15 pack | Pending |
++
++**Phase exit (expected):** `READY_FOR_PHASE_15_WITH_BLOCKERS`  
++**Skip until Wave 4:** `PHASE_15_READINESS_CHECKLIST.md`
++
++## Hard rules
++
++- Demo Γëá Meeting Γëá Trial Γëá Proposal; Demo Environment Γëá Production Tenant; Demo data Γëá Customer/Production data
++- Demo outcome Γëá win probability Γëá Closed Won Γëá Revenue certainty
++- RSVP Γëá attendance; attendance source-backed; no fabricated attendance/feedback/recordings/environments
++- Recording off by default; UNKNOWN consent Γëá GRANTED; provider NOT_AVAILABLE this phase
++- Scheduling requires CrmMeeting + Calendar Event; times must reconcile
++- Logical environments only ΓÇö no Production DB/payment/MRA EIS endpoint/email sender connections
++- No automatic Opportunity stage / probability / close-date changes
++- No Proposal/Quotation/Contract/Tenant/Subscription/Invoice creation; CoA admin stays removed
++- Metric/report gate fail ΓåÆ never fabricated zero
++- Never alias MRA EIS sandbox entitlements, Support/CS tasks, analytics-pipeline, Tenant POS `sales.*`, Meeting-as-Demo
++
++## Classification legend
++
++| Class | Meaning |
++|-------|---------|
++| READY | Usable as-designed for Phase 14 consumption |
++| PARTIAL | Exists but incomplete / not Demo-shaped |
++| FOUNDATION | Thin foundations present; needs Wave work |
++| NOT_FOUND | Absent in codebase / schema |
++| WRONG_DOMAIN | Exists but belongs to another plane |
++| NOT_AVAILABLE | Explicitly deferred with contract |
++| NOT_CONNECTED | External integration contract present; sync not live |
++| BLOCKED | Cannot proceed until dependency cleared |
++| CORRECT_AND_REUSABLE | Keep as boundary / input; do not redefine |
++| EXTEND | Reuse and extend under Demo domain |
++| FORBIDDEN | Must not be reused as Demo truth |
++| CARRY | Known carry blocker from prior phases |

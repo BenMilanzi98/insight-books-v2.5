@@ -16,12 +16,12 @@ export async function GET(request) {
       );
     }
     
-    // Count all clients
-    const totalClients = await prisma.client.count({
-      where: {
-        tenantId: user.tenantId
-      }
-    });
+    // Count all clients by persisted status
+    const [totalClients, activeCount, inactiveCount] = await Promise.all([
+      prisma.client.count({ where: { tenantId: user.tenantId } }),
+      prisma.client.count({ where: { tenantId: user.tenantId, isActive: true } }),
+      prisma.client.count({ where: { tenantId: user.tenantId, isActive: false } }),
+    ]);
     
     // Get all invoices for the tenant
     const invoices = await prisma.invoice.findMany({
@@ -68,11 +68,13 @@ export async function GET(request) {
       select: {
         id: true,
         name: true,
+        isActive: true,
         invoices: {
           select: {
             id: true,
             status: true,
             total: true,
+            dueDate: true,
             payments: {
               select: {
                 amount: true
@@ -112,33 +114,18 @@ export async function GET(request) {
          !moneyLessOrEqual(invoice.total, invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0)))
       );
       
-      // Has active invoices
-      const hasActiveInvoices = client.invoices.some(invoice => 
-        invoice.status !== 'cancelled' && invoice.status !== 'draft'
-      );
-      
-      // Has active sales
-      const hasActiveSales = client.sales.some(sale => 
-        sale.status !== 'cancelled' && sale.status !== 'void'
-      );
-      
       return {
         id: client.id,
         name: client.name,
+        isActive: client.isActive !== false,
         totalBilled: clientTotalBilled,
         totalPaid: clientTotalPaid,
         outstanding: clientOutstanding,
-        hasActiveInvoices,
-        hasActiveSales,
         hasOverdueInvoices,
         invoiceCount: client.invoices.length,
         salesCount: client.sales.length
       };
     });
-    
-    // Categorize clients as active/inactive based on invoice OR sales activity
-    const activeClients = clientStats.filter(client => client.hasActiveInvoices || client.hasActiveSales);
-    const inactiveClients = clientStats.filter(client => !client.hasActiveInvoices && !client.hasActiveSales);
     
     // Get clients with outstanding balance
     const clientsWithOutstanding = clientStats
@@ -152,8 +139,8 @@ export async function GET(request) {
     
     // Return statistics
     return NextResponse.json({
-      activeCount: activeClients.length,
-      inactiveCount: inactiveClients.length,
+      activeCount,
+      inactiveCount,
       totalClients,
       totalBilled,
       totalOutstanding,
@@ -171,7 +158,12 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching client statistics:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch client statistics. Please try again.' },
+      {
+        error: 'Failed to fetch client statistics. Please try again.',
+        ...(process.env.NODE_ENV === 'development'
+          ? { detail: error?.message || String(error) }
+          : {}),
+      },
       { status: 500 }
     );
   }

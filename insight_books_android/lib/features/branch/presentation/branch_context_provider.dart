@@ -8,6 +8,16 @@ import 'package:insightbooks_android/features/pos/presentation/providers/pos_pro
 import 'package:insightbooks_android/features/invoice/presentation/providers/invoice_provider.dart';
 import 'package:insightbooks_android/features/quotation/presentation/providers/quotation_provider.dart';
 import 'package:insightbooks_android/features/expense/presentation/providers/expense_provider.dart';
+import 'package:insightbooks_android/features/stock/presentation/providers/stock_provider.dart';
+import 'package:insightbooks_android/features/stock/presentation/providers/stock_transfers_provider.dart';
+import 'package:insightbooks_android/features/stock/presentation/providers/expiry_alerts_provider.dart';
+import 'package:insightbooks_android/features/stock/presentation/providers/receiving_provider.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/purchases_hub_provider.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/suppliers_provider.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/orders_provider.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/receipts_provider.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/bills_provider.dart';
+import 'package:insightbooks_android/features/purchases/presentation/providers/payments_provider.dart';
 
 class BranchContextState {
   final List<Map<String, dynamic>> branches;
@@ -114,6 +124,16 @@ class BranchContextNotifier extends Notifier<BranchContextState> {
     ref.invalidate(invoiceStatisticsProvider);
     ref.invalidate(quotationControllerProvider);
     ref.invalidate(expenseControllerProvider);
+    ref.invalidate(stockControllerProvider);
+    ref.invalidate(stockTransfersControllerProvider);
+    ref.invalidate(expiryAlertsControllerProvider);
+    ref.invalidate(receivingControllerProvider);
+    ref.invalidate(purchasesHubProvider);
+    ref.invalidate(suppliersControllerProvider);
+    ref.invalidate(ordersControllerProvider);
+    ref.invalidate(receiptsControllerProvider);
+    ref.invalidate(billsControllerProvider);
+    ref.invalidate(paymentsControllerProvider);
   }
 
   Future<bool> selectBranch(String? branchId) async {

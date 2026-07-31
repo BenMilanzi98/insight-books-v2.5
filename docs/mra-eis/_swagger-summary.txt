@@ -1,0 +1,276 @@
+=== PRODUCTION ===
+openapi/swagger: 3.0.1
+info: {"title":"EISAPI","version":"1.0"}
+servers: {}
+securitySchemes: {}
+globalSecurity: undefined
+pathCount: 28
+METHOD	PATH	TAGS	HEADERS	BODY	RESPONSES	OPERATION_ID	SUMMARY
+POST	/api/v1/configuration/get-latest-configs	Configuration	-	-	200,500	-	Retrieves the device latest configurations and returns them
+POST	/api/v1/configuration/request-new-terminal-token	Configuration	-	-	200,401,500	-	Retrieves new terminal token
+POST	/api/v1/onboarding/activate-terminal	OnBoarding	-	application/json|text/json|application/*+json	200,500	-	Activates a terminal
+POST	/api/v1/onboarding/terminal-activated-confirmation	OnBoarding	x-signature*	application/json|text/json|application/*+json	200,401,500	-	Confirmation that the terminal activation response was fully processed by the terminal and device should be flagged as activated
+GET	/api/v1/raw-material/get-raw-material	StockOperations	-	-	200,401,500	-	Retrieves raw material warehouse inventory for the authenticated taxpayer. Limits: - Default page size: 50 items - Maximum page size: 200 items - Minimum page number: 1
+POST	/api/v1/raw-material/submit-conversion	StockOperations	-	application/json|text/json|application/*+json	200,400,500	-	Adds a new production record
+POST	/api/v1/sales/cancel-receipt	Utilities	-	application/json|text/json|application/*+json	200,400,401,404,500	-	Creates a void request for an existing invoice (receipt).
+POST	/api/v1/sales/get-invoice-by-number	Sales	-	application/json|text/json|application/*+json	200,400,401,404	-	Fetches a submitted invoice by invoice number, including validation URL and levy details.
+POST	/api/v1/sales/get-void-receipts	Utilities	-	application/json|text/json|application/*+json	200,400,401,500	-	Retrieves void (cancelled receipt) requests.
+POST	/api/v1/sales/last-submitted-offline-transaction	Sales	-	-	200,401,500	-	Extracts the last submitted offline Transaction
+POST	/api/v1/sales/last-submitted-online-transaction	Sales	-	-	200,401,500	-	Returns the last submitted online Transaction
+POST	/api/v1/sales/process-credit-debit-note	Sales	-	application/json|text/json|application/*+json	200,400,401,404,500	-	Generates a credit note or debit note from an existing invoice. If the updated VAT or total is higher than the original invoice, a debit note is generated. If the updated VAT or total is lower than the original invoice, a credit note is generated.
+POST	/api/v1/sales/submit-sales-transaction	Sales	-	application/json|text/json|application/*+json	200,400,401,403,500	-	submits Sales Transaction
+POST	/api/v1/stock/get-suppliers	StockOperations	-	-	200,400,401,500	-	Retrieves a list of all suppliers. Requires a valid authorization token.
+POST	/api/v1/stock/getStockAdjustmentReasons	StockOperations	-	-	200,400,401,500	-	Retrieves the list of possible stock adjustment reasons. Requires a valid authorization token.
+POST	/api/v1/stock/submit-adjustment	StockOperations	-	application/json|text/json|application/*+json	200,400,401,500	-	Submits a stock adjustment request (Increase or Decrease) for a given product barcode.
+POST	/api/v1/stock/submit-informal-purchase	StockOperations	-	application/json|text/json|application/*+json	200,202,404	-	This method saves stocks that were purchased from traders not in EIS. This is subject to approval.
+POST	/api/v1/stock/transfer-inventory	StockOperations	-	application/json|text/json|application/*+json	200,400,401,500	-	Transfers inventory in bulk. Only one transfer type per request is allowed. Types: Warehouse->Site, Site->Site.
+GET	/api/v1/stock/warehouse-inventory	StockOperations	-	-	200,401,500	-	Retrieves warehouse inventory for the authenticated taxpayer. Limits: - Default page size: 50 items - Maximum page size: 200 items - Minimum page number: 1
+POST	/api/v1/utilities/check-terminal-unblock-status	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Checks if a terminal has been unblocked
+POST	/api/v1/utilities/check-tin-authorization-requirement	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Checks whether a TIN requires a purchase authorization code.
+POST	/api/v1/utilities/get-terminal-blocking-message	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Retrieves the blocking message for a terminal, if it is currently blocked
+POST	/api/v1/utilities/get-terminal-site-products	Utilities	-	application/json|text/json|application/*+json	200,400,404	-	Retrieves the latest products for a terminal site
+POST	/api/v1/utilities/ping	Utilities	-	-	200,400,503	-	Checks if a client is able to communicate with the server
+POST	/api/v1/utilities/product-status	Utilities	-	application/json|text/json|application/*+json	200,400,404	-	Checks the status of a product as to where it ti mapped to UNSPSC at MRA side
+POST	/api/v1/utilities/taxpayer-initial-inventory-upload	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Handles the initial inventory upload for a taxpayer, supporting phased uploads (up to 50 products per batch) and a last batch indicator. If not the last batch, stores items in staging table. If last batch, processes all items from staging table.
+POST	/api/v1/utilities/validate-authorization-code	Utilities	-	application/json|text/json|application/*+json	200,400,503	-	This checks the authenticity and validity of an authorization code
+POST	/api/v1/utilities/validate-vat5-certificate	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Validates the authenticity and validity of a VAT 5 Certificate.
+schemaCount: 94
+APIError
+ActivatedLevyDto
+ActivatedTaxrateDto
+ActivatedTerminal
+ActivatedTerminalConfirmation
+AdjustmentReasonDto
+AdjustmentReasonDtoListAPIResponse
+AdjustmentServiceLineItemDto
+BooleanAPIResponse
+Configuration
+ConfigurationAPIResponse
+FinishedProduction
+GetVoidReceiptResponseDto
+GetVoidReceiptResponseDtoPaginatedResponseDto
+GetVoidReceiptResponseDtoPaginatedResponseDtoAPIResponse
+GoodsReceivingItemModel
+GoodsReceivingModel
+InitialInventoryResponse
+InitialInventoryResponseAPIResponse
+InventoryItem
+InventoryRequest
+InventoryTransferItem
+InventoryTransferRequest
+InvoiceAdjustmentRequest
+InvoiceAdjustmentResponse
+InvoiceAdjustmentResponseAPIResponse
+InvoiceHeader
+InvoiceLookupRequest
+InvoiceLookupResponse
+InvoiceLookupResponseAPIResponse
+InvoiceResponse
+InvoiceResponseAPIResponse
+InvoiceSummary
+LastSubmittedInvoice
+LastSubmittedInvoiceAPIResponse
+LevyBreakDown
+LineItemDto
+ObjectAPIResponse
+OfflineLimit
+POS
+Platform
+PongResponse
+PongResponseAPIResponse
+ProblemDetails
+ProductIdentifier
+ProductState
+ProductStateAPIResponse
+ProductsInventoryResponse
+ProductsInventoryResponseListAPIResponse
+QuantityInStock
+RawMaterial
+RawmaterialConversion
+SalesInvoice
+StockAdjustmentRequestDto
+SupplierDto
+SupplierDtoListAPIResponse
+TaxBreakDown
+TaxConfiguration
+TaxOfficeDto
+TaxRateDto
+TaxpayerConfiguration
+TaxpayerInitialInventoryUploadRequest
+TaxpayerRawMaterialDto
+TaxpayerRawMaterialDtoGenericInventoryDtoResponse
+TaxpayerRawMaterialDtoGenericInventoryDtoResponseAPIResponse
+TerminalActivationResponse
+TerminalActivationResponseAPIResponse
+TerminalBlockRequest
+TerminalBlockResponse
+TerminalBlockResponseAPIResponse
+TerminalConfiguration
+TerminalCredentials
+TerminalRuntimeEnvironment
+TerminalSiteDto
+TerminalUnblockStatusResponse
+TerminalUnblockStatusResponseAPIResponse
+TinAuthorizationRequirementRequest
+TinAuthorizationRequirementResponse
+TinAuthorizationRequirementResponseAPIResponse
+UnActivatedTerminal
+UnValidatedAuthorizationCode
+ValidatedAuthorizationCode
+ValidatedAuthorizationCodeAPIResponse
+Vat5CertificateDto
+Vat5CertificateValidationRequest
+Vat5CertificateValidationResponse
+Vat5CertificateValidationResponseAPIResponse
+VoidReceiptCreateDto
+VoidReceiptFilterDto
+VoidReceiptResponseDto
+VoidReceiptResponseDtoAPIResponse
+WarehouseInventoryItemDto
+WarehouseInventoryItemDtoGenericInventoryDtoResponse
+WarehouseInventoryItemDtoGenericInventoryDtoResponseAPIResponse
+
+=== SANDBOX ===
+openapi/swagger: 3.0.1
+info: {"title":"EISAPI","version":"1.0"}
+servers: {}
+securitySchemes: {}
+globalSecurity: undefined
+pathCount: 31
+METHOD	PATH	TAGS	HEADERS	BODY	RESPONSES	OPERATION_ID	SUMMARY
+POST	/api/v1/configuration/get-latest-configs	Configuration	-	-	200,500	-	Retrieves the device latest configurations and returns them
+POST	/api/v1/configuration/request-new-terminal-token	Configuration	-	-	200,401,500	-	Retrieves new terminal token
+POST	/api/v1/onboarding/activate-terminal	OnBoarding	-	application/json|text/json|application/*+json	200,500	-	Activates a terminal
+POST	/api/v1/onboarding/terminal-activated-confirmation	OnBoarding	x-signature*	application/json|text/json|application/*+json	200,401,500	-	Confirmation that the terminal activation response was fully processed by the terminal and device should be flagged as activated
+GET	/api/v1/raw-material/get-raw-material	StockOperations	-	-	200,401,500	-	Retrieves raw material warehouse inventory for the authenticated taxpayer. Limits: - Default page size: 50 items - Maximum page size: 200 items - Minimum page number: 1
+POST	/api/v1/raw-material/submit-conversion	StockOperations	-	application/json|text/json|application/*+json	200,400,500	-	Adds a new production record
+POST	/api/v1/sales/cancel-receipt	Utilities	-	application/json|text/json|application/*+json	200,400,401,404,500	-	Creates a void request for an existing invoice (receipt).
+POST	/api/v1/sales/get-invoice-by-number	Sales	-	application/json|text/json|application/*+json	200,400,401,404	-	Fetches a submitted invoice by invoice number, including validation URL and levy details.
+POST	/api/v1/sales/get-void-receipts	Utilities	-	application/json|text/json|application/*+json	200,400,401,500	-	Retrieves void (cancelled receipt) requests.
+POST	/api/v1/sales/last-submitted-offline-transaction	Sales	-	-	200,401,500	-	Extracts the last submitted offline Transaction
+POST	/api/v1/sales/last-submitted-online-transaction	Sales	-	-	200,401,500	-	Returns the last submitted online Transaction
+POST	/api/v1/sales/process-credit-debit-note	Sales	-	application/json|text/json|application/*+json	200,400,401,404,500	-	Generates a credit note or debit note from an existing invoice. If the updated VAT or total is higher than the original invoice, a debit note is generated. If the updated VAT or total is lower than the original invoice, a credit note is generated.
+POST	/api/v1/sales/submit-sales-transaction	Sales	-	application/json|text/json|application/*+json	200,400,401,403,500	-	submits Sales Transaction
+POST	/api/v1/stock/add-product	StockOperations	-	application/json|text/json|application/*+json	200,400,401,500	-	Adds a new product to master products and creates zero-quantity warehouse inventory for the taxpayer.
+GET	/api/v1/stock/get-hs-codes	StockOperations	-	-	200,401,500	-	Retrieves a list of HS codes for use when adding products.
+POST	/api/v1/stock/get-suppliers	StockOperations	-	-	200,400,401,500	-	Retrieves a list of all suppliers. Requires a valid authorization token.
+GET	/api/v1/stock/get-units-of-measure	StockOperations	-	-	200,401,500	-	Retrieves active units of measure for use when adding products.
+POST	/api/v1/stock/getStockAdjustmentReasons	StockOperations	-	-	200,400,401,500	-	Retrieves the list of possible stock adjustment reasons. Requires a valid authorization token.
+POST	/api/v1/stock/submit-adjustment	StockOperations	-	application/json|text/json|application/*+json	200,400,401,500	-	Submits a stock adjustment request (Increase or Decrease) for a given product barcode.
+POST	/api/v1/stock/submit-informal-purchase	StockOperations	-	application/json|text/json|application/*+json	200,202,404	-	This method saves stocks that were purchased from traders not in EIS. This is subject to approval.
+POST	/api/v1/stock/transfer-inventory	StockOperations	-	application/json|text/json|application/*+json	200,400,401,500	-	Transfers inventory in bulk. Only one transfer type per request is allowed. Types: Warehouse->Site, Site->Site.
+GET	/api/v1/stock/warehouse-inventory	StockOperations	-	-	200,401,500	-	Retrieves warehouse inventory for the authenticated taxpayer. Limits: - Default page size: 50 items - Maximum page size: 200 items - Minimum page number: 1
+POST	/api/v1/utilities/check-terminal-unblock-status	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Checks if a terminal has been unblocked
+POST	/api/v1/utilities/check-tin-authorization-requirement	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Checks whether a TIN requires a purchase authorization code.
+POST	/api/v1/utilities/get-terminal-blocking-message	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Retrieves the blocking message for a terminal, if it is currently blocked
+POST	/api/v1/utilities/get-terminal-site-products	Utilities	-	application/json|text/json|application/*+json	200,400,404	-	Retrieves the latest products for a terminal site
+POST	/api/v1/utilities/ping	Utilities	-	-	200,400,503	-	Checks if a client is able to communicate with the server
+POST	/api/v1/utilities/product-status	Utilities	-	application/json|text/json|application/*+json	200,400,404	-	Checks the status of a product as to where it ti mapped to UNSPSC at MRA side
+POST	/api/v1/utilities/taxpayer-initial-inventory-upload	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Handles the initial inventory upload for a taxpayer, supporting phased uploads (up to 50 products per batch) and a last batch indicator. If not the last batch, stores items in staging table. If last batch, processes all items from staging table.
+POST	/api/v1/utilities/validate-authorization-code	Utilities	-	application/json|text/json|application/*+json	200,400,503	-	This checks the authenticity and validity of an authorization code
+POST	/api/v1/utilities/validate-vat5-certificate	Utilities	-	application/json|text/json|application/*+json	200,400,500	-	Validates the authenticity and validity of a VAT 5 Certificate.
+schemaCount: 101
+APIError
+ActivatedLevyDto
+ActivatedTaxrateDto
+ActivatedTerminal
+ActivatedTerminalConfirmation
+AddProductApiRequest
+AddProductApiResponseDto
+AddProductApiResponseDtoAPIResponse
+AdjustmentReasonDto
+AdjustmentReasonDtoListAPIResponse
+AdjustmentServiceLineItemDto
+BooleanAPIResponse
+Configuration
+ConfigurationAPIResponse
+FinishedProduction
+GetVoidReceiptResponseDto
+GetVoidReceiptResponseDtoPaginatedResponseDto
+GetVoidReceiptResponseDtoPaginatedResponseDtoAPIResponse
+GoodsReceivingItemModel
+GoodsReceivingModel
+HsCodeLookupDto
+HsCodeLookupDtoListAPIResponse
+InitialInventoryResponse
+InitialInventoryResponseAPIResponse
+InventoryItem
+InventoryRequest
+InventoryTransferItem
+InventoryTransferRequest
+InvoiceAdjustmentRequest
+InvoiceAdjustmentResponse
+InvoiceAdjustmentResponseAPIResponse
+InvoiceHeader
+InvoiceLookupRequest
+InvoiceLookupResponse
+InvoiceLookupResponseAPIResponse
+InvoiceResponse
+InvoiceResponseAPIResponse
+InvoiceSummary
+LastSubmittedInvoice
+LastSubmittedInvoiceAPIResponse
+LevyBreakDown
+LineItemDto
+ObjectAPIResponse
+OfflineLimit
+POS
+Platform
+PongResponse
+PongResponseAPIResponse
+ProblemDetails
+ProductIdentifier
+ProductState
+ProductStateAPIResponse
+ProductsInventoryResponse
+ProductsInventoryResponseListAPIResponse
+QuantityInStock
+RawMaterial
+RawmaterialConversion
+SalesInvoice
+StockAdjustmentRequestDto
+SupplierDto
+SupplierDtoListAPIResponse
+TaxBreakDown
+TaxConfiguration
+TaxOfficeDto
+TaxRateDto
+TaxpayerConfiguration
+TaxpayerInitialInventoryUploadRequest
+TaxpayerRawMaterialDto
+TaxpayerRawMaterialDtoGenericInventoryDtoResponse
+TaxpayerRawMaterialDtoGenericInventoryDtoResponseAPIResponse
+TerminalActivationResponse
+TerminalActivationResponseAPIResponse
+TerminalBlockRequest
+TerminalBlockResponse
+TerminalBlockResponseAPIResponse
+TerminalConfiguration
+TerminalCredentials
+TerminalRuntimeEnvironment
+TerminalSiteDto
+TerminalUnblockStatusResponse
+TerminalUnblockStatusResponseAPIResponse
+TinAuthorizationRequirementRequest
+TinAuthorizationRequirementResponse
+TinAuthorizationRequirementResponseAPIResponse
+UnActivatedTerminal
+UnValidatedAuthorizationCode
+UnitOfMeasureDto
+UnitOfMeasureDtoListAPIResponse
+ValidatedAuthorizationCode
+ValidatedAuthorizationCodeAPIResponse
+Vat5CertificateDto
+Vat5CertificateValidationRequest
+Vat5CertificateValidationResponse
+Vat5CertificateValidationResponseAPIResponse
+VoidReceiptCreateDto
+VoidReceiptFilterDto
+VoidReceiptResponseDto
+VoidReceiptResponseDtoAPIResponse
+WarehouseInventoryItemDto
+WarehouseInventoryItemDtoGenericInventoryDtoResponse
+WarehouseInventoryItemDtoGenericInventoryDtoResponseAPIResponse
+
+ONLY_IN_SANDBOX: /api/v1/stock/add-product, /api/v1/stock/get-hs-codes, /api/v1/stock/get-units-of-measure
+ONLY_IN_PROD: 

@@ -1,0 +1,225 @@
+InsightBooks V2
+Equity Management Module
+Developer & Product Specification
+1. Purpose
+The Equity Management Module is responsible for recording, tracking, and reporting all transactions that affect the owners’ interest in the business.
+The module should provide a simple interface for business owners while maintaining accurate accounting records that comply with professional accounting standards.
+It should support:
+Sole Proprietorships
+Partnerships
+Limited Companies
+Startups with Investors
+NGOs (where applicable, using accumulated funds instead of owner equity)
+The module must integrate seamlessly with the General Ledger, Balance Sheet, Financial Statements, and Reporting Engine.
+2. Design Philosophy
+Users should never think in terms of journal entries.
+Instead, they should answer simple business questions such as:
+Who invested in the business?
+How much was invested?
+Has the owner withdrawn money?
+Were dividends declared?
+How much profit has been retained?
+InsightBooks will automatically generate all accounting entries.
+3. Equity Dashboard
+The dashboard should provide a complete overview of the company’s equity.
+Display KPI cards for:
+Total Equity
+Share Capital
+Capital Contributions
+Retained Earnings
+Current Year Profit
+Owner Drawings
+Dividends Declared
+Net Worth
+Include trend charts showing:
+Equity Growth
+Capital Invested
+Retained Earnings Growth
+Owner Withdrawals
+Net Worth Over Time
+4. Equity Structure
+The system should maintain the following equity accounts.
+Share Capital
+Used by companies with issued shares.
+Tracks:
+Authorized Capital (optional)
+Issued Capital
+Paid-Up Capital
+Capital Contributions
+Records money or assets invested by owners beyond issued share capital.
+Supported contribution types:
+Cash
+Bank Transfer
+Mobile Money
+Vehicle
+Equipment
+Furniture
+Inventory
+Land
+Building
+Other Assets
+The system should automatically update the relevant asset account and the contributor’s capital account.
+Additional Paid-In Capital (Share Premium)
+Used when shares are issued above their nominal value.
+This account is optional and should be available when companies manage equity financing.
+Retained Earnings
+Stores accumulated profits from previous financial years after year-end closing.
+The balance updates automatically during the year-end close.
+Current Year Profit
+Displays the current year’s profit or loss.
+The balance is maintained automatically and transferred to Retained Earnings during the year-end closing process.
+Owner Drawings
+Tracks money or assets withdrawn by owners for personal use.
+Examples:
+Cash withdrawals
+Asset withdrawals
+Personal expense payments by the business
+The system automatically reduces equity.
+Dividends
+Applicable to companies.
+Track:
+Dividends Declared
+Dividends Paid
+Outstanding Dividends Payable
+The system should distinguish between declaring a dividend (creating a liability) and paying it (settling that liability).
+5. Owners & Shareholders
+Maintain a register of owners.
+For each owner store:
+Full Name
+Ownership Type
+Ownership Percentage
+Date Joined
+Status
+Contact Details
+Where applicable, ownership percentages should total 100%. Capital contributions should not automatically change ownership percentages; ownership changes should follow a separate approval process.
+6. Equity Transactions
+Users should be able to record the following transaction types.
+Capital Contribution
+Questions:
+Who contributed?
+What was contributed?
+How much?
+Date?
+Description?
+System updates:
+Asset account
+Equity account
+General Ledger
+Audit Trail
+Owner Withdrawal
+Questions:
+Who withdrew funds?
+Amount?
+Reason?
+Date?
+System updates:
+Cash or Asset account
+Owner Drawings
+Equity
+General Ledger
+Dividend Declaration
+Questions:
+Dividend Amount?
+Declaration Date?
+Payment Date?
+Affected Shareholders?
+System updates:
+Retained Earnings
+Dividends Payable
+Dividend Payment
+System updates:
+Bank
+Dividends Payable
+Share Capital Issue
+Questions:
+Number of Shares
+Issue Price
+Nominal Value
+Subscribers
+System updates:
+Share Capital
+Share Premium (if applicable)
+Cash or Receivables
+7. Reports
+Generate the following reports.
+Equity Statement
+Opening Equity
+Capital Contributions
+Current Year Profit
+Owner Drawings
+Dividends
+=
+Closing Equity
+Capital Contributions Report
+Lists all owner investments during the selected period.
+Owner Statement
+Shows activity for an individual owner.
+Includes:
+Contributions
+Withdrawals
+Dividends
+Closing Balance
+Share Capital Report
+Displays issued shares, ownership percentages, and capital balances.
+Statement of Changes in Equity
+Generate a professional Statement of Changes in Equity suitable for annual financial statements, showing movements in each equity account over the reporting period.
+8. Integration
+The module must integrate with:
+General Ledger
+Balance Sheet
+Financial Statements
+Cashbook
+Fixed Assets
+Inventory
+Banking
+Financial Planning
+Reporting Engine
+Audit Trail
+Updates should occur automatically.
+9. Security
+Permissions:
+Business Owner
+View Equity Dashboard
+Finance Manager
+Approve equity transactions
+Accountant
+Record equity transactions
+Generate reports
+Administrator
+Configure equity accounts
+Manage ownership structure
+All actions must be recorded in the audit trail.
+10. User Experience
+The module should present business actions rather than accounting concepts.
+Example workflow:
+Record Owner Investment
+Step 1
+Select Contributor
+Step 2
+Select Contribution Type
+Step 3
+Enter Amount or Asset Value
+Step 4
+Enter Date
+Step 5
+Optional Notes
+Step 6
+Save
+The accounting engine automatically:
+Updates asset balances.
+Updates equity balances.
+Posts journal entries.
+Updates financial statements.
+Updates the owner’s account.
+Records the audit trail.
+11. Design Principles
+The Equity Management Module must:
+Keep business workflows simple.
+Hide accounting complexity.
+Maintain complete accounting accuracy.
+Support businesses as they grow.
+Produce lender-ready and audit-ready financial reports.
+Comply with accepted accounting principles.
+Expected Outcome
+The Equity Management Module should provide a complete, accurate, and scalable framework for managing owner investments, share capital, retained earnings, dividends, and withdrawals.
+It should enable InsightBooks to support businesses from startup through growth and investment while ensuring that every equity transaction is reflected correctly in the Balance Sheet, Statement of Changes in Equity, General Ledger, and other financial reports.

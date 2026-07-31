@@ -151,7 +151,7 @@ async function salaryAffectedCounts(tenantId, accountIds) {
     }),
     prisma.expense.count({ where: { tenantId, expenseAccountId: { in: accountIds } } }),
     prisma.recurringExpense.count({ where: { tenantId, expenseAccountId: { in: accountIds } } }),
-    prisma.budgetItem.count({ where: { accountId: { in: accountIds }, budget: { tenantId } } }),
+    prisma.legacyBudgetItem.count({ where: { accountId: { in: accountIds }, budget: { tenantId } } }), // relation field: budget on LegacyBudgetItem
     prisma.bfExpenseBudgetLine.count({
       where: { accountId: { in: accountIds }, header: { tenantId } },
     }),

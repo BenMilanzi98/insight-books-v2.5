@@ -107,8 +107,7 @@ export async function GET(request) {
       journalEntry: {
         ...tw,
         status: { in: ['Posted', 'posted'] },
-        /** Exclude mirrored system journals — those lines live on TransactionLine already. */
-        transactionId: null,
+        architectureVersion: 'ACCOUNTING_V2',
         ...(Object.keys(dateRange).length > 0 ? { entryDate: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
         ...(reference ? {
@@ -158,6 +157,8 @@ export async function GET(request) {
       } : {}),
     };
 
+    // Fresh-books: JournalEntry ACCOUNTING_V2 only — Transaction archive unused.
+    void transactionWhere;
     const [journalLines, transactionLines] = await Promise.all([
       prisma.journalEntryLine.findMany({
         where: journalWhere,
@@ -177,42 +178,7 @@ export async function GET(request) {
           journalEntry: { select: { id: true, entryDate: true, referenceNumber: true, description: true, branchId: true, sourceType: true, sourceId: true, tenantId: true } },
         },
       }),
-      prisma.transactionLine.findMany({
-        where: transactionWhere,
-        include: {
-          account: {
-            select: {
-              id: true,
-              accountCode: true,
-              accountName: true,
-              code: true,
-              name: true,
-              accountType: true,
-              type: true,
-              normalBalance: true,
-            },
-          },
-          transaction: {
-            select: {
-              id: true,
-              date: true,
-              reference: true,
-              description: true,
-              branchId: true,
-              sourceType: true,
-              sourceId: true,
-              tenantId: true,
-              isReversal: true,
-              entryType: true,
-              reversedTransactionId: true,
-              reversalReason: true,
-              reversedAt: true,
-              reversedById: true,
-              notes: true,
-            },
-          },
-        },
-      }),
+      Promise.resolve([]),
     ]);
     
     let openingBalance = null;
@@ -221,7 +187,7 @@ export async function GET(request) {
       const openingDate = new Date(startDate);
       openingDate.setHours(0, 0, 0, 0);
       const survivorId = mergeRollupCtx.survivorOf(accountId);
-      const [openingJournal, openingTransaction, acc] = await Promise.all([
+      const [openingJournal, acc] = await Promise.all([
         prisma.journalEntryLine.aggregate({
           where: {
             ...journalWhere,
@@ -233,22 +199,12 @@ export async function GET(request) {
           },
           _sum: { debitAmount: true, creditAmount: true },
         }),
-        prisma.transactionLine.aggregate({
-          where: {
-            ...transactionWhere,
-            ...(ledgerAccountIds ? { accountId: { in: ledgerAccountIds } } : {}),
-            transaction: {
-              ...transactionWhere.transaction,
-              date: { lt: openingDate },
-            },
-          },
-          _sum: { debitAmount: true, creditAmount: true },
-        }),
         prisma.account.findUnique({
           where: { id: survivorId },
           select: { accountType: true, normalBalance: true, type: true },
         }),
       ]);
+      const openingTransaction = { _sum: { debitAmount: 0, creditAmount: 0 } };
       const deb = (openingJournal._sum.debitAmount || 0) + (openingTransaction._sum.debitAmount || 0);
       const cre = (openingJournal._sum.creditAmount || 0) + (openingTransaction._sum.creditAmount || 0);
       const normal = getNormalBalance(acc?.accountType || acc?.type, acc?.normalBalance);

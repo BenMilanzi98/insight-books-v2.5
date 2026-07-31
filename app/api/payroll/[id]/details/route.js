@@ -17,26 +17,25 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Fetch payroll data with employee details and tenant information
-    const payroll = await prisma.payroll.findUnique({
-      where: { id: payrollId },
-      include: { 
+    const payroll = await prisma.payroll.findFirst({
+      where: { id: payrollId, tenantId: user.tenantId },
+      include: {
         employee: {
           include: {
             tenant: {
               include: {
-                settings: true
-              }
-            }
-          }
-        }
+                settings: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!payroll || !payroll.employee) {
       return NextResponse.json(
         { error: 'Payroll or employee not found' },
-        { status: 500 }
+        { status: 404 }
       );
     }
 

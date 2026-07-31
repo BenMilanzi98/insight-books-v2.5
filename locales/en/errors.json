@@ -1,0 +1,8 @@
+{
+  "unauthorized": "Unauthorized",
+  "permissionDenied": "Permission denied",
+  "notFound": "Not found",
+  "serverError": "Internal server error",
+  "networkError": "Network error",
+  "invalidLocale": "Unsupported language"
+}

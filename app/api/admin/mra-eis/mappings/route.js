@@ -1,7 +1,8 @@
-import { getUserFromSession } from '@/lib/auth';
+import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma.js';
 import { eisErrorResponse, eisJson, readRequestId } from '@/lib/mraEis/http.js';
 import { EisErrors } from '@/lib/mraEis/domain/errors.js';
+import { adminHasEisPermission, SYSTEM_EIS_PERMISSIONS } from '@/lib/mraEis/domain/permissions.js';
 import { MAPPING_STATUS } from '@/lib/mraEis/domain/operationalEnums.js';
 
 /**
@@ -9,13 +10,13 @@ import { MAPPING_STATUS } from '@/lib/mraEis/domain/operationalEnums.js';
  */
 export async function GET(request) {
   try {
-    const session = { user: await getUserFromSession() };
-    if (!session?.user) throw EisErrors.permissionDenied({ httpStatus: 401, message: 'Unauthorized' });
-    // Platform admin gate — mirror other admin EIS routes
-    if (!session.user.isSystemAdmin && session.user.role !== 'SYSTEM_ADMIN' && !session.user.platformAdmin) {
-      // Allow if tenant admin inspecting own via filter; otherwise require system role
-      const isAdmin = Boolean(session.user.isAdmin || session.user.role === 'ADMIN');
-      if (!isAdmin) throw EisErrors.permissionDenied({ message: 'System mapping view denied.' });
+    const admin = await getAdminFromRequest(request);
+    if (!admin) throw EisErrors.permissionDenied({ httpStatus: 401, message: 'Unauthorized' });
+    if (
+      !adminHasEisPermission(admin, SYSTEM_EIS_PERMISSIONS.MAPPINGS_VIEW) &&
+      !adminHasEisPermission(admin, SYSTEM_EIS_PERMISSIONS.VIEW)
+    ) {
+      throw EisErrors.permissionDenied({ message: 'System mapping view denied.' });
     }
 
     const { searchParams } = new URL(request.url);
@@ -35,7 +36,6 @@ export async function GET(request) {
               ? 'mraEisProductMapping'
               : 'mraEisSiteMapping';
 
-    const supportsEnvironment = !['PRODUCT', 'SERVICE', 'LEVY'].includes(kind) || kind === 'LEVY';
     const where = {
       ...(tenantId ? { tenantId } : {}),
       ...(environment && kind !== 'PRODUCT' && kind !== 'SERVICE' ? { environment } : {}),
@@ -43,7 +43,10 @@ export async function GET(request) {
       ...(kind === 'PRODUCT' ? { localItemId: { not: null } } : {}),
       ...(kind === 'SERVICE' ? { localServiceId: { not: null } } : {}),
     };
-    void supportsEnvironment;
+
+    if (typeof prisma[model]?.findMany !== 'function') {
+      throw new Error(`Mapping model unavailable: ${model}`);
+    }
 
     const rows = await prisma[model].findMany({
       where,

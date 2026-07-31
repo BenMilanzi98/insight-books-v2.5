@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<base target="_blank" />
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<link href="css/printed.css" media="all" rel="StyleSheet" type="text/css" />
+		<link href="de_style.css" media="all" rel="StyleSheet" type="text/css" />
+		<meta name="generator" content="www.DrExplain.com" />
+				<title>2. Developer Pre-Integration Guide</title>
+	</head>
+	<body>
+		<table class="pagetable">
+			<tr class="page" style="border-color: #ffffff;">
+				<td class="page_area" style="border-color: #ffffff; width: 100%;"><div class="description_on_page"><div class="p" style="text-align: center; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="ic"><h1><strong>2. Developer Pre-Integration Guide</strong></h1></div></div>
+<div class="p" style="text-align: center; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: center; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">Before integrating with the MRA Electronic Invoicing System (EIS) API, developers must complete the registration process on the</span><a href="https://dev-eis-portal.mra.mw/"><span class="de_FE04B87F3C"> <strong>MRA Taxpayers Portal</strong></span></a><span class="de_4AF4BF9DD6"> which is the sandbox environment and ensure that inventory have been uploaded and approved.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">This guide outlines the mandatory setup steps that must be completed prior to starting API integration.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Step 1: Register on the Taxpayers Portal</strong></span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">Developers must first complete registration on the MRA Taxpayers Portal (</span><a href="https://dev-eis-portal.mra.mw/"><span class="de_EC6B3242AC">https://dev-eis-portal.mra.mw/</span></a><span class="de_4AF4BF9DD6">):</span></div>
+<ul class="de_list"><li class="list-element list-counter-0" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-0;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Complete business registration and verification.</span></div>
+</li><li class="list-element list-counter-0" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Provide all required taxpayer details.</span></div>
+</li><li class="list-element list-counter-0" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Select the business type: Product-based or Service-based.</span></div>
+</li><li class="list-element list-counter-0" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Ensure that TIN, phone number, and emai<strong>l</strong> match those registered in Msonkho Online.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Step 2: Business Scenarios</strong></span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_45105D3361">Scenario A: Product-Based Businesses</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">(For businesses selling physical goods)</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<ul class="de_list"><li class="list-element list-counter-1" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-1;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">The system automatically generates a <strong>Virtual Warehouse</strong> during onboarding. This central warehouse represents the taxpayerâs initial stock holding point.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">2. &#160; &#160; Upload Initial Stock</span></div>
+<ul class="de_list"><li class="list-element list-counter-2" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-2;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Navigate to </span><span class="de_E0D79DE1AC">Inventory Management &gt; Initial Upload</span><span class="de_4AF4BF9DD6">.</span></div>
+</li><li class="list-element list-counter-2" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Upload opening stock using the provided template.</span></div>
+</li><li class="list-element list-counter-2" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Submit for approval by MRA officers.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Note:</strong> Stock will appear in the Virtual Warehouse only after approval.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">3. &#160; &#160; Create Branches</span></div>
+<ul class="de_list"><li class="list-element list-counter-3" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-3;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Define physical or trading locations under </span><span class="de_E0D79DE1AC">Branches</span><span class="de_4AF4BF9DD6">.</span></div>
+</li><li class="list-element list-counter-3" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Each branch can later be assigned stock and terminals.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">4. &#160; &#160; Transfer Stock to Branches</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">&#160; &#160; o &#160; &#160; After approval, transfer stock from the Virtual Warehouse to the appropriate branches via </span><span class="de_E0D79DE1AC">Inventory Management &gt; Stock Transfer</span><span class="de_4AF4BF9DD6">.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_45105D3361">Scenario B: Service-Based Businesses</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">(For businesses offering services only, with no physical inventory)</span></div>
+<ul class="de_list"><li class="list-element list-counter-4" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-4;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">No need to create a warehouse or upload stock.</span></div>
+</li><li class="list-element list-counter-4" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Instead, register services directly on the Taxpayers Portal under Inventory Management &gt; Services.</span></div>
+</li><li class="list-element list-counter-4" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Approved services will be available in the system and accessible via terminal endpoints.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Step 3: Register Products/Services in the POS or Accounting Software</strong></span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">Whether the business deals in <strong>products or services</strong>, the registered items must be available in the POS or accounting system to generate invoices via the EIS API.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">The following endpoint supports this synchronization:</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">GET /api/v1/utilities/get-terminal-site-products</span></div>
+<ul class="de_list"><li class="list-element list-counter-5" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-5;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">&#160;Downloads all approved and registered products/services from MRA servers.</span></div>
+</li><li class="list-element list-counter-5" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">&#160;Ensures that only approved items are listed for sale.</span></div>
+</li><li class="list-element list-counter-5" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">&#160;Includes metadata such as product/service code, description, pricing, and tax type.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Step 4: Terminal Management</strong></span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">Once branches are set up and inventory/services are in place:</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">1. &#160; &#160; Navigate to Terminal Management.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">2. &#160; &#160; Apply for a terminal for each branch or trading location.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">3. &#160; &#160; Upon approval:</span></div>
+<ul class="de_list"><li class="list-element list-counter-6" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-6;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">&#160; A </span><a class="local_link" href="terminal_activation_code__tac_.htm"><span class="de_FE04B87F3C"><strong>Terminal Activation Code</strong> </span></a><span class="de_4AF4BF9DD6">is automatically generated by the system.</span></div>
+</li><li class="list-element list-counter-6" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">&#160; The code is also delivered to the taxpayer via email or SMS.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Step 5: Activating the POS or Accounting Software</strong></span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">Use the Terminal Activation Code to:</span></div>
+<ul class="de_list"><li class="list-element list-counter-7" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-7;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Activate the POS or accounting package.</span></div>
+</li><li class="list-element list-counter-7" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Establish a secure connection with the EIS API.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">Once activated, the system can:</span></div>
+<ul class="de_list"><li class="list-element list-counter-8" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-8;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Send electronic invoices in real time.</span></div>
+</li><li class="list-element list-counter-8" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">Synchronize inventory or services</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6"><strong>Centralized Inventory Management â Important Note</strong></span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">All inventory (products and services) is centrally managed by MRA:</span></div>
+<ul class="de_list"><li class="list-element list-counter-9" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; counter-reset: list-counter-9;">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">All product/service registration, stock control, and approvals are handled via MRA systems.</span></div>
+</li><li class="list-element list-counter-9" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; direction: ltr; ">
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="list-marker" style="color:#000000;font-size:11pt;font-family:&quot;Arial&quot;; display: inline-block; direction: ltr;"></div><span class="de_4AF4BF9DD6">The POS or accounting system must synchronize with MRA using the provided API endpoints.</span></div>
+</li></ul><div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+</div>				</td>
+			</tr>
+		</table>
+	</body>
+</html>

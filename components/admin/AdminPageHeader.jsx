@@ -12,21 +12,22 @@ export default function AdminPageHeader({
   return (
     <header
       className={cn(
-        'mb-6 flex flex-col gap-3 border-b border-[var(--border-default)] pb-4 sm:flex-row sm:items-start sm:justify-between',
+        'mb-6 flex flex-col gap-3 border-b border-[var(--admin-border)] pb-5 sm:flex-row sm:items-start sm:justify-between',
         className
       )}
     >
       <div className="min-w-0 flex-1">
         {breadcrumb ? (
-          <nav aria-label="Breadcrumb" className="mb-1 text-xs text-[var(--text-muted)]">
+          <nav aria-label="Breadcrumb" className="mb-1 text-xs text-[var(--admin-text-muted)]">
             {breadcrumb}
           </nav>
         ) : null}
-        <h1 className="truncate text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+        <div className="mb-2 h-1.5 w-16 rounded-full bg-gradient-to-r from-sky-500 via-emerald-400 to-amber-400" />
+        <h1 className="admin-page-title-accent truncate text-xl font-bold tracking-tight sm:text-2xl">
           {title}
         </h1>
         {description ? (
-          <p className="mt-1 max-w-3xl text-sm text-[var(--text-secondary)]">{description}</p>
+          <p className="mt-1.5 max-w-3xl text-sm text-[var(--admin-text-muted)]">{description}</p>
         ) : null}
       </div>
       {actions ? (

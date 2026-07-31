@@ -3,6 +3,7 @@
  */
 import { NextResponse } from 'next/server';
 import { generatePosDailyReport } from '@/lib/posDailyReportService';
+import { getDailyPosReport } from '@/lib/accountingReportService';
 import { normalizeReportYmdParam } from '@/lib/reportingSourceRules';
 import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
@@ -93,8 +94,11 @@ export async function GET(request) {
         totalCogs: reports.reduce((s, x) => s + (Number(x.report.totalCogs) || 0), 0),
       };
     } else {
-      report = await generatePosDailyReport(primaryTenantId, date, branchForReport, {
-        branchIdsIn,
+      report = await getDailyPosReport({
+        tenantId: primaryTenantId,
+        date,
+        branchId: branchForReport,
+        options: { branchIdsIn },
       });
     }
 

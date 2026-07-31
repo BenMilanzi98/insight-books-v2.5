@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -37,6 +40,7 @@ function Tabs({ value, onChange, items }) {
 }
 
 export default function AdminCreditsRefundsPage() {
+  const { t } = useI18n();
   const [tab, setTab] = useState('credits');
   const [credits, setCredits] = useState([]);
   const [refunds, setRefunds] = useState([]);
@@ -48,8 +52,8 @@ export default function AdminCreditsRefundsPage() {
     setError('');
     try {
       const [cRes, rRes] = await Promise.all([
-        fetch('/api/admin/platform-billing/credits', { credentials: 'include' }),
-        fetch('/api/admin/platform-billing/refunds', { credentials: 'include' }),
+        adminFetch('/api/admin/platform-billing/credits', { credentials: 'include' }),
+        adminFetch('/api/admin/platform-billing/refunds', { credentials: 'include' }),
       ]);
       const cBody = await cRes.json().catch(() => ({}));
       const rBody = await rRes.json().catch(() => ({}));
@@ -128,7 +132,7 @@ export default function AdminCreditsRefundsPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Credits & Refunds"
+        title={t('admin-pages.billing.credits.title')}
         description="Platform SaaS credits and refunds. Idempotent — retries do not duplicate financial effects."
         actions={
           <button type="button" onClick={load} className={btnGhost}>

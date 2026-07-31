@@ -123,6 +123,8 @@ export async function POST(request) {
     const trimmedName = String(name ?? '').trim();
     const trimmedType = String(accountType ?? '').trim();
     const trimmedParentGl = parentGlCode != null ? String(parentGlCode).trim() : '';
+    const trimmedReference = reference != null ? String(reference).trim() : '';
+    const normalizedReference = trimmedReference || null;
 
     if (!trimmedName || !trimmedType) {
       return NextResponse.json({ 
@@ -138,6 +140,36 @@ export async function POST(request) {
         },
         { status: 400 }
       );
+    }
+
+    // Same name is allowed; account number must be present and unique for non-Cash accounts.
+    if (trimmedType !== 'Cash' && !normalizedReference) {
+      return NextResponse.json(
+        {
+          error: 'Account number / reference is required. Multiple accounts may share a name if the account number differs.',
+          code: 'PAYMENT_ACCOUNT_REFERENCE_REQUIRED',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedReference) {
+      const refExists = await prisma.paymentAccount.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          reference: normalizedReference,
+        },
+        select: { id: true, name: true },
+      });
+      if (refExists) {
+        return NextResponse.json(
+          {
+            error: `Account number "${normalizedReference}" is already used by "${refExists.name}". Use a different account number.`,
+            code: 'PAYMENT_ACCOUNT_REFERENCE_DUPLICATE',
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const { resolvePaymentParentGlCode } = await import('@/lib/paymentGlChannels.js');
@@ -161,21 +193,6 @@ export async function POST(request) {
       );
     }
 
-    const existing = await prisma.paymentAccount.findUnique({
-      where: {
-        tenantId_name: {
-          tenantId: user.tenantId,
-          name: trimmedName
-        }
-      }
-    });
-
-    if (existing) {
-      return NextResponse.json({ 
-        error: 'Payment account with this name already exists' 
-      }, { status: 400 });
-    }
-
     const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
 
     let paymentAccount;
@@ -186,7 +203,7 @@ export async function POST(request) {
             tenantId: user.tenantId,
             name: trimmedName,
             accountType: trimmedType,
-            reference: reference != null ? String(reference).trim() || null : null,
+            reference: normalizedReference,
             isActive: Boolean(isActive),
             isSystem: false,
           },
@@ -237,7 +254,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'A payment account or ledger code already exists for this business. If you just retried, wait a second and try again.',
+            'That account number is already in use, or a matching ledger code already exists. Use a different account number and try again.',
           code: 'PAYMENT_ACCOUNT_DUPLICATE',
         },
         { status: 409 }

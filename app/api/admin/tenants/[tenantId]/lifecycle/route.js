@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
 import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 import { validateLifecycleCommand } from '@/lib/admin/tenantLifecycle';
+import { emitTenantStatusChanged } from '@/lib/admin/analytics/emit';
 
 const COMMAND_PERMISSION = {
   ACTIVATE: SYSTEM_ADMIN_PERMISSIONS.tenants.activate,
@@ -103,6 +104,13 @@ export async function POST(request, { params }) {
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
       },
+    });
+
+    await emitTenantStatusChanged(prisma, {
+      tenantId,
+      fromStatus: previousStatus,
+      toStatus: validation.nextStatus,
+      actorId: admin.id,
     });
 
     return NextResponse.json({

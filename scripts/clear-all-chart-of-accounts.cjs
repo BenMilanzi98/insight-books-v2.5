@@ -162,9 +162,21 @@ async function clearCoaForScope(tenantWhere) {
     }).then((r) => r.count)
   );
 
-  await run('Delete budgetItem rows linked to CoA', () =>
-    prisma.budgetItem.deleteMany({
+  await run('Delete legacyBudgetItem rows linked to CoA', () =>
+    prisma.legacyBudgetItem.deleteMany({
       where: tenantWhere.tenantId ? { budget: { tenantId: tenantWhere.tenantId } } : {},
+    }).then((r) => r.count)
+  );
+
+  await run('Delete BudgetLine rows linked to CoA', () =>
+    prisma.budgetLine.deleteMany({
+      where: tenantWhere.tenantId ? { budget: { tenantId: tenantWhere.tenantId } } : {},
+    }).then((r) => r.count)
+  );
+
+  await run('Delete ForecastLine rows linked to CoA', () =>
+    prisma.forecastLine.deleteMany({
+      where: tenantWhere.tenantId ? { forecast: { tenantId: tenantWhere.tenantId } } : {},
     }).then((r) => r.count)
   );
 

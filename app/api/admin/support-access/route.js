@@ -145,6 +145,20 @@ export async function POST(request) {
         );
       }
 
+      const canEndOthers = adminHasPermission(
+        admin,
+        SYSTEM_ADMIN_PERMISSIONS.security.reviewImpersonation
+      );
+      if (existing.adminId !== admin.id && !canEndOthers) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Only the session owner or a security reviewer may end this support session',
+          },
+          { status: 403 }
+        );
+      }
+
       const ended = await prisma.platformSupportAccess.update({
         where: { id: sessionId },
         data: {

@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle, Loader } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
+import AddTransferFundsPanel from '@/components/payments/AddTransferFundsPanel';
 import { parseMoney, subtractMoney } from '@/lib/money';
+import {
+  checkPaymentAccountFunds,
+  formatPaymentAccountOptionLabel,
+} from '@/lib/paymentAccountFunds';
 
 const ExpensePartialPaymentModal = ({ 
   isOpen, 
@@ -19,9 +24,15 @@ const ExpensePartialPaymentModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [remainingBalance, setRemainingBalance] = useState(0);
+  const [fundsCheck, setFundsCheck] = useState(null);
+  const [showFundPanel, setShowFundPanel] = useState(false);
 
   // Load payment accounts dynamically
-  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+  const {
+    paymentAccounts,
+    isLoading: isLoadingPaymentAccounts,
+    refresh: refreshPaymentAccounts,
+  } = usePaymentAccounts();
 
   // Reset form when modal opens/closes or expense changes
   useEffect(() => {
@@ -107,6 +118,20 @@ const ExpensePartialPaymentModal = ({
 
     if (parseFloat(formData.amount) > remainingBalance) {
       setError(`Amount cannot exceed remaining balance of ${remainingBalance.toFixed(2)}`);
+      return;
+    }
+
+    const check = checkPaymentAccountFunds({
+      paymentAccounts,
+      paymentAccountId: formData.paymentMethod,
+      requiredAmount: parseFloat(formData.amount),
+    });
+    if (!check.ok) {
+      setFundsCheck(check);
+      setShowFundPanel(true);
+      setError(
+        `Insufficient funds in payment account. Available MWK ${Number(check.available).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, required MWK ${Number(check.required).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+      );
       return;
     }
 
@@ -262,10 +287,29 @@ const ExpensePartialPaymentModal = ({
                 <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
                 {paymentAccounts.map(account => (
                   <option key={account.id} value={account.id}>
-                    {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                    {formatPaymentAccountOptionLabel(account)}
                   </option>
                 ))}
               </select>
+              {showFundPanel && fundsCheck && !fundsCheck.ok && (
+                <AddTransferFundsPanel
+                  destinationAccountId={formData.paymentMethod}
+                  destinationAccountName={
+                    paymentAccounts.find((a) => a.id === formData.paymentMethod)?.name || ''
+                  }
+                  shortfall={fundsCheck.shortfall}
+                  requiredAmount={fundsCheck.required}
+                  availableAmount={fundsCheck.available}
+                  paymentAccounts={paymentAccounts}
+                  onCancel={() => setShowFundPanel(false)}
+                  onSuccess={async () => {
+                    setShowFundPanel(false);
+                    setFundsCheck(null);
+                    setError('');
+                    await refreshPaymentAccounts();
+                  }}
+                />
+              )}
             </div>
 
             {/* Payment Date */}

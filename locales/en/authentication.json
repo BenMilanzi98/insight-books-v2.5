@@ -1,0 +1,20 @@
+{
+  "login": "Log in",
+  "logout": "Log out",
+  "signup": "Sign up",
+  "email": "Email",
+  "password": "Password",
+  "rememberMe": "Remember me",
+  "forgotPassword": "Forgot password?",
+  "resetPassword": "Reset password",
+  "confirmPassword": "Confirm password",
+  "createAccount": "Create account",
+  "welcomeBack": "Welcome back",
+  "signInToContinue": "Sign in to continue to InsightBooks",
+  "invalidCredentials": "Invalid email or password",
+  "authenticationFailed": "Authentication failed",
+  "accountCreated": "Account created successfully! Please login.",
+  "chooseBusiness": "Choose the business you want to access, then try again.",
+  "sessionExpired": "Your session has expired. Please log in again.",
+  "accessDenied": "Access denied"
+}

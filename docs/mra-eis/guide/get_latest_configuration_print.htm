@@ -1,0 +1,108 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<base target="_blank" />
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<link href="css/printed.css" media="all" rel="StyleSheet" type="text/css" />
+		<link href="de_style.css" media="all" rel="StyleSheet" type="text/css" />
+		<meta name="generator" content="www.DrExplain.com" />
+				<title>5.2.1. Get Latest Configuration</title>
+	</head>
+	<body>
+		<table class="pagetable">
+			<tr class="page" style="border-color: #ffffff;">
+				<td class="page_area" style="border-color: #ffffff; width: 100%;"><div class="description_on_page"><div class="p" style="text-align: center; direction: ltr; margin-left: 0px; text-indent: 0px;"><div class="ic"><h1><strong>5.2.1. Get Latest Configuration</strong></h1></div></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_7ECBECEBE5">The &quot;Get Latest Configuration&quot; endpoint allows a terminal to retrieve the most recent configuration settings from the Malawi Revenue Authority. This endpoint is used when the terminal receives a response from EIS API after submitting a sales transaction indicating that </span><span class="de_937E0348B4">shouldDownloadLatestConfig</span><span class="de_7ECBECEBE5"> is set to </span><span class="de_937E0348B4">true</span><span class="de_7ECBECEBE5">.</span></div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: justify; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_7ECBECEBE5">This flag signals that there has been a change in configuration data maintained by MRA. When this flag is true, the POS system is required to call this endpoint to fetch the updated configuration and apply it immediately to ensure compliance with the latest changes.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">The configuration of the device may fall in 3 categories</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;">1. The global configuration which is controlled largely by MRA and contains business specific information such as tax rates eg VAT @ 16.5 etc.</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;">2. The terminal configuration which controlled details specifically relating to the terminal such as the address lines to be shown on receipt and terminal offline sales threshholds.</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 50px; text-indent: 0px;">3. The taxpayer configuration which contains details of the taxpayer owning the terminal. This will contain details such as TIN, trading name, contact details, default tax office.</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_4AF4BF9DD6">See the response structure in the </span><span class="de_E0D79DE1AC">Get Latest Configuration</span><span class="de_4AF4BF9DD6"> endpoint.</span><span class="de_7ECBECEBE5"> <strong>NB:</strong> The endpoint only requires the authorization Token obtained during Terminal Activation.</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;">&#160;</div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><table class="de_tbl_576 detbl" style="width: 100%; margin-left: 0; margin-right: auto;">
+<col style="width: 100%;" class="de_col_1_576" />
+<tr style="height: 0px;">
+<td class="de_td_576" style = "padding: 2px; padding-bottom: 1px; border-left-style: none; border-left-width: 3px; border-left-color: #ffffff; border-right-style: none; border-right-width: 3px; border-right-color: #ffffff; border-top-style: none; border-top-width: 3px; border-top-color: #ffffff; border-bottom-style: none; border-bottom-width: 3px; border-bottom-color: #ffffff;  width: 100%; vertical-align: top; background-color: #333333;" colspan = "1" rowspan = "1" >
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">{</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &quot;statusCode&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &quot;remark&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &quot;data&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &quot;globalConfiguration&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;id&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;versionNo&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;taxrates&quot;: [</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;id&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;name&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;chargeMode&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;ordinal&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;rate&quot;: </span><span class="de_8BE677F0F5">0</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; }</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; ]</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; },</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &quot;terminalConfiguration&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;versionNo&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;terminalLabel&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;isActiveTerminal&quot;: </span><span class="de_F560E705D8">true</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;emailAddress&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;phoneNumber&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;tradingName&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;addressLines&quot;: [</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; </span><span class="de_58C98616D4">&quot;string&quot;</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; ],</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;terminalSite&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &quot;siteId&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &quot;siteName&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; },</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;offlineLimit&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &quot;maxTransactionAgeInHours&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &quot;maxCummulativeAmount&quot;: </span><span class="de_8BE677F0F5">0</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; }</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; },</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &quot;taxpayerConfiguration&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;versionNo&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;tin&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;isVATRegistered&quot;: </span><span class="de_F560E705D8">true</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;taxOfficeCode&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;taxOffice&quot;: {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &quot;code&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &quot;name&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; },</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;activatedTaxRateIds&quot;: [</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; </span><span class="de_58C98616D4">&quot;string&quot;</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; ],</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;activatedTaxrates&quot;: [</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;id&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;taxpayerConfigurationId&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;taxRateId&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; }</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; ],</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;activatedLevies&quot;: [</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;id&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;name&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;chargeMode&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;rate&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; &#160; &quot;isActive&quot;: </span><span class="de_F560E705D8">true</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &#160; }</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; ]</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; }</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; },</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &quot;errors&quot;: [</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; {</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;errorCode&quot;: </span><span class="de_8BE677F0F5">0</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;fieldName&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span><span class="de_9C1F0F58DF">,</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; &#160; &quot;errorMessage&quot;: </span><span class="de_58C98616D4">&quot;string&quot;</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; &#160; }</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">&#160; ]</span></div>
+<div class="p" style="text-align: left; direction: ltr; margin-left: 0px; text-indent: 0px;"><span class="de_9C1F0F58DF">}</span></div>
+</td></tr></table></div>
+</div>				</td>
+			</tr>
+		</table>
+	</body>
+</html>

@@ -91,6 +91,11 @@ export function PaymentAccountFormModal({
         ? `/api/payment-accounts/${editingAccount.id}`
         : "/api/payment-accounts";
       const method = editingAccount ? "PUT" : "POST";
+      if (needsChannel && !form.reference?.trim()) {
+        throw new Error(
+          "Account number is required. You can reuse the same name if the account number is different."
+        );
+      }
       const body = {
         name: form.name.trim(),
         accountType: form.accountType,
@@ -238,15 +243,25 @@ export function PaymentAccountFormModal({
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-              Account number / reference
+              Account number / reference{needsChannel ? " *" : ""}
             </label>
             <input
               type="text"
+              required={needsChannel}
               value={form.reference}
               onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              placeholder="Shown on the GL sub-account label"
+              placeholder={
+                needsChannel
+                  ? "Must be unique (same name allowed)"
+                  : "Optional for Cash"
+              }
             />
+            {needsChannel ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Same display name is allowed across accounts; each account number must be different.
+              </p>
+            ) : null}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">

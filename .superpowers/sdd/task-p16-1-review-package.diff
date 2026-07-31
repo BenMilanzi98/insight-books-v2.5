@@ -1,0 +1,3997 @@
+﻿# Review package — Phase 16 Task 1
+5231	catalogue.js
+3545	dryRun.js
+2033	index.js
+5309	model.js
+828	numbering.js
+16420	orchestrator.js
+4182	plan.js
+5302	readiness.js
+10455	requests.js
+5286	status.js
+2831	steps.js
+sql=True test=26538
+
+===== lib/admin/crm/conversions/orchestrator.js =====
+
+/**
+ * Closed-Won conversion orchestrator â€” Phase 16 Wave 1.
+ * Closed Won via Phase 12 closeOpportunityWon ONCE at durable start.
+ * Exact retry â†’ existing CVN; conflicting input hash â†’ fail.
+ * Resume skips completed validate / closed-won steps.
+ * Wave 1: no Customer/Tenant/Subscription/Invoice create.
+ *
+ * Early Closed Won is RETAINED on later step failure (no silent reopen).
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { closeOpportunityWon } from '../opportunities/close.js';
+import {
+  CRM_CONVERSION_REQUEST_STATUS,
+  CRM_CONVERSION_STATUS,
+  CRM_CONVERSION_STEP_CODE,
+  CRM_CONVERSION_STEP_STATUS,
+  getConversionDomainContract,
+} from './catalogue.js';
+import { allocateConversionNumber } from './numbering.js';
+import {
+  hasCrmConversionFailureModel,
+  hasCrmConversionModel,
+  hasCrmConversionStepModel,
+  resolveConversionActor,
+  serializeConversion,
+  serializeConversionStep,
+} from './model.js';
+import { loadConversionRequest } from './requests.js';
+import { evaluateConversionRequestReadiness } from './readiness.js';
+import { transitionConversionRequestStatus, transitionConversionStatus } from './status.js';
+import {
+  ensureWave1Steps,
+  hashConversionInput,
+  isStepCompleted,
+  markStepStatus,
+  recordStepAttempt,
+} from './steps.js';
+
+function canExecuteConversion(access) {
+  return Boolean(
+    access?.canEditOpportunities ||
+      access?.canTransitionOpportunityStages ||
+      access?.isSuperAdmin
+  );
+}
+
+function buildInputPayload(args, request) {
+  return {
+    conversionRequestId: request.id,
+    conversionPlanVersionId: args.conversionPlanVersionId,
+    opportunityId: request.opportunityId,
+    acceptanceId: request.acceptanceId,
+    winReason: args.winReason || 'BEST_FIT',
+    decisionDate: args.decisionDate || null,
+  };
+}
+
+/**
+ * Execute Closed-Won conversion (Wave 1 spine).
+ */
+export async function executeClosedWonConversion(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canExecuteConversion(access)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_conversion_execute_forbidden',
+    };
+  }
+  if (!hasCrmConversionModel(prisma) || !hasCrmConversionStepModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotencyKey_required' };
+  }
+
+  const planVersionId = args.conversionPlanVersionId
+    ? String(args.conversionPlanVersionId).trim()
+    : '';
+  if (!planVersionId) {
+    return { ok: false, error: 'conversionPlanVersionId_required' };
+  }
+
+  const request = await loadConversionRequest(prisma, args.conversionRequestId);
+  if (!request) {
+    return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+  }
+
+  const inputPayload = buildInputPayload(args, request);
+  const inputHash = hashConversionInput(inputPayload);
+
+  // Exact / conflicting retry
+  const existing = await prisma.crmConversion.findUnique({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    if (existing.inputHash && existing.inputHash !== inputHash) {
+      if (hasCrmConversionFailureModel(prisma)) {
+        await prisma.crmConversionFailure.create({
+          data: {
+            conversionId: existing.id,
+            conversionRequestId: request.id,
+            errorCode: 'IDEMPOTENCY_INPUT_CONFLICT',
+            detailJson: {
+              existingInputHash: existing.inputHash,
+              attemptedInputHash: inputHash,
+              idempotencyKey,
+            },
+            createdAt: args.now || new Date(),
+          },
+        });
+      }
+      return {
+        ok: false,
+        error: 'idempotency_input_conflict',
+        existingConversionId: existing.id,
+        existingInputHash: existing.inputHash,
+        attemptedInputHash: inputHash,
+        domain: getConversionDomainContract(),
+      };
+    }
+    const steps = await prisma.crmConversionStep.findMany({
+      where: { conversionId: existing.id },
+      orderBy: { stepOrder: 'asc' },
+    });
+    return {
+      ok: true,
+      conversion: serializeConversion(existing),
+      steps: steps.map(serializeConversionStep),
+      alreadyExists: true,
+      idempotentReplay: true,
+      customerCreated: false,
+      tenantCreated: false,
+      subscriptionCreated: false,
+      invoiceCreated: false,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const readiness = await evaluateConversionRequestReadiness(prisma, {
+    conversionRequestId: request.id,
+    admin,
+    actorContext: args.actorContext,
+  });
+  if (!readiness.ok) {
+    return {
+      ok: false,
+      error: 'conversion_not_ready',
+      readiness,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const planVersion = await prisma.crmConversionPlanVersion.findUnique({
+    where: { id: planVersionId },
+  });
+  if (!planVersion) {
+    return { ok: false, notFound: true, error: 'conversion_plan_version_not_found' };
+  }
+
+  const now = args.now || new Date();
+  const allocated = await allocateConversionNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'conversion_number_allocation_failed',
+    };
+  }
+
+  // Lock durable conversion
+  let conversion;
+  try {
+    conversion = await prisma.crmConversion.create({
+      data: {
+        conversionNumber: allocated.number,
+        status: CRM_CONVERSION_STATUS.LOCKED,
+        conversionRequestId: request.id,
+        conversionPlanVersionId: planVersionId,
+        opportunityId: request.opportunityId,
+        acceptanceId: request.acceptanceId,
+        inputHash,
+        idempotencyKey,
+        closedWonAt: null,
+        closedWonRetained: true,
+        createdByAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    const raced = await prisma.crmConversion.findUnique({
+      where: { idempotencyKey },
+    });
+    if (raced) {
+      if (raced.inputHash && raced.inputHash !== inputHash) {
+        return {
+          ok: false,
+          error: 'idempotency_input_conflict',
+          existingConversionId: raced.id,
+          domain: getConversionDomainContract(),
+        };
+      }
+      return {
+        ok: true,
+        conversion: serializeConversion(raced),
+        alreadyExists: true,
+        idempotentReplay: true,
+        customerCreated: false,
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        domain: getConversionDomainContract(),
+      };
+    }
+    return { ok: false, error: err?.message || 'conversion_create_failed' };
+  }
+
+  await transitionConversionStatus(prisma, {
+    conversionId: conversion.id,
+    toStatus: CRM_CONVERSION_STATUS.IN_PROGRESS,
+    admin,
+    now,
+    reason: 'durable_execution_start',
+  });
+  if (request.status === CRM_CONVERSION_REQUEST_STATUS.READY) {
+    const tr = await transitionConversionRequestStatus(prisma, {
+      conversionRequestId: request.id,
+      toStatus: CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+      admin,
+      now,
+      reason: 'conversion_started',
+    });
+    if (!tr.ok) {
+      await prisma.crmConversionRequest.update({
+        where: { id: request.id },
+        data: { status: CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS, updatedAt: now },
+      });
+    }
+  }
+
+  await ensureWave1Steps(prisma, conversion.id, inputHash, now);
+  const steps = await prisma.crmConversionStep.findMany({
+    where: { conversionId: conversion.id },
+    orderBy: { stepOrder: 'asc' },
+  });
+
+  // Step: VALIDATE_EVIDENCE
+  const validateStep = steps.find(
+    (s) => s.stepCode === CRM_CONVERSION_STEP_CODE.VALIDATE_EVIDENCE
+  );
+  if (validateStep && !isStepCompleted(validateStep.status)) {
+    await markStepStatus(prisma, validateStep.id, {
+      status: CRM_CONVERSION_STEP_STATUS.IN_PROGRESS,
+      attemptCount: (validateStep.attemptCount || 0) + 1,
+      updatedAt: now,
+    });
+    await recordStepAttempt(prisma, {
+      conversionId: conversion.id,
+      stepId: validateStep.id,
+      stepCode: validateStep.stepCode,
+      attemptNumber: (validateStep.attemptCount || 0) + 1,
+      inputHash,
+      status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+      outputJson: { readinessStatus: readiness.readinessStatus },
+      actorAdminId: admin?.id || null,
+      now,
+    });
+    await markStepStatus(prisma, validateStep.id, {
+      status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+      outputJson: { readinessStatus: readiness.readinessStatus },
+      updatedAt: now,
+    });
+  }
+
+  // Step: TRANSITION_OPPORTUNITY_CLOSED_WON â€” Phase 12 only, once
+  const closedWonStep = steps.find(
+    (s) => s.stepCode === CRM_CONVERSION_STEP_CODE.TRANSITION_OPPORTUNITY_CLOSED_WON
+  );
+  let closedWonResult = null;
+  if (closedWonStep && !isStepCompleted(closedWonStep.status)) {
+    await markStepStatus(prisma, closedWonStep.id, {
+      status: CRM_CONVERSION_STEP_STATUS.IN_PROGRESS,
+      attemptCount: (closedWonStep.attemptCount || 0) + 1,
+      updatedAt: now,
+    });
+
+    closedWonResult = await closeOpportunityWon(prisma, {
+      admin,
+      opportunityId: request.opportunityId,
+      winReason: args.winReason || 'BEST_FIT',
+      decisionDate: args.decisionDate || now,
+      evidence: args.evidence || [
+        { type: 'ACCEPTANCE', value: request.acceptanceId || request.id },
+      ],
+      idempotencyKey: `cvn-closed-won:${conversion.id}`,
+      now,
+    });
+
+    if (!closedWonResult.ok && closedWonResult.error !== 'ALREADY_TERMINAL') {
+      await markStepStatus(prisma, closedWonStep.id, {
+        status: CRM_CONVERSION_STEP_STATUS.FAILED_NON_RETRYABLE,
+        errorCode: closedWonResult.error || 'CLOSED_WON_FAILED',
+        outputJson: closedWonResult,
+        updatedAt: now,
+      });
+      await prisma.crmConversion.update({
+        where: { id: conversion.id },
+        data: {
+          status: CRM_CONVERSION_STATUS.FAILED,
+          updatedAt: now,
+        },
+      });
+      return {
+        ok: false,
+        error: closedWonResult.error || 'closed_won_transition_failed',
+        conversion: serializeConversion({
+          ...conversion,
+          status: CRM_CONVERSION_STATUS.FAILED,
+        }),
+        closedWonResult,
+        customerCreated: false,
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        domain: getConversionDomainContract(),
+      };
+    }
+
+    await recordStepAttempt(prisma, {
+      conversionId: conversion.id,
+      stepId: closedWonStep.id,
+      stepCode: closedWonStep.stepCode,
+      attemptNumber: (closedWonStep.attemptCount || 0) + 1,
+      inputHash,
+      status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+      outputJson: {
+        via: 'closeOpportunityWon',
+        toStageCode: closedWonResult.toStageCode || 'CLOSED_WON',
+        alreadyTerminal: closedWonResult.error === 'ALREADY_TERMINAL',
+      },
+      actorAdminId: admin?.id || null,
+      now,
+    });
+    await markStepStatus(prisma, closedWonStep.id, {
+      status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+      outputJson: {
+        via: 'closeOpportunityWon',
+        toStageCode: 'CLOSED_WON',
+      },
+      updatedAt: now,
+    });
+
+    conversion = await prisma.crmConversion.update({
+      where: { id: conversion.id },
+      data: {
+        closedWonAt: now,
+        closedWonRetained: true,
+        updatedAt: now,
+      },
+    });
+  }
+
+  // Wave 1: optional simulate later-step failure â€” Closed Won retained
+  if (args.simulateLaterStepFailure) {
+    const boundary = steps.find(
+      (s) => s.stepCode === CRM_CONVERSION_STEP_CODE.WAVE1_PROVISION_BOUNDARY
+    );
+    if (boundary) {
+      await markStepStatus(prisma, boundary.id, {
+        status: CRM_CONVERSION_STEP_STATUS.FAILED_RETRYABLE,
+        errorCode: 'WAVE1_SIMULATED_LATER_FAILURE',
+        retryable: true,
+        outputJson: {
+          note: 'Early Closed Won retained; no silent reopen',
+          closedWonRetained: true,
+        },
+        updatedAt: now,
+      });
+    }
+    conversion = await prisma.crmConversion.update({
+      where: { id: conversion.id },
+      data: {
+        status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+        closedWonRetained: true,
+        updatedAt: now,
+      },
+    });
+  } else {
+    conversion = await prisma.crmConversion.update({
+      where: { id: conversion.id },
+      data: {
+        status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+        updatedAt: now,
+      },
+    });
+  }
+
+  const finalSteps = await prisma.crmConversionStep.findMany({
+    where: { conversionId: conversion.id },
+    orderBy: { stepOrder: 'asc' },
+  });
+
+  return {
+    ok: true,
+    conversion: serializeConversion(conversion),
+    steps: finalSteps.map(serializeConversionStep),
+    closedWonVia: 'closeOpportunityWon',
+    closedWonResult: closedWonResult
+      ? {
+          ok: closedWonResult.ok,
+          toStageCode: closedWonResult.toStageCode || 'CLOSED_WON',
+        }
+      : null,
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    domain: getConversionDomainContract(),
+  };
+}
+
+/**
+ * Resume conversion â€” skip completed validate / closed-won; never second CVN.
+ */
+export async function resumeConversion(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canExecuteConversion(access)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_conversion_resume_forbidden',
+    };
+  }
+
+  const conversionId = args.conversionId ? String(args.conversionId).trim() : '';
+  if (!conversionId) return { ok: false, error: 'conversionId_required' };
+
+  const conversion = await prisma.crmConversion.findUnique({
+    where: { id: conversionId },
+  });
+  if (!conversion) {
+    return { ok: false, notFound: true, error: 'conversion_not_found' };
+  }
+
+  // Idempotency key must match when provided
+  if (
+    args.idempotencyKey &&
+    conversion.idempotencyKey &&
+    String(args.idempotencyKey).trim() !== conversion.idempotencyKey
+  ) {
+    return {
+      ok: false,
+      error: 'idempotency_key_mismatch',
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const steps = await prisma.crmConversionStep.findMany({
+    where: { conversionId: conversion.id },
+    orderBy: { stepOrder: 'asc' },
+  });
+
+  const skippedStepCodes = [];
+  for (const step of steps) {
+    if (
+      (step.stepCode === CRM_CONVERSION_STEP_CODE.VALIDATE_EVIDENCE ||
+        step.stepCode === CRM_CONVERSION_STEP_CODE.TRANSITION_OPPORTUNITY_CLOSED_WON) &&
+      isStepCompleted(step.status)
+    ) {
+      skippedStepCodes.push(step.stepCode);
+    }
+  }
+
+  // Retry failed boundary if present â€” still no provision in Wave 1
+  const now = args.now || new Date();
+  const boundary = steps.find(
+    (s) =>
+      s.stepCode === CRM_CONVERSION_STEP_CODE.WAVE1_PROVISION_BOUNDARY &&
+      s.status === CRM_CONVERSION_STEP_STATUS.FAILED_RETRYABLE
+  );
+  if (boundary) {
+    await markStepStatus(prisma, boundary.id, {
+      status: CRM_CONVERSION_STEP_STATUS.SKIPPED_NOT_APPLICABLE,
+      errorCode: null,
+      outputJson: {
+        resumed: true,
+        wave1: true,
+        note: 'Provision deferred to Waves 2â€“3; Closed Won retained',
+      },
+      updatedAt: now,
+    });
+  }
+
+  const updated = await prisma.crmConversion.update({
+    where: { id: conversion.id },
+    data: {
+      status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+      closedWonRetained: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    conversion: serializeConversion(updated),
+    skippedStepCodes,
+    closedWonRetained: true,
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    domain: getConversionDomainContract(),
+  };
+}
+
+===== lib/admin/crm/conversions/dryRun.js =====
+
+/**
+ * Conversion dry-run â€” Phase 16 Wave 1.
+ * Zero operational side effects: no Customer/Tenant/Subscription/Invoice/invite/handoff;
+ * no Opportunity stage change; no CrmConversion create.
+ * May write an auditable preview record only.
+ */
+
+import { getConversionDomainContract } from './catalogue.js';
+import {
+  hasCrmConversionDryRunModel,
+  hasCrmConversionPlanVersionModel,
+  resolveConversionActor,
+  serializeConversionPlanVersion,
+  serializeConversionRequest,
+} from './model.js';
+import { loadConversionRequest } from './requests.js';
+import { evaluateConversionRequestReadiness } from './readiness.js';
+
+/**
+ * Preview conversion plan outcomes without mutating operational domains.
+ */
+export async function dryRunConversion(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const request = await loadConversionRequest(prisma, args.conversionRequestId);
+  if (!request) {
+    return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+  }
+
+  if (!hasCrmConversionPlanVersionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_plan_version_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const planVersionId = args.conversionPlanVersionId
+    ? String(args.conversionPlanVersionId).trim()
+    : '';
+  if (!planVersionId) {
+    return { ok: false, error: 'conversionPlanVersionId_required' };
+  }
+
+  const planVersion = await prisma.crmConversionPlanVersion.findUnique({
+    where: { id: planVersionId },
+  });
+  if (!planVersion) {
+    return { ok: false, notFound: true, error: 'conversion_plan_version_not_found' };
+  }
+
+  const readiness = await evaluateConversionRequestReadiness(prisma, {
+    conversionRequestId: request.id,
+    admin,
+    actorContext: args.actorContext,
+  });
+
+  const preview = {
+    conversionRequestId: request.id,
+    requestNumber: request.requestNumber,
+    opportunityId: request.opportunityId,
+    acceptanceId: request.acceptanceId,
+    planVersionId: planVersion.id,
+    planChecksum: planVersion.planChecksum,
+    createVsLink: {
+      customer: 'DEFERRED_WAVE_2',
+      tenant: 'DEFERRED_WAVE_2',
+      subscription: 'DEFERRED_WAVE_3',
+      invoice: 'DEFERRED_WAVE_3',
+    },
+    expectedClosedWon: true,
+    closedWonApplied: false,
+    blockers: readiness.ok ? [] : readiness.checklist?.filter((c) => !c.ok) || [],
+    warnings: [
+      'Wave 1 dry-run: provision steps not executed',
+      'Closed Won only applied on durable execute',
+    ],
+  };
+
+  const now = args.now || new Date();
+  let dryRunRecord = null;
+  if (hasCrmConversionDryRunModel(prisma)) {
+    dryRunRecord = await prisma.crmConversionDryRun.create({
+      data: {
+        conversionRequestId: request.id,
+        conversionPlanVersionId: planVersion.id,
+        previewJson: preview,
+        createdByAdminId: admin?.id || null,
+        createdAt: now,
+      },
+    });
+  }
+
+  // Explicit honesty â€” no operational creates; Opp stage untouched
+  return {
+    ok: true,
+    preview,
+    dryRunId: dryRunRecord?.id || null,
+    request: serializeConversionRequest(request),
+    planVersion: serializeConversionPlanVersion(planVersion),
+    readiness,
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    inviteCreated: false,
+    handoffCreated: false,
+    opportunityStageMutated: false,
+    conversionCreated: false,
+    domain: getConversionDomainContract(),
+  };
+}
+
+===== lib/admin/crm/conversions/requests.js =====
+
+/**
+ * Conversion Requests (CVR-YYYY-######) â€” Phase 16 Wave 1.
+ * Seeds from Phase 15 Closed-Won handoff. Never provisions Customer/Tenant/Subscription.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { hasCrmClosedWonConversionHandoffModel } from '../commercial/readiness.js';
+import {
+  CRM_CONVERSION_REQUEST_SOURCE,
+  CRM_CONVERSION_REQUEST_STATUS,
+  CRM_CONVERSION_TYPE,
+  getConversionDomainContract,
+} from './catalogue.js';
+import { allocateConversionRequestNumber } from './numbering.js';
+import {
+  hasCrmConversionRequestModel,
+  resolveConversionActor,
+  serializeConversionRequest,
+} from './model.js';
+
+async function loadRequest(prisma, requestId) {
+  const id = requestId ? String(requestId).trim() : '';
+  if (!id || !hasCrmConversionRequestModel(prisma)) return null;
+  try {
+    if (/^CVR-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.crmConversionRequest.findUnique({ where: { requestNumber: id } });
+    }
+    return await prisma.crmConversionRequest.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+function canEditConversion(access) {
+  return Boolean(
+    access?.canEditOpportunities ||
+      access?.canTransitionOpportunityStages ||
+      access?.isSuperAdmin
+  );
+}
+
+/**
+ * Create a Conversion Request.
+ */
+export async function createConversionRequest(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditConversion(access)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_conversion_request_create_forbidden',
+    };
+  }
+  if (!hasCrmConversionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.crmConversionRequest.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return {
+          ok: true,
+          request: serializeConversionRequest(existing),
+          alreadyExists: true,
+          idempotentReplay: true,
+          customerCreated: false,
+          tenantCreated: false,
+          subscriptionCreated: false,
+          invoiceCreated: false,
+          domain: getConversionDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  // Also idempotent by acceptance + handoff source
+  const acceptanceId = args.acceptanceId ? String(args.acceptanceId).trim() : null;
+  if (acceptanceId && args.source === CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF) {
+    const prior = await prisma.crmConversionRequest.findFirst({
+      where: {
+        acceptanceId,
+        source: CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF,
+      },
+    });
+    if (prior) {
+      return {
+        ok: true,
+        request: serializeConversionRequest(prior),
+        alreadyExists: true,
+        idempotentReplay: true,
+        customerCreated: false,
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        domain: getConversionDomainContract(),
+      };
+    }
+  }
+
+  const allocated = await allocateConversionRequestNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'conversion_request_number_allocation_failed',
+    };
+  }
+
+  let row;
+  try {
+    row = await prisma.crmConversionRequest.create({
+      data: {
+        requestNumber: allocated.number,
+        status: CRM_CONVERSION_REQUEST_STATUS.READY,
+        source:
+          args.source || CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF,
+        conversionType:
+          args.conversionType || CRM_CONVERSION_TYPE.NEW_CUSTOMER_NEW_TENANT,
+        acceptanceId,
+        handoffId: args.handoffId ? String(args.handoffId).trim() : null,
+        opportunityId: args.opportunityId
+          ? String(args.opportunityId).trim()
+          : null,
+        accountId: args.accountId ? String(args.accountId).trim() : null,
+        contactId: args.contactId ? String(args.contactId).trim() : null,
+        documentVersionId: args.documentVersionId
+          ? String(args.documentVersionId).trim()
+          : null,
+        checksumSha256: args.checksumSha256
+          ? String(args.checksumSha256).trim()
+          : null,
+        currency: args.currency ? String(args.currency).trim().slice(0, 12) : null,
+        payloadJson: args.payloadJson ?? args.payload ?? null,
+        ownerAdminId: args.ownerAdminId || admin?.id || null,
+        createdByAdminId: admin?.id || null,
+        idempotencyKey,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    if (idempotencyKey) {
+      try {
+        const raced = await prisma.crmConversionRequest.findUnique({
+          where: { idempotencyKey },
+        });
+        if (raced) {
+          return {
+            ok: true,
+            request: serializeConversionRequest(raced),
+            alreadyExists: true,
+            idempotentReplay: true,
+            customerCreated: false,
+            tenantCreated: false,
+            subscriptionCreated: false,
+            invoiceCreated: false,
+            domain: getConversionDomainContract(),
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return { ok: false, error: err?.message || 'conversion_request_create_failed' };
+  }
+
+  return {
+    ok: true,
+    request: serializeConversionRequest(row),
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    domain: getConversionDomainContract(),
+  };
+}
+
+/**
+ * Consume Phase 15 Closed-Won handoff â†’ create CVR idempotently.
+ */
+export async function createConversionRequestFromClosedWonHandoff(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const acceptanceId = args.acceptanceId ? String(args.acceptanceId).trim() : '';
+  const handoffId = args.handoffId ? String(args.handoffId).trim() : '';
+
+  if (!acceptanceId && !handoffId && !args.handoff) {
+    return { ok: false, error: 'acceptanceId_or_handoff_required' };
+  }
+
+  let handoff = args.handoff || null;
+  if (!handoff && hasCrmClosedWonConversionHandoffModel(prisma)) {
+    if (handoffId) {
+      handoff = await prisma.crmClosedWonConversionHandoff.findUnique({
+        where: { id: handoffId },
+      });
+    } else if (acceptanceId) {
+      handoff = await prisma.crmClosedWonConversionHandoff.findFirst({
+        where: { acceptanceId },
+      });
+    }
+  }
+
+  if (!handoff && !acceptanceId) {
+    return { ok: false, notFound: true, error: 'handoff_not_found' };
+  }
+
+  const payload = handoff?.payloadJson || args.payload || {};
+  const resolvedAcceptanceId = acceptanceId || handoff?.acceptanceId || payload.acceptanceId;
+  const idempotencyKey =
+    args.idempotencyKey ||
+    (resolvedAcceptanceId
+      ? `cvr-from-handoff:${resolvedAcceptanceId}`
+      : handoff?.idempotencyKey
+        ? `cvr-from-handoff-key:${handoff.idempotencyKey}`
+        : null);
+
+  return createConversionRequest(prisma, {
+    ...args,
+    admin,
+    actorContext: args.actorContext || { admin },
+    source: CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF,
+    acceptanceId: resolvedAcceptanceId,
+    handoffId: handoff?.id || handoffId || null,
+    opportunityId:
+      args.opportunityId || handoff?.opportunityId || payload.opportunityId || null,
+    accountId: args.accountId || payload.accountId || null,
+    contactId: args.contactId || payload.contactId || null,
+    documentVersionId:
+      args.documentVersionId ||
+      handoff?.documentVersionId ||
+      payload.documentVersionId ||
+      null,
+    checksumSha256: args.checksumSha256 || payload.checksumSha256 || null,
+    currency: args.currency || payload.currency || null,
+    payloadJson: payload,
+    idempotencyKey,
+  });
+}
+
+export async function validateConversionRequest(prisma, args = {}) {
+  const row = await loadRequest(prisma, args.conversionRequestId || args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+
+  const missing = [];
+  if (!row.acceptanceId) missing.push('acceptanceId');
+  if (!row.opportunityId) missing.push('opportunityId');
+
+  if (missing.length) {
+    return {
+      ok: false,
+      error: 'conversion_request_incomplete',
+      missing,
+      request: serializeConversionRequest(row),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  return {
+    ok: true,
+    valid: true,
+    request: serializeConversionRequest(row),
+    domain: getConversionDomainContract(),
+  };
+}
+
+export async function approveConversionRequest(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const row = await loadRequest(prisma, args.conversionRequestId || args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmConversionRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_CONVERSION_REQUEST_STATUS.READY,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    request: serializeConversionRequest(updated),
+    approvedByAdminId: admin?.id || null,
+    domain: getConversionDomainContract(),
+  };
+}
+
+export async function listConversionRequests(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!access.canViewOpportunities && !access.isSuperAdmin && !access.canView) {
+    return { ok: false, forbidden: true, reason: 'crm_conversion_request_list_forbidden' };
+  }
+  if (!hasCrmConversionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const rows = await prisma.crmConversionRequest.findMany({});
+  return {
+    ok: true,
+    requests: rows.map(serializeConversionRequest),
+    domain: getConversionDomainContract(),
+  };
+}
+
+export { loadRequest as loadConversionRequest };
+
+===== lib/admin/crm/conversions/steps.js =====
+
+/**
+ * Conversion step helpers â€” Phase 16 Wave 1.
+ */
+
+import { createHash } from 'crypto';
+import {
+  CRM_CONVERSION_STEP_STATUS,
+  CRM_CONVERSION_WAVE1_STEPS,
+  getConversionDomainContract,
+} from './catalogue.js';
+import {
+  hasCrmConversionAttemptModel,
+  hasCrmConversionStepModel,
+  serializeConversionStep,
+} from './model.js';
+
+export function hashConversionInput(payload) {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+export async function ensureWave1Steps(prisma, conversionId, inputHash, now = new Date()) {
+  if (!hasCrmConversionStepModel(prisma)) {
+    return { ok: false, error: 'crm_conversion_step_model_unavailable' };
+  }
+
+  const existing = await prisma.crmConversionStep.findMany({
+    where: { conversionId },
+    orderBy: { stepOrder: 'asc' },
+  });
+  if (existing.length) {
+    return { ok: true, steps: existing.map(serializeConversionStep), alreadyExists: true };
+  }
+
+  const rows = [];
+  for (const def of CRM_CONVERSION_WAVE1_STEPS) {
+    const status =
+      def.wave1Default || CRM_CONVERSION_STEP_STATUS.NOT_STARTED;
+    const row = await prisma.crmConversionStep.create({
+      data: {
+        conversionId,
+        stepCode: def.stepCode,
+        stepOrder: def.stepOrder,
+        status,
+        inputHash,
+        attemptCount: 0,
+        outputJson: null,
+        errorCode: null,
+        retryable: false,
+        compensationState: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    rows.push(row);
+  }
+
+  return { ok: true, steps: rows.map(serializeConversionStep) };
+}
+
+export async function recordStepAttempt(prisma, args = {}) {
+  if (!hasCrmConversionAttemptModel(prisma)) return null;
+  return prisma.crmConversionAttempt.create({
+    data: {
+      conversionId: args.conversionId,
+      stepId: args.stepId,
+      stepCode: args.stepCode,
+      attemptNumber: args.attemptNumber || 1,
+      inputHash: args.inputHash || null,
+      status: args.status || null,
+      outputJson: args.outputJson ?? null,
+      errorCode: args.errorCode || null,
+      actorAdminId: args.actorAdminId || null,
+      at: args.now || new Date(),
+      createdAt: args.now || new Date(),
+    },
+  });
+}
+
+export async function markStepStatus(prisma, stepId, data = {}) {
+  return prisma.crmConversionStep.update({
+    where: { id: stepId },
+    data: {
+      ...data,
+      updatedAt: data.updatedAt || new Date(),
+    },
+  });
+}
+
+export function isStepCompleted(status) {
+  return (
+    status === CRM_CONVERSION_STEP_STATUS.COMPLETED ||
+    status === CRM_CONVERSION_STEP_STATUS.COMPLETED_WITH_WARNING ||
+    status === CRM_CONVERSION_STEP_STATUS.SKIPPED_NOT_APPLICABLE
+  );
+}
+
+export { CRM_CONVERSION_STEP_STATUS, getConversionDomainContract };
+
+===== test/systemAdmin.crm.conversionWave1.test.js =====
+
+/**
+ * Phase 16 Wave 1 â€” Conversion request / plan / dry-run / orchestrator spine + Closed Won early.
+ * No Customer/Tenant/Subscription/Invoice create. Dry-run = zero operational side effects.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as closeModule from '@/lib/admin/crm/opportunities/close.js';
+import {
+  CRM_CONVERSION_REQUEST_NUMBER_RE,
+  CRM_CONVERSION_NUMBER_RE,
+  allocateConversionRequestNumber,
+  allocateConversionNumber,
+  createConversionRequest,
+  createConversionRequestFromClosedWonHandoff,
+  evaluateConversionReadiness,
+  createConversionPlan,
+  dryRunConversion,
+  executeClosedWonConversion,
+  resumeConversion,
+  getConversionDomainContract,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-cvn-1') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.pipeline.transitionStages': true,
+    },
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const requestStore = overrides._requestStore || [];
+  const requestHistoryStore = overrides._requestHistoryStore || [];
+  const planStore = overrides._planStore || [];
+  const planVersionStore = overrides._planVersionStore || [];
+  const dryRunStore = overrides._dryRunStore || [];
+  const conversionStore = overrides._conversionStore || [];
+  const conversionHistoryStore = overrides._conversionHistoryStore || [];
+  const stepStore = overrides._stepStore || [];
+  const attemptStore = overrides._attemptStore || [];
+  const failureStore = overrides._failureStore || [];
+  const handoffStore = overrides._handoffStore || [
+    {
+      id: 'handoff-1',
+      acceptanceId: 'accp-1',
+      documentVersionId: 'ver-1',
+      opportunityId: 'opp-1',
+      payloadJson: {
+        type: 'CRM_CLOSED_WON_CONVERSION_HANDOFF',
+        acceptanceId: 'accp-1',
+        opportunityId: 'opp-1',
+        accountId: 'acct-1',
+        contactId: 'con-1',
+        checksumSha256: 'abc123',
+        documentVersionId: 'ver-1',
+        currency: 'MWK',
+      },
+      idempotencyKey: 'closed-won-handoff:accp-1',
+      createdByAdminId: 'super-cvn-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+  ];
+  const opportunityStore = overrides._opportunityStore || [
+    {
+      id: 'opp-1',
+      opportunityNumber: 'OPP-2026-000001',
+      stageCode: 'NEGOTIATION',
+      status: 'OPEN',
+      accountId: 'acct-1',
+      contactId: 'con-1',
+      currency: 'MWK',
+      amount: 5000,
+      version: 1,
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+      updatedAt: new Date('2026-07-01T00:00:00Z'),
+    },
+  ];
+  const customerStore = overrides._customerStore || [];
+  const tenantStore = overrides._tenantStore || [];
+  const subscriptionStore = overrides._subscriptionStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _requestStore: requestStore,
+    _planVersionStore: planVersionStore,
+    _conversionStore: conversionStore,
+    _stepStore: stepStore,
+    _opportunityStore: opportunityStore,
+    _customerStore: customerStore,
+    _tenantStore: tenantStore,
+    _subscriptionStore: subscriptionStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmClosedWonConversionHandoff: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return handoffStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return handoffStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...handoffStore];
+        if (where.acceptanceId) {
+          rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+        }
+        return rows[0] || null;
+      }),
+    },
+    crmConversionRequest: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cvr-${requestStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        requestStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return requestStore.find((r) => r.id === where.id) || null;
+        if (where.requestNumber) {
+          return requestStore.find((r) => r.requestNumber === where.requestNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return requestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.acceptanceId) {
+          rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+        }
+        if (where.handoffId) rows = rows.filter((r) => r.handoffId === where.handoffId);
+        if (where.source) rows = rows.filter((r) => r.source === where.source);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async () => [...requestStore]),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = requestStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionRequestStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cvrh-${requestHistoryStore.length + 1}`, ...data };
+        requestHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionPlan: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `plan-${planStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planStore.find((r) => r.id === where.id) || null;
+        if (where.conversionRequestId) {
+          return planStore.find((r) => r.conversionRequestId === where.conversionRequestId) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = planStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionPlanVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `pv-${planVersionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planVersionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planVersionStore.find((r) => r.id === where.id) || null;
+        if (where.planId_versionNumber) {
+          const k = where.planId_versionNumber;
+          return (
+            planVersionStore.find(
+              (r) => r.planId === k.planId && r.versionNumber === k.versionNumber
+            ) || null
+          );
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...planVersionStore];
+        if (where.planId) rows = rows.filter((r) => r.planId === where.planId);
+        if (orderBy?.versionNumber === 'desc') {
+          rows.sort((a, b) => b.versionNumber - a.versionNumber);
+        }
+        return rows[0] || null;
+      }),
+    },
+    crmConversionDryRun: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `dry-${dryRunStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        dryRunStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...dryRunStore]),
+    },
+    crmConversion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cvn-${conversionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        conversionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return conversionStore.find((r) => r.id === where.id) || null;
+        if (where.conversionNumber) {
+          return conversionStore.find((r) => r.conversionNumber === where.conversionNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return conversionStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...conversionStore];
+        if (where.conversionRequestId) {
+          rows = rows.filter((r) => r.conversionRequestId === where.conversionRequestId);
+        }
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = conversionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cvnh-${conversionHistoryStore.length + 1}`, ...data };
+        conversionHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionStep: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `step-${stepStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        stepStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...stepStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (orderBy?.stepOrder === 'asc') {
+          rows.sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
+        }
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...stepStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.stepCode) rows = rows.filter((r) => r.stepCode === where.stepCode);
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = stepStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+      createMany: vi.fn(async ({ data }) => {
+        for (const d of data) {
+          stepStore.push({
+            id: d.id || `step-${stepStore.length + 1}`,
+            createdAt: d.createdAt || new Date(),
+            updatedAt: d.updatedAt || new Date(),
+            ...d,
+          });
+        }
+        return { count: data.length };
+      }),
+    },
+    crmConversionAttempt: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `att-${attemptStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        attemptStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...attemptStore]),
+    },
+    crmConversionFailure: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `fail-${failureStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        failureStore.push(row);
+        return row;
+      }),
+    },
+    crmOpportunity: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return opportunityStore.find((r) => r.id === where.id) || null;
+        if (where.opportunityNumber) {
+          return (
+            opportunityStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null
+          );
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = opportunityStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    // Operational domains â€” Wave 1 must NOT create via dry-run / execute spine
+    customer: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cust-${customerStore.length + 1}`, ...data };
+        customerStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...customerStore]),
+    },
+    tenant: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `ten-${tenantStore.length + 1}`, ...data };
+        tenantStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...tenantStore]),
+    },
+    subscription: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `sub-${subscriptionStore.length + 1}`, ...data };
+        subscriptionStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...subscriptionStore]),
+    },
+  };
+
+  return prisma;
+}
+
+describe('Phase 16 Wave 1 â€” Conversion spine', () => {
+  let closeSpy;
+
+  beforeEach(() => {
+    closeSpy = vi.spyOn(closeModule, 'closeOpportunityWon').mockImplementation(async (prisma, args) => {
+      const opp = await prisma.crmOpportunity.findUnique({
+        where: { id: args.opportunityId },
+      });
+      if (!opp) return { ok: false, notFound: true, error: 'opportunity_not_found' };
+      const updated = await prisma.crmOpportunity.update({
+        where: { id: opp.id },
+        data: {
+          stageCode: 'CLOSED_WON',
+          status: 'WON',
+          winReason: args.winReason || 'BEST_FIT',
+          decisionDate: args.decisionDate || new Date(),
+          closedAt: args.now || new Date(),
+        },
+      });
+      return {
+        ok: true,
+        opportunity: updated,
+        toStageCode: 'CLOSED_WON',
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        paymentCreated: false,
+        provisionExecuted: false,
+      };
+    });
+    closeSpy.mockClear();
+  });
+
+  it('allocates unique CVR-YYYY-###### request numbers', async () => {
+    const prisma = makePrisma();
+    const a = await allocateConversionRequestNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    const b = await allocateConversionRequestNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect(a.number).toMatch(CRM_CONVERSION_REQUEST_NUMBER_RE);
+    expect(b.number).toMatch(CRM_CONVERSION_REQUEST_NUMBER_RE);
+    expect(a.number).not.toBe(b.number);
+    expect(getConversionDomainContract().surface).toContain('conversions');
+  });
+
+  it('Phase 15 handoff â†’ CVR is idempotent', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const first = await createConversionRequestFromClosedWonHandoff(prisma, {
+      actorContext: { admin },
+      acceptanceId: 'accp-1',
+      idempotencyKey: 'cvr-from-handoff:accp-1',
+    });
+    expect(first.ok).toBe(true);
+    expect(first.request.requestNumber).toMatch(CRM_CONVERSION_REQUEST_NUMBER_RE);
+    expect(first.request.acceptanceId).toBe('accp-1');
+
+    const second = await createConversionRequestFromClosedWonHandoff(prisma, {
+      actorContext: { admin },
+      acceptanceId: 'accp-1',
+      idempotencyKey: 'cvr-from-handoff:accp-1',
+    });
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.request.id).toBe(first.request.id);
+    expect(prisma._requestStore.length).toBe(1);
+  });
+
+  it('dry-run does not create Customer/Tenant/Subscription or change Opp stage', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-dry:1',
+    });
+    expect(req.ok).toBe(true);
+
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    expect(plan.ok).toBe(true);
+
+    const stageBefore = prisma._opportunityStore[0].stageCode;
+    const dry = await dryRunConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+    });
+    expect(dry.ok).toBe(true);
+    expect(dry.customerCreated).toBe(false);
+    expect(dry.tenantCreated).toBe(false);
+    expect(dry.subscriptionCreated).toBe(false);
+    expect(dry.invoiceCreated).toBe(false);
+    expect(dry.opportunityStageMutated).toBe(false);
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+    expect(prisma.tenant.create).not.toHaveBeenCalled();
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
+    expect(prisma._opportunityStore[0].stageCode).toBe(stageBefore);
+    expect(prisma._conversionStore.length).toBe(0);
+  });
+
+  it('execute Closed Won once via Phase 12 closeOpportunityWon (no direct status invent)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-exec:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const readiness = await evaluateConversionReadiness(prisma, {
+      conversionRequestId: req.request.id,
+    });
+    expect(readiness.ok).toBe(true);
+
+    const exec = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-exec:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+    expect(exec.ok).toBe(true);
+    expect(exec.conversion.conversionNumber).toMatch(CRM_CONVERSION_NUMBER_RE);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(closeSpy.mock.calls[0][1].opportunityId).toBe('opp-1');
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+
+    const closedWonStep = prisma._stepStore.find(
+      (s) => s.stepCode === 'TRANSITION_OPPORTUNITY_CLOSED_WON'
+    );
+    expect(closedWonStep).toBeTruthy();
+    expect(closedWonStep.status).toBe('COMPLETED');
+
+    const validateStep = prisma._stepStore.find((s) => s.stepCode === 'VALIDATE_EVIDENCE');
+    expect(validateStep?.status).toBe('COMPLETED');
+
+    // Wave 1 must not provision operational resources
+    expect(exec.customerCreated).toBe(false);
+    expect(exec.tenantCreated).toBe(false);
+    expect(exec.subscriptionCreated).toBe(false);
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+  });
+
+  it('exact retry returns existing conversion (no duplicate CVN)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-retry:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const args = {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-exact:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    };
+    const first = await executeClosedWonConversion(prisma, args);
+    expect(first.ok).toBe(true);
+    const second = await executeClosedWonConversion(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.conversion.id).toBe(first.conversion.id);
+    expect(prisma._conversionStore.length).toBe(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('conflicting retry (same key, different input hash) fails', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-conflict:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const plan2 = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      forceNewVersion: true,
+      notes: 'material change for conflict',
+    });
+    expect(plan2.planVersion.id).not.toBe(plan.planVersion.id);
+
+    const first = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-conflict:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+    expect(first.ok).toBe(true);
+
+    const conflict = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan2.planVersion.id,
+      idempotencyKey: 'cvn-conflict:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+    expect(conflict.ok).toBe(false);
+    expect(conflict.error).toMatch(/conflict|idempotency/i);
+    expect(prisma._conversionStore.length).toBe(1);
+  });
+
+  it('resume skips completed validate and closed-won steps', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-resume:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const exec = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-resume:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+      // Wave 1: simulate a later step failure without reopen
+      simulateLaterStepFailure: true,
+    });
+    expect(exec.ok).toBe(true);
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+
+    closeSpy.mockClear();
+    const resumed = await resumeConversion(prisma, {
+      actorContext: { admin },
+      conversionId: exec.conversion.id,
+      idempotencyKey: 'cvn-resume:1',
+    });
+    expect(resumed.ok).toBe(true);
+    expect(resumed.skippedStepCodes).toEqual(
+      expect.arrayContaining(['VALIDATE_EVIDENCE', 'TRANSITION_OPPORTUNITY_CLOSED_WON'])
+    );
+    expect(closeSpy).not.toHaveBeenCalled();
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+  });
+
+  it('allocates unique CVN numbers', async () => {
+    const prisma = makePrisma();
+    const a = await allocateConversionNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    const b = await allocateConversionNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    expect(a.number).toMatch(CRM_CONVERSION_NUMBER_RE);
+    expect(b.number).toMatch(CRM_CONVERSION_NUMBER_RE);
+    expect(a.number).not.toBe(b.number);
+  });
+});
+
+===== AFTER FIX: lib/admin/crm/conversions/orchestrator.js =====
+
+/**
+ * Closed-Won conversion orchestrator â€” Phase 16 Wave 1.
+ * Closed Won via Phase 12 closeOpportunityWon ONCE at durable start.
+ * Exact retry â†’ existing CVN; conflicting input hash â†’ fail.
+ * Resume skips completed validate / closed-won; runs incomplete Closed Won.
+ * Wave 1: no Customer/Tenant/Subscription/Invoice create.
+ *
+ * Early Closed Won is RETAINED on later step failure (no silent reopen).
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { closeOpportunityWon } from '../opportunities/close.js';
+import {
+  CRM_CONVERSION_REQUEST_STATUS,
+  CRM_CONVERSION_STATUS,
+  CRM_CONVERSION_STEP_CODE,
+  CRM_CONVERSION_STEP_STATUS,
+  getConversionDomainContract,
+} from './catalogue.js';
+import { allocateConversionNumber } from './numbering.js';
+import {
+  hasCrmConversionFailureModel,
+  hasCrmConversionModel,
+  hasCrmConversionStepModel,
+  resolveConversionActor,
+  serializeConversion,
+  serializeConversionStep,
+} from './model.js';
+import { loadConversionRequest } from './requests.js';
+import { evaluateConversionRequestReadiness } from './readiness.js';
+import { transitionConversionRequestStatus, transitionConversionStatus } from './status.js';
+import {
+  ensureWave1Steps,
+  hashConversionInput,
+  isStepCompleted,
+  markStepStatus,
+  recordStepAttempt,
+} from './steps.js';
+
+function canExecuteConversion(access) {
+  return Boolean(
+    access?.canEditOpportunities ||
+      access?.canTransitionOpportunityStages ||
+      access?.isSuperAdmin
+  );
+}
+
+function buildInputPayload(args, request) {
+  return {
+    conversionRequestId: request.id,
+    conversionPlanVersionId: args.conversionPlanVersionId,
+    opportunityId: request.opportunityId,
+    acceptanceId: request.acceptanceId,
+    winReason: args.winReason || 'BEST_FIT',
+    decisionDate: args.decisionDate || null,
+  };
+}
+
+function honestyFlags() {
+  return {
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+  };
+}
+
+async function loadSteps(prisma, conversionId) {
+  return prisma.crmConversionStep.findMany({
+    where: { conversionId },
+    orderBy: { stepOrder: 'asc' },
+  });
+}
+
+function findStep(steps, stepCode) {
+  return steps.find((s) => s.stepCode === stepCode) || null;
+}
+
+function isClosedWonStepComplete(steps) {
+  const closedWonStep = findStep(
+    steps,
+    CRM_CONVERSION_STEP_CODE.TRANSITION_OPPORTUNITY_CLOSED_WON
+  );
+  return Boolean(closedWonStep && isStepCompleted(closedWonStep.status));
+}
+
+/**
+ * READY â†’ IN_PROGRESS via transition helper only (no force-bypass).
+ */
+async function ensureRequestInProgress(prisma, { request, admin, now }) {
+  if (!request) return { ok: true, skipped: true };
+  if (request.status === CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS) {
+    return { ok: true, alreadyInStatus: true };
+  }
+  if (request.status !== CRM_CONVERSION_REQUEST_STATUS.READY) {
+    // Only READY (or already IN_PROGRESS) is expected at durable start.
+    // Other statuses: surface via helper when we attempt; do not force.
+    if (
+      request.status === CRM_CONVERSION_REQUEST_STATUS.QUEUED
+    ) {
+      return transitionConversionRequestStatus(prisma, {
+        conversionRequestId: request.id,
+        toStatus: CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+        admin,
+        now,
+        reason: 'conversion_started',
+      });
+    }
+    return { ok: true, skipped: true };
+  }
+  return transitionConversionRequestStatus(prisma, {
+    conversionRequestId: request.id,
+    toStatus: CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+    admin,
+    now,
+    reason: 'conversion_started',
+  });
+}
+
+async function runValidateEvidenceStep(prisma, {
+  conversion,
+  validateStep,
+  admin,
+  inputHash,
+  readinessStatus,
+  now,
+}) {
+  if (!validateStep || isStepCompleted(validateStep.status)) {
+    return { ok: true, skipped: true };
+  }
+
+  await markStepStatus(prisma, validateStep.id, {
+    status: CRM_CONVERSION_STEP_STATUS.IN_PROGRESS,
+    attemptCount: (validateStep.attemptCount || 0) + 1,
+    updatedAt: now,
+  });
+  await recordStepAttempt(prisma, {
+    conversionId: conversion.id,
+    stepId: validateStep.id,
+    stepCode: validateStep.stepCode,
+    attemptNumber: (validateStep.attemptCount || 0) + 1,
+    inputHash,
+    status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+    outputJson: { readinessStatus: readinessStatus || null },
+    actorAdminId: admin?.id || null,
+    now,
+  });
+  await markStepStatus(prisma, validateStep.id, {
+    status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+    outputJson: { readinessStatus: readinessStatus || null },
+    updatedAt: now,
+  });
+  return { ok: true, skipped: false };
+}
+
+/**
+ * Phase 12 Closed Won â€” runs when step incomplete/failed; skips when completed.
+ */
+async function runClosedWonStep(prisma, {
+  conversion,
+  closedWonStep,
+  request,
+  admin,
+  args,
+  inputHash,
+  now,
+}) {
+  if (!closedWonStep || isStepCompleted(closedWonStep.status)) {
+    return { ok: true, skipped: true, closedWonResult: null, conversion };
+  }
+
+  await markStepStatus(prisma, closedWonStep.id, {
+    status: CRM_CONVERSION_STEP_STATUS.IN_PROGRESS,
+    attemptCount: (closedWonStep.attemptCount || 0) + 1,
+    updatedAt: now,
+  });
+
+  const closedWonResult = await closeOpportunityWon(prisma, {
+    admin,
+    opportunityId: request.opportunityId || conversion.opportunityId,
+    winReason: args.winReason || 'BEST_FIT',
+    decisionDate: args.decisionDate || now,
+    evidence: args.evidence || [
+      {
+        type: 'ACCEPTANCE',
+        value: request.acceptanceId || conversion.acceptanceId || request.id,
+      },
+    ],
+    idempotencyKey: `cvn-closed-won:${conversion.id}`,
+    now,
+  });
+
+  if (!closedWonResult.ok && closedWonResult.error !== 'ALREADY_TERMINAL') {
+    await markStepStatus(prisma, closedWonStep.id, {
+      status: CRM_CONVERSION_STEP_STATUS.FAILED_NON_RETRYABLE,
+      errorCode: closedWonResult.error || 'CLOSED_WON_FAILED',
+      outputJson: closedWonResult,
+      updatedAt: now,
+    });
+    await prisma.crmConversion.update({
+      where: { id: conversion.id },
+      data: {
+        status: CRM_CONVERSION_STATUS.FAILED,
+        updatedAt: now,
+      },
+    });
+    return {
+      ok: false,
+      skipped: false,
+      error: closedWonResult.error || 'closed_won_transition_failed',
+      closedWonResult,
+      conversion: {
+        ...conversion,
+        status: CRM_CONVERSION_STATUS.FAILED,
+      },
+    };
+  }
+
+  await recordStepAttempt(prisma, {
+    conversionId: conversion.id,
+    stepId: closedWonStep.id,
+    stepCode: closedWonStep.stepCode,
+    attemptNumber: (closedWonStep.attemptCount || 0) + 1,
+    inputHash,
+    status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+    outputJson: {
+      via: 'closeOpportunityWon',
+      toStageCode: closedWonResult.toStageCode || 'CLOSED_WON',
+      alreadyTerminal: closedWonResult.error === 'ALREADY_TERMINAL',
+    },
+    actorAdminId: admin?.id || null,
+    now,
+  });
+  await markStepStatus(prisma, closedWonStep.id, {
+    status: CRM_CONVERSION_STEP_STATUS.COMPLETED,
+    outputJson: {
+      via: 'closeOpportunityWon',
+      toStageCode: 'CLOSED_WON',
+    },
+    updatedAt: now,
+  });
+
+  const updated = await prisma.crmConversion.update({
+    where: { id: conversion.id },
+    data: {
+      closedWonAt: now,
+      closedWonRetained: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    skipped: false,
+    closedWonResult,
+    conversion: updated,
+  };
+}
+
+async function finalizeWave1Status(prisma, { conversion, steps, args, now }) {
+  if (args.simulateLaterStepFailure) {
+    const boundary = findStep(
+      steps,
+      CRM_CONVERSION_STEP_CODE.WAVE1_PROVISION_BOUNDARY
+    );
+    if (boundary) {
+      await markStepStatus(prisma, boundary.id, {
+        status: CRM_CONVERSION_STEP_STATUS.FAILED_RETRYABLE,
+        errorCode: 'WAVE1_SIMULATED_LATER_FAILURE',
+        retryable: true,
+        outputJson: {
+          note: 'Early Closed Won retained; no silent reopen',
+          closedWonRetained: true,
+        },
+        updatedAt: now,
+      });
+    }
+    return prisma.crmConversion.update({
+      where: { id: conversion.id },
+      data: {
+        status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+        closedWonRetained: true,
+        updatedAt: now,
+      },
+    });
+  }
+
+  return prisma.crmConversion.update({
+    where: { id: conversion.id },
+    data: {
+      status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+      closedWonRetained: true,
+      updatedAt: now,
+    },
+  });
+}
+
+/**
+ * Validate + Closed Won spine (Wave 1 early steps). Safe to call on resume/retry.
+ */
+async function runWave1EarlySpine(prisma, {
+  conversion: initialConversion,
+  request,
+  admin,
+  args = {},
+  inputHash,
+  readinessStatus,
+  now,
+}) {
+  let conversion = initialConversion;
+  const hash = inputHash || conversion.inputHash || null;
+
+  await ensureWave1Steps(prisma, conversion.id, hash, now);
+  let steps = await loadSteps(prisma, conversion.id);
+
+  const validateOutcome = await runValidateEvidenceStep(prisma, {
+    conversion,
+    validateStep: findStep(steps, CRM_CONVERSION_STEP_CODE.VALIDATE_EVIDENCE),
+    admin,
+    inputHash: hash,
+    readinessStatus,
+    now,
+  });
+  if (!validateOutcome.ok) {
+    return {
+      ok: false,
+      error: validateOutcome.error || 'validate_evidence_failed',
+      conversion: serializeConversion(conversion),
+      ...honestyFlags(),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  steps = await loadSteps(prisma, conversion.id);
+  const closedWonOutcome = await runClosedWonStep(prisma, {
+    conversion,
+    closedWonStep: findStep(
+      steps,
+      CRM_CONVERSION_STEP_CODE.TRANSITION_OPPORTUNITY_CLOSED_WON
+    ),
+    request,
+    admin,
+    args,
+    inputHash: hash,
+    now,
+  });
+
+  if (!closedWonOutcome.ok) {
+    return {
+      ok: false,
+      error: closedWonOutcome.error || 'closed_won_transition_failed',
+      conversion: serializeConversion(closedWonOutcome.conversion || conversion),
+      closedWonResult: closedWonOutcome.closedWonResult,
+      ...honestyFlags(),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  conversion = closedWonOutcome.conversion || conversion;
+  steps = await loadSteps(prisma, conversion.id);
+  conversion = await finalizeWave1Status(prisma, {
+    conversion,
+    steps,
+    args,
+    now,
+  });
+  const finalSteps = await loadSteps(prisma, conversion.id);
+
+  return {
+    ok: true,
+    conversion,
+    steps: finalSteps,
+    closedWonResult: closedWonOutcome.closedWonResult,
+    closedWonRan: !closedWonOutcome.skipped,
+    validateRan: !validateOutcome.skipped,
+  };
+}
+
+/**
+ * Exact-retry / race replay: never report success while Closed Won incomplete.
+ */
+async function continueOrReplayExistingConversion(prisma, {
+  existing,
+  request,
+  admin,
+  args,
+  inputHash,
+  now,
+}) {
+  let conversion = existing;
+
+  if (conversion.status === CRM_CONVERSION_STATUS.LOCKED) {
+    const tr = await transitionConversionStatus(prisma, {
+      conversionId: conversion.id,
+      toStatus: CRM_CONVERSION_STATUS.IN_PROGRESS,
+      admin,
+      now,
+      reason: 'durable_execution_resume',
+    });
+    if (tr.ok && tr.conversion) {
+      conversion = {
+        ...conversion,
+        status: CRM_CONVERSION_STATUS.IN_PROGRESS,
+      };
+    }
+  }
+
+  const reqTransition = await ensureRequestInProgress(prisma, {
+    request,
+    admin,
+    now,
+  });
+  if (!reqTransition.ok) {
+    return {
+      ok: false,
+      error: reqTransition.error || 'conversion_request_status_transition_failed',
+      conversion: serializeConversion(conversion),
+      ...honestyFlags(),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  await ensureWave1Steps(prisma, conversion.id, inputHash || conversion.inputHash, now);
+  const steps = await loadSteps(prisma, conversion.id);
+
+  // Exact replay success only when Closed Won step is durably completed.
+  if (isClosedWonStepComplete(steps)) {
+    return {
+      ok: true,
+      conversion: serializeConversion(conversion),
+      steps: steps.map(serializeConversionStep),
+      alreadyExists: true,
+      idempotentReplay: true,
+      closedWonVia: 'closeOpportunityWon',
+      ...honestyFlags(),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  // Incomplete / failed Closed Won (or missing steps): finish the spine.
+  let readinessStatus = null;
+  const readiness = await evaluateConversionRequestReadiness(prisma, {
+    conversionRequestId: request.id,
+    admin,
+    actorContext: args.actorContext,
+  });
+  if (readiness.ok) {
+    readinessStatus = readiness.readinessStatus;
+  }
+
+  const spine = await runWave1EarlySpine(prisma, {
+    conversion,
+    request,
+    admin,
+    args,
+    inputHash: inputHash || conversion.inputHash,
+    readinessStatus,
+    now,
+  });
+
+  if (!spine.ok) {
+    return spine;
+  }
+
+  return {
+    ok: true,
+    conversion: serializeConversion(spine.conversion),
+    steps: spine.steps.map(serializeConversionStep),
+    alreadyExists: true,
+    idempotentReplay: true,
+    resumedIncompleteClosedWon: spine.closedWonRan,
+    closedWonVia: 'closeOpportunityWon',
+    closedWonResult: spine.closedWonResult
+      ? {
+          ok: spine.closedWonResult.ok,
+          toStageCode: spine.closedWonResult.toStageCode || 'CLOSED_WON',
+        }
+      : null,
+    ...honestyFlags(),
+    domain: getConversionDomainContract(),
+  };
+}
+
+/**
+ * Execute Closed-Won conversion (Wave 1 spine).
+ */
+export async function executeClosedWonConversion(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canExecuteConversion(access)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_conversion_execute_forbidden',
+    };
+  }
+  if (!hasCrmConversionModel(prisma) || !hasCrmConversionStepModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotencyKey_required' };
+  }
+
+  const planVersionId = args.conversionPlanVersionId
+    ? String(args.conversionPlanVersionId).trim()
+    : '';
+  if (!planVersionId) {
+    return { ok: false, error: 'conversionPlanVersionId_required' };
+  }
+
+  const request = await loadConversionRequest(prisma, args.conversionRequestId);
+  if (!request) {
+    return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+  }
+
+  const inputPayload = buildInputPayload(args, request);
+  const inputHash = hashConversionInput(inputPayload);
+  const now = args.now || new Date();
+
+  // Exact / conflicting retry
+  const existing = await prisma.crmConversion.findUnique({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    if (existing.inputHash && existing.inputHash !== inputHash) {
+      if (hasCrmConversionFailureModel(prisma)) {
+        await prisma.crmConversionFailure.create({
+          data: {
+            conversionId: existing.id,
+            conversionRequestId: request.id,
+            errorCode: 'IDEMPOTENCY_INPUT_CONFLICT',
+            detailJson: {
+              existingInputHash: existing.inputHash,
+              attemptedInputHash: inputHash,
+              idempotencyKey,
+            },
+            createdAt: now,
+          },
+        });
+      }
+      return {
+        ok: false,
+        error: 'idempotency_input_conflict',
+        existingConversionId: existing.id,
+        existingInputHash: existing.inputHash,
+        attemptedInputHash: inputHash,
+        domain: getConversionDomainContract(),
+      };
+    }
+    return continueOrReplayExistingConversion(prisma, {
+      existing,
+      request,
+      admin,
+      args,
+      inputHash,
+      now,
+    });
+  }
+
+  const readiness = await evaluateConversionRequestReadiness(prisma, {
+    conversionRequestId: request.id,
+    admin,
+    actorContext: args.actorContext,
+  });
+  if (!readiness.ok) {
+    return {
+      ok: false,
+      error: 'conversion_not_ready',
+      readiness,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const planVersion = await prisma.crmConversionPlanVersion.findUnique({
+    where: { id: planVersionId },
+  });
+  if (!planVersion) {
+    return { ok: false, notFound: true, error: 'conversion_plan_version_not_found' };
+  }
+
+  const allocated = await allocateConversionNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'conversion_number_allocation_failed',
+    };
+  }
+
+  // Lock durable conversion
+  let conversion;
+  try {
+    conversion = await prisma.crmConversion.create({
+      data: {
+        conversionNumber: allocated.number,
+        status: CRM_CONVERSION_STATUS.LOCKED,
+        conversionRequestId: request.id,
+        conversionPlanVersionId: planVersionId,
+        opportunityId: request.opportunityId,
+        acceptanceId: request.acceptanceId,
+        inputHash,
+        idempotencyKey,
+        closedWonAt: null,
+        closedWonRetained: true,
+        createdByAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    const raced = await prisma.crmConversion.findUnique({
+      where: { idempotencyKey },
+    });
+    if (raced) {
+      if (raced.inputHash && raced.inputHash !== inputHash) {
+        return {
+          ok: false,
+          error: 'idempotency_input_conflict',
+          existingConversionId: raced.id,
+          domain: getConversionDomainContract(),
+        };
+      }
+      return continueOrReplayExistingConversion(prisma, {
+        existing: raced,
+        request,
+        admin,
+        args,
+        inputHash,
+        now,
+      });
+    }
+    return { ok: false, error: err?.message || 'conversion_create_failed' };
+  }
+
+  await transitionConversionStatus(prisma, {
+    conversionId: conversion.id,
+    toStatus: CRM_CONVERSION_STATUS.IN_PROGRESS,
+    admin,
+    now,
+    reason: 'durable_execution_start',
+  });
+
+  const reqTransition = await ensureRequestInProgress(prisma, {
+    request,
+    admin,
+    now,
+  });
+  if (!reqTransition.ok) {
+    return {
+      ok: false,
+      error: reqTransition.error || 'conversion_request_status_transition_failed',
+      conversion: serializeConversion(conversion),
+      ...honestyFlags(),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const spine = await runWave1EarlySpine(prisma, {
+    conversion,
+    request,
+    admin,
+    args,
+    inputHash,
+    readinessStatus: readiness.readinessStatus,
+    now,
+  });
+
+  if (!spine.ok) {
+    return spine;
+  }
+
+  return {
+    ok: true,
+    conversion: serializeConversion(spine.conversion),
+    steps: spine.steps.map(serializeConversionStep),
+    closedWonVia: 'closeOpportunityWon',
+    closedWonResult: spine.closedWonResult
+      ? {
+          ok: spine.closedWonResult.ok,
+          toStageCode: spine.closedWonResult.toStageCode || 'CLOSED_WON',
+        }
+      : null,
+    ...honestyFlags(),
+    domain: getConversionDomainContract(),
+  };
+}
+
+/**
+ * Resume conversion â€” skip completed validate / closed-won; run incomplete Closed Won.
+ * Never invents a second CVN.
+ */
+export async function resumeConversion(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canExecuteConversion(access)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_conversion_resume_forbidden',
+    };
+  }
+
+  const conversionId = args.conversionId ? String(args.conversionId).trim() : '';
+  if (!conversionId) return { ok: false, error: 'conversionId_required' };
+
+  let conversion = await prisma.crmConversion.findUnique({
+    where: { id: conversionId },
+  });
+  if (!conversion) {
+    return { ok: false, notFound: true, error: 'conversion_not_found' };
+  }
+
+  // Idempotency key must match when provided
+  if (
+    args.idempotencyKey &&
+    conversion.idempotencyKey &&
+    String(args.idempotencyKey).trim() !== conversion.idempotencyKey
+  ) {
+    return {
+      ok: false,
+      error: 'idempotency_key_mismatch',
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  const request =
+    (await loadConversionRequest(prisma, conversion.conversionRequestId)) || {
+      id: conversion.conversionRequestId,
+      opportunityId: conversion.opportunityId,
+      acceptanceId: conversion.acceptanceId,
+      status: null,
+    };
+
+  await ensureWave1Steps(
+    prisma,
+    conversion.id,
+    conversion.inputHash,
+    now
+  );
+  let steps = await loadSteps(prisma, conversion.id);
+
+  const skippedStepCodes = [];
+  for (const step of steps) {
+    if (
+      (step.stepCode === CRM_CONVERSION_STEP_CODE.VALIDATE_EVIDENCE ||
+        step.stepCode ===
+          CRM_CONVERSION_STEP_CODE.TRANSITION_OPPORTUNITY_CLOSED_WON) &&
+      isStepCompleted(step.status)
+    ) {
+      skippedStepCodes.push(step.stepCode);
+    }
+  }
+
+  const validateStep = findStep(steps, CRM_CONVERSION_STEP_CODE.VALIDATE_EVIDENCE);
+  const closedWonStep = findStep(
+    steps,
+    CRM_CONVERSION_STEP_CODE.TRANSITION_OPPORTUNITY_CLOSED_WON
+  );
+  const needEarlySpine =
+    (validateStep && !isStepCompleted(validateStep.status)) ||
+    (closedWonStep && !isStepCompleted(closedWonStep.status)) ||
+    !closedWonStep;
+
+  if (needEarlySpine) {
+    let readinessStatus = null;
+    if (request.id) {
+      const readiness = await evaluateConversionRequestReadiness(prisma, {
+        conversionRequestId: request.id,
+        admin,
+        actorContext: args.actorContext,
+      });
+      if (readiness.ok) readinessStatus = readiness.readinessStatus;
+    }
+
+    const spine = await runWave1EarlySpine(prisma, {
+      conversion,
+      request,
+      admin,
+      args,
+      inputHash: conversion.inputHash,
+      readinessStatus,
+      now,
+    });
+    if (!spine.ok) {
+      return spine;
+    }
+    conversion = spine.conversion;
+    steps = spine.steps;
+  }
+
+  // Retry failed boundary if present â€” still no provision in Wave 1
+  const boundary = steps.find(
+    (s) =>
+      s.stepCode === CRM_CONVERSION_STEP_CODE.WAVE1_PROVISION_BOUNDARY &&
+      s.status === CRM_CONVERSION_STEP_STATUS.FAILED_RETRYABLE
+  );
+  if (boundary) {
+    await markStepStatus(prisma, boundary.id, {
+      status: CRM_CONVERSION_STEP_STATUS.SKIPPED_NOT_APPLICABLE,
+      errorCode: null,
+      outputJson: {
+        resumed: true,
+        wave1: true,
+        note: 'Provision deferred to Waves 2â€“3; Closed Won retained',
+      },
+      updatedAt: now,
+    });
+  }
+
+  const updated = await prisma.crmConversion.update({
+    where: { id: conversion.id },
+    data: {
+      status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+      closedWonRetained: true,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    conversion: serializeConversion(updated),
+    skippedStepCodes,
+    closedWonRetained: true,
+    closedWonCompletedOnResume: needEarlySpine
+      ? isClosedWonStepComplete(await loadSteps(prisma, conversion.id))
+      : false,
+    ...honestyFlags(),
+    domain: getConversionDomainContract(),
+  };
+}
+
+===== AFTER FIX: lib/admin/crm/conversions/requests.js =====
+
+/**
+ * Conversion Requests (CVR-YYYY-######) â€” Phase 16 Wave 1.
+ * Seeds from Phase 15 Closed-Won handoff. Never provisions Customer/Tenant/Subscription.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import { hasCrmClosedWonConversionHandoffModel } from '../commercial/readiness.js';
+import {
+  CRM_CONVERSION_REQUEST_SOURCE,
+  CRM_CONVERSION_REQUEST_STATUS,
+  CRM_CONVERSION_TYPE,
+  getConversionDomainContract,
+} from './catalogue.js';
+import { allocateConversionRequestNumber } from './numbering.js';
+import {
+  hasCrmConversionRequestModel,
+  resolveConversionActor,
+  serializeConversionRequest,
+} from './model.js';
+
+async function loadRequest(prisma, requestId) {
+  const id = requestId ? String(requestId).trim() : '';
+  if (!id || !hasCrmConversionRequestModel(prisma)) return null;
+  try {
+    if (/^CVR-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.crmConversionRequest.findUnique({ where: { requestNumber: id } });
+    }
+    return await prisma.crmConversionRequest.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+function canEditConversion(access) {
+  return Boolean(
+    access?.canEditOpportunities ||
+      access?.canTransitionOpportunityStages ||
+      access?.isSuperAdmin
+  );
+}
+
+/**
+ * Create a Conversion Request.
+ */
+export async function createConversionRequest(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditConversion(access)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_conversion_request_create_forbidden',
+    };
+  }
+  if (!hasCrmConversionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.crmConversionRequest.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return {
+          ok: true,
+          request: serializeConversionRequest(existing),
+          alreadyExists: true,
+          idempotentReplay: true,
+          customerCreated: false,
+          tenantCreated: false,
+          subscriptionCreated: false,
+          invoiceCreated: false,
+          domain: getConversionDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  // Also idempotent by acceptance + handoff source
+  const acceptanceId = args.acceptanceId ? String(args.acceptanceId).trim() : null;
+  if (acceptanceId && args.source === CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF) {
+    const prior = await prisma.crmConversionRequest.findFirst({
+      where: {
+        acceptanceId,
+        source: CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF,
+      },
+    });
+    if (prior) {
+      return {
+        ok: true,
+        request: serializeConversionRequest(prior),
+        alreadyExists: true,
+        idempotentReplay: true,
+        customerCreated: false,
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        domain: getConversionDomainContract(),
+      };
+    }
+  }
+
+  const allocated = await allocateConversionRequestNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'conversion_request_number_allocation_failed',
+    };
+  }
+
+  let row;
+  try {
+    row = await prisma.crmConversionRequest.create({
+      data: {
+        requestNumber: allocated.number,
+        status: CRM_CONVERSION_REQUEST_STATUS.READY,
+        source:
+          args.source || CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF,
+        conversionType:
+          args.conversionType || CRM_CONVERSION_TYPE.NEW_CUSTOMER_NEW_TENANT,
+        acceptanceId,
+        handoffId: args.handoffId ? String(args.handoffId).trim() : null,
+        opportunityId: args.opportunityId
+          ? String(args.opportunityId).trim()
+          : null,
+        accountId: args.accountId ? String(args.accountId).trim() : null,
+        contactId: args.contactId ? String(args.contactId).trim() : null,
+        documentVersionId: args.documentVersionId
+          ? String(args.documentVersionId).trim()
+          : null,
+        checksumSha256: args.checksumSha256
+          ? String(args.checksumSha256).trim()
+          : null,
+        currency: args.currency ? String(args.currency).trim().slice(0, 12) : null,
+        payloadJson: args.payloadJson ?? args.payload ?? null,
+        ownerAdminId: args.ownerAdminId || admin?.id || null,
+        createdByAdminId: admin?.id || null,
+        idempotencyKey,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    if (idempotencyKey) {
+      try {
+        const raced = await prisma.crmConversionRequest.findUnique({
+          where: { idempotencyKey },
+        });
+        if (raced) {
+          return {
+            ok: true,
+            request: serializeConversionRequest(raced),
+            alreadyExists: true,
+            idempotentReplay: true,
+            customerCreated: false,
+            tenantCreated: false,
+            subscriptionCreated: false,
+            invoiceCreated: false,
+            domain: getConversionDomainContract(),
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return { ok: false, error: err?.message || 'conversion_request_create_failed' };
+  }
+
+  return {
+    ok: true,
+    request: serializeConversionRequest(row),
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    domain: getConversionDomainContract(),
+  };
+}
+
+/**
+ * Consume Phase 15 Closed-Won handoff â†’ create CVR idempotently.
+ */
+export async function createConversionRequestFromClosedWonHandoff(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const acceptanceId = args.acceptanceId ? String(args.acceptanceId).trim() : '';
+  const handoffId = args.handoffId ? String(args.handoffId).trim() : '';
+
+  if (!acceptanceId && !handoffId && !args.handoff) {
+    return { ok: false, error: 'acceptanceId_or_handoff_required' };
+  }
+
+  let handoff = args.handoff || null;
+  if (!handoff && hasCrmClosedWonConversionHandoffModel(prisma)) {
+    if (handoffId) {
+      handoff = await prisma.crmClosedWonConversionHandoff.findUnique({
+        where: { id: handoffId },
+      });
+    } else if (acceptanceId) {
+      handoff = await prisma.crmClosedWonConversionHandoff.findFirst({
+        where: { acceptanceId },
+      });
+    }
+  }
+
+  if (!handoff && !acceptanceId) {
+    return { ok: false, notFound: true, error: 'handoff_not_found' };
+  }
+
+  const payload = handoff?.payloadJson || args.payload || {};
+  const resolvedAcceptanceId = acceptanceId || handoff?.acceptanceId || payload.acceptanceId;
+  const idempotencyKey =
+    args.idempotencyKey ||
+    (resolvedAcceptanceId
+      ? `cvr-from-handoff:${resolvedAcceptanceId}`
+      : handoff?.idempotencyKey
+        ? `cvr-from-handoff-key:${handoff.idempotencyKey}`
+        : null);
+
+  return createConversionRequest(prisma, {
+    ...args,
+    admin,
+    actorContext: args.actorContext || { admin },
+    source: CRM_CONVERSION_REQUEST_SOURCE.PHASE_15_ACCEPTANCE_HANDOFF,
+    acceptanceId: resolvedAcceptanceId,
+    handoffId: handoff?.id || handoffId || null,
+    opportunityId:
+      args.opportunityId || handoff?.opportunityId || payload.opportunityId || null,
+    accountId: args.accountId || payload.accountId || null,
+    contactId: args.contactId || payload.contactId || null,
+    documentVersionId:
+      args.documentVersionId ||
+      handoff?.documentVersionId ||
+      payload.documentVersionId ||
+      null,
+    checksumSha256: args.checksumSha256 || payload.checksumSha256 || null,
+    currency: args.currency || payload.currency || null,
+    payloadJson: payload,
+    idempotencyKey,
+  });
+}
+
+export async function validateConversionRequest(prisma, args = {}) {
+  const row = await loadRequest(prisma, args.conversionRequestId || args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+
+  const missing = [];
+  if (!row.acceptanceId) missing.push('acceptanceId');
+  if (!row.opportunityId) missing.push('opportunityId');
+
+  if (missing.length) {
+    return {
+      ok: false,
+      error: 'conversion_request_incomplete',
+      missing,
+      request: serializeConversionRequest(row),
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  return {
+    ok: true,
+    valid: true,
+    request: serializeConversionRequest(row),
+    domain: getConversionDomainContract(),
+  };
+}
+
+export async function approveConversionRequest(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const row = await loadRequest(prisma, args.conversionRequestId || args.requestId);
+  if (!row) return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmConversionRequest.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_CONVERSION_REQUEST_STATUS.READY,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    request: serializeConversionRequest(updated),
+    approvedByAdminId: admin?.id || null,
+    domain: getConversionDomainContract(),
+  };
+}
+
+export async function listConversionRequests(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!access.canViewOpportunities && !access.isSuperAdmin && !access.canView) {
+    return { ok: false, forbidden: true, reason: 'crm_conversion_request_list_forbidden' };
+  }
+  if (!hasCrmConversionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const rows = await prisma.crmConversionRequest.findMany({});
+  return {
+    ok: true,
+    requests: rows.map(serializeConversionRequest),
+    domain: getConversionDomainContract(),
+  };
+}
+
+export { loadRequest as loadConversionRequest };
+
+===== AFTER FIX: lib/admin/crm/conversions/status.js =====
+
+/**
+ * Conversion request / conversion status transitions â€” Phase 16 Wave 1.
+ */
+
+import {
+  CRM_CONVERSION_REQUEST_STATUS,
+  CRM_CONVERSION_STATUS,
+  getConversionDomainContract,
+} from './catalogue.js';
+import {
+  hasCrmConversionRequestStatusHistoryModel,
+  hasCrmConversionStatusHistoryModel,
+  resolveConversionActor,
+  serializeConversion,
+  serializeConversionRequest,
+} from './model.js';
+
+const REQUEST_TRANSITIONS = Object.freeze({
+  [CRM_CONVERSION_REQUEST_STATUS.DRAFT]: [
+    CRM_CONVERSION_REQUEST_STATUS.VALIDATING,
+    CRM_CONVERSION_REQUEST_STATUS.READY,
+    CRM_CONVERSION_REQUEST_STATUS.CANCELLED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.VALIDATING]: [
+    CRM_CONVERSION_REQUEST_STATUS.INFORMATION_REQUIRED,
+    CRM_CONVERSION_REQUEST_STATUS.READY,
+    CRM_CONVERSION_REQUEST_STATUS.BLOCKED,
+    CRM_CONVERSION_REQUEST_STATUS.CANCELLED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.INFORMATION_REQUIRED]: [
+    CRM_CONVERSION_REQUEST_STATUS.VALIDATING,
+    CRM_CONVERSION_REQUEST_STATUS.READY,
+    CRM_CONVERSION_REQUEST_STATUS.CANCELLED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.READY]: [
+    CRM_CONVERSION_REQUEST_STATUS.QUEUED,
+    CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+    CRM_CONVERSION_REQUEST_STATUS.CANCELLED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.QUEUED]: [
+    CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+    CRM_CONVERSION_REQUEST_STATUS.CANCELLED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS]: [
+    CRM_CONVERSION_REQUEST_STATUS.PARTIALLY_COMPLETED,
+    CRM_CONVERSION_REQUEST_STATUS.COMPLETED,
+    CRM_CONVERSION_REQUEST_STATUS.FAILED,
+    CRM_CONVERSION_REQUEST_STATUS.BLOCKED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.PARTIALLY_COMPLETED]: [
+    CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+    CRM_CONVERSION_REQUEST_STATUS.COMPLETED,
+    CRM_CONVERSION_REQUEST_STATUS.FAILED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.FAILED]: [
+    CRM_CONVERSION_REQUEST_STATUS.IN_PROGRESS,
+    CRM_CONVERSION_REQUEST_STATUS.ARCHIVED,
+  ],
+  [CRM_CONVERSION_REQUEST_STATUS.COMPLETED]: [CRM_CONVERSION_REQUEST_STATUS.ARCHIVED],
+  [CRM_CONVERSION_REQUEST_STATUS.CANCELLED]: [CRM_CONVERSION_REQUEST_STATUS.ARCHIVED],
+  [CRM_CONVERSION_REQUEST_STATUS.ARCHIVED]: [],
+});
+
+export function canTransitionConversionRequestStatus(from, to) {
+  const allowed = REQUEST_TRANSITIONS[from] || [];
+  return allowed.includes(to);
+}
+
+export async function transitionConversionRequestStatus(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const row = await prisma.crmConversionRequest.findUnique({
+    where: { id: args.conversionRequestId || args.requestId },
+  });
+  if (!row) return { ok: false, notFound: true, error: 'conversion_request_not_found' };
+
+  const toStatus = String(args.toStatus || '')
+    .trim()
+    .toUpperCase();
+  if (row.status === toStatus) {
+    return {
+      ok: true,
+      request: serializeConversionRequest(row),
+      alreadyInStatus: true,
+      domain: getConversionDomainContract(),
+    };
+  }
+  if (!canTransitionConversionRequestStatus(row.status, toStatus)) {
+    return {
+      ok: false,
+      error: `invalid_status_transition: ${row.status} â†’ ${toStatus}`,
+    };
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmConversionRequest.update({
+    where: { id: row.id },
+    data: { status: toStatus, updatedAt: now },
+  });
+
+  if (hasCrmConversionRequestStatusHistoryModel(prisma)) {
+    await prisma.crmConversionRequestStatusHistory.create({
+      data: {
+        requestId: row.id,
+        fromStatus: row.status,
+        toStatus,
+        reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    request: serializeConversionRequest(updated),
+    domain: getConversionDomainContract(),
+  };
+}
+
+export async function transitionConversionStatus(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const row = await prisma.crmConversion.findUnique({
+    where: { id: args.conversionId },
+  });
+  if (!row) return { ok: false, notFound: true, error: 'conversion_not_found' };
+
+  const toStatus = String(args.toStatus || '')
+    .trim()
+    .toUpperCase();
+  if (row.status === toStatus) {
+    return {
+      ok: true,
+      conversion: serializeConversion(row),
+      alreadyInStatus: true,
+      domain: getConversionDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.crmConversion.update({
+    where: { id: row.id },
+    data: { status: toStatus, updatedAt: now },
+  });
+
+  if (hasCrmConversionStatusHistoryModel(prisma)) {
+    await prisma.crmConversionStatusHistory.create({
+      data: {
+        conversionId: row.id,
+        fromStatus: row.status,
+        toStatus,
+        reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    conversion: serializeConversion(updated),
+    domain: getConversionDomainContract(),
+  };
+}
+
+export { CRM_CONVERSION_REQUEST_STATUS, CRM_CONVERSION_STATUS };
+
+===== AFTER FIX: test/systemAdmin.crm.conversionWave1.test.js =====
+
+/**
+ * Phase 16 Wave 1 â€” Conversion request / plan / dry-run / orchestrator spine + Closed Won early.
+ * No Customer/Tenant/Subscription/Invoice create. Dry-run = zero operational side effects.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as closeModule from '@/lib/admin/crm/opportunities/close.js';
+import * as statusModule from '@/lib/admin/crm/conversions/status.js';
+import {
+  CRM_CONVERSION_REQUEST_NUMBER_RE,
+  CRM_CONVERSION_NUMBER_RE,
+  allocateConversionRequestNumber,
+  allocateConversionNumber,
+  createConversionRequest,
+  createConversionRequestFromClosedWonHandoff,
+  evaluateConversionReadiness,
+  createConversionPlan,
+  dryRunConversion,
+  executeClosedWonConversion,
+  resumeConversion,
+  getConversionDomainContract,
+} from '@/lib/admin/crm';
+
+function superAdmin(id = 'super-cvn-1') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.pipeline.transitionStages': true,
+    },
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const requestStore = overrides._requestStore || [];
+  const requestHistoryStore = overrides._requestHistoryStore || [];
+  const planStore = overrides._planStore || [];
+  const planVersionStore = overrides._planVersionStore || [];
+  const dryRunStore = overrides._dryRunStore || [];
+  const conversionStore = overrides._conversionStore || [];
+  const conversionHistoryStore = overrides._conversionHistoryStore || [];
+  const stepStore = overrides._stepStore || [];
+  const attemptStore = overrides._attemptStore || [];
+  const failureStore = overrides._failureStore || [];
+  const handoffStore = overrides._handoffStore || [
+    {
+      id: 'handoff-1',
+      acceptanceId: 'accp-1',
+      documentVersionId: 'ver-1',
+      opportunityId: 'opp-1',
+      payloadJson: {
+        type: 'CRM_CLOSED_WON_CONVERSION_HANDOFF',
+        acceptanceId: 'accp-1',
+        opportunityId: 'opp-1',
+        accountId: 'acct-1',
+        contactId: 'con-1',
+        checksumSha256: 'abc123',
+        documentVersionId: 'ver-1',
+        currency: 'MWK',
+      },
+      idempotencyKey: 'closed-won-handoff:accp-1',
+      createdByAdminId: 'super-cvn-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+  ];
+  const opportunityStore = overrides._opportunityStore || [
+    {
+      id: 'opp-1',
+      opportunityNumber: 'OPP-2026-000001',
+      stageCode: 'NEGOTIATION',
+      status: 'OPEN',
+      accountId: 'acct-1',
+      contactId: 'con-1',
+      currency: 'MWK',
+      amount: 5000,
+      version: 1,
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+      updatedAt: new Date('2026-07-01T00:00:00Z'),
+    },
+  ];
+  const customerStore = overrides._customerStore || [];
+  const tenantStore = overrides._tenantStore || [];
+  const subscriptionStore = overrides._subscriptionStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _requestStore: requestStore,
+    _planVersionStore: planVersionStore,
+    _conversionStore: conversionStore,
+    _stepStore: stepStore,
+    _opportunityStore: opportunityStore,
+    _customerStore: customerStore,
+    _tenantStore: tenantStore,
+    _subscriptionStore: subscriptionStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    crmClosedWonConversionHandoff: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return handoffStore.find((r) => r.id === where.id) || null;
+        if (where.idempotencyKey) {
+          return handoffStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...handoffStore];
+        if (where.acceptanceId) {
+          rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+        }
+        return rows[0] || null;
+      }),
+    },
+    crmConversionRequest: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cvr-${requestStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        requestStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return requestStore.find((r) => r.id === where.id) || null;
+        if (where.requestNumber) {
+          return requestStore.find((r) => r.requestNumber === where.requestNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return requestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.acceptanceId) {
+          rows = rows.filter((r) => r.acceptanceId === where.acceptanceId);
+        }
+        if (where.handoffId) rows = rows.filter((r) => r.handoffId === where.handoffId);
+        if (where.source) rows = rows.filter((r) => r.source === where.source);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async () => [...requestStore]),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = requestStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionRequestStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cvrh-${requestHistoryStore.length + 1}`, ...data };
+        requestHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionPlan: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `plan-${planStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planStore.find((r) => r.id === where.id) || null;
+        if (where.conversionRequestId) {
+          return planStore.find((r) => r.conversionRequestId === where.conversionRequestId) || null;
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = planStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionPlanVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `pv-${planVersionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planVersionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planVersionStore.find((r) => r.id === where.id) || null;
+        if (where.planId_versionNumber) {
+          const k = where.planId_versionNumber;
+          return (
+            planVersionStore.find(
+              (r) => r.planId === k.planId && r.versionNumber === k.versionNumber
+            ) || null
+          );
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...planVersionStore];
+        if (where.planId) rows = rows.filter((r) => r.planId === where.planId);
+        if (orderBy?.versionNumber === 'desc') {
+          rows.sort((a, b) => b.versionNumber - a.versionNumber);
+        }
+        return rows[0] || null;
+      }),
+    },
+    crmConversionDryRun: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `dry-${dryRunStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        dryRunStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...dryRunStore]),
+    },
+    crmConversion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `cvn-${conversionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        conversionStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return conversionStore.find((r) => r.id === where.id) || null;
+        if (where.conversionNumber) {
+          return conversionStore.find((r) => r.conversionNumber === where.conversionNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return conversionStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...conversionStore];
+        if (where.conversionRequestId) {
+          rows = rows.filter((r) => r.conversionRequestId === where.conversionRequestId);
+        }
+        if (where.idempotencyKey) {
+          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+        }
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = conversionStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    crmConversionStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cvnh-${conversionHistoryStore.length + 1}`, ...data };
+        conversionHistoryStore.push(row);
+        return row;
+      }),
+    },
+    crmConversionStep: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `step-${stepStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        stepStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {}, orderBy } = {}) => {
+        let rows = [...stepStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (orderBy?.stepOrder === 'asc') {
+          rows.sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
+        }
+        return rows;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...stepStore];
+        if (where.conversionId) {
+          rows = rows.filter((r) => r.conversionId === where.conversionId);
+        }
+        if (where.stepCode) rows = rows.filter((r) => r.stepCode === where.stepCode);
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows[0] || null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = stepStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+      createMany: vi.fn(async ({ data }) => {
+        for (const d of data) {
+          stepStore.push({
+            id: d.id || `step-${stepStore.length + 1}`,
+            createdAt: d.createdAt || new Date(),
+            updatedAt: d.updatedAt || new Date(),
+            ...d,
+          });
+        }
+        return { count: data.length };
+      }),
+    },
+    crmConversionAttempt: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `att-${attemptStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        attemptStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...attemptStore]),
+    },
+    crmConversionFailure: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `fail-${failureStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          ...data,
+        };
+        failureStore.push(row);
+        return row;
+      }),
+    },
+    crmOpportunity: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return opportunityStore.find((r) => r.id === where.id) || null;
+        if (where.opportunityNumber) {
+          return (
+            opportunityStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null
+          );
+        }
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = opportunityStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    // Operational domains â€” Wave 1 must NOT create via dry-run / execute spine
+    customer: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `cust-${customerStore.length + 1}`, ...data };
+        customerStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...customerStore]),
+    },
+    tenant: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `ten-${tenantStore.length + 1}`, ...data };
+        tenantStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...tenantStore]),
+    },
+    subscription: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `sub-${subscriptionStore.length + 1}`, ...data };
+        subscriptionStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => [...subscriptionStore]),
+    },
+  };
+
+  return prisma;
+}
+
+describe('Phase 16 Wave 1 â€” Conversion spine', () => {
+  let closeSpy;
+
+  beforeEach(() => {
+    closeSpy = vi.spyOn(closeModule, 'closeOpportunityWon').mockImplementation(async (prisma, args) => {
+      const opp = await prisma.crmOpportunity.findUnique({
+        where: { id: args.opportunityId },
+      });
+      if (!opp) return { ok: false, notFound: true, error: 'opportunity_not_found' };
+      const updated = await prisma.crmOpportunity.update({
+        where: { id: opp.id },
+        data: {
+          stageCode: 'CLOSED_WON',
+          status: 'WON',
+          winReason: args.winReason || 'BEST_FIT',
+          decisionDate: args.decisionDate || new Date(),
+          closedAt: args.now || new Date(),
+        },
+      });
+      return {
+        ok: true,
+        opportunity: updated,
+        toStageCode: 'CLOSED_WON',
+        tenantCreated: false,
+        subscriptionCreated: false,
+        invoiceCreated: false,
+        paymentCreated: false,
+        provisionExecuted: false,
+      };
+    });
+    closeSpy.mockClear();
+  });
+
+  it('allocates unique CVR-YYYY-###### request numbers', async () => {
+    const prisma = makePrisma();
+    const a = await allocateConversionRequestNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    const b = await allocateConversionRequestNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect(a.number).toMatch(CRM_CONVERSION_REQUEST_NUMBER_RE);
+    expect(b.number).toMatch(CRM_CONVERSION_REQUEST_NUMBER_RE);
+    expect(a.number).not.toBe(b.number);
+    expect(getConversionDomainContract().surface).toContain('conversions');
+  });
+
+  it('Phase 15 handoff â†’ CVR is idempotent', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const first = await createConversionRequestFromClosedWonHandoff(prisma, {
+      actorContext: { admin },
+      acceptanceId: 'accp-1',
+      idempotencyKey: 'cvr-from-handoff:accp-1',
+    });
+    expect(first.ok).toBe(true);
+    expect(first.request.requestNumber).toMatch(CRM_CONVERSION_REQUEST_NUMBER_RE);
+    expect(first.request.acceptanceId).toBe('accp-1');
+
+    const second = await createConversionRequestFromClosedWonHandoff(prisma, {
+      actorContext: { admin },
+      acceptanceId: 'accp-1',
+      idempotencyKey: 'cvr-from-handoff:accp-1',
+    });
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.request.id).toBe(first.request.id);
+    expect(prisma._requestStore.length).toBe(1);
+  });
+
+  it('dry-run does not create Customer/Tenant/Subscription or change Opp stage', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-dry:1',
+    });
+    expect(req.ok).toBe(true);
+
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    expect(plan.ok).toBe(true);
+
+    const stageBefore = prisma._opportunityStore[0].stageCode;
+    const dry = await dryRunConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+    });
+    expect(dry.ok).toBe(true);
+    expect(dry.customerCreated).toBe(false);
+    expect(dry.tenantCreated).toBe(false);
+    expect(dry.subscriptionCreated).toBe(false);
+    expect(dry.invoiceCreated).toBe(false);
+    expect(dry.opportunityStageMutated).toBe(false);
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+    expect(prisma.tenant.create).not.toHaveBeenCalled();
+    expect(prisma.subscription.create).not.toHaveBeenCalled();
+    expect(prisma._opportunityStore[0].stageCode).toBe(stageBefore);
+    expect(prisma._conversionStore.length).toBe(0);
+  });
+
+  it('execute Closed Won once via Phase 12 closeOpportunityWon (no direct status invent)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-exec:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const readiness = await evaluateConversionReadiness(prisma, {
+      conversionRequestId: req.request.id,
+    });
+    expect(readiness.ok).toBe(true);
+
+    const exec = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-exec:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+    expect(exec.ok).toBe(true);
+    expect(exec.conversion.conversionNumber).toMatch(CRM_CONVERSION_NUMBER_RE);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(closeSpy.mock.calls[0][1].opportunityId).toBe('opp-1');
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+
+    const closedWonStep = prisma._stepStore.find(
+      (s) => s.stepCode === 'TRANSITION_OPPORTUNITY_CLOSED_WON'
+    );
+    expect(closedWonStep).toBeTruthy();
+    expect(closedWonStep.status).toBe('COMPLETED');
+
+    const validateStep = prisma._stepStore.find((s) => s.stepCode === 'VALIDATE_EVIDENCE');
+    expect(validateStep?.status).toBe('COMPLETED');
+
+    // Wave 1 must not provision operational resources
+    expect(exec.customerCreated).toBe(false);
+    expect(exec.tenantCreated).toBe(false);
+    expect(exec.subscriptionCreated).toBe(false);
+    expect(prisma.customer.create).not.toHaveBeenCalled();
+  });
+
+  it('exact retry returns existing conversion (no duplicate CVN)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-retry:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const args = {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-exact:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    };
+    const first = await executeClosedWonConversion(prisma, args);
+    expect(first.ok).toBe(true);
+    const second = await executeClosedWonConversion(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.conversion.id).toBe(first.conversion.id);
+    expect(prisma._conversionStore.length).toBe(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('conflicting retry (same key, different input hash) fails', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-conflict:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const plan2 = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      forceNewVersion: true,
+      notes: 'material change for conflict',
+    });
+    expect(plan2.planVersion.id).not.toBe(plan.planVersion.id);
+
+    const first = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-conflict:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+    expect(first.ok).toBe(true);
+
+    const conflict = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan2.planVersion.id,
+      idempotencyKey: 'cvn-conflict:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+    expect(conflict.ok).toBe(false);
+    expect(conflict.error).toMatch(/conflict|idempotency/i);
+    expect(prisma._conversionStore.length).toBe(1);
+  });
+
+  it('resume skips completed validate and closed-won steps', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-resume:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const exec = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-resume:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+      // Wave 1: simulate a later step failure without reopen
+      simulateLaterStepFailure: true,
+    });
+    expect(exec.ok).toBe(true);
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+
+    closeSpy.mockClear();
+    const resumed = await resumeConversion(prisma, {
+      actorContext: { admin },
+      conversionId: exec.conversion.id,
+      idempotencyKey: 'cvn-resume:1',
+    });
+    expect(resumed.ok).toBe(true);
+    expect(resumed.skippedStepCodes).toEqual(
+      expect.arrayContaining(['VALIDATE_EVIDENCE', 'TRANSITION_OPPORTUNITY_CLOSED_WON'])
+    );
+    expect(closeSpy).not.toHaveBeenCalled();
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+  });
+
+  it('allocates unique CVN numbers', async () => {
+    const prisma = makePrisma();
+    const a = await allocateConversionNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    const b = await allocateConversionNumber(prisma, {
+      now: new Date('2026-07-31T12:00:00Z'),
+    });
+    expect(a.number).toMatch(CRM_CONVERSION_NUMBER_RE);
+    expect(b.number).toMatch(CRM_CONVERSION_NUMBER_RE);
+    expect(a.number).not.toBe(b.number);
+  });
+
+  it('exact retry completes incomplete Closed Won before reporting success', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-retry-incomplete:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const args = {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-retry-incomplete:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    };
+    const first = await executeClosedWonConversion(prisma, args);
+    expect(first.ok).toBe(true);
+
+    // Simulate crash after durable CVN insert, before Closed Won completed
+    const closedWonStep = prisma._stepStore.find(
+      (s) => s.stepCode === 'TRANSITION_OPPORTUNITY_CLOSED_WON'
+    );
+    expect(closedWonStep).toBeTruthy();
+    closedWonStep.status = 'NOT_STARTED';
+    closedWonStep.outputJson = null;
+    closedWonStep.errorCode = null;
+    prisma._conversionStore[0].closedWonAt = null;
+    prisma._opportunityStore[0].stageCode = 'NEGOTIATION';
+    prisma._opportunityStore[0].status = 'OPEN';
+
+    closeSpy.mockClear();
+    const second = await executeClosedWonConversion(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+    expect(closedWonStep.status).toBe('COMPLETED');
+    expect(prisma._conversionStore[0].closedWonAt).toBeTruthy();
+    expect(prisma._conversionStore.length).toBe(1);
+  });
+
+  it('resume executes incomplete Closed Won via Phase 12 (skips when completed)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-resume-incomplete:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    const exec = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-resume-incomplete:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+      simulateLaterStepFailure: true,
+    });
+    expect(exec.ok).toBe(true);
+
+    const closedWonStep = prisma._stepStore.find(
+      (s) => s.stepCode === 'TRANSITION_OPPORTUNITY_CLOSED_WON'
+    );
+    closedWonStep.status = 'FAILED_RETRYABLE';
+    closedWonStep.errorCode = 'SIMULATED_CRASH_BEFORE_CLOSED_WON';
+    prisma._conversionStore[0].closedWonAt = null;
+    prisma._opportunityStore[0].stageCode = 'NEGOTIATION';
+    prisma._opportunityStore[0].status = 'OPEN';
+
+    closeSpy.mockClear();
+    const resumed = await resumeConversion(prisma, {
+      actorContext: { admin },
+      conversionId: exec.conversion.id,
+      idempotencyKey: 'cvn-resume-incomplete:1',
+    });
+    expect(resumed.ok).toBe(true);
+    expect(resumed.skippedStepCodes).toEqual(
+      expect.arrayContaining(['VALIDATE_EVIDENCE'])
+    );
+    expect(resumed.skippedStepCodes).not.toEqual(
+      expect.arrayContaining(['TRANSITION_OPPORTUNITY_CLOSED_WON'])
+    );
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(prisma._opportunityStore[0].stageCode).toBe('CLOSED_WON');
+    expect(closedWonStep.status).toBe('COMPLETED');
+    expect(prisma._conversionStore[0].closedWonAt).toBeTruthy();
+  });
+
+  it('CVR status update fails closed without force-bypass on illegal transition', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const req = await createConversionRequest(prisma, {
+      actorContext: { admin },
+      source: 'PHASE_15_ACCEPTANCE_HANDOFF',
+      acceptanceId: 'accp-1',
+      opportunityId: 'opp-1',
+      handoffId: 'handoff-1',
+      idempotencyKey: 'cvr-status-noforce:1',
+    });
+    const plan = await createConversionPlan(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+    });
+    expect(prisma._requestStore[0].status).toBe('READY');
+
+    const transitionSpy = vi
+      .spyOn(statusModule, 'transitionConversionRequestStatus')
+      .mockResolvedValue({
+        ok: false,
+        error: 'invalid_status_transition: READY â†’ IN_PROGRESS',
+      });
+
+    const exec = await executeClosedWonConversion(prisma, {
+      actorContext: { admin },
+      conversionRequestId: req.request.id,
+      conversionPlanVersionId: plan.planVersion.id,
+      idempotencyKey: 'cvn-status-noforce:1',
+      winReason: 'BEST_FIT',
+      decisionDate: '2026-07-31',
+      evidence: [{ type: 'ACCEPTANCE', value: 'accp-1' }],
+    });
+
+    expect(exec.ok).toBe(false);
+    expect(exec.error).toMatch(/invalid_status_transition|transition/i);
+    expect(prisma._requestStore[0].status).toBe('READY');
+    expect(closeSpy).not.toHaveBeenCalled();
+    transitionSpy.mockRestore();
+  });
+});

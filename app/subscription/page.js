@@ -2,7 +2,10 @@
 import { useState, useEffect, Suspense } from "react";
 import { Crown, Check, Star, ArrowRight, Clock, AlertCircle, Zap, Shield, Users, BarChart3, AlertTriangle } from "lucide-react";
 import { useSearchParams } from 'next/navigation';
-import { SUBSCRIPTION_PLANS_ARRAY } from '@/lib/subscriptionConfig';
+import {
+  SUBSCRIPTION_PLANS_ARRAY,
+  getStorefrontFeatures,
+} from '@/lib/subscriptionConfig';
 import SubscriptionCountdownBanner from '@/components/SubscriptionCountdownBanner';
 
 // Client component that uses search params
@@ -16,6 +19,7 @@ function SubscriptionContent() {
   const [isTrialActive, setIsTrialActive] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [storefrontPlans, setStorefrontPlans] = useState(SUBSCRIPTION_PLANS_ARRAY);
   
   const searchParams = useSearchParams();
   const redirected = searchParams.get('redirected');
@@ -36,10 +40,14 @@ function SubscriptionContent() {
       setSubLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/subscription/status");
-        const data = await res.json();
+        const [statusRes, plansRes] = await Promise.all([
+          fetch("/api/subscription/status"),
+          fetch("/api/subscription/plans"),
+        ]);
+        const data = await statusRes.json();
+        const plansData = await plansRes.json().catch(() => ({}));
 
-        if (res.ok) {
+        if (statusRes.ok) {
           setSubscription(data.subscription);
           setPaymentHistory(data.paymentHistory);
           setSubscriptionStatus(data.subscriptionStatus);
@@ -48,6 +56,10 @@ function SubscriptionContent() {
         } else {
           console.error("Failed to load subscription data", data.error);
           setError(data.error || "Failed to load subscription data");
+        }
+
+        if (plansRes.ok && Array.isArray(plansData.plans) && plansData.plans.length) {
+          setStorefrontPlans(plansData.plans);
         }
       } catch (err) {
         console.error("Error fetching subscription data:", err);
@@ -93,12 +105,16 @@ function SubscriptionContent() {
       timeStyle: "short",
     }).format(new Date(dateStr));
 
-  const pricingPlans = SUBSCRIPTION_PLANS_ARRAY.map(plan => ({
+  const pricingPlans = storefrontPlans.map((plan) => ({
     ...plan,
-    price: plan.priceFormatted.replace('MK', '').replace(',', ''),
+    name: plan.displayName || plan.name,
+    price: String(plan.priceFormatted || '')
+      .replace(/MK/gi, '')
+      .replace(/,/g, '')
+      .trim(),
     amount: plan.price || 0,
-    // Ensure annual plan is marked as popular even if config doesn't set it
-    popular: plan.popular || plan.name === '1 Year'
+    popular: plan.popular || plan.highlight || plan.name === '1 Year',
+    features: getStorefrontFeatures(plan),
   }));
 
   const noActiveSubscription = !isTrialActive && !subscription?.isActive;
@@ -293,69 +309,108 @@ function SubscriptionContent() {
         </div>
       )}
 
-      {/* Pricing Plans - Show if in trial mode OR if redirected OR no active subscription */}
-      {(isTrialActive || redirected || noActiveSubscription) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {pricingPlans.map((plan, index) => (
-            <div
-              key={index}
-              className={`relative bg-white rounded-xl shadow-lg border-2 ${
-                plan.popular 
-                  ? 'border-blue-500 ring-4 ring-blue-100' 
-                  : 'border-gray-200'
-              } p-8`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium flex items-center">
-                    <Star className="h-3 w-3 mr-1" />
-                    Most Popular
-                  </div>
-                </div>
-              )}
-
-              <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                <div className="mb-4">
-                  <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                  <span className="text-gray-600">/{plan.period}</span>
-                </div>
-                <p className="text-gray-600">Perfect for {plan.name === "Pro Plan" ? "growing businesses" : "large enterprises"}</p>
-              </div>
-
-              <ul className="space-y-3 mb-8">
-                {plan.features.map((feature, featureIndex) => (
-                  <li key={featureIndex} className="flex items-start">
-                    <Check className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                onClick={() => startPayment(plan.id, plan.amount)}
-                disabled={loading}
-                className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
-                  plan.popular
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current mr-2"></div>
-                    Processing...
-                  </div>
+      {/* Pricing Plans — always available so core upgrades and EIS add-ons can be purchased */}
+      {pricingPlans.length > 0 && (
+        <div className="space-y-10">
+          {[
+            {
+              title: 'InsightBooks subscriptions',
+              items: pricingPlans.filter((p) => !p.requiresEIS),
+            },
+            {
+              title: 'MRA EIS plans',
+              subtitle:
+                'Add-on for electronic invoicing. Payment activates the commercial subscription; entitlement review is still required before setup/transmit.',
+              items: pricingPlans.filter((p) => p.requiresEIS),
+            },
+          ]
+            .filter((group) => group.items.length > 0)
+            .map((group) => (
+              <div key={group.title}>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2 text-center">
+                  {group.title}
+                </h2>
+                {group.subtitle ? (
+                  <p className="text-sm text-gray-600 text-center max-w-2xl mx-auto mb-6">
+                    {group.subtitle}
+                  </p>
                 ) : (
-                  <div className="flex items-center justify-center">
-                    {plan.popular && <Crown className="h-4 w-4 mr-2" />}
-                    {redirected ? "Choose Plan" : isTrialActive ? "Upgrade Now" : "Choose Plan"}
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </div>
+                  <div className="mb-6" />
                 )}
-              </button>
-            </div>
-          ))}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {group.items.map((plan) => (
+                    <div
+                      key={plan.id}
+                      className={`relative bg-white rounded-xl shadow-lg border-2 ${
+                        plan.popular
+                          ? 'border-blue-500 ring-4 ring-blue-100'
+                          : 'border-gray-200'
+                      } p-8`}
+                    >
+                      {(plan.popular || plan.badge) && (
+                        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                          <div className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium flex items-center">
+                            <Star className="h-3 w-3 mr-1" />
+                            {plan.badge || 'Most Popular'}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="text-center mb-6">
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                        <div className="mb-4">
+                          <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
+                          <span className="text-gray-600">/{plan.period}</span>
+                        </div>
+                        <p className="text-gray-600">
+                          {plan.requiresEIS
+                            ? 'MRA Electronic Invoicing (EIS) commercial plan'
+                            : plan.savings || 'Full InsightBooks platform access'}
+                        </p>
+                      </div>
+
+                      <ul className="space-y-3 mb-8">
+                        {(plan.features || []).map((feature, featureIndex) => (
+                          <li key={featureIndex} className="flex items-start">
+                            <Check className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
+                            <span className="text-gray-700">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button
+                        onClick={() => startPayment(plan.id, plan.amount)}
+                        disabled={loading}
+                        className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
+                          plan.popular
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {loading ? (
+                          <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current mr-2"></div>
+                            Processing...
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center">
+                            {plan.popular && <Crown className="h-4 w-4 mr-2" />}
+                            {plan.requiresEIS
+                              ? plan.ctaText || 'Subscribe to MRA EIS'
+                              : redirected
+                                ? 'Choose Plan'
+                                : isTrialActive
+                                  ? 'Upgrade Now'
+                                  : 'Choose Plan'}
+                            <ArrowRight className="h-4 w-4 ml-2" />
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       )}
 

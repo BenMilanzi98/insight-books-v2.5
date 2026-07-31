@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -19,6 +22,7 @@ function money(n) {
 const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
 
 export default function AffiliateCommissionsPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,7 +31,7 @@ export default function AffiliateCommissionsPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/affiliate/commissions', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/affiliate/commissions', { credentials: 'include' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Failed to load commissions');
       setRows(body.commissions || []);
@@ -101,7 +105,7 @@ export default function AffiliateCommissionsPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Affiliate commissions"
+        title={t('admin-pages.affiliate.commissions.title')}
         description="One eligible conversion → one commission. Replays use idempotency keys — no double-pay."
         actions={
           <button type="button" onClick={load} className={btnGhost}>

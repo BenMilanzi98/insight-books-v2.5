@@ -6,13 +6,20 @@ import { usePathname } from 'next/navigation';
 import {
   Activity,
   BarChart3,
+  Boxes,
   Building2,
   ChevronDown,
   ChevronRight,
+  CircleDollarSign,
+  ContactRound,
   CreditCard,
   FileCheck,
   Handshake,
+  Headset,
+  HeartPulse,
+  LifeBuoy,
   LayoutDashboard,
+  LineChart,
   LogOut,
   Mail,
   Settings,
@@ -21,13 +28,26 @@ import {
   ToggleLeft,
   Upload,
   Users,
+  Package,
 } from 'lucide-react';
-import { ADMIN_NAV_SECTIONS } from '@/lib/admin/adminNav';
-import { NAV_PERMISSION_MAP, adminHasPermission } from '@/lib/admin/permissions';
+import { ADMIN_NAV_SECTIONS, resolveAdminNavLabel } from '@/lib/admin/adminNav';
+import {
+  NAV_PERMISSION_MAP,
+  SYSTEM_ADMIN_PERMISSIONS,
+  adminHasPermission,
+} from '@/lib/admin/permissions';
+import { useI18n } from '@/components/i18n/I18nProvider';
 import { cn } from '@/lib/utils';
 
 const ICONS = {
   LayoutDashboard,
+  LineChart,
+  CircleDollarSign,
+  ContactRound,
+  HeartPulse,
+  Boxes,
+  Headset,
+  LifeBuoy,
   BarChart3,
   Building2,
   Users,
@@ -41,21 +61,45 @@ const ICONS = {
   Activity,
   ToggleLeft,
   Upload,
+  Package,
 };
 
-function pathMatches(pathname, href) {
+function pathMatches(pathname, href, { exact = false } = {}) {
   if (!pathname || !href) return false;
   if (pathname === href) return true;
+  if (exact) return false;
   if (href !== '/insightbooks/dashboard' && pathname.startsWith(`${href}/`)) return true;
   return false;
 }
 
+function subItemActive(pathname, sub, siblings = []) {
+  if (!pathname || !sub?.href) return false;
+  if (sub.exact) return pathname === sub.href;
+  if (pathname === sub.href) return true;
+  if (!pathname.startsWith(`${sub.href}/`)) return false;
+  return !siblings.some(
+    (other) =>
+      other.href !== sub.href &&
+      other.href.length > sub.href.length &&
+      (pathname === other.href || pathname.startsWith(`${other.href}/`))
+  );
+}
+
 function itemVisible(admin, href) {
   const required = NAV_PERMISSION_MAP[href];
-  if (!required) return true;
-  if (!admin) return true;
+  // Unmapped hrefs are hidden — NAV_PERMISSION_MAP must stay complete (see tests).
+  if (!required) return false;
+  if (!admin) return false;
   if (admin.role === 'Super Admin') return true;
-  return adminHasPermission(admin, required);
+  if (adminHasPermission(admin, required)) return true;
+  // Intelligence pack also accepts dashboard.view
+  if (
+    href.startsWith('/insightbooks/intelligence') &&
+    adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.dashboard.view)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export default function AdminSidebar({
@@ -66,6 +110,7 @@ export default function AdminSidebar({
   onNavigate,
 }) {
   const pathname = usePathname();
+  const { t } = useI18n();
   const [expandedItems, setExpandedItems] = useState([]);
 
   useEffect(() => {
@@ -124,7 +169,7 @@ export default function AdminSidebar({
   return (
     <div
       className={cn(
-        'flex h-full max-h-screen flex-col bg-[var(--admin-sidebar-bg)] text-[var(--admin-sidebar-text)]',
+        'flex h-full max-h-screen flex-col text-[var(--admin-sidebar-text)]',
         widthClass
       )}
     >
@@ -148,7 +193,7 @@ export default function AdminSidebar({
               InsightBooks
             </div>
             <div className="truncate text-[11px] uppercase tracking-wide text-[var(--admin-sidebar-muted)]">
-              Admin
+              {t('admin-shell.brand')}
             </div>
           </div>
         ) : null}
@@ -156,13 +201,13 @@ export default function AdminSidebar({
 
       <nav
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-3"
-        aria-label="System administration"
+        aria-label={t('admin-shell.navAria')}
       >
         {sections.map((section) => (
           <div key={section.id} className="mb-4">
             {!(collapsed && !isMobile) ? (
               <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--admin-sidebar-muted)]">
-                {section.label}
+                {resolveAdminNavLabel(section, t)}
               </div>
             ) : null}
             <ul className="space-y-0.5">
@@ -179,19 +224,32 @@ export default function AdminSidebar({
                       <button
                         type="button"
                         onClick={() => toggleExpand(item.href)}
-                        title={collapsed && !isMobile ? item.text : undefined}
+                        title={
+                          collapsed && !isMobile
+                            ? resolveAdminNavLabel(item, t)
+                            : undefined
+                        }
                         aria-expanded={expanded}
+                        data-active={active ? 'true' : 'false'}
                         className={cn(
-                          'flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-left text-sm transition-colors',
+                          'admin-nav-item flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-left text-sm',
                           active
-                            ? 'bg-[var(--admin-sidebar-active)] font-medium text-white'
+                            ? 'bg-[var(--admin-sidebar-active)] font-medium text-white shadow-[inset_3px_0_0_0_var(--admin-sidebar-accent)]'
                             : 'text-white/80 hover:bg-white/5 hover:text-white'
                         )}
                       >
-                        <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                        <Icon
+                          className={cn(
+                            'h-5 w-5 shrink-0',
+                            active ? 'text-[var(--admin-sidebar-accent)]' : ''
+                          )}
+                          aria-hidden
+                        />
                         {!(collapsed && !isMobile) ? (
                           <>
-                            <span className="min-w-0 flex-1 truncate">{item.text}</span>
+                            <span className="min-w-0 flex-1 truncate">
+                              {resolveAdminNavLabel(item, t)}
+                            </span>
                             {expanded ? (
                               <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
                             ) : (
@@ -203,12 +261,17 @@ export default function AdminSidebar({
                       {expanded && !(collapsed && !isMobile) ? (
                         <ul className="mt-0.5 space-y-0.5 border-l border-white/10 ml-5 pl-2">
                           {(item.subItems || []).map((sub) => {
-                            const subActive = pathMatches(pathname, sub.href);
+                            const subActive = subItemActive(
+                              pathname,
+                              sub,
+                              item.subItems || []
+                            );
                             return (
-                              <li key={sub.href}>
+                              <li key={`${sub.href}-${sub.textKey || sub.text}`}>
                                 <Link
                                   href={sub.href}
                                   onClick={linkClick}
+                                  aria-current={subActive ? 'page' : undefined}
                                   className={cn(
                                     'block rounded-[var(--radius-md)] px-3 py-2 text-sm',
                                     subActive
@@ -216,7 +279,7 @@ export default function AdminSidebar({
                                       : 'text-white/70 hover:bg-white/5 hover:text-white'
                                   )}
                                 >
-                                  {sub.text}
+                                  {resolveAdminNavLabel(sub, t)}
                                 </Link>
                               </li>
                             );
@@ -232,17 +295,30 @@ export default function AdminSidebar({
                     <Link
                       href={item.href}
                       onClick={linkClick}
-                      title={collapsed && !isMobile ? item.text : undefined}
+                      title={
+                        collapsed && !isMobile
+                          ? resolveAdminNavLabel(item, t)
+                          : undefined
+                      }
+                      data-active={active ? 'true' : 'false'}
                       className={cn(
-                        'flex min-h-11 items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-sm transition-colors',
+                        'admin-nav-item flex min-h-11 items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-sm',
                         active
-                          ? 'bg-[var(--admin-sidebar-active)] font-medium text-white'
+                          ? 'bg-[var(--admin-sidebar-active)] font-medium text-white shadow-[inset_3px_0_0_0_var(--admin-sidebar-accent)]'
                           : 'text-white/80 hover:bg-white/5 hover:text-white'
                       )}
                     >
-                      <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                      <Icon
+                        className={cn(
+                          'h-5 w-5 shrink-0',
+                          active ? 'text-[var(--admin-sidebar-accent)]' : ''
+                        )}
+                        aria-hidden
+                      />
                       {!(collapsed && !isMobile) ? (
-                        <span className="min-w-0 truncate">{item.text}</span>
+                        <span className="min-w-0 truncate">
+                          {resolveAdminNavLabel(item, t)}
+                        </span>
                       ) : null}
                     </Link>
                   </li>
@@ -256,20 +332,20 @@ export default function AdminSidebar({
       <div className="shrink-0 border-t border-white/10 p-3">
         {!(collapsed && !isMobile) ? (
           <div className="mb-2 px-1 text-[11px] text-[var(--admin-sidebar-muted)]">
-            InsightBooks Admin
+            {t('admin-shell.brand')}
           </div>
         ) : null}
         <button
           type="button"
           onClick={handleLogout}
-          title="Logout"
+          title={t('admin-shell.logout')}
           className={cn(
             'flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-white/80 hover:bg-white/5 hover:text-white',
             collapsed && !isMobile && 'justify-center'
           )}
         >
           <LogOut className="h-5 w-5 shrink-0" aria-hidden />
-          {!(collapsed && !isMobile) ? <span>Logout</span> : null}
+          {!(collapsed && !isMobile) ? <span>{t('admin-shell.logout')}</span> : null}
         </button>
         {typeof setCollapsed === 'function' && !isMobile ? (
           <button

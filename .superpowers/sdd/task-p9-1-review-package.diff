@@ -1,0 +1,1777 @@
+﻿# Task P9-1 Review Package WORKING_TREE
+
+===== lib/admin/productAnalytics/authz.js =====
+
+/**
+ * Product Analytics auth helpers.
+ * Read: intel.productAnalytics.read OR intel.product.read OR dashboard.view (Super Admin break-glass).
+ */
+
+import { authorizeAdminDecision } from '@/lib/admin/authorization/authorizeAdminDecision';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+
+/**
+ * @param {object|null|undefined} admin
+ */
+export function resolveProductAnalyticsAccess(admin) {
+  const productAnalytics = authorizeAdminDecision({
+    admin,
+    permission: SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
+  });
+  const productLegacy = authorizeAdminDecision({
+    admin,
+    permission: SYSTEM_ADMIN_PERMISSIONS.intel.productRead,
+  });
+  const manageDefinitions = authorizeAdminDecision({
+    admin,
+    permission: SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsManageDefinitions,
+  });
+  const exportPerm = authorizeAdminDecision({
+    admin,
+    permission: SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsExport,
+  });
+  const recon = authorizeAdminDecision({
+    admin,
+    permission: SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRunReconciliation,
+  });
+
+  const canView = Boolean(productAnalytics.allowed || productLegacy.allowed);
+
+  return {
+    canView,
+    canManageDefinitions: Boolean(manageDefinitions.allowed),
+    canExport: Boolean(exportPerm.allowed),
+    canRunReconciliation: Boolean(recon.allowed),
+    productAnalyticsAllowed: productAnalytics.allowed,
+    productLegacyAllowed: productLegacy.allowed,
+  };
+}
+
+===== lib/admin/productAnalytics/catalogue.js =====
+
+/**
+ * Product Analytics catalogue â€” metric codes + readiness constants (Phase 9 Wave 1).
+ */
+
+import {
+  INSTRUMENTED_FEATURE_CODES,
+  PRODUCT_FEATURE_CODES,
+  FEATURE_EVENT_CODES,
+} from '@/lib/admin/productCatalogue/features.js';
+
+export const PRODUCT_ANALYTICS_CATALOGUE_VERSION = 'product-analytics-2026-07-29';
+
+export const PRODUCT_RELIABILITY_STATUS = Object.freeze({
+  AVAILABLE: 'AVAILABLE',
+  NOT_INSTRUMENTED: 'NOT_INSTRUMENTED',
+  DEFINITION_MISSING: 'DEFINITION_MISSING',
+  STALE: 'STALE',
+  DELAYED: 'DELAYED',
+  RECONCILIATION_FAILED: 'RECONCILIATION_FAILED',
+  DATA_QUALITY_BLOCKED: 'DATA_QUALITY_BLOCKED',
+  LOW_SAMPLE: 'LOW_SAMPLE',
+  PERMISSION_RESTRICTED: 'PERMISSION_RESTRICTED',
+  UNSUPPORTED_PERIOD: 'UNSUPPORTED_PERIOD',
+});
+
+export const PRODUCT_METRIC_CODES = Object.freeze({
+  INVOICES_POST_COUNT: 'product.feature.invoices.post.count',
+  POS_COMPLETE_COUNT: 'product.feature.sales.pos.complete.count',
+  EIS_ACCEPT_COUNT: 'product.feature.eis.fiscal.accept.count',
+});
+
+/** Map metric code â†’ feature code for gate evaluation. */
+export const METRIC_FEATURE_MAP = Object.freeze({
+  [PRODUCT_METRIC_CODES.INVOICES_POST_COUNT]: PRODUCT_FEATURE_CODES.INVOICES_POST,
+  [PRODUCT_METRIC_CODES.POS_COMPLETE_COUNT]: PRODUCT_FEATURE_CODES.SALES_POS_COMPLETE,
+  [PRODUCT_METRIC_CODES.EIS_ACCEPT_COUNT]: PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT,
+});
+
+export {
+  INSTRUMENTED_FEATURE_CODES,
+  PRODUCT_FEATURE_CODES,
+  FEATURE_EVENT_CODES,
+};
+
+export const PRODUCT_ANALYTICS_NOTES = Object.freeze([
+  'Strict events only â€” domain tables are candidates until producers emit.',
+  'Page views / login alone â‰  value / activation / adoption.',
+  'FEATURE_USED remains scaffold-only; commerce uses typed event codes.',
+  'Retries / reprints / rejects must not count as new MRA accepted value.',
+]);
+
+===== lib/admin/productAnalytics/index.js =====
+
+export * from './catalogue.js';
+export * from './reliabilityGate.js';
+export * from './authz.js';
+export * from './producers.js';
+
+// Convenience re-exports for permission / nav assertions in tests & callers
+export {
+  SYSTEM_ADMIN_PERMISSIONS,
+  NAV_PERMISSION_MAP,
+} from '@/lib/admin/permissions';
+
+===== lib/admin/productAnalytics/producers.js =====
+
+/**
+ * Wave 1 commerce producers â€” idempotent emits into Phase 4 AnalyticsOutbox.
+ * Payloads: IDs / classifications only â€” no Tenant GL lines, no MRA credentials.
+ */
+
+import { appendAnalyticsOutbox } from '@/lib/admin/analytics/outbox.js';
+import { ANALYTICS_EVENT_TYPES, SCAFFOLD_ONLY } from '@/lib/admin/analytics/catalogue.js';
+import {
+  INSTRUMENTED_FEATURE_CODES,
+  PRODUCT_FEATURE_CODES,
+  FEATURE_EVENT_CODES,
+  isInstrumentedFeature,
+} from '@/lib/admin/productCatalogue/features.js';
+
+async function safeAppend(db, input) {
+  try {
+    if (!db || typeof db.analyticsOutbox?.create !== 'function') {
+      return { ok: false, skipped: true, reason: 'analytics_unavailable' };
+    }
+    return await appendAnalyticsOutbox(db, input);
+  } catch (e) {
+    console.warn('[productAnalytics.producers]', e?.message || e);
+    return { ok: false, error: e?.message || 'emit failed' };
+  }
+}
+
+/**
+ * Generic gate for product meaningful actions â€” never FEATURE_USED free-for-all.
+ *
+ * @param {object} prisma
+ * @param {{
+ *   eventCode: string,
+ *   tenantId: string,
+ *   featureCode: string,
+ *   sourceType: string,
+ *   sourceId: string,
+ *   idempotencyKey: string,
+ *   actorId?: string|null,
+ *   correlationId?: string|null,
+ *   occurredAt?: Date,
+ *   payload?: object,
+ * }} args
+ */
+export async function emitProductMeaningfulAction(prisma, args = {}) {
+  const {
+    eventCode,
+    tenantId,
+    featureCode,
+    sourceType,
+    sourceId,
+    idempotencyKey,
+    actorId = null,
+    correlationId = null,
+    occurredAt = new Date(),
+    payload = {},
+  } = args;
+
+  if (!eventCode || !tenantId || !featureCode || !sourceType || !sourceId || !idempotencyKey) {
+    return {
+      ok: false,
+      error: 'eventCode, tenantId, featureCode, sourceType, sourceId, idempotencyKey required',
+    };
+  }
+
+  if (SCAFFOLD_ONLY.has(eventCode) || eventCode === ANALYTICS_EVENT_TYPES.FEATURE_USED) {
+    return {
+      ok: false,
+      error: `Event type ${eventCode} is scaffold-only â€” use typed commerce event codes`,
+      reason: 'scaffold_only',
+    };
+  }
+
+  if (!isInstrumentedFeature(featureCode)) {
+    return {
+      ok: false,
+      error: `Feature ${featureCode} is not instrumented`,
+      reason: 'feature_not_instrumented',
+    };
+  }
+
+  const expected = FEATURE_EVENT_CODES[featureCode];
+  if (expected && expected !== eventCode) {
+    return {
+      ok: false,
+      error: `Event ${eventCode} does not match feature ${featureCode}`,
+      reason: 'event_feature_mismatch',
+    };
+  }
+
+  return safeAppend(prisma, {
+    tenantId,
+    aggregateType: sourceType,
+    aggregateId: String(sourceId),
+    eventType: eventCode,
+    idempotencyKey,
+    actorType: actorId ? 'user' : null,
+    actorId,
+    correlationId,
+    occurredAt,
+    payload: {
+      featureCode,
+      sourceType,
+      sourceId: String(sourceId),
+      ...sanitizeProductPayload(payload),
+    },
+  });
+}
+
+function sanitizeProductPayload(payload) {
+  if (!payload || typeof payload !== 'object') return {};
+  const out = {};
+  const allow = [
+    'status',
+    'outcome',
+    'snapshotId',
+    'branchId',
+    'moduleCode',
+    'classification',
+    'environment',
+  ];
+  for (const k of allow) {
+    if (payload[k] != null) out[k] = payload[k];
+  }
+  return out;
+}
+
+/**
+ * Sales invoice posted (non-draft). Idempotent on invoiceId.
+ */
+export async function emitSalesInvoicePosted(db, {
+  tenantId,
+  invoiceId,
+  actorId = null,
+  occurredAt = new Date(),
+  status = null,
+  branchId = null,
+} = {}) {
+  if (!tenantId || !invoiceId) {
+    return { ok: false, error: 'tenantId and invoiceId required' };
+  }
+  if (status != null) {
+    const s = String(status);
+    if (s === 'Draft' || s.toUpperCase() === 'PROFORMA') {
+      return { ok: false, skipped: true, reason: 'not_posted' };
+    }
+  }
+  return emitProductMeaningfulAction(db, {
+    eventCode: ANALYTICS_EVENT_TYPES.SALES_INVOICE_POSTED,
+    tenantId,
+    featureCode: PRODUCT_FEATURE_CODES.INVOICES_POST,
+    sourceType: 'Invoice',
+    sourceId: invoiceId,
+    idempotencyKey: `evt:SALES_INVOICE_POSTED:${invoiceId}`,
+    actorId,
+    occurredAt,
+    payload: { status, branchId, moduleCode: 'invoices' },
+  });
+}
+
+/**
+ * POS transaction completed. Idempotent on saleId. Skips drafts / non-completed.
+ */
+export async function emitPosTransactionCompleted(db, {
+  tenantId,
+  saleId,
+  actorId = null,
+  occurredAt = new Date(),
+  status = 'completed',
+  branchId = null,
+} = {}) {
+  if (!tenantId || !saleId) {
+    return { ok: false, error: 'tenantId and saleId required' };
+  }
+  if (String(status).toLowerCase() !== 'completed') {
+    return { ok: false, skipped: true, reason: 'not_completed' };
+  }
+  return emitProductMeaningfulAction(db, {
+    eventCode: ANALYTICS_EVENT_TYPES.POS_TRANSACTION_COMPLETED,
+    tenantId,
+    featureCode: PRODUCT_FEATURE_CODES.SALES_POS_COMPLETE,
+    sourceType: 'Sale',
+    sourceId: saleId,
+    idempotencyKey: `evt:POS_TRANSACTION_COMPLETED:${saleId}`,
+    actorId,
+    occurredAt,
+    payload: { status: 'completed', branchId, moduleCode: 'sales' },
+  });
+}
+
+/**
+ * MRA EIS accepted fiscal transmission only.
+ * Excludes retries, rejects, reprints (isRetry / accepted=false).
+ */
+export async function emitMraEisTransactionAccepted(db, {
+  tenantId,
+  transmissionId,
+  accepted = false,
+  isRetry = false,
+  isReprint = false,
+  outcome = null,
+  snapshotId = null,
+  actorId = null,
+  occurredAt = new Date(),
+  environment = null,
+} = {}) {
+  if (!tenantId || !transmissionId) {
+    return { ok: false, error: 'tenantId and transmissionId required' };
+  }
+  if (!accepted) {
+    return { ok: false, skipped: true, reason: 'not_accepted' };
+  }
+  if (isRetry || isReprint) {
+    return { ok: false, skipped: true, reason: 'retry_or_reprint_excluded' };
+  }
+  const outcomeUpper = outcome != null ? String(outcome).toUpperCase() : '';
+  if (outcomeUpper.includes('REJECT')) {
+    return { ok: false, skipped: true, reason: 'rejected' };
+  }
+
+  return emitProductMeaningfulAction(db, {
+    eventCode: ANALYTICS_EVENT_TYPES.MRA_EIS_TRANSACTION_ACCEPTED,
+    tenantId,
+    featureCode: PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT,
+    sourceType: 'MraEisTransmission',
+    sourceId: transmissionId,
+    idempotencyKey: `evt:MRA_EIS_TRANSACTION_ACCEPTED:${transmissionId}`,
+    actorId,
+    occurredAt,
+    payload: {
+      snapshotId,
+      classification: 'ACCEPTED',
+      environment,
+      moduleCode: 'eis',
+    },
+  });
+}
+
+export { INSTRUMENTED_FEATURE_CODES };
+
+===== lib/admin/productAnalytics/reliabilityGate.js =====
+
+/**
+ * Product reliability gate â€” never return numeric zero on failure.
+ */
+
+import { getProductFeature } from '@/lib/admin/productCatalogue/features.js';
+import {
+  METRIC_FEATURE_MAP,
+  PRODUCT_RELIABILITY_STATUS,
+} from './catalogue.js';
+
+/**
+ * @param {string} metricCode
+ * @param {{ featureCode?: string, permissionOk?: boolean, definitionActive?: boolean }} [ctx]
+ * @returns {{ status: string, value: null|undefined, reasonCode: string|null, reasonMessage: string|null, metricCode: string, featureCode: string|null }}
+ */
+export function evaluateProductReliability(metricCode, ctx = {}) {
+  const code = metricCode ? String(metricCode) : '';
+  const featureCode =
+    ctx.featureCode ||
+    METRIC_FEATURE_MAP[code] ||
+    inferFeatureFromMetric(code);
+
+  if (ctx.permissionOk === false) {
+    return gateResult(
+      PRODUCT_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
+      code,
+      featureCode,
+      'permission_restricted',
+      'Permission or portfolio scope denies this metric'
+    );
+  }
+
+  if (ctx.definitionActive === false) {
+    return gateResult(
+      PRODUCT_RELIABILITY_STATUS.DEFINITION_MISSING,
+      code,
+      featureCode,
+      'definition_inactive',
+      'Definition version inactive'
+    );
+  }
+
+  if (!featureCode) {
+    return gateResult(
+      PRODUCT_RELIABILITY_STATUS.DEFINITION_MISSING,
+      code,
+      null,
+      'feature_unresolved',
+      'Cannot resolve feature for metric'
+    );
+  }
+
+  const feature = getProductFeature(featureCode);
+  if (!feature) {
+    return gateResult(
+      PRODUCT_RELIABILITY_STATUS.DEFINITION_MISSING,
+      code,
+      featureCode,
+      'feature_missing',
+      'Feature missing from product catalogue'
+    );
+  }
+
+  if (!feature.instrumented || feature.instrumentation === 'NOT_INSTRUMENTED') {
+    return gateResult(
+      PRODUCT_RELIABILITY_STATUS.NOT_INSTRUMENTED,
+      code,
+      featureCode,
+      'not_instrumented',
+      'No verified producer for this feature'
+    );
+  }
+
+  return {
+    status: PRODUCT_RELIABILITY_STATUS.AVAILABLE,
+    value: undefined,
+    reasonCode: null,
+    reasonMessage: null,
+    metricCode: code,
+    featureCode,
+  };
+}
+
+function gateResult(status, metricCode, featureCode, reasonCode, reasonMessage) {
+  return {
+    status,
+    value: null,
+    reasonCode,
+    reasonMessage,
+    metricCode,
+    featureCode,
+  };
+}
+
+/** Heuristic: product.feature.<module>.<action...> â†’ module.action... */
+function inferFeatureFromMetric(metricCode) {
+  if (!metricCode.startsWith('product.feature.')) return null;
+  const rest = metricCode.slice('product.feature.'.length);
+  // strip trailing .count / .rate / etc.
+  const parts = rest.split('.');
+  if (parts.length < 2) return null;
+  const last = parts[parts.length - 1];
+  if (['count', 'rate', 'share', 'first_value', 'adoption'].includes(last)) {
+    return parts.slice(0, -1).join('.');
+  }
+  return rest;
+}
+
+===== lib/admin/productCatalogue/areas.js =====
+
+/** Product areas â€” repo-backed taxonomy (Phase 9 Wave 1). */
+
+export const PRODUCT_AREAS = Object.freeze({
+  CUSTOMER_AND_SALES: 'CUSTOMER_AND_SALES',
+  INVENTORY_AND_COMMERCE: 'INVENTORY_AND_COMMERCE',
+  PURCHASING_AND_EXPENSES: 'PURCHASING_AND_EXPENSES',
+  ACCOUNTING_AND_FINANCE: 'ACCOUNTING_AND_FINANCE',
+  REPORTING_AND_INTELLIGENCE: 'REPORTING_AND_INTELLIGENCE',
+  WORKFORCE_AND_PAYROLL: 'WORKFORCE_AND_PAYROLL',
+  ASSETS_AND_LIABILITIES: 'ASSETS_AND_LIABILITIES',
+  RENTAL_AND_HIRING: 'RENTAL_AND_HIRING',
+  TAX_AND_COMPLIANCE: 'TAX_AND_COMPLIANCE',
+  MRA_EIS: 'MRA_EIS',
+  BANKING_AND_CASH: 'BANKING_AND_CASH',
+  CORE_PLATFORM: 'CORE_PLATFORM',
+  ADMINISTRATION_AND_SECURITY: 'ADMINISTRATION_AND_SECURITY',
+});
+
+===== lib/admin/productCatalogue/cadence.js =====
+
+/** Cadence defaults for product features (MODULE_FEATURE_MATRIX). */
+
+export const PRODUCT_CADENCE = Object.freeze({
+  DAILY: 'DAILY',
+  EVENT_DRIVEN: 'EVENT_DRIVEN',
+  WEEKLY: 'WEEKLY',
+  MONTHLY: 'MONTHLY',
+  QUARTERLY: 'QUARTERLY',
+  AD_HOC: 'AD_HOC',
+});
+
+/** Default cadence by module code. */
+export const MODULE_CADENCE_DEFAULTS = Object.freeze({
+  invoices: PRODUCT_CADENCE.EVENT_DRIVEN,
+  sales: PRODUCT_CADENCE.DAILY,
+  eis: PRODUCT_CADENCE.EVENT_DRIVEN,
+  payroll: PRODUCT_CADENCE.MONTHLY,
+  reports: PRODUCT_CADENCE.MONTHLY,
+  quotations: PRODUCT_CADENCE.AD_HOC,
+  inventory: PRODUCT_CADENCE.DAILY,
+  accounting: PRODUCT_CADENCE.MONTHLY,
+});
+
+===== lib/admin/productCatalogue/entitlements.js =====
+
+/**
+ * Feature entitlement resolution for Product Analytics (observe only â€” never mutate).
+ * Sources: PlatformFeatureEntitlement override, plan featuresJson, MRA EIS entitlement.
+ */
+
+import { PRODUCT_FEATURE_CODES } from './features.js';
+
+export const ENTITLEMENT_STATUS = Object.freeze({
+  INCLUDED: 'INCLUDED',
+  OPTIONAL_ADD_ON: 'OPTIONAL_ADD_ON',
+  NOT_INCLUDED: 'NOT_INCLUDED',
+  GRANDFATHERED: 'GRANDFATHERED',
+  CUSTOM_CONTRACT: 'CUSTOM_CONTRACT',
+  UNKNOWN: 'UNKNOWN',
+});
+
+function featureMatchesPlanList(featuresJson, featureCode) {
+  if (!Array.isArray(featuresJson)) return false;
+  const code = String(featureCode);
+  const modulePrefix = code.split('.')[0];
+  return featuresJson.some((entry) => {
+    const v = typeof entry === 'string' ? entry : entry?.code || entry?.featureCode;
+    if (!v) return false;
+    const s = String(v);
+    return s === code || s === modulePrefix || s.startsWith(`${modulePrefix}.`);
+  });
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ tenantId: string, featureCode: string, asOf?: Date }} args
+ * @returns {Promise<{ status: string, planVersion: object|null, limitations: string[], source: string|null, enabled: boolean|null }>}
+ */
+export async function resolveFeatureEntitlement(prisma, args = {}) {
+  const tenantId = args.tenantId ? String(args.tenantId) : '';
+  const featureCode = args.featureCode ? String(args.featureCode) : '';
+  const asOf = args.asOf instanceof Date ? args.asOf : new Date();
+  const limitations = [];
+
+  if (!tenantId || !featureCode) {
+    return {
+      status: ENTITLEMENT_STATUS.UNKNOWN,
+      planVersion: null,
+      limitations: ['tenantId and featureCode required'],
+      source: null,
+      enabled: null,
+    };
+  }
+
+  // Tenant override wins
+  let override = null;
+  try {
+    override = await prisma.platformFeatureEntitlement?.findUnique?.({
+      where: { tenantId_featureCode: { tenantId, featureCode } },
+    });
+  } catch {
+    override = null;
+  }
+
+  if (override) {
+    const startOk = !override.startDate || new Date(override.startDate) <= asOf;
+    const endOk = !override.endDate || new Date(override.endDate) >= asOf;
+    if (override.status === 'DISABLED' || !startOk || !endOk) {
+      return {
+        status: ENTITLEMENT_STATUS.NOT_INCLUDED,
+        planVersion: null,
+        limitations: ['Tenant override disables or is outside window'],
+        source: 'TENANT_OVERRIDE',
+        enabled: false,
+      };
+    }
+    if (override.status === 'ACTIVE' && startOk && endOk) {
+      return {
+        status: ENTITLEMENT_STATUS.CUSTOM_CONTRACT,
+        planVersion: null,
+        limitations: override.reason ? [String(override.reason)] : [],
+        source: 'TENANT_OVERRIDE',
+        enabled: true,
+      };
+    }
+  }
+
+  // MRA EIS add-on path
+  if (featureCode === PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT) {
+    let eis = null;
+    try {
+      eis = await prisma.mraEisTenantEntitlement?.findFirst?.({
+        where: {
+          tenantId,
+          isCurrent: true,
+          status: { in: ['ACTIVE', 'GRANTED', 'ENABLED'] },
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+    } catch {
+      try {
+        eis = await prisma.mraEisTenantEntitlement?.findFirst?.({
+          where: { tenantId, isCurrent: true },
+          orderBy: { updatedAt: 'desc' },
+        });
+      } catch {
+        eis = null;
+      }
+    }
+    if (eis) {
+      const statusUpper = String(eis.status || '').toUpperCase();
+      if (['REVOKED', 'EXPIRED', 'DISABLED', 'CANCELLED'].includes(statusUpper)) {
+        return {
+          status: ENTITLEMENT_STATUS.NOT_INCLUDED,
+          planVersion: null,
+          limitations: ['MRA EIS entitlement not active'],
+          source: 'MRA_EIS_ENTITLEMENT',
+          enabled: false,
+        };
+      }
+      return {
+        status: ENTITLEMENT_STATUS.OPTIONAL_ADD_ON,
+        planVersion: null,
+        limitations: [],
+        source: 'MRA_EIS_ENTITLEMENT',
+        enabled: true,
+      };
+    }
+  }
+
+  // Plan included features via subscription â†’ plan version
+  let subscription = null;
+  try {
+    subscription = await prisma.accountSubscription?.findFirst?.({
+      where: {
+        tenantId,
+        status: { in: ['ACTIVE', 'TRIAL', 'PAST_DUE'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  } catch {
+    subscription = null;
+  }
+
+  let planVersion = null;
+  if (subscription?.planVersionId) {
+    try {
+      planVersion =
+        (await prisma.platformPlanVersion?.findUnique?.({
+          where: { id: subscription.planVersionId },
+        })) ||
+        (await prisma.platformPlanVersion?.findFirst?.({
+          where: { id: subscription.planVersionId },
+        }));
+    } catch {
+      planVersion = null;
+    }
+  }
+  if (!planVersion && subscription?.plan) {
+    try {
+      planVersion = await prisma.platformPlanVersion?.findFirst?.({
+        where: {
+          planCode: subscription.plan,
+          status: { in: ['ACTIVE', 'PUBLISHED'] },
+        },
+        orderBy: { version: 'desc' },
+      });
+    } catch {
+      planVersion = null;
+    }
+  }
+
+  if (!planVersion) {
+    limitations.push('No active plan version resolved');
+    return {
+      status: ENTITLEMENT_STATUS.UNKNOWN,
+      planVersion: null,
+      limitations,
+      source: null,
+      enabled: null,
+    };
+  }
+
+  const included = featureMatchesPlanList(planVersion.featuresJson, featureCode);
+  const limits =
+    planVersion.limitsJson && typeof planVersion.limitsJson === 'object'
+      ? planVersion.limitsJson
+      : {};
+  if (limits && Object.keys(limits).length) {
+    limitations.push('Plan usage limits apply (observe only)');
+  }
+
+  return {
+    status: included ? ENTITLEMENT_STATUS.INCLUDED : ENTITLEMENT_STATUS.NOT_INCLUDED,
+    planVersion: {
+      id: planVersion.id,
+      version: planVersion.version,
+      planCode: planVersion.planCode,
+    },
+    limitations,
+    source: 'PLAN',
+    enabled: included,
+  };
+}
+
+===== lib/admin/productCatalogue/features.js =====
+
+/**
+ * Repo-backed product features â€” Wave 1 instrumented commerce trio + module shells.
+ */
+
+import { PRODUCT_CADENCE } from './cadence.js';
+import { INSTRUMENTATION_STATE, PRODUCT_LIFECYCLE } from './lifecycle.js';
+
+export const PRODUCT_FEATURE_CODES = Object.freeze({
+  INVOICES_POST: 'invoices.post',
+  SALES_POS_COMPLETE: 'sales.pos.complete',
+  EIS_FISCAL_ACCEPT: 'eis.fiscal.accept',
+});
+
+/** Feature codes with live producers in Wave 1. */
+export const INSTRUMENTED_FEATURE_CODES = new Set([
+  PRODUCT_FEATURE_CODES.INVOICES_POST,
+  PRODUCT_FEATURE_CODES.SALES_POS_COMPLETE,
+  PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT,
+]);
+
+/** Event codes bound to instrumented features. */
+export const FEATURE_EVENT_CODES = Object.freeze({
+  [PRODUCT_FEATURE_CODES.INVOICES_POST]: 'SALES_INVOICE_POSTED',
+  [PRODUCT_FEATURE_CODES.SALES_POS_COMPLETE]: 'POS_TRANSACTION_COMPLETED',
+  [PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT]: 'MRA_EIS_TRANSACTION_ACCEPTED',
+});
+
+/**
+ * @typedef {{
+ *   code: string,
+ *   name: string,
+ *   moduleCode: string,
+ *   instrumented: boolean,
+ *   instrumentation: string,
+ *   eventCode: string|null,
+ *   cadence: string,
+ *   lifecycle: string,
+ *   meaningfulAction: string|null,
+ *   exclusions: string[],
+ * }} FeatureDef
+ */
+
+/** @type {FeatureDef[]} */
+const FEATURES = Object.freeze([
+  {
+    code: PRODUCT_FEATURE_CODES.INVOICES_POST,
+    name: 'Post sales invoice',
+    moduleCode: 'invoices',
+    instrumented: true,
+    instrumentation: INSTRUMENTATION_STATE.INSTRUMENTED,
+    eventCode: FEATURE_EVENT_CODES[PRODUCT_FEATURE_CODES.INVOICES_POST],
+    cadence: PRODUCT_CADENCE.EVENT_DRIVEN,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    meaningfulAction: 'Posted sales invoice',
+    exclusions: ['drafts', 'voids without post', 'reprints'],
+  },
+  {
+    code: PRODUCT_FEATURE_CODES.SALES_POS_COMPLETE,
+    name: 'Complete POS sale',
+    moduleCode: 'sales',
+    instrumented: true,
+    instrumentation: INSTRUMENTATION_STATE.INSTRUMENTED,
+    eventCode: FEATURE_EVENT_CODES[PRODUCT_FEATURE_CODES.SALES_POS_COMPLETE],
+    cadence: PRODUCT_CADENCE.DAILY,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    meaningfulAction: 'Completed POS sale',
+    exclusions: ['abandoned carts', 'reprints', 'drafts'],
+  },
+  {
+    code: PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT,
+    name: 'Accept fiscal transmission',
+    moduleCode: 'eis',
+    instrumented: true,
+    instrumentation: INSTRUMENTATION_STATE.INSTRUMENTED,
+    eventCode: FEATURE_EVENT_CODES[PRODUCT_FEATURE_CODES.EIS_FISCAL_ACCEPT],
+    cadence: PRODUCT_CADENCE.EVENT_DRIVEN,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    meaningfulAction: 'Accepted fiscal transmission',
+    exclusions: ['retries', 'rejects', 'reprints'],
+  },
+  // Shell â€” catalogue-visible but not instrumented (gate â†’ NOT_INSTRUMENTED)
+  {
+    code: 'payroll.run',
+    name: 'Run payroll',
+    moduleCode: 'payroll',
+    instrumented: false,
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    eventCode: null,
+    cadence: PRODUCT_CADENCE.MONTHLY,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    meaningfulAction: null,
+    exclusions: [],
+  },
+]);
+
+/**
+ * @returns {FeatureDef[]}
+ */
+export function listProductFeatures() {
+  return FEATURES.map((f) => ({
+    ...f,
+    exclusions: [...f.exclusions],
+  }));
+}
+
+/**
+ * @param {string} code
+ * @returns {FeatureDef|null}
+ */
+export function getProductFeature(code) {
+  const found = FEATURES.find((f) => f.code === code);
+  if (!found) return null;
+  return { ...found, exclusions: [...found.exclusions] };
+}
+
+/**
+ * @param {string} featureCode
+ */
+export function isInstrumentedFeature(featureCode) {
+  return INSTRUMENTED_FEATURE_CODES.has(featureCode);
+}
+
+===== lib/admin/productCatalogue/index.js =====
+
+export const PRODUCT_CATALOGUE_VERSION = 'product-catalogue-2026-07-29';
+
+export * from './areas.js';
+export * from './cadence.js';
+export * from './lifecycle.js';
+export * from './modules.js';
+export * from './features.js';
+export * from './entitlements.js';
+
+===== lib/admin/productCatalogue/lifecycle.js =====
+
+/** Feature / module lifecycle states for catalogue entries. */
+
+export const PRODUCT_LIFECYCLE = Object.freeze({
+  ACTIVE: 'ACTIVE',
+  BETA: 'BETA',
+  DEPRECATED: 'DEPRECATED',
+  RETIRED: 'RETIRED',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+});
+
+export const INSTRUMENTATION_STATE = Object.freeze({
+  INSTRUMENTED: 'INSTRUMENTED',
+  NOT_INSTRUMENTED: 'NOT_INSTRUMENTED',
+  DISCOVERY_ONLY: 'DISCOVERY_ONLY',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+});
+
+===== lib/admin/productCatalogue/modules.js =====
+
+/**
+ * Repo-backed product modules (MODULE_FEATURE_MATRIX.md).
+ */
+
+import { PRODUCT_AREAS } from './areas.js';
+import { INSTRUMENTATION_STATE, PRODUCT_LIFECYCLE } from './lifecycle.js';
+import { MODULE_CADENCE_DEFAULTS, PRODUCT_CADENCE } from './cadence.js';
+
+/** @typedef {{ code: string, name: string, area: string, evidence: string, instrumentation: string, lifecycle: string, cadence: string }} ModuleDef */
+
+/** @type {ModuleDef[]} */
+const MODULES = Object.freeze([
+  {
+    code: 'invoices',
+    name: 'Invoices',
+    area: PRODUCT_AREAS.CUSTOMER_AND_SALES,
+    evidence: 'permissionsMap, /invoice',
+    instrumentation: INSTRUMENTATION_STATE.INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.invoices,
+  },
+  {
+    code: 'sales',
+    name: 'POS / Sales',
+    area: PRODUCT_AREAS.CUSTOMER_AND_SALES,
+    evidence: 'permissionsMap, /pos',
+    instrumentation: INSTRUMENTATION_STATE.INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.sales,
+  },
+  {
+    code: 'eis',
+    name: 'MRA EIS',
+    area: PRODUCT_AREAS.MRA_EIS,
+    evidence: 'permissionsMap, /eis',
+    instrumentation: INSTRUMENTATION_STATE.INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.eis,
+  },
+  {
+    code: 'quotations',
+    name: 'Quotations',
+    area: PRODUCT_AREAS.CUSTOMER_AND_SALES,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.quotations,
+  },
+  {
+    code: 'clients',
+    name: 'Clients',
+    area: PRODUCT_AREAS.CUSTOMER_AND_SALES,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'inventory',
+    name: 'Inventory',
+    area: PRODUCT_AREAS.INVENTORY_AND_COMMERCE,
+    evidence: '/stock',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.inventory,
+  },
+  {
+    code: 'purchases',
+    name: 'Purchases',
+    area: PRODUCT_AREAS.PURCHASING_AND_EXPENSES,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'expenses',
+    name: 'Expenses',
+    area: PRODUCT_AREAS.PURCHASING_AND_EXPENSES,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'accounting',
+    name: 'Accounting',
+    area: PRODUCT_AREAS.ACCOUNTING_AND_FINANCE,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.accounting,
+  },
+  {
+    code: 'generalLedger',
+    name: 'General Ledger',
+    area: PRODUCT_AREAS.ACCOUNTING_AND_FINANCE,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.MONTHLY,
+  },
+  {
+    code: 'journalEntries',
+    name: 'Journal Entries',
+    area: PRODUCT_AREAS.ACCOUNTING_AND_FINANCE,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.EVENT_DRIVEN,
+  },
+  {
+    code: 'reports',
+    name: 'Reports',
+    area: PRODUCT_AREAS.REPORTING_AND_INTELLIGENCE,
+    evidence: '/reports-v2',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.reports,
+  },
+  {
+    code: 'payroll',
+    name: 'Payroll',
+    area: PRODUCT_AREAS.WORKFORCE_AND_PAYROLL,
+    evidence: '/hr',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: MODULE_CADENCE_DEFAULTS.payroll,
+  },
+  {
+    code: 'hr',
+    name: 'HR',
+    area: PRODUCT_AREAS.WORKFORCE_AND_PAYROLL,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.MONTHLY,
+  },
+  {
+    code: 'budgets',
+    name: 'Budgets',
+    area: PRODUCT_AREAS.ACCOUNTING_AND_FINANCE,
+    evidence: 'budget-forecast',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.QUARTERLY,
+  },
+  {
+    code: 'assets',
+    name: 'Assets',
+    area: PRODUCT_AREAS.ASSETS_AND_LIABILITIES,
+    evidence: 'asset-management',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.MONTHLY,
+  },
+  {
+    code: 'rentals',
+    name: 'Rentals',
+    area: PRODUCT_AREAS.RENTAL_AND_HIRING,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'tax',
+    name: 'Tax',
+    area: PRODUCT_AREAS.TAX_AND_COMPLIANCE,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.MONTHLY,
+  },
+  {
+    code: 'bankReconciliation',
+    name: 'Bank Reconciliation',
+    area: PRODUCT_AREAS.BANKING_AND_CASH,
+    evidence: 'permissionsMap',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.DAILY,
+  },
+  {
+    code: 'dashboard',
+    name: 'Dashboard',
+    area: PRODUCT_AREAS.CORE_PLATFORM,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.DISCOVERY_ONLY,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.DAILY,
+  },
+  {
+    code: 'users',
+    name: 'Users',
+    area: PRODUCT_AREAS.ADMINISTRATION_AND_SECURITY,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'roles',
+    name: 'Roles',
+    area: PRODUCT_AREAS.ADMINISTRATION_AND_SECURITY,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'settings',
+    name: 'Settings',
+    area: PRODUCT_AREAS.ADMINISTRATION_AND_SECURITY,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+  {
+    code: 'branches',
+    name: 'Branches',
+    area: PRODUCT_AREAS.ADMINISTRATION_AND_SECURITY,
+    evidence: 'routes',
+    instrumentation: INSTRUMENTATION_STATE.NOT_INSTRUMENTED,
+    lifecycle: PRODUCT_LIFECYCLE.ACTIVE,
+    cadence: PRODUCT_CADENCE.AD_HOC,
+  },
+]);
+
+/**
+ * @returns {ModuleDef[]}
+ */
+export function listProductModules() {
+  return MODULES.map((m) => ({ ...m }));
+}
+
+/**
+ * @param {string} code
+ * @returns {ModuleDef|null}
+ */
+export function getProductModule(code) {
+  const found = MODULES.find((m) => m.code === code);
+  return found ? { ...found } : null;
+}
+
+===== test/systemAdmin.productAnalytics.catalogue.test.js =====
+
+import { describe, it, expect } from 'vitest';
+import {
+  listProductModules,
+  listProductFeatures,
+  PRODUCT_CATALOGUE_VERSION,
+  INSTRUMENTED_FEATURE_CODES,
+} from '@/lib/admin/productCatalogue';
+import {
+  evaluateProductReliability,
+  PRODUCT_RELIABILITY_STATUS,
+  SYSTEM_ADMIN_PERMISSIONS,
+  NAV_PERMISSION_MAP,
+  resolveProductAnalyticsAccess,
+} from '@/lib/admin/productAnalytics';
+import {
+  ANALYTICS_EVENT_TYPES,
+  VERIFIED_EMITTERS,
+  SCAFFOLD_ONLY,
+} from '@/lib/admin/analytics';
+
+describe('product catalogue (repo-backed)', () => {
+  it('lists repo modules including invoices, sales, eis', () => {
+    const modules = listProductModules();
+    expect(PRODUCT_CATALOGUE_VERSION).toMatch(/product-catalogue-/);
+    expect(Array.isArray(modules)).toBe(true);
+    expect(modules.length).toBeGreaterThanOrEqual(3);
+
+    const codes = modules.map((m) => m.code);
+    expect(codes).toEqual(expect.arrayContaining(['invoices', 'sales', 'eis']));
+
+    for (const mod of modules) {
+      expect(mod).toMatchObject({
+        code: expect.any(String),
+        area: expect.any(String),
+        instrumentation: expect.any(String),
+      });
+    }
+  });
+
+  it('seeds Wave 1 instrumented feature codes only for commerce trio', () => {
+    const features = listProductFeatures();
+    const codes = features.map((f) => f.code);
+    expect(codes).toEqual(
+      expect.arrayContaining(['invoices.post', 'sales.pos.complete', 'eis.fiscal.accept'])
+    );
+    expect(INSTRUMENTED_FEATURE_CODES.has('invoices.post')).toBe(true);
+    expect(INSTRUMENTED_FEATURE_CODES.has('sales.pos.complete')).toBe(true);
+    expect(INSTRUMENTED_FEATURE_CODES.has('eis.fiscal.accept')).toBe(true);
+    // Uninstrumented module features must not pretend to be live
+    const payroll = features.find((f) => f.moduleCode === 'payroll' && f.instrumented);
+    expect(payroll).toBeUndefined();
+  });
+});
+
+describe('product reliability gate', () => {
+  it('returns NOT_INSTRUMENTED for uninstrumented feature metrics', () => {
+    const result = evaluateProductReliability('product.feature.payroll.run', {
+      featureCode: 'payroll.run',
+    });
+    expect(result.status).toBe(PRODUCT_RELIABILITY_STATUS.NOT_INSTRUMENTED);
+    expect(result.value).toBeNull();
+    expect(result.reasonCode).toBeTruthy();
+  });
+
+  it('returns AVAILABLE for instrumented commerce feature metrics', () => {
+    const result = evaluateProductReliability('product.feature.invoices.post.count', {
+      featureCode: 'invoices.post',
+    });
+    expect(result.status).toBe(PRODUCT_RELIABILITY_STATUS.AVAILABLE);
+  });
+
+  it('returns DEFINITION_MISSING when feature is absent from catalogue', () => {
+    const result = evaluateProductReliability('product.feature.unknown.x', {
+      featureCode: 'totally.unknown.feature',
+    });
+    expect(result.status).toBe(PRODUCT_RELIABILITY_STATUS.DEFINITION_MISSING);
+    expect(result.value).toBeNull();
+  });
+});
+
+describe('product analytics permissions + nav stubs', () => {
+  it('registers intel.productAnalytics.* permissions', () => {
+    expect(SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead).toBe(
+      'systemAdmin.intel.productAnalytics.read'
+    );
+    expect(SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsManageDefinitions).toBe(
+      'systemAdmin.intel.productAnalytics.manageDefinitions'
+    );
+    expect(SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsExport).toBe(
+      'systemAdmin.intel.productAnalytics.export'
+    );
+  });
+
+  it('maps product-analytics routes in NAV_PERMISSION_MAP', () => {
+    expect(NAV_PERMISSION_MAP['/insightbooks/intelligence/product-analytics']).toBe(
+      SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead
+    );
+    expect(
+      NAV_PERMISSION_MAP['/insightbooks/intelligence/product-analytics/modules']
+    ).toBe(SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead);
+  });
+
+  it('resolveProductAnalyticsAccess denies by default', () => {
+    const denied = resolveProductAnalyticsAccess({ role: 'Platform Support', permissions: {} });
+    expect(denied.canView).toBe(false);
+    const allowed = resolveProductAnalyticsAccess({
+      role: 'Super Admin',
+      permissions: {},
+    });
+    expect(allowed.canView).toBe(true);
+  });
+});
+
+describe('FEATURE_USED remains scaffold-only', () => {
+  it('does not promote FEATURE_USED to a free-for-all verified emitter', () => {
+    expect(SCAFFOLD_ONLY.has(ANALYTICS_EVENT_TYPES.FEATURE_USED)).toBe(true);
+    expect(VERIFIED_EMITTERS.has(ANALYTICS_EVENT_TYPES.FEATURE_USED)).toBe(false);
+  });
+
+  it('adds commerce product events as verified emitters', () => {
+    expect(VERIFIED_EMITTERS.has(ANALYTICS_EVENT_TYPES.SALES_INVOICE_POSTED)).toBe(true);
+    expect(VERIFIED_EMITTERS.has(ANALYTICS_EVENT_TYPES.POS_TRANSACTION_COMPLETED)).toBe(true);
+    expect(VERIFIED_EMITTERS.has(ANALYTICS_EVENT_TYPES.MRA_EIS_TRANSACTION_ACCEPTED)).toBe(
+      true
+    );
+  });
+});
+
+===== test/systemAdmin.productAnalytics.producers.test.js =====
+
+import { describe, it, expect, vi } from 'vitest';
+import {
+  emitProductMeaningfulAction,
+  emitSalesInvoicePosted,
+  emitPosTransactionCompleted,
+  emitMraEisTransactionAccepted,
+} from '@/lib/admin/productAnalytics';
+import {
+  ANALYTICS_EVENT_TYPES,
+  appendAnalyticsOutbox,
+  SCAFFOLD_ONLY,
+} from '@/lib/admin/analytics';
+import { resolveFeatureEntitlement } from '@/lib/admin/productCatalogue';
+
+function makeOutboxDb() {
+  const store = [];
+  return {
+    store,
+    analyticsOutbox: {
+      create: vi.fn(async ({ data }) => {
+        if (store.some((r) => r.idempotencyKey === data.idempotencyKey)) {
+          const err = new Error('unique');
+          err.code = 'P2002';
+          throw err;
+        }
+        const row = { id: `ob-${store.length + 1}`, ...data };
+        store.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where }) =>
+        store.find((r) => r.idempotencyKey === where.idempotencyKey) || null
+      ),
+    },
+  };
+}
+
+describe('emitProductMeaningfulAction', () => {
+  it('rejects FEATURE_USED as free-for-all scaffold emit', async () => {
+    const db = makeOutboxDb();
+    const r = await emitProductMeaningfulAction(db, {
+      eventCode: ANALYTICS_EVENT_TYPES.FEATURE_USED,
+      tenantId: 't1',
+      featureCode: 'invoices.post',
+      sourceType: 'Invoice',
+      sourceId: 'inv1',
+      idempotencyKey: 'evt:FEATURE_USED:inv1',
+    });
+    expect(r.ok).toBe(false);
+    expect(SCAFFOLD_ONLY.has(ANALYTICS_EVENT_TYPES.FEATURE_USED)).toBe(true);
+    expect(db.analyticsOutbox.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown / uninstrumented feature codes', async () => {
+    const db = makeOutboxDb();
+    const r = await emitProductMeaningfulAction(db, {
+      eventCode: ANALYTICS_EVENT_TYPES.SALES_INVOICE_POSTED,
+      tenantId: 't1',
+      featureCode: 'payroll.run',
+      sourceType: 'Invoice',
+      sourceId: 'inv1',
+      idempotencyKey: 'evt:SALES_INVOICE_POSTED:inv1',
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason || r.error).toMatch(/instrument|feature/i);
+  });
+});
+
+describe('commerce producers â€” idempotency', () => {
+  it('invoice posted producer is idempotent on source id', async () => {
+    const db = makeOutboxDb();
+    const input = {
+      tenantId: 't1',
+      invoiceId: 'inv-100',
+      actorId: 'u1',
+      occurredAt: new Date('2026-07-29T10:00:00Z'),
+    };
+    const first = await emitSalesInvoicePosted(db, input);
+    const second = await emitSalesInvoicePosted(db, input);
+    expect(first.ok).toBe(true);
+    expect(first.created).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(second.created).toBe(false);
+    expect(db.store).toHaveLength(1);
+    expect(db.store[0].eventType).toBe(ANALYTICS_EVENT_TYPES.SALES_INVOICE_POSTED);
+    expect(db.store[0].idempotencyKey).toBe('evt:SALES_INVOICE_POSTED:inv-100');
+    expect(db.store[0].payload).toMatchObject({
+      featureCode: 'invoices.post',
+      sourceType: 'Invoice',
+      sourceId: 'inv-100',
+    });
+    // No Tenant GL line text / amounts as primary payload
+    expect(db.store[0].payload.lineItems).toBeUndefined();
+    expect(db.store[0].payload.glLines).toBeUndefined();
+  });
+
+  it('POS completed producer is idempotent and skips non-completed', async () => {
+    const db = makeOutboxDb();
+    const skip = await emitPosTransactionCompleted(db, {
+      tenantId: 't1',
+      saleId: 'sale-1',
+      status: 'draft',
+    });
+    expect(skip.ok).toBe(false);
+    expect(skip.skipped).toBe(true);
+
+    const first = await emitPosTransactionCompleted(db, {
+      tenantId: 't1',
+      saleId: 'sale-1',
+      status: 'completed',
+    });
+    const second = await emitPosTransactionCompleted(db, {
+      tenantId: 't1',
+      saleId: 'sale-1',
+      status: 'completed',
+    });
+    expect(first.ok).toBe(true);
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
+    expect(db.store[0].eventType).toBe(ANALYTICS_EVENT_TYPES.POS_TRANSACTION_COMPLETED);
+    expect(db.store[0].idempotencyKey).toBe('evt:POS_TRANSACTION_COMPLETED:sale-1');
+  });
+
+  it('MRA accepted producer emits only on accepted and is idempotent', async () => {
+    const db = makeOutboxDb();
+    const rejected = await emitMraEisTransactionAccepted(db, {
+      tenantId: 't1',
+      transmissionId: 'tx-9',
+      accepted: false,
+      outcome: 'REJECTED',
+    });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.skipped).toBe(true);
+
+    const retry = await emitMraEisTransactionAccepted(db, {
+      tenantId: 't1',
+      transmissionId: 'tx-9',
+      accepted: true,
+      isRetry: true,
+    });
+    expect(retry.ok).toBe(false);
+    expect(retry.skipped).toBe(true);
+
+    const first = await emitMraEisTransactionAccepted(db, {
+      tenantId: 't1',
+      transmissionId: 'tx-9',
+      accepted: true,
+      snapshotId: 'snap-1',
+    });
+    const second = await emitMraEisTransactionAccepted(db, {
+      tenantId: 't1',
+      transmissionId: 'tx-9',
+      accepted: true,
+      snapshotId: 'snap-1',
+    });
+    expect(first.ok).toBe(true);
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
+    expect(db.store[0].eventType).toBe(ANALYTICS_EVENT_TYPES.MRA_EIS_TRANSACTION_ACCEPTED);
+    expect(db.store[0].idempotencyKey).toBe('evt:MRA_EIS_TRANSACTION_ACCEPTED:tx-9');
+    expect(db.store[0].payload.mraCredentials).toBeUndefined();
+    expect(db.store[0].payload.rawResponse).toBeUndefined();
+  });
+});
+
+describe('appendAnalyticsOutbox gates commerce events', () => {
+  it('accepts SALES_INVOICE_POSTED via outbox', async () => {
+    const db = makeOutboxDb();
+    const r = await appendAnalyticsOutbox(db, {
+      tenantId: 't1',
+      aggregateType: 'Invoice',
+      aggregateId: 'inv-2',
+      eventType: ANALYTICS_EVENT_TYPES.SALES_INVOICE_POSTED,
+      idempotencyKey: 'evt:SALES_INVOICE_POSTED:inv-2',
+      payload: { featureCode: 'invoices.post', sourceType: 'Invoice', sourceId: 'inv-2' },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.created).toBe(true);
+  });
+});
+
+describe('resolveFeatureEntitlement', () => {
+  it('returns UNKNOWN when no plan/override evidence', async () => {
+    const prisma = {
+      platformFeatureEntitlement: {
+        findUnique: vi.fn(async () => null),
+      },
+      accountSubscription: {
+        findFirst: vi.fn(async () => null),
+      },
+      platformPlanVersion: {
+        findFirst: vi.fn(async () => null),
+      },
+      mraEisTenantEntitlement: {
+        findFirst: vi.fn(async () => null),
+      },
+    };
+    const r = await resolveFeatureEntitlement(prisma, {
+      tenantId: 't1',
+      featureCode: 'invoices.post',
+      asOf: new Date('2026-07-29'),
+    });
+    expect(r.status).toBe('UNKNOWN');
+    expect(r.planVersion).toBeNull();
+    expect(Array.isArray(r.limitations)).toBe(true);
+  });
+
+  it('resolves INCLUDED from plan featuresJson when present', async () => {
+    const prisma = {
+      platformFeatureEntitlement: {
+        findUnique: vi.fn(async () => null),
+      },
+      accountSubscription: {
+        findFirst: vi.fn(async () => ({
+          id: 'sub1',
+          plan: 'growth',
+          planVersionId: 'pv1',
+          status: 'ACTIVE',
+        })),
+      },
+      platformPlanVersion: {
+        findFirst: vi.fn(async () => ({
+          id: 'pv1',
+          version: 2,
+          planCode: 'growth',
+          featuresJson: ['invoices', 'invoices.post', 'sales'],
+          limitsJson: { users: 10 },
+        })),
+        findUnique: vi.fn(async () => ({
+          id: 'pv1',
+          version: 2,
+          planCode: 'growth',
+          featuresJson: ['invoices', 'invoices.post', 'sales'],
+          limitsJson: { users: 10 },
+        })),
+      },
+      mraEisTenantEntitlement: {
+        findFirst: vi.fn(async () => null),
+      },
+    };
+    const r = await resolveFeatureEntitlement(prisma, {
+      tenantId: 't1',
+      featureCode: 'invoices.post',
+    });
+    expect(r.status).toBe('INCLUDED');
+    expect(r.planVersion).toMatchObject({ id: 'pv1', version: 2 });
+  });
+});
+diff --git a/lib/admin/permissions.js b/lib/admin/permissions.js
+index a7c04b3..46bfbde 100644
+--- a/lib/admin/permissions.js
++++ b/lib/admin/permissions.js
+@@ -1,10 +1,12 @@
+ /**
+  * Granular systemAdmin.* permission catalog for the platform control plane.
+- * Stored on Admin.permissions as nested objects; Super Admin bypasses checks.
++ * Stored on Admin.permissions as nested objects; Super Admin is break-glass via decision service.
+  */
+ 
++import { authorizeAdminDecision } from './authorization/authorizeAdminDecision.js';
++
+ export const SYSTEM_ADMIN_PERMISSIONS = {
+   dashboard: {
+     view: 'systemAdmin.dashboard.view',
+     financialMetrics: 'systemAdmin.dashboard.financialMetrics',
+     securityMetrics: 'systemAdmin.dashboard.securityMetrics',
+@@ -69,10 +71,22 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     creditsManage: 'systemAdmin.billing.credits.manage',
+     refundsManage: 'systemAdmin.billing.refunds.manage',
+     reconciliation: 'systemAdmin.billing.reconciliation',
+     reportsExport: 'systemAdmin.billing.reports.export',
+   },
++  mraPlans: {
++    view: 'systemAdmin.mraPlans.view',
++    create: 'systemAdmin.mraPlans.create',
++    editDraft: 'systemAdmin.mraPlans.editDraft',
++    approve: 'systemAdmin.mraPlans.approve',
++    publish: 'systemAdmin.mraPlans.publish',
++    suspend: 'systemAdmin.mraPlans.suspend',
++    retire: 'systemAdmin.mraPlans.retire',
++    version: 'systemAdmin.mraPlans.version',
++    preview: 'systemAdmin.mraPlans.preview',
++    export: 'systemAdmin.mraPlans.export',
++  },
+   email: {
+     view: 'systemAdmin.email.view',
+     configurationManage: 'systemAdmin.email.configuration.manage',
+     templatesManage: 'systemAdmin.email.templates.manage',
+     logsView: 'systemAdmin.email.logs.view',
+@@ -101,10 +115,40 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     view: 'systemAdmin.health.view',
+     retryJobs: 'systemAdmin.health.retryJobs',
+     cancelJobs: 'systemAdmin.health.cancelJobs',
+     manageIncidents: 'systemAdmin.health.manageIncidents',
+   },
++  /** Intelligence ΓÇö Phase 5 executive summaries (routes gated; default deny until granted). */
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    /** Wave 3 ΓÇö create portfolios / assign ownership (view still customersRead). */
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    /** Phase 8 Wave 1 ΓÇö Customer Health */
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    /** Phase 9 Wave 1 ΓÇö Product Analytics */
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  /** Phase 8 Wave 2/3 ΓÇö Customer Success Ops. */
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
+ };
+ 
+ export const ADMIN_ROLES = {
+   SUPER_ADMIN: 'Super Admin',
+   BILLING_ADMIN: 'Billing Administrator',
+@@ -116,29 +160,166 @@ export const ADMIN_ROLES = {
+ 
+ /** Map nav href prefixes to required permission (view). */
+ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/dashboard': SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+   '/insightbooks/tenant-management': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
++  '/insightbooks/tenant-identity-transfer': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
+   '/insightbooks/user-management': SYSTEM_ADMIN_PERMISSIONS.users.view,
+   '/insightbooks/global-settings': SYSTEM_ADMIN_PERMISSIONS.settings.view,
+   '/insightbooks/feature-entitlements': SYSTEM_ADMIN_PERMISSIONS.settings.features,
+   '/insightbooks/mobile-app': SYSTEM_ADMIN_PERMISSIONS.android.view,
+   '/insightbooks/affiliate': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/affiliate/commissions': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/affiliate/payouts': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/billing': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/overview': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/mra-eis-plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/subscriptions': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/invoices': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/payments': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/credits': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/reconciliation': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/reports': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/imports': SYSTEM_ADMIN_PERMISSIONS.tenants.create,
+   '/insightbooks/email-management': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/templates': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/suppression': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/mra-eis': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/centre': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/terminals': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/configuration': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/mappings': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/catalogue': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
+   '/insightbooks/audit': SYSTEM_ADMIN_PERMISSIONS.audit.view,
+   '/insightbooks/security': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/monitoring': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/compliance': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/system-health': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/analytics-pipeline': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/intelligence': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/executive': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/revenue': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/overview': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/recurring': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mrr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/arr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/movements': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/billing': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/collections': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/receivables': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/payment-performance':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/credits-refunds':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/customers': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/segments': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/concentration': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/retention': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/cohorts': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/subscriptions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/plans': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/forecast': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reconciliation': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reports': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/settings': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/customers': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/overview': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/directory': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/lifecycle': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/engagement': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/commercial': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/renewals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/adoption': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/support': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/signals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/portfolios': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reports': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/settings': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customer-health':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/snapshots':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/product-analytics':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/modules':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/features':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/customer-success': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/command-centre':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/cases': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/tasks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/interventions':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.manageCases,
++  '/insightbooks/customer-success/renewals': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/playbooks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/success-plans':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/onboarding': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/training': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/surveys': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/handoffs': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/reports': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++};
++
++/** Future Intelligence / CRM keys ΓÇö scaffold only; default deny until later phases. */
++export const INTEL_CRM_PERMISSION_SCAFFOLD = {
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  crm: {
++    leadsView: 'systemAdmin.crm.leads.view',
++    leadsManage: 'systemAdmin.crm.leads.manage',
++    pipelineView: 'systemAdmin.crm.pipeline.view',
++    pipelineManage: 'systemAdmin.crm.pipeline.manage',
++  },
+ };
+ 
+ /**
+  * Parse "systemAdmin.tenants.view" or "category.action" into nested lookup keys.
+  */
+@@ -158,30 +339,11 @@ export function permissionKeyParts(permission) {
+   return null;
+ }
+ 
+ /**
+  * Client-safe permission check (no Prisma / JWT imports).
+- * Super Admin always allowed. Supports systemAdmin.* and legacy category.action.
++ * Delegates to canonical authorizeAdminDecision (default deny; Super Admin break-glass).
++ * Supports systemAdmin.* and legacy category.action.
+  */
+ export function adminHasPermission(admin, permission) {
+-  if (!admin) return false;
+-  if (admin.role === 'Super Admin' || admin.role === ADMIN_ROLES.SUPER_ADMIN) {
+-    return true;
+-  }
+-  if (!admin.permissions || typeof admin.permissions !== 'object') {
+-    return false;
+-  }
+-  const parts = permissionKeyParts(permission);
+-  if (!parts) return false;
+-
+-  if (parts.root === 'systemAdmin') {
+-    const bucket = admin.permissions.systemAdmin?.[parts.category];
+-    if (bucket && typeof bucket === 'object') {
+-      return bucket[parts.action] === true;
+-    }
+-    // Flat key fallback: permissions['systemAdmin.tenants.view']
+-    if (admin.permissions[permission] === true) return true;
+-    return false;
+-  }
+-
+-  return admin.permissions[parts.category]?.[parts.action] === true;
++  return authorizeAdminDecision({ admin, permission }).allowed === true;
+ }

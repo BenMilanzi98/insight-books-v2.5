@@ -1,0 +1,12 @@
+{
+  "title": "Malipoti",
+  "generate": "Pangani lipoti",
+  "export": "Tulutsani",
+  "filters": "Zosefera",
+  "financial": {
+    "balanceSheet": "Pepala la Chuma",
+    "profitAndLoss": "Phindu ndi Kutayika",
+    "cashFlow": "Kuyenda kwa Ndalama",
+    "trialBalance": "Mayeso a Ndalama"
+  }
+}

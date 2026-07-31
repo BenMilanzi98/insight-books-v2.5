@@ -1,0 +1,13 @@
+{
+  "title": "Accounting",
+  "chartOfAccounts": "Chart of Accounts",
+  "generalLedger": "General Ledger",
+  "journalEntries": "Journal Entries",
+  "trialBalance": "Trial Balance",
+  "debit": "Debit",
+  "credit": "Credit",
+  "accountCode": "Account code",
+  "accountName": "Account name",
+  "posting": "Posting",
+  "posted": "Posted"
+}

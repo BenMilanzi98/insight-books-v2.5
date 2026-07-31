@@ -4,7 +4,21 @@ import prisma from '@/lib/prisma';
 import { stripEmbeddedPeriodFromReportLabel, parseInclusiveApiYmdRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 import * as XLSX from 'xlsx';
-import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
+import {
+  ACCOUNTING_V2_REPORTS_EXPORT,
+  RETIRED_REPORT_IDS,
+  legacyFinancialReportDisabledResponse,
+  retiredReportResponse,
+} from '@/lib/retiredReports';
+
+/** Financial statement exports that duplicate Accounting V2. */
+const LEGACY_FINANCIAL_EXPORT_IDS = new Set([
+  'trial-balance',
+  'balance-sheet',
+  'income-statement',
+  'profit-loss',
+  'cash-flow',
+]);
 import {
   appendReconciliationRowsForHeaders,
   appendReconciliationToExcelWorksheet,
@@ -26,6 +40,8 @@ import { filterNonZeroOperatingExpenseLines } from '@/lib/incomeStatementOperati
 import { bootstrapReportRoute, auditReportAccess, tenantNameMap } from '@/lib/reportRouteBootstrap';
 import { generateScopedIncomeStatement, generateScopedBalanceSheet } from '@/lib/reportingEngine/multiTenantReporting';
 import { buildExportHeaderRows, prependHeaderRowsToCsv } from '@/lib/reportExportScope';
+import { appendGlAccountDetailSheet, glAccountLinesToCsvRows } from '@/lib/reportExportGlDetail';
+import { getSalesGlAccountLines, getExpenseGlAccountLines } from '@/lib/accountingReportService';
 
 const BUSINESS_EXPORT_HEADER = { key: 'business', label: 'Business' };
 
@@ -100,6 +116,12 @@ export async function GET(request, context) {
 
     const params = await context.params;
     const reportType = params?.reportType;
+    if (reportType && LEGACY_FINANCIAL_EXPORT_IDS.has(reportType)) {
+      return legacyFinancialReportDisabledResponse(
+        `Legacy /api/reports/${reportType}/export is disabled. Use Accounting V2 report export.`,
+        ACCOUNTING_V2_REPORTS_EXPORT
+      );
+    }
     if (reportType && RETIRED_REPORT_IDS.has(reportType)) {
       return retiredReportResponse(reportType);
     }
@@ -337,28 +359,16 @@ export async function GET(request, context) {
       }
         
       case 'cash-flow':
-        if (!startDate || !endDate) {
-          return NextResponse.json(
-            { error: 'Start date and end date are required for cash flow export' },
-            { status: 400 }
-          );
-        }
-        {
-          const cashFlowExport = await generateCashFlowExportData({
-            tenantIds,
-            tenants,
-            startDate,
-            endDate,
-            branchId: reportBranchId,
-            multiTenant,
-            tMap,
-          });
-          reportData = cashFlowExport.data;
-          headers = prependBusinessHeader(cashFlowExport.headers, multiTenant);
-          title = cashFlowExport.title;
-          exportReconciliation = cashFlowExport.reconciliation;
-        }
-        break;
+        return NextResponse.json(
+          {
+            error:
+              'Legacy cash flow export is retired. Use Accounting V2: /api/accounting-v2/reports/export with type=CASH_FLOW.',
+            code: 'LEGACY_CASH_FLOW_RETIRED',
+            canonicalUi: '/reports-v2?type=CASH_FLOW',
+            canonicalApi: '/api/accounting-v2/reports/export',
+          },
+          { status: 410 }
+        );
 
       case 'stock-movement': {
         if (!startDate || !endDate) {
@@ -460,8 +470,42 @@ export async function GET(request, context) {
         return csvResponse;
       }
         
-      case 'xlsx':
-        return generateExcelResponse(reportData, headers, title, `${reportType}.xlsx`, exportHeaderRows);
+      case 'xlsx': {
+        let exportAccountLines = [];
+        if (reportType === 'sales') {
+          try {
+            const gl = await getSalesGlAccountLines({
+              tenantIds,
+              startDate,
+              endDate,
+              branchId: reportBranchId,
+            });
+            exportAccountLines = gl.accountLines || [];
+          } catch (_) {
+            /* optional detail sheet */
+          }
+        } else if (reportType === 'expenses') {
+          try {
+            const gl = await getExpenseGlAccountLines({
+              tenantIds,
+              startDate,
+              endDate,
+              branchId: reportBranchId,
+            });
+            exportAccountLines = gl.accountLines || [];
+          } catch (_) {
+            /* optional detail sheet */
+          }
+        }
+        return generateExcelResponse(
+          reportData,
+          headers,
+          title,
+          `${reportType}.xlsx`,
+          exportHeaderRows,
+          exportAccountLines
+        );
+      }
         
       case 'pdf': {
         const tenant = tenants?.length === 1
@@ -1129,7 +1173,7 @@ function flattenIncomeStatementForCSV(statement) {
 /**
  * Generate an Excel response (generic)
  */
-function generateExcelResponse(data, headers, sheetName, filename, headerRows = []) {
+function generateExcelResponse(data, headers, sheetName, filename, headerRows = [], accountLines = []) {
   const worksheetData = [];
 
   if (headerRows?.length) {
@@ -1150,6 +1194,12 @@ function generateExcelResponse(data, headers, sheetName, filename, headerRows = 
   const worksheet = XLSX.utils.json_to_sheet(worksheetData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName || 'Report');
+
+  if (accountLines?.length) {
+    const detailSheet = XLSX.utils.json_to_sheet(glAccountLinesToCsvRows(accountLines));
+    XLSX.utils.book_append_sheet(workbook, detailSheet, 'GL Account Detail');
+  }
+
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
   return new NextResponse(excelBuffer, {
     status: 200,
@@ -1247,6 +1297,10 @@ async function generateIncomeStatementExcelResponse(statement, startDate, endDat
   rNet.getCell(2).border = { top: { style: 'thin' } };
 
   appendReconciliationToExcelWorksheet(ws, rowNum, statement?.metadata?.reconciliation);
+
+  if (statement?.accountLines?.length) {
+    await appendGlAccountDetailSheet(workbook, statement.accountLines, 'GL Account Detail');
+  }
 
   ws.getColumn(1).width = 28;
   ws.getColumn(2).width = 18;

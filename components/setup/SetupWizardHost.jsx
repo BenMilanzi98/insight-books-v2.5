@@ -1,26 +1,38 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { X, Loader2 } from "lucide-react";
-import SetupWizard from "@/components/setup/SetupWizard";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { X, ArrowRight } from "lucide-react";
 import { useSetupWizardContext } from "@/components/setup/SetupWizardContext";
 
 const LS_PROCEEDED = "insightBooks_setupWelcome_proceeded";
 const SS_DISMISS = "insightBooks_setupWelcome_sessionDismiss";
 
 /**
- * Full-screen setup wizard modal on the dashboard. Auto-opens for new owners;
- * can also be opened via useSetupWizard().openWizard().
+ * A3 hybrid launcher: soft welcome banner on dashboard; primary path is full-page /setup.
+ * Does not force completed businesses into setup on login.
  */
 export default function SetupWizardHost() {
   const ctx = useSetupWizardContext();
-  const open = ctx?.open ?? false;
-  const initialStepId = ctx?.initialStepId ?? null;
   const closeWizard = ctx?.closeWizard ?? (() => {});
-  const openWizard = ctx?.openWizard ?? (() => {});
+  const open = ctx?.open ?? false;
+  const router = useRouter();
 
   const [autoEligible, setAutoEligible] = useState(false);
   const [statusChecked, setStatusChecked] = useState(false);
+  const [bannerOpen, setBannerOpen] = useState(false);
+
+  const goToSetup = useCallback(() => {
+    try {
+      window.localStorage.setItem(LS_PROCEEDED, "1");
+      window.sessionStorage.setItem(SS_DISMISS, "1");
+    } catch {
+      /* ignore */
+    }
+    closeWizard();
+    router.push("/setup");
+  }, [closeWizard, router]);
 
   const refreshEligibility = useCallback(async () => {
     try {
@@ -43,91 +55,77 @@ export default function SetupWizardHost() {
   }, [refreshEligibility]);
 
   useEffect(() => {
-    const onOpen = () => openWizard("capital");
+    const onOpen = () => goToSetup();
     window.addEventListener("setup-wizard-open", onOpen);
     return () => window.removeEventListener("setup-wizard-open", onOpen);
-  }, [openWizard]);
+  }, [goToSetup]);
 
   useEffect(() => {
-    if (!statusChecked || open) return;
+    if (open) {
+      goToSetup();
+    }
+  }, [open, goToSetup]);
+
+  useEffect(() => {
+    if (!statusChecked) return;
     if (typeof window === "undefined") return;
     if (!autoEligible) return;
     if (window.localStorage.getItem(LS_PROCEEDED)) return;
     if (window.sessionStorage.getItem(SS_DISMISS)) return;
-    ctx?.openWizard?.("capital");
-  }, [statusChecked, autoEligible, open, openWizard]);
+    setBannerOpen(true);
+  }, [statusChecked, autoEligible]);
 
-  const isVisible = open;
-
-  useEffect(() => {
-    if (!isVisible) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") handleClose();
-    };
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [isVisible]);
-
-  const handleClose = () => {
+  const dismissBanner = () => {
     try {
       window.sessionStorage.setItem(SS_DISMISS, "1");
     } catch {
       /* ignore */
     }
-    closeWizard();
+    setBannerOpen(false);
   };
 
-  const handleWizardClose = () => {
-    try {
-      window.localStorage.setItem(LS_PROCEEDED, "1");
-      window.sessionStorage.setItem(SS_DISMISS, "1");
-      window.dispatchEvent(new CustomEvent("setup-wizard-updated"));
-    } catch {
-      /* ignore */
-    }
-    closeWizard();
-    refreshEligibility();
-  };
-
-  if (!isVisible) return null;
+  if (!bannerOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-md"
+      className="fixed bottom-4 left-4 right-4 z-[180] mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-4 shadow-lg sm:left-auto"
       role="dialog"
-      aria-modal="true"
-      aria-labelledby="setup-wizard-modal-title"
+      aria-label="Continue business setup"
     >
-      <div
-        className="relative flex h-[min(92vh,900px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 shadow-2xl shadow-indigo-950/40"
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={dismissBanner}
+        className="absolute right-2 top-2 rounded-md p-1 text-slate-400 hover:text-slate-700"
+        aria-label="Dismiss setup reminder"
       >
+        <X className="h-4 w-4" />
+      </button>
+      <p className="pr-8 text-sm font-semibold text-slate-900">Finish business setup</p>
+      <p className="mt-1 text-sm text-slate-600">
+        Configure your profile, calendar, and opening balances in the Setup Wizard. You can leave
+        and resume anytime.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={handleClose}
-          className="absolute right-3 top-3 z-20 rounded-xl bg-white/90 p-2 text-slate-500 shadow-sm ring-1 ring-slate-200/80 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4"
-          aria-label="Close setup wizard"
+          onClick={goToSetup}
+          className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
         >
-          <X className="h-5 w-5" />
+          Continue setup <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
-
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 sm:py-8">
-          <Suspense
-            fallback={
-              <div className="flex min-h-[40vh] items-center justify-center gap-2 text-slate-500">
-                <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-                <span className="text-sm">Loading wizard…</span>
-              </div>
+        <Link
+          href="/setup"
+          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
+          onClick={() => {
+            try {
+              window.localStorage.setItem(LS_PROCEEDED, "1");
+            } catch {
+              /* ignore */
             }
-          >
-            <SetupWizard embedded initialStepId={initialStepId} onClose={handleWizardClose} />
-          </Suspense>
-        </div>
+          }}
+        >
+          Open /setup
+        </Link>
       </div>
     </div>
   );

@@ -1,0 +1,4906 @@
+﻿# Review package — Phase 11 Task 2 (WORKING_TREE)
+
+diff --git a/lib/admin/crm/capture.js b/lib/admin/crm/capture.js
+new file mode 100644
+index 0000000..a9e2db5
+--- /dev/null
++++ b/lib/admin/crm/capture.js
+@@ -0,0 +1,486 @@
++/**
+
++ * CRM Lead capture ΓÇö Phase 11 Wave 2.
+
++ * Idempotent public-form + shared intake path. Never fabricates Opportunities,
+
++ * never mutates Support/CS sources, never infers consent GRANTED.
+
++ */
+
++
+
++import {
+
++  CRM_CAPTURE_SOURCE,
+
++  CRM_PUBLIC_CAPTURE_SOURCES,
+
++  CRM_SOURCE_CHANNEL,
+
++  CRM_LEAD_TYPE,
+
++  CRM_PERSON_OR_ORG,
+
++  CRM_CONSENT_STATUS,
+
++  CRM_CAPTURE_MAX_PAYLOAD_BYTES,
+
++  CRM_CAPTURE_MAX_MESSAGE_CHARS,
+
++  channelAvailability,
+
++} from './catalogue.js';
+
++import { createLead } from './leads.js';
+
++import { normalizeEmail, normalizePhone } from './contacts.js';
+
++import { detectDuplicateCandidates } from './duplicates.js';
+
++
+
++const PUBLIC_SOURCE_SET = new Set(CRM_PUBLIC_CAPTURE_SOURCES);
+
++const ALL_CAPTURE_SOURCES = new Set(Object.values(CRM_CAPTURE_SOURCE));
+
++
+
++/** Simple process-local throttle: email ΓåÆ timestamps (ms). */
+
++const throttleBuckets = new Map();
+
++const THROTTLE_WINDOW_MS = 60_000;
+
++const THROTTLE_MAX = 8;
+
++
+
++export function hasCrmCaptureRecordModel(prisma) {
+
++  return typeof prisma?.crmCaptureRecord?.findMany === 'function';
+
++}
+
++
+
++export function _resetCaptureThrottleForTests() {
+
++  throttleBuckets.clear();
+
++}
+
++
+
++function sanitizeText(value, maxLen = 500) {
+
++  if (value == null) return null;
+
++  const v = String(value)
+
++    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+
++    .trim();
+
++  if (!v) return null;
+
++  return v.length > maxLen ? v.slice(0, maxLen) : v;
+
++}
+
++
+
++function estimatePayloadBytes(args) {
+
++  try {
+
++    return Buffer.byteLength(JSON.stringify(args || {}), 'utf8');
+
++  } catch {
+
++    return Number.MAX_SAFE_INTEGER;
+
++  }
+
++}
+
++
+
++function emailDomain(emailNormalized) {
+
++  if (!emailNormalized || !emailNormalized.includes('@')) return null;
+
++  return emailNormalized.split('@')[1] || null;
+
++}
+
++
+
++function defaultLeadType(sourceCode) {
+
++  switch (sourceCode) {
+
++    case CRM_CAPTURE_SOURCE.REQUEST_DEMO:
+
++      return CRM_LEAD_TYPE.DEMO_REQUEST;
+
++    case CRM_CAPTURE_SOURCE.CUSTOMER_SUCCESS_HANDOFF:
+
++    case CRM_CAPTURE_SOURCE.SUPPORT_HANDOFF:
+
++    case CRM_CAPTURE_SOURCE.PRODUCT_SIGNAL:
+
++      return CRM_LEAD_TYPE.EXPANSION;
+
++    case CRM_CAPTURE_SOURCE.START_TRIAL:
+
++    case CRM_CAPTURE_SOURCE.SALES_ENQUIRY:
+
++    case CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM:
+
++      return CRM_LEAD_TYPE.NEW_BUSINESS;
+
++    default:
+
++      return CRM_LEAD_TYPE.OTHER;
+
++  }
+
++}
+
++
+
++function buildIdempotencyKey({
+
++  sourceCode,
+
++  emailNormalized,
+
++  phoneNormalized,
+
++  handoffRefType,
+
++  handoffRefId,
+
++  explicit,
+
++}) {
+
++  if (explicit) return String(explicit).trim().slice(0, 200);
+
++  if (handoffRefType && handoffRefId) {
+
++    return `crm-capture:${sourceCode}:${handoffRefType}:${handoffRefId}`;
+
++  }
+
++  const identity = [emailNormalized || '', phoneNormalized || ''].join('|');
+
++  return `crm-capture:${sourceCode}:${identity}`.slice(0, 200);
+
++}
+
++
+
++function checkThrottle(emailNormalized) {
+
++  if (!emailNormalized) return { ok: true };
+
++  const now = Date.now();
+
++  const arr = (throttleBuckets.get(emailNormalized) || []).filter(
+
++    (t) => now - t < THROTTLE_WINDOW_MS
+
++  );
+
++  if (arr.length >= THROTTLE_MAX) {
+
++    return { ok: false, error: 'rate_limited' };
+
++  }
+
++  arr.push(now);
+
++  throttleBuckets.set(emailNormalized, arr);
+
++  return { ok: true };
+
++}
+
++
+
++function serializeCapture(row) {
+
++  if (!row) return null;
+
++  return {
+
++    id: row.id,
+
++    leadId: row.leadId,
+
++    sourceCode: row.sourceCode,
+
++    channel: row.channel,
+
++    sourceIdempotencyKey: row.sourceIdempotencyKey,
+
++    emailNormalized: row.emailNormalized || null,
+
++    phoneNormalized: row.phoneNormalized || null,
+
++    handoffRefType: row.handoffRefType || null,
+
++    handoffRefId: row.handoffRefId || null,
+
++    businessName: row.businessName || null,
+
++    contactName: row.contactName || null,
+
++    consentStatus: row.consentStatus || CRM_CONSENT_STATUS.UNKNOWN,
+
++    consentPurposes: Array.isArray(row.consentPurposes) ? row.consentPurposes : null,
+
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+
++  };
+
++}
+
++
+
++async function resolveCandidates(prisma, { emailNormalized, phoneNormalized, businessName }) {
+
++  const contacts = [];
+
++  const accounts = [];
+
++
+
++  if (typeof prisma.crmContact?.findMany === 'function') {
+
++    const or = [];
+
++    if (emailNormalized) or.push({ email: emailNormalized });
+
++    if (phoneNormalized) or.push({ phone: phoneNormalized });
+
++    if (or.length) {
+
++      try {
+
++        const rows = await prisma.crmContact.findMany({ where: { OR: or }, take: 10 });
+
++        for (const r of rows || []) {
+
++          contacts.push({
+
++            id: r.id,
+
++            contactNumber: r.contactNumber,
+
++            firstName: r.firstName,
+
++            lastName: r.lastName,
+
++            email: r.email || null,
+
++            phone: r.phone || null,
+
++            suggestOnly: true,
+
++          });
+
++        }
+
++      } catch {
+
++        // ignore
+
++      }
+
++    }
+
++  }
+
++
+
++  if (businessName && typeof prisma.crmAccount?.findMany === 'function') {
+
++    try {
+
++      const rows = await prisma.crmAccount.findMany({
+
++        where: { displayName: { contains: businessName } },
+
++        take: 10,
+
++      });
+
++      for (const r of rows || []) {
+
++        accounts.push({
+
++          id: r.id,
+
++          accountNumber: r.accountNumber,
+
++          displayName: r.displayName,
+
++          suggestOnly: true,
+
++        });
+
++      }
+
++    } catch {
+
++      // contains unsupported in some mocks ΓÇö try exact filter in-memory via findMany all
+
++      try {
+
++        const all = await prisma.crmAccount.findMany({ take: 50 });
+
++        const q = businessName.toLowerCase();
+
++        for (const r of all || []) {
+
++          if (String(r.displayName || '').toLowerCase().includes(q)) {
+
++            accounts.push({
+
++              id: r.id,
+
++              accountNumber: r.accountNumber,
+
++              displayName: r.displayName,
+
++              suggestOnly: true,
+
++            });
+
++          }
+
++        }
+
++      } catch {
+
++        // ignore
+
++      }
+
++    }
+
++  }
+
++
+
++  return { contacts, accounts };
+
++}
+
++
+
++async function loadExistingByKey(prisma, sourceIdempotencyKey) {
+
++  if (!sourceIdempotencyKey) return null;
+
++  try {
+
++    if (typeof prisma.crmCaptureRecord?.findUnique === 'function') {
+
++      const cap = await prisma.crmCaptureRecord.findUnique({
+
++        where: { sourceIdempotencyKey },
+
++      });
+
++      if (cap?.leadId && typeof prisma.crmLead?.findUnique === 'function') {
+
++        const lead = await prisma.crmLead.findUnique({ where: { id: cap.leadId } });
+
++        if (lead) return { lead, capture: cap };
+
++      }
+
++    }
+
++  } catch {
+
++    // continue
+
++  }
+
++  try {
+
++    if (typeof prisma.crmLead?.findUnique === 'function') {
+
++      const lead = await prisma.crmLead.findUnique({
+
++        where: { sourceIdempotencyKey },
+
++      });
+
++      if (lead) return { lead, capture: null };
+
++    }
+
++  } catch {
+
++    // ignore
+
++  }
+
++  return null;
+
++}
+
++
+
++/**
+
++ * Shared idempotent Lead capture.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {object} args
+
++ */
+
++export async function captureLead(prisma, args = {}) {
+
++  // Honeypot ΓÇö filled by bots; silent reject
+
++  if (args.website || args.companyUrl || args.hp_field) {
+
++    return { ok: false, error: 'spam_rejected' };
+
++  }
+
++
+
++  if (estimatePayloadBytes(args) > CRM_CAPTURE_MAX_PAYLOAD_BYTES) {
+
++    return { ok: false, error: 'payload_too_large' };
+
++  }
+
++
+
++  const sourceCode = String(args.sourceCode || '').trim().toUpperCase();
+
++  if (!ALL_CAPTURE_SOURCES.has(sourceCode)) {
+
++    return { ok: false, error: 'invalid_source_code', sourceCode };
+
++  }
+
++
+
++  const channel = String(
+
++    args.channel ||
+
++      (PUBLIC_SOURCE_SET.has(sourceCode)
+
++        ? CRM_SOURCE_CHANNEL.WEB_FORM
+
++        : CRM_SOURCE_CHANNEL.INTERNAL_HANDOFF)
+
++  )
+
++    .trim()
+
++    .toUpperCase();
+
++
+
++  const availability = channelAvailability(channel);
+
++  if (availability === 'NOT_AVAILABLE') {
+
++    return {
+
++      ok: false,
+
++      status: 'NOT_AVAILABLE',
+
++      error: 'channel_not_available',
+
++      channel,
+
++    };
+
++  }
+
++  if (
+
++    channel === CRM_SOURCE_CHANNEL.EMAIL ||
+
++    channel === CRM_SOURCE_CHANNEL.WHATSAPP
+
++  ) {
+
++    return {
+
++      ok: false,
+
++      status: 'NOT_AVAILABLE',
+
++      error: 'channel_not_available',
+
++      channel,
+
++    };
+
++  }
+
++
+
++  const businessName = sanitizeText(args.businessName, 200);
+
++  const contactName = sanitizeText(args.contactName || args.clientName, 200);
+
++  const message = sanitizeText(args.message || args.body, CRM_CAPTURE_MAX_MESSAGE_CHARS);
+
++  const emailNormalized = normalizeEmail(args.email);
+
++  const phoneNormalized = normalizePhone(args.phone);
+
++
+
++  if (!contactName && !businessName) {
+
++    return { ok: false, error: 'contactName or businessName required' };
+
++  }
+
++  if (!emailNormalized && !phoneNormalized && !args.handoffRefId) {
+
++    return { ok: false, error: 'email or phone required' };
+
++  }
+
++
+
++  const throttle = checkThrottle(emailNormalized);
+
++  if (!throttle.ok) return throttle;
+
++
+
++  const handoffRefType = args.handoffRefType
+
++    ? String(args.handoffRefType).trim().toUpperCase()
+
++    : null;
+
++  const handoffRefId = args.handoffRefId ? String(args.handoffRefId).trim() : null;
+
++
+
++  const sourceIdempotencyKey = buildIdempotencyKey({
+
++    sourceCode,
+
++    emailNormalized,
+
++    phoneNormalized,
+
++    handoffRefType,
+
++    handoffRefId,
+
++    explicit: args.sourceIdempotencyKey,
+
++  });
+
++
+
++  const existing = await loadExistingByKey(prisma, sourceIdempotencyKey);
+
++  if (existing?.lead) {
+
++    const candidates = await resolveCandidates(prisma, {
+
++      emailNormalized,
+
++      phoneNormalized,
+
++      businessName,
+
++    });
+
++    return {
+
++      ok: true,
+
++      created: false,
+
++      idempotent: true,
+
++      lead: {
+
++        id: existing.lead.id,
+
++        leadNumber: existing.lead.leadNumber,
+
++        type: existing.lead.type,
+
++        personOrOrganisation: existing.lead.personOrOrganisation,
+
++        accountId: existing.lead.accountId || null,
+
++        contactId: existing.lead.contactId || null,
+
++        source: existing.lead.source,
+
++        channel: existing.lead.channel,
+
++        sourceIdempotencyKey: existing.lead.sourceIdempotencyKey || null,
+
++        status: existing.lead.status,
+
++        title: existing.lead.title,
+
++        summary: existing.lead.summary || null,
+
++        ownerAdminId: existing.lead.ownerAdminId || null,
+
++        createdByAdminId: existing.lead.createdByAdminId || null,
+
++        createdAt: existing.lead.createdAt
+
++          ? new Date(existing.lead.createdAt).toISOString()
+
++          : null,
+
++        updatedAt: existing.lead.updatedAt
+
++          ? new Date(existing.lead.updatedAt).toISOString()
+
++          : null,
+
++      },
+
++      capture: serializeCapture(existing.capture),
+
++      candidates,
+
++    };
+
++  }
+
++
+
++  // Consent: UNKNOWN unless explicit purpose list provided ΓÇö never infer from email/phone alone.
+
++  const purposes = Array.isArray(args.consentPurposes)
+
++    ? args.consentPurposes.map((p) => String(p).trim().toUpperCase()).filter(Boolean)
+
++    : [];
+
++  const consentStatus =
+
++    purposes.length > 0 ? CRM_CONSENT_STATUS.GRANTED : CRM_CONSENT_STATUS.UNKNOWN;
+
++
+
++  const title =
+
++    sanitizeText(args.title, 200) ||
+
++    [businessName, contactName, sourceCode].filter(Boolean).join(' ΓÇö ').slice(0, 200);
+
++
+
++  const summaryParts = [];
+
++  if (message) summaryParts.push(message);
+
++  if (args.preferredAt) summaryParts.push(`Preferred: ${sanitizeText(args.preferredAt, 80)}`);
+
++  if (args.featureCode) summaryParts.push(`Feature: ${sanitizeText(args.featureCode, 80)}`);
+
++  if (args.tenantId) summaryParts.push(`Tenant: ${sanitizeText(args.tenantId, 80)}`);
+
++  const summary = summaryParts.length ? summaryParts.join('\n') : null;
+
++
+
++  const now = args.now || new Date();
+
++  const leadResult = await createLead(prisma, {
+
++    capture: true,
+
++    admin: args.admin || null,
+
++    type: args.type || defaultLeadType(sourceCode),
+
++    personOrOrganisation: businessName
+
++      ? CRM_PERSON_OR_ORG.ORGANISATION
+
++      : CRM_PERSON_OR_ORG.PERSON,
+
++    title,
+
++    summary,
+
++    source: sourceCode,
+
++    channel,
+
++    sourceIdempotencyKey,
+
++    // Explicitly ignore public owner/team/priority
+
++    ownerAdminId: null,
+
++    now,
+
++  });
+
++
+
++  if (!leadResult.ok) return leadResult;
+
++  if (leadResult.idempotent || leadResult.idempotentReplay) {
+
++    return {
+
++      ok: true,
+
++      created: false,
+
++      idempotent: true,
+
++      lead: leadResult.lead,
+
++      capture: null,
+
++      candidates: await resolveCandidates(prisma, {
+
++        emailNormalized,
+
++        phoneNormalized,
+
++        businessName,
+
++      }),
+
++    };
+
++  }
+
++
+
++  let captureRow = null;
+
++  if (hasCrmCaptureRecordModel(prisma)) {
+
++    try {
+
++      captureRow = await prisma.crmCaptureRecord.create({
+
++        data: {
+
++          leadId: leadResult.lead.id,
+
++          sourceCode,
+
++          channel,
+
++          sourceIdempotencyKey,
+
++          emailNormalized,
+
++          phoneNormalized,
+
++          handoffRefType,
+
++          handoffRefId,
+
++          businessName,
+
++          contactName,
+
++          payload: {
+
++            preferredAt: args.preferredAt || null,
+
++            featureCode: args.featureCode || null,
+
++            tenantId: args.tenantId || null,
+
++            customerId: args.customerId || null,
+
++          },
+
++          consentStatus,
+
++          consentPurposes: purposes.length ? purposes : null,
+
++          createdAt: now,
+
++        },
+
++      });
+
++    } catch (err) {
+
++      if (err?.code === 'P2002') {
+
++        const again = await loadExistingByKey(prisma, sourceIdempotencyKey);
+
++        if (again?.lead) {
+
++          return {
+
++            ok: true,
+
++            created: false,
+
++            idempotent: true,
+
++            lead: {
+
++              id: again.lead.id,
+
++              leadNumber: again.lead.leadNumber,
+
++              type: again.lead.type,
+
++              personOrOrganisation: again.lead.personOrOrganisation,
+
++              accountId: again.lead.accountId || null,
+
++              contactId: again.lead.contactId || null,
+
++              source: again.lead.source,
+
++              channel: again.lead.channel,
+
++              sourceIdempotencyKey: again.lead.sourceIdempotencyKey || null,
+
++              status: again.lead.status,
+
++              title: again.lead.title,
+
++              summary: again.lead.summary || null,
+
++              ownerAdminId: again.lead.ownerAdminId || null,
+
++              createdByAdminId: again.lead.createdByAdminId || null,
+
++              createdAt: again.lead.createdAt
+
++                ? new Date(again.lead.createdAt).toISOString()
+
++                : null,
+
++              updatedAt: again.lead.updatedAt
+
++                ? new Date(again.lead.updatedAt).toISOString()
+
++                : null,
+
++            },
+
++            capture: serializeCapture(again.capture),
+
++            candidates: await resolveCandidates(prisma, {
+
++              emailNormalized,
+
++              phoneNormalized,
+
++              businessName,
+
++            }),
+
++          };
+
++        }
+
++      }
+
++      throw err;
+
++    }
+
++  }
+
++
+
++  await detectDuplicateCandidates(prisma, {
+
++    leadId: leadResult.lead.id,
+
++    emailNormalized,
+
++    phoneNormalized,
+
++    handoffRefType,
+
++    handoffRefId,
+
++    emailDomain: emailDomain(emailNormalized),
+
++    now,
+
++  });
+
++
+
++  const candidates = await resolveCandidates(prisma, {
+
++    emailNormalized,
+
++    phoneNormalized,
+
++    businessName,
+
++  });
+
++
+
++  return {
+
++    ok: true,
+
++    created: true,
+
++    idempotent: false,
+
++    lead: leadResult.lead,
+
++    capture: serializeCapture(captureRow),
+
++    candidates,
+
++  };
+
++}
+
++
+\ No newline at end of file
+diff --git a/lib/admin/crm/duplicates.js b/lib/admin/crm/duplicates.js
+new file mode 100644
+index 0000000..95a7ca9
+--- /dev/null
++++ b/lib/admin/crm/duplicates.js
+@@ -0,0 +1,346 @@
++/**
+
++ * CRM duplicate candidates ΓÇö Phase 11 Wave 2.
+
++ * Detect / list / review only. Never auto-merge.
+
++ * CrmLead Γëá Opportunity Γëá Customer Γëá SupportTicket Γëá CsCase.
+
++ */
+
++
+
++import {
+
++  CRM_DUPLICATE_STATUS,
+
++  CRM_DUPLICATE_STATUSES,
+
++  CRM_DUPLICATE_MATCH_TYPE,
+
++  CRM_LIST_DEFAULT_LIMIT,
+
++  CRM_LIST_MAX_LIMIT,
+
++} from './catalogue.js';
+
++import { resolveCrmAccess } from './authz.js';
+
++
+
++const STATUS_SET = new Set(CRM_DUPLICATE_STATUSES);
+
++const REVIEWABLE = new Set([
+
++  CRM_DUPLICATE_STATUS.UNDER_REVIEW,
+
++  CRM_DUPLICATE_STATUS.LIKELY_DUPLICATE,
+
++  CRM_DUPLICATE_STATUS.CONFIRMED_DUPLICATE,
+
++  CRM_DUPLICATE_STATUS.CONFIRMED_DISTINCT,
+
++]);
+
++
+
++export function hasCrmDuplicateCandidateModel(prisma) {
+
++  return typeof prisma?.crmDuplicateCandidate?.findMany === 'function';
+
++}
+
++
+
++function serializeCandidate(row) {
+
++  if (!row) return null;
+
++  return {
+
++    id: row.id,
+
++    leadId: row.leadId,
+
++    candidateLeadId: row.candidateLeadId,
+
++    matchType: row.matchType,
+
++    matchValue: row.matchValue || null,
+
++    status: row.status,
+
++    confidence: row.confidence || null,
+
++    reviewedByAdminId: row.reviewedByAdminId || null,
+
++    reviewedAt: row.reviewedAt ? new Date(row.reviewedAt).toISOString() : null,
+
++    decisionReason: row.decisionReason || null,
+
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+
++  };
+
++}
+
++
+
++/**
+
++ * Create duplicate candidate rows for a newly captured lead.
+
++ * Same source identity / email / phone / handoff ref ΓåÆ candidates.
+
++ * Domain-only matches are LOW confidence suggestions; never auto-merge.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{
+
++ *   leadId: string,
+
++ *   emailNormalized?: string|null,
+
++ *   phoneNormalized?: string|null,
+
++ *   handoffRefType?: string|null,
+
++ *   handoffRefId?: string|null,
+
++ *   emailDomain?: string|null,
+
++ *   now?: Date,
+
++ * }} args
+
++ */
+
++export async function detectDuplicateCandidates(prisma, args = {}) {
+
++  if (!hasCrmDuplicateCandidateModel(prisma)) {
+
++    return {
+
++      ok: true,
+
++      created: 0,
+
++      existing: 0,
+
++      items: [],
+
++      meta: { unavailable: true },
+
++    };
+
++  }
+
++
+
++  const leadId = args.leadId ? String(args.leadId).trim() : '';
+
++  if (!leadId) return { ok: false, error: 'leadId required' };
+
++
+
++  const or = [];
+
++  if (args.emailNormalized) {
+
++    or.push({ emailNormalized: String(args.emailNormalized) });
+
++  }
+
++  if (args.phoneNormalized) {
+
++    or.push({ phoneNormalized: String(args.phoneNormalized) });
+
++  }
+
++  if (args.handoffRefType && args.handoffRefId) {
+
++    or.push({
+
++      handoffRefType: String(args.handoffRefType),
+
++      handoffRefId: String(args.handoffRefId),
+
++    });
+
++  }
+
++
+
++  /** @type {Array<{ candidateLeadId: string, matchType: string, matchValue: string|null, confidence: string }>} */
+
++  const pending = [];
+
++
+
++  if (or.length && typeof prisma.crmCaptureRecord?.findMany === 'function') {
+
++    let rows = [];
+
++    try {
+
++      rows = await prisma.crmCaptureRecord.findMany({
+
++        where: {
+
++          OR: or,
+
++          leadId: { not: leadId },
+
++        },
+
++        take: 50,
+
++      });
+
++    } catch {
+
++      rows = [];
+
++    }
+
++
+
++    for (const row of rows || []) {
+
++      if (!row.leadId || row.leadId === leadId) continue;
+
++      if (
+
++        args.emailNormalized &&
+
++        row.emailNormalized &&
+
++        row.emailNormalized === args.emailNormalized
+
++      ) {
+
++        pending.push({
+
++          candidateLeadId: row.leadId,
+
++          matchType: CRM_DUPLICATE_MATCH_TYPE.EMAIL,
+
++          matchValue: args.emailNormalized,
+
++          confidence: 'HIGH',
+
++        });
+
++      }
+
++      if (
+
++        args.phoneNormalized &&
+
++        row.phoneNormalized &&
+
++        row.phoneNormalized === args.phoneNormalized
+
++      ) {
+
++        pending.push({
+
++          candidateLeadId: row.leadId,
+
++          matchType: CRM_DUPLICATE_MATCH_TYPE.PHONE,
+
++          matchValue: args.phoneNormalized,
+
++          confidence: 'HIGH',
+
++        });
+
++      }
+
++      if (
+
++        args.handoffRefType &&
+
++        args.handoffRefId &&
+
++        row.handoffRefType === args.handoffRefType &&
+
++        row.handoffRefId === args.handoffRefId
+
++      ) {
+
++        pending.push({
+
++          candidateLeadId: row.leadId,
+
++          matchType: CRM_DUPLICATE_MATCH_TYPE.HANDOFF_REF,
+
++          matchValue: `${args.handoffRefType}:${args.handoffRefId}`,
+
++          confidence: 'HIGH',
+
++        });
+
++      }
+
++    }
+
++  }
+
++
+
++  // Domain-only: suggest, never auto-merge / never elevate status.
+
++  if (
+
++    args.emailDomain &&
+
++    typeof prisma.crmCaptureRecord?.findMany === 'function'
+
++  ) {
+
++    try {
+
++      const domainRows = await prisma.crmCaptureRecord.findMany({
+
++        where: {
+
++          leadId: { not: leadId },
+
++          emailNormalized: { endsWith: `@${args.emailDomain}` },
+
++        },
+
++        take: 20,
+
++      });
+
++      for (const row of domainRows || []) {
+
++        if (!row.leadId || row.leadId === leadId) continue;
+
++        if (row.emailNormalized === args.emailNormalized) continue;
+
++        pending.push({
+
++          candidateLeadId: row.leadId,
+
++          matchType: CRM_DUPLICATE_MATCH_TYPE.DOMAIN,
+
++          matchValue: args.emailDomain,
+
++          confidence: 'LOW',
+
++        });
+
++      }
+
++    } catch {
+
++      // endsWith may be unsupported in mocks ΓÇö ignore
+
++    }
+
++  }
+
++
+
++  const now = args.now || new Date();
+
++  let created = 0;
+
++  let existing = 0;
+
++  const items = [];
+
++  const seen = new Set();
+
++
+
++  for (const p of pending) {
+
++    const key = `${p.candidateLeadId}:${p.matchType}`;
+
++    if (seen.has(key)) continue;
+
++    seen.add(key);
+
++
+
++    let prior = null;
+
++    try {
+
++      prior = await prisma.crmDuplicateCandidate.findFirst({
+
++        where: {
+
++          leadId,
+
++          candidateLeadId: p.candidateLeadId,
+
++          matchType: p.matchType,
+
++        },
+
++      });
+
++    } catch {
+
++      prior = null;
+
++    }
+
++
+
++    if (prior) {
+
++      existing += 1;
+
++      items.push(serializeCandidate(prior));
+
++      continue;
+
++    }
+
++
+
++    const row = await prisma.crmDuplicateCandidate.create({
+
++      data: {
+
++        leadId,
+
++        candidateLeadId: p.candidateLeadId,
+
++        matchType: p.matchType,
+
++        matchValue: p.matchValue,
+
++        status: CRM_DUPLICATE_STATUS.NEW,
+
++        confidence: p.confidence,
+
++        createdAt: now,
+
++        updatedAt: now,
+
++      },
+
++    });
+
++    created += 1;
+
++    items.push(serializeCandidate(row));
+
++  }
+
++
+
++  return { ok: true, created, existing, items };
+
++}
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{
+
++ *   admin: object,
+
++ *   status?: string|string[],
+
++ *   leadId?: string,
+
++ *   limit?: number|string,
+
++ *   offset?: number|string,
+
++ * }} args
+
++ */
+
++export async function listDuplicateCandidates(prisma, args = {}) {
+
++  const access = resolveCrmAccess(args.admin);
+
++  if (!access.canViewDuplicates) {
+
++    return { ok: false, forbidden: true, reason: 'crm_view_duplicates_forbidden', items: [] };
+
++  }
+
++
+
++  if (!hasCrmDuplicateCandidateModel(prisma)) {
+
++    return {
+
++      ok: true,
+
++      items: [],
+
++      meta: { unavailable: true, reason: 'crm_duplicate_model_unavailable' },
+
++    };
+
++  }
+
++
+
++  const where = {};
+
++  if (args.status) {
+
++    where.status = Array.isArray(args.status)
+
++      ? { in: args.status.map((s) => String(s).toUpperCase()) }
+
++      : String(args.status).toUpperCase();
+
++  }
+
++  if (args.leadId) where.leadId = String(args.leadId);
+
++
+
++  const rawLimit = Number(args.limit);
+
++  const limit = Math.min(
+
++    CRM_LIST_MAX_LIMIT,
+
++    Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : CRM_LIST_DEFAULT_LIMIT)
+
++  );
+
++  const rawOffset = Number(args.offset);
+
++  const offset =
+
++    Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
+
++
+
++  let rows = [];
+
++  try {
+
++    rows = await prisma.crmDuplicateCandidate.findMany({
+
++      where,
+
++      orderBy: { createdAt: 'desc' },
+
++      take: limit,
+
++      skip: offset > 0 ? offset : undefined,
+
++    });
+
++  } catch {
+
++    rows = await prisma.crmDuplicateCandidate.findMany({ where, take: limit });
+
++  }
+
++
+
++  return {
+
++    ok: true,
+
++    items: (rows || []).map(serializeCandidate),
+
++    meta: { count: (rows || []).length, limit, offset },
+
++  };
+
++}
+
++
+
++/**
+
++ * Record a human review decision. Does not merge leads.
+
++ *
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{
+
++ *   admin: object,
+
++ *   id: string,
+
++ *   status: string,
+
++ *   reason?: string,
+
++ *   now?: Date,
+
++ * }} args
+
++ */
+
++export async function reviewDuplicateCandidate(prisma, args = {}) {
+
++  const access = resolveCrmAccess(args.admin);
+
++  if (!access.canReviewDuplicates) {
+
++    return { ok: false, forbidden: true, reason: 'crm_review_duplicates_forbidden' };
+
++  }
+
++
+
++  if (!hasCrmDuplicateCandidateModel(prisma)) {
+
++    return { ok: false, error: 'crm_duplicate_model_unavailable', status: 'UNAVAILABLE' };
+
++  }
+
++
+
++  const id = args.id ? String(args.id).trim() : '';
+
++  if (!id) return { ok: false, error: 'id required' };
+
++
+
++  const status = String(args.status || '').trim().toUpperCase();
+
++  if (!STATUS_SET.has(status) || !REVIEWABLE.has(status)) {
+
++    return { ok: false, error: 'invalid_review_status', status };
+
++  }
+
++
+
++  const reason = args.reason != null ? String(args.reason).trim() : '';
+
++  if (!reason) return { ok: false, error: 'reason required' };
+
++
+
++  let row = null;
+
++  try {
+
++    row = await prisma.crmDuplicateCandidate.findUnique({ where: { id } });
+
++  } catch {
+
++    row = null;
+
++  }
+
++  if (!row) return { ok: false, notFound: true, error: 'duplicate_candidate_not_found' };
+
++
+
++  const now = args.now || new Date();
+
++  const updated = await prisma.crmDuplicateCandidate.update({
+
++    where: { id: row.id },
+
++    data: {
+
++      status,
+
++      decisionReason: reason,
+
++      reviewedByAdminId: args.admin?.id || null,
+
++      reviewedAt: now,
+
++      updatedAt: now,
+
++    },
+
++  });
+
++
+
++  return {
+
++    ok: true,
+
++    candidate: serializeCandidate(updated),
+
++    meta: { merged: false, autoMerge: false },
+
++  };
+
++}
+
++
+
++export { serializeCandidate };
+
+diff --git a/lib/admin/crm/handoffIntake.js b/lib/admin/crm/handoffIntake.js
+new file mode 100644
+index 0000000..660b761
+--- /dev/null
++++ b/lib/admin/crm/handoffIntake.js
+@@ -0,0 +1,148 @@
++/**
+
++ * CS / Support / Product handoff ΓåÆ CrmLead intake (Phase 11 Wave 2).
+
++ * Link-only: never mutates CsExpansionHandoff, SupportHandoff, CsCase,
+
++ * SupportTicket, subscription, or product facts.
+
++ */
+
++
+
++import { CRM_CAPTURE_SOURCE, CRM_SOURCE_CHANNEL, CRM_LEAD_TYPE } from './catalogue.js';
+
++import { resolveCrmAccess } from './authz.js';
+
++import { captureLead } from './capture.js';
+
++
+
++/**
+
++ * @param {import('@prisma/client').PrismaClient} prisma
+
++ * @param {{
+
++ *   admin: object,
+
++ *   handoffType: 'CUSTOMER_SUCCESS'|'SUPPORT'|'PRODUCT'|string,
+
++ *   handoffId: string,
+
++ *   featureCode?: string|null,
+
++ *   tenantId?: string|null,
+
++ *   summary?: string|null,
+
++ *   contactName?: string|null,
+
++ *   email?: string|null,
+
++ *   phone?: string|null,
+
++ *   businessName?: string|null,
+
++ *   now?: Date,
+
++ * }} args
+
++ */
+
++export async function intakeHandoffAsLead(prisma, args = {}) {
+
++  const access = resolveCrmAccess(args.admin);
+
++  if (!access.canIntakeHandoffs) {
+
++    return { ok: false, forbidden: true, reason: 'crm_handoff_intake_forbidden' };
+
++  }
+
++
+
++  const handoffType = String(args.handoffType || '')
+
++    .trim()
+
++    .toUpperCase();
+
++  const handoffId = args.handoffId ? String(args.handoffId).trim() : '';
+
++  if (!handoffId) return { ok: false, error: 'handoffId required' };
+
++
+
++  let sourceCode;
+
++  let handoffRefType;
+
++  let titleBits = [];
+
++  let message = args.summary ? String(args.summary) : null;
+
++  let tenantId = args.tenantId || null;
+
++  let featureCode = args.featureCode || null;
+
++  let contactName = args.contactName || null;
+
++  let businessName = args.businessName || null;
+
++  let email = args.email || null;
+
++  let phone = args.phone || null;
+
++  let type = CRM_LEAD_TYPE.EXPANSION;
+
++
+
++  if (handoffType === 'CUSTOMER_SUCCESS' || handoffType === 'CS') {
+
++    sourceCode = CRM_CAPTURE_SOURCE.CUSTOMER_SUCCESS_HANDOFF;
+
++    handoffRefType = 'CS_EXPANSION';
+
++    if (typeof prisma.csExpansionHandoff?.findUnique === 'function') {
+
++      const row = await prisma.csExpansionHandoff.findUnique({
+
++        where: { id: handoffId },
+
++      });
+
++      if (!row) return { ok: false, notFound: true, error: 'cs_handoff_not_found' };
+
++      tenantId = tenantId || row.tenantId || null;
+
++      message =
+
++        message ||
+
++        [row.reason, row.notes].filter(Boolean).join('\n') ||
+
++        'CS expansion handoff';
+
++      titleBits = ['CS expansion', row.recommendedAction, tenantId].filter(Boolean);
+
++      // Read-only ΓÇö do not update handoff
+
++    } else {
+
++      return { ok: false, error: 'cs_handoff_model_unavailable', status: 'UNAVAILABLE' };
+
++    }
+
++  } else if (handoffType === 'SUPPORT') {
+
++    sourceCode = CRM_CAPTURE_SOURCE.SUPPORT_HANDOFF;
+
++    handoffRefType = 'SUPPORT';
+
++    if (typeof prisma.supportHandoff?.findUnique === 'function') {
+
++      const row = await prisma.supportHandoff.findUnique({
+
++        where: { id: handoffId },
+
++      });
+
++      if (!row) return { ok: false, notFound: true, error: 'support_handoff_not_found' };
+
++      tenantId = tenantId || row.tenantId || null;
+
++      featureCode = featureCode || row.featureCode || null;
+
++      message = message || row.summary || 'Support handoff';
+
++      titleBits = ['Support handoff', row.targetType, tenantId].filter(Boolean);
+
++    } else {
+
++      return { ok: false, error: 'support_handoff_model_unavailable', status: 'UNAVAILABLE' };
+
++    }
+
++  } else if (handoffType === 'PRODUCT') {
+
++    sourceCode = CRM_CAPTURE_SOURCE.PRODUCT_SIGNAL;
+
++    handoffRefType = 'PRODUCT';
+
++    // Product signal may reference a SupportHandoff id or a synthetic product ref.
+
++    if (typeof prisma.supportHandoff?.findUnique === 'function') {
+
++      try {
+
++        const row = await prisma.supportHandoff.findUnique({
+
++          where: { id: handoffId },
+
++        });
+
++        if (row) {
+
++          tenantId = tenantId || row.tenantId || null;
+
++          featureCode = featureCode || row.featureCode || null;
+
++          message = message || row.summary || 'Product signal';
+
++        }
+
++      } catch {
+
++        // optional lookup
+
++      }
+
++    }
+
++    message = message || 'Product signal';
+
++    titleBits = ['Product signal', featureCode, tenantId].filter(Boolean);
+
++  } else {
+
++    return { ok: false, error: 'invalid_handoff_type', handoffType };
+
++  }
+
++
+
++  // Handoffs may lack public email/phone ΓÇö use stable synthetic identity for idempotency only.
+
++  // Not used as a real contact address.
+
++  if (!email && !phone) {
+
++    email = `handoff+${handoffRefType.toLowerCase()}.${handoffId}@crm.internal`;
+
++  }
+
++  if (!contactName) contactName = titleBits[0] || 'Handoff contact';
+
++  if (!businessName && tenantId) businessName = `Tenant ${tenantId}`;
+
++
+
++  const result = await captureLead(prisma, {
+
++    admin: args.admin,
+
++    sourceCode,
+
++    channel: CRM_SOURCE_CHANNEL.INTERNAL_HANDOFF,
+
++    type,
+
++    businessName,
+
++    contactName,
+
++    email,
+
++    phone,
+
++    message,
+
++    featureCode,
+
++    tenantId,
+
++    handoffRefType,
+
++    handoffRefId: handoffId,
+
++    sourceIdempotencyKey: `crm-capture:${sourceCode}:${handoffRefType}:${handoffId}`,
+
++    title: titleBits.join(' ΓÇö ').slice(0, 200),
+
++    now: args.now,
+
++  });
+
++
+
++  if (!result.ok) return result;
+
++
+
++  return {
+
++    ...result,
+
++    meta: {
+
++      mutatesHandoff: false,
+
++      mutatesCsCase: false,
+
++      mutatesSupportTicket: false,
+
++      mutatesSubscription: false,
+
++      createsOpportunity: false,
+
++    },
+
++  };
+
++}
+
++
+\ No newline at end of file
+diff --git a/lib/admin/crm/publicFormApi.js b/lib/admin/crm/publicFormApi.js
+new file mode 100644
+index 0000000..416f5da
+--- /dev/null
++++ b/lib/admin/crm/publicFormApi.js
+@@ -0,0 +1,67 @@
++/**
++ * Shared helpers for public CRM capture API routes (Wave 2).
++ * Spam guards: payload size (in captureLead) + honeypot field `website`.
++ * No existing Next middleware rate-limit is reused; capture.js has a
++ * process-local email throttle (8 / 60s).
++ */
++
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { captureLead, CRM_CAPTURE_SOURCE } from '@/lib/admin/crm';
++
++/**
++ * @param {Request} request
++ * @param {string} sourceCode
++ */
++export async function handlePublicCapturePost(request, sourceCode) {
++  try {
++    const body = await request.json().catch(() => ({}));
++
++    const result = await captureLead(prisma, {
++      sourceCode: sourceCode || body.sourceCode || CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM,
++      businessName: body.businessName,
++      contactName: body.contactName || body.clientName,
++      email: body.email,
++      phone: body.phone,
++      message: body.message || body.body,
++      preferredAt: body.dateTime || body.preferredAt || null,
++      consentPurposes: body.consentPurposes,
++      sourceIdempotencyKey: body.sourceIdempotencyKey || body.idempotencyKey || null,
++      website: body.website,
++      companyUrl: body.companyUrl,
++      hp_field: body.hp_field,
++    });
++
++    if (!result.ok) {
++      const status =
++        result.status === 'NOT_AVAILABLE'
++          ? 501
++          : result.error === 'spam_rejected'
++            ? 400
++            : result.error === 'payload_too_large' || result.error === 'rate_limited'
++              ? 429
++              : 400;
++      return NextResponse.json(
++        { success: false, error: result.error || 'capture_failed', ...result },
++        { status }
++      );
++    }
++
++    return NextResponse.json(
++      {
++        success: true,
++        message: 'Request submitted successfully. We will contact you soon.',
++        leadNumber: result.lead?.leadNumber || null,
++        created: result.created !== false,
++        idempotent: Boolean(result.idempotent),
++      },
++      { status: result.idempotent ? 200 : 201 }
++    );
++  } catch (error) {
++    console.error('CRM public capture error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to submit request. Please try again.' },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/scripts/sql/crm-core-phase11-wave2.sql b/scripts/sql/crm-core-phase11-wave2.sql
+new file mode 100644
+index 0000000..e1fa62c
+--- /dev/null
++++ b/scripts/sql/crm-core-phase11-wave2.sql
+@@ -0,0 +1,126 @@
++-- Phase 11 Wave 2 ΓÇö CrmCaptureRecord, CrmDuplicateCandidate (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Apply steps (EPERM fallback):
++--   1. Ensure Wave 1 tables exist (scripts/sql/crm-core-phase11-wave1.sql)
++--   2. psql "$DATABASE_URL" -f scripts/sql/crm-core-phase11-wave2.sql
++--   3. App code uses hasCrmCaptureRecordModel / hasCrmDuplicateCandidateModel guards
++--   4. Retry `npx prisma generate` when the query-engine file lock clears.
++--
++-- CrmLead Γëá Opportunity Γëá Customer Γëá SupportTicket Γëá CsCase.
++-- No auto-merge. Never store Tenant GL, payment secrets, or MRA credentials.
++
++CREATE TABLE IF NOT EXISTS "CrmCaptureRecord" (
++  "id" TEXT PRIMARY KEY,
++  "leadId" TEXT NOT NULL,
++  "sourceCode" TEXT NOT NULL,
++  "channel" TEXT NOT NULL,
++  "sourceIdempotencyKey" TEXT NOT NULL,
++  "emailNormalized" TEXT,
++  "phoneNormalized" TEXT,
++  "handoffRefType" TEXT,
++  "handoffRefId" TEXT,
++  "businessName" TEXT,
++  "contactName" TEXT,
++  "payload" JSONB,
++  "consentStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
++  "consentPurposes" JSONB,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmCaptureRecord_sourceIdempotencyKey_key"
++  ON "CrmCaptureRecord"("sourceIdempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmCaptureRecord_leadId_idx"
++  ON "CrmCaptureRecord"("leadId");
++CREATE INDEX IF NOT EXISTS "CrmCaptureRecord_emailNormalized_idx"
++  ON "CrmCaptureRecord"("emailNormalized");
++CREATE INDEX IF NOT EXISTS "CrmCaptureRecord_phoneNormalized_idx"
++  ON "CrmCaptureRecord"("phoneNormalized");
++CREATE INDEX IF NOT EXISTS "CrmCaptureRecord_handoffRefType_handoffRefId_idx"
++  ON "CrmCaptureRecord"("handoffRefType", "handoffRefId");
++CREATE INDEX IF NOT EXISTS "CrmCaptureRecord_sourceCode_createdAt_idx"
++  ON "CrmCaptureRecord"("sourceCode", "createdAt");
++
++CREATE TABLE IF NOT EXISTS "CrmDuplicateCandidate" (
++  "id" TEXT PRIMARY KEY,
++  "leadId" TEXT NOT NULL,
++  "candidateLeadId" TEXT NOT NULL,
++  "matchType" TEXT NOT NULL,
++  "matchValue" TEXT,
++  "status" TEXT NOT NULL DEFAULT 'NEW',
++  "confidence" TEXT,
++  "reviewedByAdminId" TEXT,
++  "reviewedAt" TIMESTAMP(3),
++  "decisionReason" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDuplicateCandidate_leadId_candidateLeadId_matchType_key"
++  ON "CrmDuplicateCandidate"("leadId", "candidateLeadId", "matchType");
++CREATE INDEX IF NOT EXISTS "CrmDuplicateCandidate_status_createdAt_idx"
++  ON "CrmDuplicateCandidate"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmDuplicateCandidate_leadId_idx"
++  ON "CrmDuplicateCandidate"("leadId");
++CREATE INDEX IF NOT EXISTS "CrmDuplicateCandidate_candidateLeadId_idx"
++  ON "CrmDuplicateCandidate"("candidateLeadId");
++CREATE INDEX IF NOT EXISTS "CrmDuplicateCandidate_reviewedByAdminId_idx"
++  ON "CrmDuplicateCandidate"("reviewedByAdminId");
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmCaptureRecord_leadId_fkey'
++  ) THEN
++    ALTER TABLE "CrmCaptureRecord"
++      ADD CONSTRAINT "CrmCaptureRecord_leadId_fkey"
++      FOREIGN KEY ("leadId") REFERENCES "CrmLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDuplicateCandidate_leadId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDuplicateCandidate"
++      ADD CONSTRAINT "CrmDuplicateCandidate_leadId_fkey"
++      FOREIGN KEY ("leadId") REFERENCES "CrmLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDuplicateCandidate_candidateLeadId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDuplicateCandidate"
++      ADD CONSTRAINT "CrmDuplicateCandidate_candidateLeadId_fkey"
++      FOREIGN KEY ("candidateLeadId") REFERENCES "CrmLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDuplicateCandidate_reviewedByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDuplicateCandidate"
++      ADD CONSTRAINT "CrmDuplicateCandidate_reviewedByAdminId_fkey"
++      FOREIGN KEY ("reviewedByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
+diff --git a/test/systemAdmin.crm.capture.test.js b/test/systemAdmin.crm.capture.test.js
+new file mode 100644
+index 0000000..5875f70
+--- /dev/null
++++ b/test/systemAdmin.crm.capture.test.js
+@@ -0,0 +1,583 @@
++/**
++ * Phase 11 Wave 2 ΓÇö public capture + handoff intake ΓåÆ CrmLead
++ * (Γëá Opportunity Γëá Customer Γëá SupportTicket Γëá CsCase).
++ */
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import {
++  CRM_CAPTURE_SOURCE,
++  CRM_SOURCE_CHANNEL,
++  CRM_LEAD_TYPE,
++  CRM_CONSENT_STATUS,
++  channelAvailability,
++  captureLead,
++  intakeHandoffAsLead,
++  hasCrmCaptureRecordModel,
++} from '@/lib/admin/crm';
++
++function makePrisma(overrides = {}) {
++  const leadStore = overrides._leadStore || [];
++  const captureStore = overrides._captureStore || [];
++  const historyStore = overrides._historyStore || [];
++  const seqStore = overrides._seqStore || [];
++  const duplicateStore = overrides._duplicateStore || [];
++  const contactStore = overrides._contactStore || [];
++  const accountStore = overrides._accountStore || [];
++  const csHandoffStore = overrides._csHandoffStore || [];
++  const supportHandoffStore = overrides._supportHandoffStore || [];
++  const caseStore = overrides._caseStore || [];
++  const ticketStore = overrides._ticketStore || [];
++
++  const prisma = {
++    crmLead: {
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...leadStore];
++        if (where?.id?.in) {
++          const set = new Set(where.id.in);
++          rows = rows.filter((r) => set.has(r.id));
++        }
++        if (where?.sourceIdempotencyKey) {
++          rows = rows.filter((r) => r.sourceIdempotencyKey === where.sourceIdempotencyKey);
++        }
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(0, limit);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return leadStore.find((r) => r.id === where.id) || null;
++        if (where.leadNumber) {
++          return leadStore.find((r) => r.leadNumber === where.leadNumber) || null;
++        }
++        if (where.sourceIdempotencyKey) {
++          return (
++            leadStore.find((r) => r.sourceIdempotencyKey === where.sourceIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        if (
++          data.sourceIdempotencyKey &&
++          leadStore.some((r) => r.sourceIdempotencyKey === data.sourceIdempotencyKey)
++        ) {
++          const err = new Error('Unique constraint');
++          err.code = 'P2002';
++          err.meta = { target: ['sourceIdempotencyKey'] };
++          throw err;
++        }
++        const row = {
++          id: data.id || `lead-${leadStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        leadStore.push(row);
++        return row;
++      }),
++    },
++    crmCaptureRecord: {
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...captureStore];
++        if (where?.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (clause.emailNormalized) return r.emailNormalized === clause.emailNormalized;
++              if (clause.phoneNormalized) return r.phoneNormalized === clause.phoneNormalized;
++              if (clause.handoffRefId && clause.handoffRefType) {
++                return (
++                  r.handoffRefId === clause.handoffRefId &&
++                  r.handoffRefType === clause.handoffRefType
++                );
++              }
++              if (clause.sourceIdempotencyKey) {
++                return r.sourceIdempotencyKey === clause.sourceIdempotencyKey;
++              }
++              return false;
++            })
++          );
++        }
++        if (where?.emailNormalized) {
++          rows = rows.filter((r) => r.emailNormalized === where.emailNormalized);
++        }
++        if (where?.phoneNormalized) {
++          rows = rows.filter((r) => r.phoneNormalized === where.phoneNormalized);
++        }
++        if (where?.sourceIdempotencyKey) {
++          rows = rows.filter((r) => r.sourceIdempotencyKey === where.sourceIdempotencyKey);
++        }
++        if (where?.leadId?.not) {
++          rows = rows.filter((r) => r.leadId !== where.leadId.not);
++        }
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(0, limit);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.sourceIdempotencyKey) {
++          return (
++            captureStore.find((r) => r.sourceIdempotencyKey === where.sourceIdempotencyKey) ||
++            null
++          );
++        }
++        if (where.id) return captureStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        if (
++          data.sourceIdempotencyKey &&
++          captureStore.some((r) => r.sourceIdempotencyKey === data.sourceIdempotencyKey)
++        ) {
++          const err = new Error('Unique constraint');
++          err.code = 'P2002';
++          throw err;
++        }
++        const row = {
++          id: data.id || `cap-${captureStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          ...data,
++        };
++        captureStore.push(row);
++        return row;
++      }),
++    },
++    crmDuplicateCandidate: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...duplicateStore];
++        if (where?.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        if (where?.status) rows = rows.filter((r) => r.status === where.status);
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          duplicateStore.find((r) => {
++            if (where.leadId && r.leadId !== where.leadId) return false;
++            if (where.candidateLeadId && r.candidateLeadId !== where.candidateLeadId) {
++              return false;
++            }
++            if (where.matchType && r.matchType !== where.matchType) return false;
++            return true;
++          }) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `dup-${duplicateStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        duplicateStore.push(row);
++        return row;
++      }),
++    },
++    crmContact: {
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...contactStore];
++        if (where?.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (clause.email) return r.email === clause.email;
++              if (clause.phone) return r.phone === clause.phone;
++              return false;
++            })
++          );
++        }
++        return rows.slice(0, typeof take === 'number' ? take : rows.length);
++      }),
++    },
++    crmAccount: {
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...accountStore];
++        if (where?.displayName?.contains) {
++          const q = String(where.displayName.contains).toLowerCase();
++          rows = rows.filter((r) => String(r.displayName || '').toLowerCase().includes(q));
++        }
++        return rows.slice(0, typeof take === 'number' ? take : rows.length);
++      }),
++    },
++    crmLeadStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `clh-${historyStore.length + 1}`, at: data.at || new Date(), ...data };
++        historyStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...historyStore]),
++    },
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          seqStore.find(
++            (r) => r.prefix === where.prefix_year?.prefix && r.year === where.prefix_year?.year
++          ) ||
++          seqStore.find((r) => r.prefix === where.prefix && r.year === where.year) ||
++          null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where = {}, data } = {}) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            (where.lastIssued === undefined || r.lastIssued === where.lastIssued)
++        );
++        if (!row) return { count: 0 };
++        Object.assign(row, data, { updatedAt: new Date() });
++        return { count: 1 };
++      }),
++    },
++    csExpansionHandoff: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return csHandoffStore.find((r) => r.id === where.id) || null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = csHandoffStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    supportHandoff: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return supportHandoffStore.find((r) => r.id === where.id) || null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = supportHandoffStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    csCase: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `case-${caseStore.length + 1}`, ...data };
++        caseStore.push(row);
++        return row;
++      }),
++    },
++    supportTicket: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `st-${ticketStore.length + 1}`, ...data };
++        ticketStore.push(row);
++        return row;
++      }),
++    },
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++  };
++
++  prisma._leadStore = leadStore;
++  prisma._captureStore = captureStore;
++  prisma._duplicateStore = duplicateStore;
++  prisma._historyStore = historyStore;
++  prisma._seqStore = seqStore;
++  prisma._contactStore = contactStore;
++  prisma._accountStore = accountStore;
++  prisma._csHandoffStore = csHandoffStore;
++  prisma._supportHandoffStore = supportHandoffStore;
++  prisma._caseStore = caseStore;
++  prisma._ticketStore = ticketStore;
++  return prisma;
++}
++
++const crmAgent = {
++  id: 'admin-crm-1',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      crm: {
++        view: true,
++        viewLeads: true,
++        createLeads: true,
++        editLeads: true,
++        transitionStatus: true,
++      },
++    },
++  },
++};
++
++describe('systemAdmin.crm.capture', () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it('marks WEB_FORM and INTERNAL_HANDOFF available; EMAIL/WHATSAPP NOT_AVAILABLE', () => {
++    expect(channelAvailability(CRM_SOURCE_CHANNEL.WEB_FORM)).toBe('AVAILABLE');
++    expect(channelAvailability(CRM_SOURCE_CHANNEL.INTERNAL_HANDOFF)).toBe('AVAILABLE');
++    expect(channelAvailability(CRM_SOURCE_CHANNEL.EMAIL)).toBe('NOT_AVAILABLE');
++    expect(channelAvailability(CRM_SOURCE_CHANNEL.WHATSAPP)).toBe('NOT_AVAILABLE');
++  });
++
++  it('rejects EMAIL / WHATSAPP ingest with NOT_AVAILABLE', async () => {
++    const prisma = makePrisma();
++    const email = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM,
++      channel: CRM_SOURCE_CHANNEL.EMAIL,
++      email: 'a@example.com',
++      contactName: 'Ada',
++      businessName: 'Ada Co',
++      message: 'hi',
++    });
++    expect(email.ok).toBe(false);
++    expect(email.status).toBe('NOT_AVAILABLE');
++
++    const wa = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      channel: CRM_SOURCE_CHANNEL.WHATSAPP,
++      email: 'a@example.com',
++      contactName: 'Ada',
++      businessName: 'Ada Co',
++      message: 'hi',
++    });
++    expect(wa.ok).toBe(false);
++    expect(wa.status).toBe('NOT_AVAILABLE');
++    expect(prisma._leadStore.length).toBe(0);
++  });
++
++  it('captures public WEB_FORM lead with distinct source codes and no owner', async () => {
++    const prisma = makePrisma();
++    expect(hasCrmCaptureRecordModel(prisma)).toBe(true);
++
++    const result = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'Acme Ltd',
++      contactName: 'Jane Doe',
++      email: 'Jane.Doe@Example.COM',
++      phone: '+260 97 123 4567',
++      message: 'Want a demo next week',
++      preferredAt: '2026-08-01T09:00:00.000Z',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++
++    expect(result.ok).toBe(true);
++    expect(result.created).toBe(true);
++    expect(result.idempotent).toBe(false);
++    expect(result.lead.source).toBe(CRM_CAPTURE_SOURCE.REQUEST_DEMO);
++    expect(result.lead.channel).toBe(CRM_SOURCE_CHANNEL.WEB_FORM);
++    expect(result.lead.type).toBe(CRM_LEAD_TYPE.DEMO_REQUEST);
++    expect(result.lead.ownerAdminId).toBeNull();
++    expect(result.lead.status).toBe('NEW');
++    expect(result.capture.emailNormalized).toBe('jane.doe@example.com');
++    expect(result.capture.consentStatus).toBe(CRM_CONSENT_STATUS.UNKNOWN);
++    expect(prisma._leadStore.length).toBe(1);
++    expect(prisma._captureStore.length).toBe(1);
++    expect(prisma.csCase.create).not.toHaveBeenCalled();
++    expect(prisma.supportTicket.create).not.toHaveBeenCalled();
++  });
++
++  it('is idempotent on exact sourceIdempotencyKey retry', async () => {
++    const prisma = makePrisma();
++    const payload = {
++      sourceCode: CRM_CAPTURE_SOURCE.START_TRIAL,
++      businessName: 'Trial Co',
++      contactName: 'Sam',
++      email: 'sam@trial.co',
++      phone: '0971112222',
++      message: 'Start trial',
++      sourceIdempotencyKey: 'crm-capture:START_TRIAL:sam@trial.co',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    };
++
++    const first = await captureLead(prisma, payload);
++    const second = await captureLead(prisma, payload);
++
++    expect(first.ok).toBe(true);
++    expect(first.created).toBe(true);
++    expect(second.ok).toBe(true);
++    expect(second.created).toBe(false);
++    expect(second.idempotent).toBe(true);
++    expect(second.lead.id).toBe(first.lead.id);
++    expect(prisma._leadStore.length).toBe(1);
++  });
++
++  it('ignores public owner/team/priority fields', async () => {
++    const prisma = makePrisma();
++    const result = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.SALES_ENQUIRY,
++      businessName: 'Sales Co',
++      contactName: 'Pat',
++      email: 'pat@sales.co',
++      phone: '0970001111',
++      message: 'Pricing?',
++      ownerAdminId: 'should-ignore',
++      teamId: 'team-x',
++      priority: 'HIGH',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(result.ok).toBe(true);
++    expect(result.lead.ownerAdminId).toBeNull();
++  });
++
++  it('stores consent only when explicit purposes provided; never infers GRANTED', async () => {
++    const prisma = makePrisma();
++    const unknown = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM,
++      businessName: 'A',
++      contactName: 'B',
++      email: 'b@a.com',
++      phone: '1',
++      message: 'hello',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(unknown.capture.consentStatus).toBe(CRM_CONSENT_STATUS.UNKNOWN);
++
++    const granted = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM,
++      businessName: 'A',
++      contactName: 'C',
++      email: 'c@a.com',
++      phone: '2',
++      message: 'hello',
++      consentPurposes: ['SALES_FOLLOW_UP'],
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(granted.capture.consentStatus).toBe(CRM_CONSENT_STATUS.GRANTED);
++    expect(granted.capture.consentPurposes).toEqual(['SALES_FOLLOW_UP']);
++  });
++
++  it('rejects honeypot / oversized payloads', async () => {
++    const prisma = makePrisma();
++    const spam = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'Bot',
++      contactName: 'Bot',
++      email: 'bot@x.com',
++      phone: '1',
++      message: 'spam',
++      website: 'http://spam.example', // honeypot
++    });
++    expect(spam.ok).toBe(false);
++    expect(spam.error).toBe('spam_rejected');
++
++    const huge = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'Big',
++      contactName: 'Big',
++      email: 'big@x.com',
++      phone: '1',
++      message: 'x'.repeat(80_000),
++    });
++    expect(huge.ok).toBe(false);
++    expect(huge.error).toBe('payload_too_large');
++  });
++
++  it('suggests Account/Contact candidates without auto-linking', async () => {
++    const prisma = makePrisma({
++      _contactStore: [
++        {
++          id: 'con-1',
++          contactNumber: 'CON-2026-000001',
++          firstName: 'Jane',
++          lastName: 'Doe',
++          email: 'jane.doe@example.com',
++          phone: '+260971234567',
++        },
++      ],
++      _accountStore: [
++        {
++          id: 'acc-1',
++          accountNumber: 'ACC-2026-000001',
++          displayName: 'Acme Ltd',
++          type: 'PROSPECT',
++          status: 'ACTIVE',
++        },
++      ],
++    });
++
++    const result = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'Acme Ltd',
++      contactName: 'Jane Doe',
++      email: 'jane.doe@example.com',
++      phone: '+260 97 123 4567',
++      message: 'demo',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++
++    expect(result.ok).toBe(true);
++    expect(result.lead.accountId).toBeNull();
++    expect(result.lead.contactId).toBeNull();
++    expect(result.candidates.contacts.some((c) => c.id === 'con-1')).toBe(true);
++    expect(result.candidates.accounts.some((a) => a.id === 'acc-1')).toBe(true);
++  });
++
++  it('intakes CS expansion handoff as EXPANSION lead without mutating handoff', async () => {
++    const prisma = makePrisma({
++      _csHandoffStore: [
++        {
++          id: 'cs-h-1',
++          tenantId: 'tenant-1',
++          status: 'OPEN',
++          reason: 'Upsell interest',
++          notes: 'Asked about Pro',
++          recommendedAction: 'UPSELL',
++          createdByAdminId: 'cs-admin',
++        },
++      ],
++    });
++
++    const first = await intakeHandoffAsLead(prisma, {
++      admin: crmAgent,
++      handoffType: 'CUSTOMER_SUCCESS',
++      handoffId: 'cs-h-1',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    const second = await intakeHandoffAsLead(prisma, {
++      admin: crmAgent,
++      handoffType: 'CUSTOMER_SUCCESS',
++      handoffId: 'cs-h-1',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++
++    expect(first.ok).toBe(true);
++    expect(first.lead.type).toBe(CRM_LEAD_TYPE.EXPANSION);
++    expect(first.lead.source).toBe(CRM_CAPTURE_SOURCE.CUSTOMER_SUCCESS_HANDOFF);
++    expect(first.lead.channel).toBe(CRM_SOURCE_CHANNEL.INTERNAL_HANDOFF);
++    expect(second.idempotent).toBe(true);
++    expect(second.lead.id).toBe(first.lead.id);
++    expect(prisma.csExpansionHandoff.update).not.toHaveBeenCalled();
++    expect(prisma._csHandoffStore[0].status).toBe('OPEN');
++    expect(prisma.csCase.create).not.toHaveBeenCalled();
++  });
++
++  it('intakes Support handoff and Product signal without mutating source records', async () => {
++    const prisma = makePrisma({
++      _supportHandoffStore: [
++        {
++          id: 'sup-h-1',
++          ticketId: 't-1',
++          tenantId: 'tenant-2',
++          targetType: 'PRODUCT',
++          status: 'OPEN',
++          summary: 'Feature ask',
++          featureCode: 'POS_ADVANCED',
++          createdByAdminId: 'sup-admin',
++        },
++      ],
++    });
++
++    const support = await intakeHandoffAsLead(prisma, {
++      admin: crmAgent,
++      handoffType: 'SUPPORT',
++      handoffId: 'sup-h-1',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(support.ok).toBe(true);
++    expect(support.lead.source).toBe(CRM_CAPTURE_SOURCE.SUPPORT_HANDOFF);
++    expect(prisma.supportHandoff.update).not.toHaveBeenCalled();
++
++    const product = await intakeHandoffAsLead(prisma, {
++      admin: crmAgent,
++      handoffType: 'PRODUCT',
++      handoffId: 'sup-h-1',
++      featureCode: 'POS_ADVANCED',
++      tenantId: 'tenant-2',
++      summary: 'Product signal from support',
++      now: new Date('2026-07-30T12:05:00.000Z'),
++    });
++    expect(product.ok).toBe(true);
++    expect(product.lead.source).toBe(CRM_CAPTURE_SOURCE.PRODUCT_SIGNAL);
++    expect(product.lead.id).not.toBe(support.lead.id);
++  });
++});
+diff --git a/test/systemAdmin.crm.duplicates.test.js b/test/systemAdmin.crm.duplicates.test.js
+new file mode 100644
+index 0000000..c08e0a7
+--- /dev/null
++++ b/test/systemAdmin.crm.duplicates.test.js
+@@ -0,0 +1,417 @@
++/**
++ * Phase 11 Wave 2 ΓÇö CRM duplicate candidates (no auto-merge).
++ */
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import {
++  CRM_CAPTURE_SOURCE,
++  CRM_DUPLICATE_STATUS,
++  CRM_DUPLICATE_MATCH_TYPE,
++  captureLead,
++  listDuplicateCandidates,
++  reviewDuplicateCandidate,
++  detectDuplicateCandidates,
++} from '@/lib/admin/crm';
++
++function makePrisma(overrides = {}) {
++  const leadStore = overrides._leadStore || [];
++  const captureStore = overrides._captureStore || [];
++  const historyStore = overrides._historyStore || [];
++  const seqStore = overrides._seqStore || [];
++  const duplicateStore = overrides._duplicateStore || [];
++  const contactStore = overrides._contactStore || [];
++  const accountStore = overrides._accountStore || [];
++
++  const prisma = {
++    crmLead: {
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...leadStore];
++        if (where?.id?.in) {
++          const set = new Set(where.id.in);
++          rows = rows.filter((r) => set.has(r.id));
++        }
++        return rows.slice(0, typeof take === 'number' ? take : rows.length);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return leadStore.find((r) => r.id === where.id) || null;
++        if (where.sourceIdempotencyKey) {
++          return (
++            leadStore.find((r) => r.sourceIdempotencyKey === where.sourceIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `lead-${leadStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        leadStore.push(row);
++        return row;
++      }),
++    },
++    crmCaptureRecord: {
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...captureStore];
++        if (where?.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (clause.emailNormalized) return r.emailNormalized === clause.emailNormalized;
++              if (clause.phoneNormalized) return r.phoneNormalized === clause.phoneNormalized;
++              if (clause.handoffRefId && clause.handoffRefType) {
++                return (
++                  r.handoffRefId === clause.handoffRefId &&
++                  r.handoffRefType === clause.handoffRefType
++                );
++              }
++              return false;
++            })
++          );
++        }
++        if (where?.leadId?.not) {
++          rows = rows.filter((r) => r.leadId !== where.leadId.not);
++        }
++        if (where?.emailNormalized) {
++          rows = rows.filter((r) => r.emailNormalized === where.emailNormalized);
++        }
++        if (where?.phoneNormalized) {
++          rows = rows.filter((r) => r.phoneNormalized === where.phoneNormalized);
++        }
++        return rows.slice(0, typeof take === 'number' ? take : rows.length);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.sourceIdempotencyKey) {
++          return (
++            captureStore.find((r) => r.sourceIdempotencyKey === where.sourceIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `cap-${captureStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          ...data,
++        };
++        captureStore.push(row);
++        return row;
++      }),
++    },
++    crmDuplicateCandidate: {
++      findMany: vi.fn(async ({ where = {}, take, skip, orderBy } = {}) => {
++        let rows = [...duplicateStore];
++        if (where?.status) {
++          if (where.status.in) {
++            const set = new Set(where.status.in);
++            rows = rows.filter((r) => set.has(r.status));
++          } else {
++            rows = rows.filter((r) => r.status === where.status);
++          }
++        }
++        if (where?.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        if (orderBy?.createdAt === 'desc') {
++          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        }
++        let start = typeof skip === 'number' ? skip : 0;
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(start, start + limit);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return duplicateStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          duplicateStore.find((r) => {
++            if (where.leadId && r.leadId !== where.leadId) return false;
++            if (where.candidateLeadId && r.candidateLeadId !== where.candidateLeadId) {
++              return false;
++            }
++            if (where.matchType && r.matchType !== where.matchType) return false;
++            return true;
++          }) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `dup-${duplicateStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          status: data.status || CRM_DUPLICATE_STATUS.NEW,
++          ...data,
++        };
++        duplicateStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = duplicateStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: new Date() });
++        return row;
++      }),
++    },
++    crmContact: {
++      findMany: vi.fn(async () => [...contactStore]),
++    },
++    crmAccount: {
++      findMany: vi.fn(async () => [...accountStore]),
++    },
++    crmLeadStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `clh-${historyStore.length + 1}`, at: data.at || new Date(), ...data };
++        historyStore.push(row);
++        return row;
++      }),
++    },
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          seqStore.find(
++            (r) => r.prefix === where.prefix_year?.prefix && r.year === where.prefix_year?.year
++          ) ||
++          seqStore.find((r) => r.prefix === where.prefix && r.year === where.year) ||
++          null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where = {}, data } = {}) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            (where.lastIssued === undefined || r.lastIssued === where.lastIssued)
++        );
++        if (!row) return { count: 0 };
++        Object.assign(row, data, { updatedAt: new Date() });
++        return { count: 1 };
++      }),
++    },
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++  };
++
++  prisma._leadStore = leadStore;
++  prisma._captureStore = captureStore;
++  prisma._duplicateStore = duplicateStore;
++  prisma._historyStore = historyStore;
++  prisma._seqStore = seqStore;
++  return prisma;
++}
++
++const crmAgent = {
++  id: 'admin-crm-1',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      crm: {
++        view: true,
++        viewLeads: true,
++        createLeads: true,
++        editLeads: true,
++      },
++    },
++  },
++};
++
++const crmViewer = {
++  id: 'admin-crm-viewer',
++  role: 'Platform Support',
++  permissions: {
++    systemAdmin: {
++      crm: { view: true, viewLeads: true },
++    },
++  },
++};
++
++const noPerms = {
++  id: 'admin-none',
++  role: 'Platform Support',
++  permissions: { systemAdmin: {} },
++};
++
++describe('systemAdmin.crm.duplicates', () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it('creates duplicate candidates for same email/phone; never auto-merges', async () => {
++    const prisma = makePrisma();
++    const a = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'Acme',
++      contactName: 'Ada',
++      email: 'ada@acme.com',
++      phone: '+260971111111',
++      message: 'one',
++      sourceIdempotencyKey: 'key-a',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    const b = await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.SALES_ENQUIRY,
++      businessName: 'Acme 2',
++      contactName: 'Ada Lovelace',
++      email: 'ada@acme.com',
++      phone: '+260 97 111 1111',
++      message: 'two',
++      sourceIdempotencyKey: 'key-b',
++      now: new Date('2026-07-30T12:01:00.000Z'),
++    });
++
++    expect(a.ok).toBe(true);
++    expect(b.ok).toBe(true);
++    expect(a.lead.id).not.toBe(b.lead.id);
++    expect(prisma._leadStore.length).toBe(2);
++    expect(prisma._duplicateStore.length).toBeGreaterThanOrEqual(1);
++    expect(
++      prisma._duplicateStore.every((d) =>
++        [
++          CRM_DUPLICATE_MATCH_TYPE.EMAIL,
++          CRM_DUPLICATE_MATCH_TYPE.PHONE,
++          CRM_DUPLICATE_MATCH_TYPE.SOURCE_IDENTITY,
++        ].includes(d.matchType)
++      )
++    ).toBe(true);
++    expect(prisma._duplicateStore.every((d) => d.status === CRM_DUPLICATE_STATUS.NEW)).toBe(
++      true
++    );
++    // No merge ΓÇö both leads remain NEW
++    expect(prisma._leadStore.every((l) => l.status === 'NEW')).toBe(true);
++  });
++
++  it('does not auto-merge on similar name/domain alone', async () => {
++    const prisma = makePrisma();
++    await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.START_TRIAL,
++      businessName: 'Insight Soft',
++      contactName: 'Alex',
++      email: 'alex@insight-soft.com',
++      phone: '0972000001',
++      message: 'a',
++      sourceIdempotencyKey: 'dom-a',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.START_TRIAL,
++      businessName: 'Insight Software Ltd',
++      contactName: 'Alexandra',
++      email: 'other@insight-soft.com',
++      phone: '0972000002',
++      message: 'b',
++      sourceIdempotencyKey: 'dom-b',
++      now: new Date('2026-07-30T12:01:00.000Z'),
++    });
++
++    // Same domain heuristic alone must not create auto-merge or force DUPLICATE status
++    expect(prisma._leadStore.length).toBe(2);
++    expect(prisma._leadStore.every((l) => l.status === 'NEW')).toBe(true);
++    const domainOnly = prisma._duplicateStore.filter(
++      (d) => d.matchType === CRM_DUPLICATE_MATCH_TYPE.DOMAIN
++    );
++    expect(domainOnly.every((d) => d.status === CRM_DUPLICATE_STATUS.NEW)).toBe(true);
++  });
++
++  it('lists candidates for viewers; review requires edit permission + reason', async () => {
++    const prisma = makePrisma();
++    await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'A',
++      contactName: 'A',
++      email: 'same@x.com',
++      phone: '1',
++      message: 'a',
++      sourceIdempotencyKey: 'list-a',
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    await captureLead(prisma, {
++      sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++      businessName: 'B',
++      contactName: 'B',
++      email: 'same@x.com',
++      phone: '2',
++      message: 'b',
++      sourceIdempotencyKey: 'list-b',
++      now: new Date('2026-07-30T12:01:00.000Z'),
++    });
++
++    const listed = await listDuplicateCandidates(prisma, { admin: crmViewer });
++    expect(listed.ok).toBe(true);
++    expect(listed.items.length).toBeGreaterThanOrEqual(1);
++
++    const forbidden = await listDuplicateCandidates(prisma, { admin: noPerms });
++    expect(forbidden.forbidden).toBe(true);
++
++    const candidateId = listed.items[0].id;
++    const badReview = await reviewDuplicateCandidate(prisma, {
++      admin: crmViewer,
++      id: candidateId,
++      status: CRM_DUPLICATE_STATUS.CONFIRMED_DUPLICATE,
++      reason: 'same person',
++    });
++    expect(badReview.forbidden).toBe(true);
++
++    const noReason = await reviewDuplicateCandidate(prisma, {
++      admin: crmAgent,
++      id: candidateId,
++      status: CRM_DUPLICATE_STATUS.CONFIRMED_DUPLICATE,
++    });
++    expect(noReason.ok).toBe(false);
++    expect(noReason.error).toBe('reason required');
++
++    const ok = await reviewDuplicateCandidate(prisma, {
++      admin: crmAgent,
++      id: candidateId,
++      status: CRM_DUPLICATE_STATUS.CONFIRMED_DISTINCT,
++      reason: 'Different people at same company email alias',
++    });
++    expect(ok.ok).toBe(true);
++    expect(ok.candidate.status).toBe(CRM_DUPLICATE_STATUS.CONFIRMED_DISTINCT);
++    expect(ok.candidate.reviewedByAdminId).toBe(crmAgent.id);
++    expect(ok.candidate.decisionReason).toContain('Different people');
++  });
++
++  it('detectDuplicateCandidates is idempotent for the same pair+matchType', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        { id: 'l1', leadNumber: 'LEAD-2026-000001', status: 'NEW', title: 'A' },
++        { id: 'l2', leadNumber: 'LEAD-2026-000002', status: 'NEW', title: 'B' },
++      ],
++      _captureStore: [
++        {
++          id: 'c1',
++          leadId: 'l1',
++          emailNormalized: 'x@y.com',
++          phoneNormalized: null,
++          sourceIdempotencyKey: 'k1',
++          sourceCode: CRM_CAPTURE_SOURCE.REQUEST_DEMO,
++        },
++        {
++          id: 'c2',
++          leadId: 'l2',
++          emailNormalized: 'x@y.com',
++          phoneNormalized: null,
++          sourceIdempotencyKey: 'k2',
++          sourceCode: CRM_CAPTURE_SOURCE.SALES_ENQUIRY,
++        },
++      ],
++    });
++
++    const first = await detectDuplicateCandidates(prisma, {
++      leadId: 'l2',
++      emailNormalized: 'x@y.com',
++    });
++    const second = await detectDuplicateCandidates(prisma, {
++      leadId: 'l2',
++      emailNormalized: 'x@y.com',
++    });
++    expect(first.ok).toBe(true);
++    expect(second.ok).toBe(true);
++    expect(prisma._duplicateStore.length).toBe(first.created + first.existing);
++    expect(prisma._duplicateStore.length).toBe(1);
++  });
++});
+diff --git "a/app\\request-demo\\page.js" "b/app\\request-demo\\page.js"
+new file mode 100644
+index 0000000..1507cf4
+--- /dev/null
++++ "b/app\\request-demo\\page.js"
+@@ -0,0 +1,20 @@
++import PublicLeadCaptureForm from '@/components/crm/PublicLeadCaptureForm';
++
++export const metadata = {
++  title: 'Request a Demo | InsightBooks',
++  description: 'Request a personalized InsightBooks demo.',
++};
++
++export default function RequestDemoPage() {
++  return (
++    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
++      <PublicLeadCaptureForm
++        title="Request a demo"
++        subtitle="Tell us about your business and we will schedule a walkthrough."
++        apiPath="/api/request-demo"
++        submitLabel="Request demo"
++        showPreferredTime
++      />
++    </main>
++  );
++}
+diff --git "a/app\\start-trial\\page.js" "b/app\\start-trial\\page.js"
+new file mode 100644
+index 0000000..48780b7
+--- /dev/null
++++ "b/app\\start-trial\\page.js"
+@@ -0,0 +1,19 @@
++import PublicLeadCaptureForm from '@/components/crm/PublicLeadCaptureForm';
++
++export const metadata = {
++  title: 'Start a Trial | InsightBooks',
++  description: 'Enquire about starting an InsightBooks trial.',
++};
++
++export default function StartTrialPage() {
++  return (
++    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
++      <PublicLeadCaptureForm
++        title="Start a trial"
++        subtitle="Share your details and our team will follow up about trial access."
++        apiPath="/api/start-trial"
++        submitLabel="Request trial"
++      />
++    </main>
++  );
++}
+diff --git "a/app\\sales-enquiry\\page.js" "b/app\\sales-enquiry\\page.js"
+new file mode 100644
+index 0000000..d442fee
+--- /dev/null
++++ "b/app\\sales-enquiry\\page.js"
+@@ -0,0 +1,19 @@
++import PublicLeadCaptureForm from '@/components/crm/PublicLeadCaptureForm';
++
++export const metadata = {
++  title: 'Sales Enquiry | InsightBooks',
++  description: 'Contact InsightBooks sales.',
++};
++
++export default function SalesEnquiryPage() {
++  return (
++    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
++      <PublicLeadCaptureForm
++        title="Sales enquiry"
++        subtitle="Ask about plans, pricing, or onboarding for your organisation."
++        apiPath="/api/sales-enquiry"
++        submitLabel="Send enquiry"
++      />
++    </main>
++  );
++}
+diff --git "a/app\\api\\request-demo\\route.js" "b/app\\api\\request-demo\\route.js"
+new file mode 100644
+index 0000000..ea0dd28
+--- /dev/null
++++ "b/app\\api\\request-demo\\route.js"
+@@ -0,0 +1,6 @@
++import { CRM_CAPTURE_SOURCE } from '@/lib/admin/crm';
++import { handlePublicCapturePost } from '@/lib/admin/crm/publicFormApi.js';
++
++export async function POST(request) {
++  return handlePublicCapturePost(request, CRM_CAPTURE_SOURCE.REQUEST_DEMO);
++}
+diff --git "a/app\\api\\start-trial\\route.js" "b/app\\api\\start-trial\\route.js"
+new file mode 100644
+index 0000000..92abc6d
+--- /dev/null
++++ "b/app\\api\\start-trial\\route.js"
+@@ -0,0 +1,6 @@
++import { CRM_CAPTURE_SOURCE } from '@/lib/admin/crm';
++import { handlePublicCapturePost } from '@/lib/admin/crm/publicFormApi.js';
++
++export async function POST(request) {
++  return handlePublicCapturePost(request, CRM_CAPTURE_SOURCE.START_TRIAL);
++}
+diff --git "a/app\\api\\sales-enquiry\\route.js" "b/app\\api\\sales-enquiry\\route.js"
+new file mode 100644
+index 0000000..52bcc7e
+--- /dev/null
++++ "b/app\\api\\sales-enquiry\\route.js"
+@@ -0,0 +1,6 @@
++import { CRM_CAPTURE_SOURCE } from '@/lib/admin/crm';
++import { handlePublicCapturePost } from '@/lib/admin/crm/publicFormApi.js';
++
++export async function POST(request) {
++  return handlePublicCapturePost(request, CRM_CAPTURE_SOURCE.SALES_ENQUIRY);
++}
+diff --git "a/app\\api\\admin\\crm\\duplicates\\route.js" "b/app\\api\\admin\\crm\\duplicates\\route.js"
+new file mode 100644
+index 0000000..1835202
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\duplicates\\route.js"
+@@ -0,0 +1,84 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { listDuplicateCandidates, reviewDuplicateCandidate } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listDuplicateCandidates(prisma, {
++      admin,
++      status: searchParams.get('status') || undefined,
++      leadId: searchParams.get('leadId') || undefined,
++      limit: searchParams.get('limit') || '50',
++      offset: searchParams.get('offset') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM duplicates list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list duplicate candidates' },
++      { status: 500 }
++    );
++  }
++}
++
++/** POST ΓÇö review a duplicate candidate (no merge). */
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await reviewDuplicateCandidate(prisma, {
++      admin,
++      id: body.id || body.candidateId,
++      status: body.status,
++      reason: body.reason || body.decisionReason,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'not_found' },
++        { status: 404 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'review_failed', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM duplicate review error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to review duplicate candidate' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\handoff-intake\\route.js" "b/app\\api\\admin\\crm\\handoff-intake\\route.js"
+new file mode 100644
+index 0000000..cca182a
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\handoff-intake\\route.js"
+@@ -0,0 +1,69 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { intakeHandoffAsLead } from '@/lib/admin/crm';
++
++/**
++ * POST ΓÇö CS / Support / Product handoff ΓåÆ Lead (link-only; no source mutation).
++ * Body: { handoffType, handoffId, featureCode?, tenantId?, summary?, ... }
++ */
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await intakeHandoffAsLead(prisma, {
++      admin,
++      handoffType: body.handoffType,
++      handoffId: body.handoffId,
++      featureCode: body.featureCode || null,
++      tenantId: body.tenantId || null,
++      summary: body.summary || body.notes || null,
++      contactName: body.contactName || null,
++      email: body.email || null,
++      phone: body.phone || null,
++      businessName: body.businessName || null,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'not_found' },
++        { status: 404 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'handoff_intake_failed', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json(
++      {
++        success: true,
++        lead: result.lead,
++        created: result.created !== false,
++        idempotent: Boolean(result.idempotent),
++        meta: result.meta,
++      },
++      { status: result.idempotent ? 200 : 201 }
++    );
++  } catch (error) {
++    console.error('CRM handoff intake error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to intake handoff as lead' },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/app/api/contact/demo-request/route.js b/app/api/contact/demo-request/route.js
+index e836a5f..2d08bc7 100644
+--- a/app/api/contact/demo-request/route.js
++++ b/app/api/contact/demo-request/route.js
+@@ -1,5 +1,7 @@
+ import { NextResponse } from 'next/server';
+ import { sendEmail } from '@/lib/emailService';
++import prisma from '@/lib/prisma';
++import { captureLead, CRM_CAPTURE_SOURCE } from '@/lib/admin/crm';
+ 
+ export async function POST(request) {
+   try {
+@@ -25,6 +27,59 @@ export async function POST(request) {
+       );
+     }
+ 
++    // Persist CrmLead via shared capture (idempotent). Keep email send below.
++    let captureMeta = { created: false, idempotent: false, leadNumber: null };
++    try {
++      const capture = await captureLead(prisma, {
++        sourceCode: CRM_CAPTURE_SOURCE.WEBSITE_CONTACT_FORM,
++        businessName: body.businessName,
++        contactName: body.clientName,
++        email: body.email,
++        phone: body.phone,
++        message: body.body,
++        preferredAt: body.dateTime || null,
++        consentPurposes: body.consentPurposes,
++        sourceIdempotencyKey: body.sourceIdempotencyKey || body.idempotencyKey || null,
++        website: body.website,
++        companyUrl: body.companyUrl,
++        hp_field: body.hp_field,
++      });
++
++      if (!capture.ok) {
++        if (capture.error === 'spam_rejected') {
++          return NextResponse.json({ error: 'Unable to submit request' }, { status: 400 });
++        }
++        if (capture.error === 'payload_too_large' || capture.error === 'rate_limited') {
++          return NextResponse.json(
++            { error: capture.error === 'rate_limited' ? 'Too many requests' : 'Payload too large' },
++            { status: 429 }
++          );
++        }
++        if (capture.status === 'NOT_AVAILABLE') {
++          return NextResponse.json(
++            { error: 'Channel not available', status: 'NOT_AVAILABLE' },
++            { status: 501 }
++          );
++        }
++        return NextResponse.json(
++          { error: capture.error || 'Failed to record request' },
++          { status: 400 }
++        );
++      }
++
++      captureMeta = {
++        created: capture.created !== false,
++        idempotent: Boolean(capture.idempotent),
++        leadNumber: capture.lead?.leadNumber || null,
++      };
++    } catch (captureError) {
++      console.error('Demo request CRM capture failed:', captureError);
++      return NextResponse.json(
++        { error: 'Failed to submit demo request. Please try again.' },
++        { status: 500 }
++      );
++    }
++
+     // Format the date and time if provided
+     const formatDateTime = (dateTimeString) => {
+       if (!dateTimeString) return 'Not specified';
+@@ -148,6 +203,7 @@ export async function POST(request) {
+           <div style="text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+             <p style="color: #6b7280; font-size: 14px; margin: 0;">
+               This demo request was submitted via the InsightBooks contact form.
++              ${captureMeta.leadNumber ? ` Lead ${captureMeta.leadNumber}.` : ''}
+             </p>
+             <p style="color: #9ca3af; font-size: 12px; margin: 8px 0 0 0;">
+               Please respond promptly to schedule the demo.
+@@ -157,7 +213,7 @@ export async function POST(request) {
+       `
+     };
+ 
+-    // Send the email
++    // Send the email (Lead already persisted)
+     try {
+       const emailResult = await sendEmail({
+         //to: 'benmilanzi8@gmail.com', // For testing purposes
+@@ -171,19 +227,24 @@ export async function POST(request) {
+       return NextResponse.json({
+         success: true,
+         message: 'Demo request submitted successfully! We will contact you soon.',
+-        messageId: emailResult.messageId
++        messageId: emailResult.messageId,
++        leadNumber: captureMeta.leadNumber,
++        created: captureMeta.created,
++        idempotent: captureMeta.idempotent,
+       });
+     } catch (emailError) {
+       console.error('Failed to send demo request email:', emailError);
+ 
+-      // For demo purposes, still return success but log the error
+-      // In production, you might want to store the request in database and retry later
++      // Lead persisted; email may retry later
+       console.log('ΓÜá∩╕Å Email sending failed, but demo request recorded successfully');
+ 
+       return NextResponse.json({
+         success: true,
+         message: 'Demo request submitted successfully! We will contact you soon.',
+-        note: 'Email delivery may be delayed due to technical issues.'
++        note: 'Email delivery may be delayed due to technical issues.',
++        leadNumber: captureMeta.leadNumber,
++        created: captureMeta.created,
++        idempotent: captureMeta.idempotent,
+       });
+     }
+ 
+@@ -194,4 +255,4 @@ export async function POST(request) {
+       { status: 500 }
+     );
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 110ea53..04ce21f 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -27,6 +27,22 @@ model Tenant {
+   AccountBalance               AccountBalance[]
+   accountSubscriptions         AccountSubscription[]
+   adminAccess                  AdminTenantAccess[]
++  customerOwnerships           CustomerOwnership[]
++  customerSegmentMemberships   CustomerSegmentMembership[]
++  customerSignals              CustomerSignal[]
++  customerHealthSnapshots      CustomerHealthSnapshot[]
++  csCases                      CsCase[]
++  csTasks                      CsTask[]
++  csInterventions              CsIntervention[]
++  csRenewalWorkspaces          CsRenewalWorkspace[]
++  csPlaybookExecutions         CsPlaybookExecution[]
++  csSuccessPlans               CsSuccessPlan[]
++  csExpansionHandoffs          CsExpansionHandoff[]
++  csOnboardingRecords          CsOnboardingRecord[]
++  csTrainingRecords            CsTrainingRecord[]
++  csSurveyResponses            CsSurveyResponse[]
++  supportTickets               SupportTicket[]
++  crmAccounts                  CrmAccount[]
+   affiliateReferrals           AffiliateReferral[]
+   assets                       Asset[]
+   assetCategories              AssetCategory[]
+@@ -238,6 +254,8 @@ model TenantSettings {
+   businessEmail                    String?
+   businessPhone                    String?
+   receiptFooter                    String?
++  /// Preferred thermal receipt roll width in mm (58ΓÇô90). Used by web + Android POS print.
++  receiptPaperWidthMm              Int       @default(80)
+   defaultBankDetails               String? // Default bank account details for invoice/quotation/receipt footers
+   // NPS rates are tenant-configurable; null means "not configured".
+   // Calculation code should treat null as 0% unless explicitly set.
+@@ -531,9 +549,41 @@ model Admin {
+   phone          String?
+   department     String?
+   notes          String?
+-  adminAuditLogs AdminAuditLog[]
+-  managedTenants AdminTenantAccess[]
+-  emailLogs      EmailLog[]          @relation("EmailLogAdminSender")
++  adminAuditLogs              AdminAuditLog[]
++  managedTenants              AdminTenantAccess[]
++  emailLogs                   EmailLog[]               @relation("EmailLogAdminSender")
++  ownedCustomerPortfolios     CustomerPortfolio[]      @relation("PortfolioOwner")
++  customerOwnerships          CustomerOwnership[]      @relation("OwnershipOwner")
++  assignedCustomerOwnerships  CustomerOwnership[]      @relation("OwnershipAssignedBy")
++  csCasesOpened               CsCase[]                 @relation("CsCaseOpenedBy")
++  csCasesOwned                CsCase[]                 @relation("CsCaseOwner")
++  csTasksAssigned             CsTask[]                 @relation("CsTaskAssignee")
++  csTasksCreated              CsTask[]                 @relation("CsTaskCreatedBy")
++  csInterventionsPerformed    CsIntervention[]         @relation("CsInterventionPerformedBy")
++  csRenewalsOpened            CsRenewalWorkspace[]     @relation("CsRenewalOpenedBy")
++  csRenewalsOutcomeBy         CsRenewalWorkspace[]     @relation("CsRenewalOutcomeBy")
++  csPlaybookExecutionsStarted CsPlaybookExecution[]    @relation("CsPlaybookExecutionStartedBy")
++  csSuccessPlansOwned         CsSuccessPlan[]          @relation("CsSuccessPlanOwner")
++  csSuccessPlansCreated       CsSuccessPlan[]          @relation("CsSuccessPlanCreatedBy")
++  csExpansionHandoffsCreated  CsExpansionHandoff[]     @relation("CsExpansionHandoffCreatedBy")
++  supportTicketsCreated       SupportTicket[]          @relation("SupportTicketCreatedBy")
++  supportTicketsAssigned      SupportTicket[]          @relation("SupportTicketAssignee")
++  supportTicketStatusChanges  SupportTicketStatusHistory[] @relation("SupportTicketStatusChangedBy")
++  supportMessagesAuthored     SupportMessage[]         @relation("SupportMessageAuthor")
++  supportAttachmentsUploaded  SupportAttachment[]      @relation("SupportAttachmentUploadedBy")
++  supportAssignmentChanges    SupportAssignmentHistory[] @relation("SupportAssignmentChangedBy")
++  supportTeamMemberships      SupportTeamMembership[]
++  supportSlaPoliciesCreated   SupportSlaPolicy[]       @relation("SupportSlaPolicyCreatedBy")
++  supportSlaCalendarsCreated  SupportSlaCalendar[]     @relation("SupportSlaCalendarCreatedBy")
++  supportHandoffsCreated      SupportHandoff[]         @relation("SupportHandoffCreatedBy")
++  supportReconciliationRuns   SupportReconciliationRun[] @relation("SupportReconciliationRunBy")
++  supportExportAudits         SupportExportAudit[]     @relation("SupportExportAuditBy")
++  crmAccountsOwned            CrmAccount[]             @relation("CrmAccountOwner")
++  crmContactsOwned            CrmContact[]             @relation("CrmContactOwner")
++  crmLeadsOwned               CrmLead[]                @relation("CrmLeadOwner")
++  crmLeadsCreated             CrmLead[]                @relation("CrmLeadCreatedBy")
++  crmLeadStatusChanges        CrmLeadStatusHistory[]   @relation("CrmLeadStatusChangedBy")
++  crmDuplicateReviews         CrmDuplicateCandidate[]  @relation("CrmDuplicateReviewedBy")
+ 
+   @@index([email])
+   @@index([role])
+@@ -1421,11 +1471,29 @@ model InvoiceItem {
+   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   product        Product? @relation(fields: [productId], references: [id])
+   account        Account? @relation(fields: [accountId], references: [id])
++  itemTaxes      InvoiceItemTax[]
+ 
+   @@index([invoiceId])
+   @@index([accountId])
+ }
+ 
++model InvoiceItemTax {
++  id               String      @id @default(cuid())
++  invoiceItemId    String
++  taxTypeId        String
++  taxName          String
++  taxCode          String      @default("")
++  taxRate          Float
++  calculationType  String      @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime    @default(now())
++  invoiceItem      InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType     @relation(fields: [taxTypeId], references: [id])
++
++  @@index([invoiceItemId])
++  @@index([taxTypeId])
++}
++
+ model InvoiceRefund {
+   id              String    @id @default(cuid())
+   invoiceId       String
+@@ -3141,6 +3209,8 @@ model TaxType {
+   updatedAt          DateTime            @updatedAt
+   productTaxes       ProductTax[]
+   saleItemTaxes      SaleItemTax[]
++  invoiceItemTaxes   InvoiceItemTax[]
++  quotationItemTaxes QuotationItemTax[]
+   purchaseOrderItems PurchaseOrderItem[]
+   expenses           Expense[]
+   account            Account             @relation("TaxTypeAccount", fields: [accountId], references: [id])
+@@ -3635,11 +3705,29 @@ model QuotationItem {
+   netAmount      Float     @default(0)
+   product        Product?  @relation(fields: [productId], references: [id])
+   quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
++  itemTaxes      QuotationItemTax[]
+ 
+   @@index([quotationId])
+   @@index([productId])
+ }
+ 
++model QuotationItemTax {
++  id               String        @id @default(cuid())
++  quotationItemId  String
++  taxTypeId        String
++  taxName          String
++  taxCode          String        @default("")
++  taxRate          Float
++  calculationType  String        @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime      @default(now())
++  quotationItem    QuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType       @relation(fields: [taxTypeId], references: [id])
++
++  @@index([quotationItemId])
++  @@index([taxTypeId])
++}
++
+ model AccountSubscription {
+   id              String       @id @default(cuid())
+   tenantId        String
+@@ -10314,19 +10402,35 @@ model PlatformPayment {
+ }
+ 
+ /// Versioned SaaS subscription plans ΓÇö price edits create a new version.
++/// planCategory: CORE | MRA_EIS (and future product families).
+ model PlatformPlanVersion {
+   id               String    @id @default(cuid())
+   planCode         String
+   version          Int
+   name             String
++  publicName       String?
+   description      String?
++  planCategory     String    @default("CORE")
++  productCode      String?
+   currency         String    @default("MWK")
+   basePrice        Decimal   @db.Decimal(18, 2)
+   billingFrequency String    @default("month")
+   userLimit        Int?
+   businessLimit    Int?
+   featuresJson     Json      @default("[]")
++  limitsJson       Json      @default("{}")
++  eligibilityJson  Json      @default("{}")
++  billingCyclesJson Json     @default("[]")
++  presentationJson Json      @default("{}")
++  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ACTIVE | SUSPENDED | RETIRED | SUPERSEDED
+   status           String    @default("ACTIVE")
++  isPublic         Boolean   @default(false)
++  isFeatured       Boolean   @default(false)
++  displayOrder     Int       @default(0)
++  trialEnabled     Boolean   @default(false)
++  trialDays        Int?
++  ctaText          String?
++  highlightText    String?
+   effectiveFrom    DateTime  @default(now())
+   effectiveTo      DateTime?
+   createdAt        DateTime  @default(now())
+@@ -10336,6 +10440,8 @@ model PlatformPlanVersion {
+   @@unique([planCode, version])
+   @@index([planCode])
+   @@index([status])
++  @@index([planCategory])
++  @@index([isPublic, planCategory, displayOrder])
+ }
+ 
+ /// Platform credits (e.g. overpayment) ΓÇö separate from tenant AR.
+@@ -10437,3 +10543,1111 @@ model PlatformFeatureEntitlement {
+   @@index([featureCode])
+   @@index([status])
+ }
++
++/// Platform analytics transactional outbox (BI plane ΓÇö not AcctV2/MraEis).
++model AnalyticsOutbox {
++  id             String    @id @default(cuid())
++  tenantId       String?
++  aggregateType  String
++  aggregateId    String
++  eventType      String
++  schemaVersion  String    @default("1")
++  payload        Json
++  payloadChecksum String
++  idempotencyKey String    @unique
++  status         String    @default("PENDING")
++  availableAt    DateTime  @default(now())
++  claimedAt      DateTime?
++  claimExpiresAt DateTime?
++  claimedBy      String?
++  processedAt    DateTime?
++  attemptCount   Int       @default(0)
++  nextAttemptAt  DateTime?
++  lastError      String?
++  correlationId  String?
++  requestId      String?
++  privacyClass   String    @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  occurredAt     DateTime  @default(now())
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  @@index([status, availableAt])
++  @@index([tenantId, eventType])
++  @@index([aggregateType, aggregateId])
++}
++
++/// Append-only canonical analytics events (derived, rebuildable).
++model AnalyticsEvent {
++  id             String   @id @default(cuid())
++  eventType      String
++  schemaVersion  String   @default("1")
++  tenantId       String?
++  sourceType     String
++  sourceId       String
++  idempotencyKey String   @unique
++  occurredAt     DateTime
++  ingestedAt     DateTime @default(now())
++  privacyClass   String   @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  correlationId  String?
++  requestId      String?
++  payload        Json
++  outboxId       String?
++
++  @@index([eventType, occurredAt])
++  @@index([tenantId, occurredAt])
++  @@index([sourceType, sourceId])
++}
++
++model AnalyticsConsumerCheckpoint {
++  id           String   @id @default(cuid())
++  consumerName String   @unique
++  lastEventId  String?
++  lastOccurredAt DateTime?
++  cursor       Json?
++  updatedAt    DateTime @updatedAt
++}
++
++model AnalyticsDeadLetter {
++  id             String   @id @default(cuid())
++  outboxId       String?
++  eventId        String?
++  eventType      String?
++  errorCode      String?
++  errorMessage   String
++  payload        Json?
++  attemptCount   Int      @default(0)
++  createdAt      DateTime @default(now())
++  resolvedAt     DateTime?
++
++  @@index([createdAt])
++  @@index([eventType])
++}
++
++model AnalyticsFactPlatformBilling {
++  id              String   @id @default(cuid())
++  tenantId        String
++  sourceType      String
++  sourceId        String
++  eventType       String
++  amount          Decimal  @db.Decimal(18, 2)
++  currency        String   @default("MWK")
++  occurredAt      DateTime
++  idempotencyKey  String   @unique
++  createdAt       DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++model AnalyticsFactSubscription {
++  id             String   @id @default(cuid())
++  tenantId       String
++  subscriptionId String
++  eventType      String
++  planCode       String?
++  amount         Decimal? @db.Decimal(18, 2)
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([subscriptionId])
++}
++
++model AnalyticsFactTenantActivity {
++  id             String   @id @default(cuid())
++  tenantId       String
++  eventType      String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö product usage facts from instrumented commerce events.
++model AnalyticsFactProductUsage {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, featureCode, occurredAt])
++  @@index([tenantId, eventType, occurredAt])
++  @@index([featureCode, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö first-value uniqueness per tenant + feature + ruleVersion.
++model ProductFirstValueFact {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  ruleVersion    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  sourceEventId  String?
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@unique([tenantId, featureCode, ruleVersion])
++  @@index([tenantId, featureCode])
++}
++
++/// Phase 9 Wave 2 ΓÇö append-only adoption state history (never silent overwrite).
++model ProductAdoptionStateHistory {
++  id                String   @id @default(cuid())
++  tenantId          String
++  featureCode       String
++  state             String
++  previousState     String?
++  ruleVersion       String
++  definitionVersion String
++  reasonCode        String?
++  evidence          Json?
++  observedAt        DateTime @default(now())
++  createdAt         DateTime @default(now())
++
++  @@index([tenantId, featureCode, observedAt])
++  @@index([tenantId, featureCode, state])
++}
++
++model AnalyticsDailySnapshot {
++  id             String   @id @default(cuid())
++  snapshotDate   DateTime @db.Date
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([snapshotDate, metricKey, tenantId])
++  @@index([metricKey, snapshotDate])
++}
++
++model AnalyticsMonthlySnapshot {
++  id             String   @id @default(cuid())
++  yearMonth      String
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([yearMonth, metricKey, tenantId])
++  @@index([metricKey, yearMonth])
++}
++
++model AnalyticsDataFreshness {
++  id              String   @id @default(cuid())
++  sourceKey       String   @unique
++  lastSuccessAt   DateTime?
++  lastAttemptAt   DateTime?
++  lagSeconds      Int?
++  status          String   @default("UNKNOWN")
++  detail          Json?
++  updatedAt       DateTime @updatedAt
++}
++
++model AnalyticsReconciliationRun {
++  id           String   @id @default(cuid())
++  checkKey     String
++  periodStart  DateTime
++  periodEnd    DateTime
++  expected     Int
++  actual       Int
++  variance     Int
++  status       String
++  detail       Json?
++  createdAt    DateTime @default(now())
++
++  @@index([checkKey, createdAt])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS portfolio (not AdminTenantAccess / Tenant.ownerUserId)
++model CustomerPortfolio {
++  id           String              @id @default(cuid())
++  code         String              @unique
++  name         String
++  description  String?
++  type         String              @default("CUSTOMER_SUCCESS")
++  status       String              @default("ACTIVE")
++  ownerAdminId String?
++  ownerAdmin   Admin?              @relation("PortfolioOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdAt    DateTime            @default(now())
++  updatedAt    DateTime            @updatedAt
++  ownerships     CustomerOwnership[]
++  csCases        CsCase[]
++  supportTickets SupportTicket[]
++
++  @@index([status])
++  @@index([ownerAdminId])
++  @@index([type])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS ownership assignment (tenant ΓåÆ CS owner / portfolio)
++model CustomerOwnership {
++  id                String             @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  ownerAdminId      String
++  assignmentType    String             @default("CUSTOMER_SUCCESS_OWNER")
++  isPrimary         Boolean            @default(true)
++  startAt           DateTime           @default(now())
++  endAt             DateTime?
++  reason            String?
++  assignedByAdminId String?
++  status            String             @default("ACTIVE")
++  createdAt         DateTime           @default(now())
++  updatedAt         DateTime           @updatedAt
++  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin              @relation("OwnershipOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
++  assignedByAdmin   Admin?             @relation("OwnershipAssignedBy", fields: [assignedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId, status])
++  @@index([status, endAt])
++  @@index([isPrimary, status])
++}
++
++/// Optional segment foundation (Wave 3). Dynamic engine deferred; system filters in code.
++model CustomerSegment {
++  id          String                       @id @default(cuid())
++  code        String                       @unique
++  name        String
++  description String?
++  kind        String                       @default("SYSTEM")
++  status      String                       @default("ACTIVE")
++  createdAt   DateTime                     @default(now())
++  updatedAt   DateTime                     @updatedAt
++  memberships CustomerSegmentMembership[]
++
++  @@index([status])
++  @@index([kind])
++}
++
++model CustomerSegmentMembership {
++  id        String          @id @default(cuid())
++  segmentId String
++  tenantId  String
++  status    String          @default("ACTIVE")
++  startAt   DateTime        @default(now())
++  endAt     DateTime?
++  createdAt DateTime        @default(now())
++  updatedAt DateTime        @updatedAt
++  segment   CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
++  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([segmentId, tenantId])
++  @@index([tenantId, status])
++  @@index([segmentId, status])
++}
++
++/// Phase 7 Wave 4 ΓÇö deterministic customer signals (verified sources only).
++/// Status: NEW | ACKNOWLEDGED | RESOLVED_BY_SOURCE | DISMISSED
++/// Ephemeral evaluation is used when this table/client is unavailable.
++model CustomerSignal {
++  id              String   @id @default(cuid())
++  tenantId        String
++  code            String
++  severity        String
++  status          String   @default("NEW")
++  payload         Json?
++  firstDetectedAt DateTime @default(now())
++  lastDetectedAt  DateTime @default(now())
++  ruleVersion     String
++  createdAt       DateTime @default(now())
++  updatedAt       DateTime @updatedAt
++  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([tenantId, code])
++  @@index([tenantId, status])
++  @@index([status, severity])
++  @@index([code, status])
++  @@index([lastDetectedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö versioned health definition (optional DB override of builtin).
++model CustomerHealthDefinition {
++  id          String    @id @default(cuid())
++  version     String    @unique
++  name        String?
++  isActive    Boolean   @default(false)
++  payload     Json
++  activatedAt DateTime?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++
++  @@index([isActive, activatedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö immutable health snapshot (rebuild creates a new row).
++model CustomerHealthSnapshot {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  definitionVersion  String
++  score              Float?
++  band               String
++  confidence         String
++  asOf               DateTime
++  payload            Json?
++  createdAt          DateTime @default(now())
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, createdAt])
++  @@index([band, createdAt])
++  @@index([definitionVersion])
++  @@index([asOf])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS case (not a support ticket; not signal ACK substitute).
++/// Status: OPEN | IN_PROGRESS | RESOLVED | CLOSED
++/// triggerType: SIGNAL | HEALTH | MANUAL
++model CsCase {
++  id                String           @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  status            String           @default("OPEN")
++  priority          String           @default("MEDIUM")
++  severity          String?
++  title             String
++  summary           String?
++  triggerType       String
++  triggerCode       String?
++  definitionVersion String?
++  idempotencyKey    String
++  signalId          String?
++  snapshotId        String?
++  ownerAdminId      String?
++  openedByAdminId   String?
++  openedAt          DateTime         @default(now())
++  closedAt          DateTime?
++  resolvedAt        DateTime?
++  payload           Json?
++  createdAt         DateTime         @default(now())
++  updatedAt         DateTime         @updatedAt
++  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin?           @relation("CsCaseOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  openedByAdmin     Admin?           @relation("CsCaseOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  tasks             CsTask[]
++  interventions     CsIntervention[]
++  playbookExecutions CsPlaybookExecution[]
++
++  // Open-only uniqueness (OPEN/IN_PROGRESS) is enforced by partial unique index
++  // CsCase_open_idempotencyKey_key in scripts/sql/customer-success-phase08.sql ΓÇö
++  // closed/resolved cases may reuse the same key so re-triggers can open a new case.
++  @@index([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([status, openedAt])
++  @@index([triggerType, triggerCode])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS task (assignee = System Admin id).
++model CsTask {
++  id                String    @id @default(cuid())
++  caseId            String?
++  tenantId          String
++  title             String
++  status            String    @default("OPEN")
++  assigneeAdminId   String?
++  dueAt             DateTime?
++  stepId            String?
++  executionId       String?
++  idempotencyKey    String?
++  notes             String?
++  createdByAdminId  String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  assigneeAdmin     Admin?    @relation("CsTaskAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?    @relation("CsTaskCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([caseId, status])
++  @@index([assigneeAdminId, status])
++  @@index([executionId, stepId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS intervention log (not a support ticket).
++model CsIntervention {
++  id                  String   @id @default(cuid())
++  caseId              String?
++  tenantId            String
++  type                String
++  notes               String?
++  channel             String?
++  performedByAdminId  String?
++  performedAt         DateTime @default(now())
++  payload             Json?
++  createdAt           DateTime @default(now())
++  case                CsCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  performedByAdmin    Admin?   @relation("CsInterventionPerformedBy", fields: [performedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, performedAt])
++  @@index([caseId, performedAt])
++  @@index([type])
++}
++
++/// Phase 8 Wave 3 ΓÇö renewal workspace; outcome requires AccountSubscription evidence.
++model CsRenewalWorkspace {
++  id                String    @id @default(cuid())
++  tenantId          String
++  periodKey         String
++  status            String    @default("OPEN")
++  outcome           String?
++  outcomeAt         DateTime?
++  outcomeByAdminId  String?
++  subscriptionId    String?
++  evidenceNote      String?
++  notes             String?
++  openedByAdminId   String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  openedByAdmin     Admin?    @relation("CsRenewalOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  outcomeByAdmin    Admin?    @relation("CsRenewalOutcomeBy", fields: [outcomeByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([tenantId, periodKey])
++  @@index([tenantId, status])
++  @@index([outcome])
++  @@index([periodKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö versioned playbook definition (steps JSON ΓåÆ tasks on execute).
++model CsPlaybook {
++  id          String                @id @default(cuid())
++  key         String
++  name        String
++  version     String
++  description String?
++  status      String                @default("ACTIVE")
++  steps       Json
++  createdAt   DateTime              @default(now())
++  updatedAt   DateTime              @updatedAt
++  executions  CsPlaybookExecution[]
++
++  @@unique([key, version])
++  @@index([status, key])
++}
++
++/// Phase 8 Wave 4 ΓÇö playbook run; idempotent per key+version+tenant+case.
++model CsPlaybookExecution {
++  id                String    @id @default(cuid())
++  playbookId        String
++  tenantId          String
++  caseId            String?
++  status            String    @default("RUNNING")
++  playbookVersion   String
++  idempotencyKey    String?   @unique
++  startedByAdminId  String?
++  startedAt         DateTime  @default(now())
++  completedAt       DateTime?
++  payload           Json?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  playbook          CsPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  startedByAdmin    Admin?    @relation("CsPlaybookExecutionStartedBy", fields: [startedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([playbookId, startedAt])
++  @@index([caseId])
++}
++
++/// Phase 8 Wave 4 ΓÇö success plan (no invented progress %).
++model CsSuccessPlan {
++  id                String          @id @default(cuid())
++  tenantId          String
++  title             String
++  status            String          @default("ACTIVE")
++  summary           String?
++  ownerAdminId      String?
++  createdByAdminId  String?
++  startedAt         DateTime?
++  targetAt          DateTime?
++  createdAt         DateTime        @default(now())
++  updatedAt         DateTime        @updatedAt
++  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  ownerAdmin        Admin?          @relation("CsSuccessPlanOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?          @relation("CsSuccessPlanCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  goals             CsSuccessGoal[]
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++}
++
++/// Phase 8 Wave 4 ΓÇö success goal under a plan.
++model CsSuccessGoal {
++  id         String        @id @default(cuid())
++  planId     String
++  title      String
++  status     String        @default("OPEN")
++  targetNote String?
++  dueAt      DateTime?
++  sortOrder  Int           @default(0)
++  createdAt  DateTime      @default(now())
++  updatedAt  DateTime      @updatedAt
++  plan       CsSuccessPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
++
++  @@index([planId, status])
++  @@index([planId, sortOrder])
++}
++
++/// Phase 8 Wave 4 ΓÇö expansion handoff record-only (no CRM opportunity / auto upgrade).
++model CsExpansionHandoff {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  status             String   @default("OPEN")
++  reason             String?
++  notes              String?
++  recommendedAction  String   @default("OTHER")
++  createdByAdminId   String?
++  payload            Json?
++  createdAt          DateTime @default(now())
++  updatedAt          DateTime @updatedAt
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  createdByAdmin     Admin?   @relation("CsExpansionHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([recommendedAction])
++  @@index([createdAt])
++}
++
++/// Phase 8 Wave 4 ΓÇö onboarding foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsOnboardingRecord {
++  id           String    @id @default(cuid())
++  tenantId     String
++  checklistKey String?
++  status       String?
++  completedAt  DateTime?
++  sourceNote   String?
++  createdAt    DateTime  @default(now())
++  updatedAt    DateTime  @updatedAt
++  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([checklistKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö training foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsTrainingRecord {
++  id          String    @id @default(cuid())
++  tenantId    String
++  moduleKey   String?
++  status      String?
++  completedAt DateTime?
++  sourceNote  String?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([moduleKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö survey foundation rows only (empty ΓåÆ NOT_INSTRUMENTED; never invent NPS).
++model CsSurveyResponse {
++  id         String    @id @default(cuid())
++  tenantId   String
++  surveyKey  String?
++  status     String?
++  score      Int?
++  completedAt DateTime?
++  sourceNote String?
++  createdAt  DateTime  @default(now())
++  updatedAt  DateTime  @updatedAt
++  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([surveyKey])
++}
++
++/// Phase 10 Wave 1 ΓÇö per-UTC-year sequence for SUP-YYYY-###### (concurrency-safe CAS).
++model SupportTicketNumberSeq {
++  year       Int      @id
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++}
++
++/// Phase 10 Wave 1 ΓÇö Support ticket (Γëá CsCase Γëá PlatformSupportAccess).
++/// Never store Tenant GL lines, MRA credentials, or payment secrets.
++model SupportTicket {
++  id                 String    @id @default(cuid())
++  ticketNumber       String    @unique
++  tenantId           String
++  portfolioId        String?
++  status             String    @default("NEW")
++  type               String
++  impact             String?
++  urgency            String?
++  priority           String?
++  severity           String?
++  title              String
++  description        String    @db.Text
++  resolutionCategory String?
++  createdByAdminId   String?
++  assigneeAdminId    String?
++  queueCode          String?
++  sourceChannel      String    @default("ADMIN_MANUAL")
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  resolvedAt         DateTime?
++  closedAt           DateTime?
++  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio          CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  createdByAdmin     Admin?    @relation("SupportTicketCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  assigneeAdmin      Admin?    @relation("SupportTicketAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  statusHistory      SupportTicketStatusHistory[]
++  messages           SupportMessage[]
++  attachments        SupportAttachment[]
++  assignmentHistory  SupportAssignmentHistory[]
++  slaClocks          SupportSlaClock[]
++  handoffs           SupportHandoff[]
++
++  @@index([tenantId, status])
++  @@index([status, createdAt])
++  @@index([assigneeAdminId, status])
++  @@index([queueCode, status])
++  @@index([portfolioId])
++  @@index([sourceChannel])
++}
++
++/// Phase 10 Wave 1 ΓÇö append-only status history (evidence preserved on terminal statuses).
++model SupportTicketStatusHistory {
++  id               String   @id @default(cuid())
++  ticketId         String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("SupportTicketStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 10 Wave 2 ΓÇö ticket messages (PUBLIC / INTERNAL / RESTRICTED). Never expose INTERNAL/RESTRICTED to customers.
++model SupportMessage {
++  id              String   @id @default(cuid())
++  ticketId        String
++  type            String
++  body            String   @db.Text
++  authorAdminId   String?
++  visibility      String?
++  systemEventCode String?
++  createdAt       DateTime @default(now())
++  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  authorAdmin     Admin?   @relation("SupportMessageAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([ticketId, type])
++  @@index([authorAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö attachment metadata; bytes in private storage/support-attachments/ (not public/uploads).
++model SupportAttachment {
++  id                 String    @id @default(cuid())
++  ticketId           String
++  fileName           String
++  mimeType           String
++  sizeBytes          Int
++  storageKey         String
++  scanState          String    @default("PENDING_SCAN")
++  uploadedByAdminId  String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  scannedAt          DateTime?
++  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  uploadedByAdmin    Admin?    @relation("SupportAttachmentUploadedBy", fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([storageKey])
++  @@index([ticketId, scanState])
++  @@index([scanState])
++  @@index([uploadedByAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö queue catalogue (QUEUE_TEAM_MATRIX). liveStatus stays NOT_FOUND until real owners exist.
++model SupportQueue {
++  id                String   @id @default(cuid())
++  code              String   @unique
++  name              String
++  typicalOwnership  String?
++  liveStatus        String   @default("NOT_FOUND")
++  active            Boolean  @default(true)
++  createdAt         DateTime @default(now())
++  updatedAt         DateTime @updatedAt
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö team stub definitions for assignment eligibility.
++model SupportTeam {
++  id         String   @id @default(cuid())
++  code       String   @unique
++  name       String
++  queueCodes String[] @default([])
++  active     Boolean  @default(true)
++  createdAt  DateTime @default(now())
++  updatedAt  DateTime @updatedAt
++  memberships SupportTeamMembership[]
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö optional team membership (stub; empty ΓçÆ eligibility not locked out).
++model SupportTeamMembership {
++  id        String   @id @default(cuid())
++  teamCode  String
++  adminId   String
++  createdAt DateTime @default(now())
++  team      SupportTeam @relation(fields: [teamCode], references: [code], onDelete: Cascade)
++  admin     Admin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
++
++  @@unique([teamCode, adminId])
++  @@index([adminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö append-only assignment / queue change history.
++model SupportAssignmentHistory {
++  id                   String   @id @default(cuid())
++  ticketId             String
++  fromAssigneeAdminId  String?
++  toAssigneeAdminId    String?
++  fromQueueCode        String?
++  toQueueCode          String?
++  changedByAdminId     String?
++  reason               String?
++  at                   DateTime @default(now())
++  ticket               SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin       Admin?   @relation("SupportAssignmentChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toAssigneeAdminId])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned SLA policy (pinned onto clock rows).
++model SupportSlaPolicy {
++  id                            String   @id @default(cuid())
++  versionId                     String   @unique
++  name                          String
++  ackCountsAsFirstResponse      Boolean  @default(false)
++  resolutionStartsOn            String   @default("CREATE")
++  stopResolutionOnClosed        Boolean  @default(true)
++  pauseOnWaitingForCustomer     Boolean  @default(true)
++  pauseOnWaitingForInternalTeam Boolean  @default(true)
++  pauseOnWaitingForVendor       Boolean  @default(true)
++  /// JSON targets map: { FIRST_RESPONSE: { businessMs }, RESOLUTION: { businessMs }, ... }
++  targetsJson                   String   @db.Text
++  active                        Boolean  @default(true)
++  createdByAdminId              String?
++  createdAt                     DateTime @default(now())
++  updatedAt                     DateTime @updatedAt
++  createdByAdmin                Admin?   @relation("SupportSlaPolicyCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned business calendar (pinned onto clock rows).
++model SupportSlaCalendar {
++  id               String   @id @default(cuid())
++  versionId        String   @unique
++  name             String
++  timezone         String
++  /// JSON: workdays[], workingHours {start,end}, holidays[]
++  definitionJson   String   @db.Text
++  active           Boolean  @default(true)
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  createdByAdmin   Admin?   @relation("SupportSlaCalendarCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö SLA clock instance; policyVersion + calendarVersion pinned at start.
++model SupportSlaClock {
++  id               String    @id @default(cuid())
++  ticketId         String
++  clockType        String
++  state            String    @default("RUNNING")
++  policyVersion    String
++  calendarVersion  String
++  targetBusinessMs Int
++  startedAt        DateTime  @default(now())
++  dueAt            DateTime?
++  pausedAt         DateTime?
++  pausedMs         Int       @default(0)
++  stoppedAt        DateTime?
++  breachedAt       DateTime?
++  createdAt        DateTime  @default(now())
++  updatedAt        DateTime  @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  events           SupportSlaEvent[]
++
++  @@index([ticketId, clockType])
++  @@index([ticketId, state])
++  @@index([state, dueAt])
++  @@index([policyVersion])
++  @@index([calendarVersion])
++}
++
++/// Phase 10 Wave 3 ΓÇö append-only SLA events (breach facts immutable).
++model SupportSlaEvent {
++  id        String   @id @default(cuid())
++  clockId   String
++  eventType String
++  at        DateTime @default(now())
++  metaJson  String?
++  clock     SupportSlaClock @relation(fields: [clockId], references: [id], onDelete: Cascade)
++
++  @@index([clockId, at])
++  @@index([clockId, eventType])
++  @@index([eventType, at])
++}
++
++/// Phase 10 Wave 4 ΓÇö link-only handoff (Γëá open/close CsCase; Γëá billing/MRA/GL mutation).
++model SupportHandoff {
++  id               String   @id @default(cuid())
++  ticketId         String
++  tenantId         String
++  /// CS | PRODUCT | FINANCE | BILLING | MRA
++  targetType       String
++  status           String   @default("OPEN")
++  summary          String?
++  /// Optional link id only (csCaseId / invoiceId / subscriptionId / fiscalTransmissionId).
++  targetRefId      String?
++  /// Optional Phase 9 catalogue feature code (PRODUCT target).
++  featureCode      String?
++  /// Allowed link payload only ΓÇö never credentials, raw MRA, or payment secrets.
++  payload          Json?
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  createdByAdmin   Admin?   @relation("SupportHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([tenantId, targetType])
++  @@index([targetType, status])
++  @@index([createdByAdminId])
++}
++
++/// Phase 10 Wave 4 ΓÇö optional reconciliation run audit (never invents false zeroes).
++model SupportReconciliationRun {
++  id             String   @id @default(cuid())
++  status         String
++  summaryJson    String   @db.Text
++  runByAdminId   String?
++  createdAt      DateTime @default(now())
++  runByAdmin     Admin?   @relation("SupportReconciliationRunBy", fields: [runByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([status, createdAt])
++  @@index([runByAdminId])
++}
++
++/// Phase 10 Wave 4 ΓÇö export download audit (permission rechecked at download time).
++model SupportExportAudit {
++  id        String   @id @default(cuid())
++  adminId   String?
++  dataset   String
++  format    String
++  rowCount  Int?
++  createdAt DateTime @default(now())
++  admin     Admin?   @relation("SupportExportAuditBy", fields: [adminId], references: [id], onDelete: SetNull)
++
++  @@index([adminId, createdAt])
++  @@index([dataset, createdAt])
++}
++
++/// Phase 11 Wave 1 ΓÇö per-prefix + UTC-year sequence for LEAD|ACC|CON-YYYY-###### (concurrency-safe CAS).
++model CrmNumberSeq {
++  prefix     String
++  year       Int
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++
++  @@id([prefix, year])
++}
++
++/// Phase 11 Wave 1 ΓÇö CRM Account (Γëá canonical Customer; optional tenant/customer link only).
++/// Never store Tenant GL, payment secrets, or MRA credentials.
++model CrmAccount {
++  id            String    @id @default(cuid())
++  accountNumber String    @unique
++  type          String    @default("PROSPECT")
++  displayName   String
++  status        String    @default("ACTIVE")
++  country       String?
++  region        String?
++  ownerAdminId  String?
++  /// Optional link to Customer identity (no auto-link; no billing copy).
++  customerId    String?
++  tenantId      String?
++  createdAt     DateTime  @default(now())
++  updatedAt     DateTime  @updatedAt
++  ownerAdmin    Admin?    @relation("CrmAccountOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
++  contacts      CrmContact[]
++  leads         CrmLead[]
++
++  @@index([status, createdAt])
++  @@index([ownerAdminId])
++  @@index([tenantId])
++  @@index([customerId])
++  @@index([type, status])
++}
++
++/// Phase 11 Wave 1 ΓÇö CRM Contact (Γëá Platform User). No national ID / bank / passwords.
++model CrmContact {
++  id            String    @id @default(cuid())
++  contactNumber String    @unique
++  firstName     String
++  lastName      String
++  email         String?
++  phone         String?
++  role          String?
++  accountId     String?
++  ownerAdminId  String?
++  createdAt     DateTime  @default(now())
++  updatedAt     DateTime  @updatedAt
++  account       CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
++  ownerAdmin    Admin?    @relation("CrmContactOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  leads         CrmLead[]
++
++  @@index([accountId])
++  @@index([ownerAdminId])
++  @@index([email])
++  @@index([createdAt])
++}
++
++/// Phase 11 Wave 1 ΓÇö CRM Lead (Γëá Opportunity Γëá SupportTicket Γëá CsCase).
++model CrmLead {
++  id                     String    @id @default(cuid())
++  leadNumber             String    @unique
++  type                   String
++  personOrOrganisation   String
++  accountId              String?
++  contactId              String?
++  source                 String
++  channel                String    @default("ADMIN_MANUAL")
++  sourceIdempotencyKey   String?   @unique
++  status                 String    @default("NEW")
++  title                  String
++  summary                String?   @db.Text
++  ownerAdminId           String?
++  createdByAdminId       String?
++  disqualificationReason String?
++  createdAt              DateTime  @default(now())
++  updatedAt              DateTime  @updatedAt
++  account                CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
++  contact                CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
++  ownerAdmin             Admin?    @relation("CrmLeadOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin         Admin?    @relation("CrmLeadCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  statusHistory          CrmLeadStatusHistory[]
++  captureRecords         CrmCaptureRecord[]
++  duplicateAsLead        CrmDuplicateCandidate[] @relation("CrmDuplicateLead")
++  duplicateAsCandidate   CrmDuplicateCandidate[] @relation("CrmDuplicateCandidateLead")
++
++  @@index([status, createdAt])
++  @@index([ownerAdminId, status])
++  @@index([accountId])
++  @@index([contactId])
++  @@index([source, channel])
++  @@index([type, status])
++}
++
++/// Phase 11 Wave 1 ΓÇö append-only Lead status history.
++model CrmLeadStatusHistory {
++  id               String   @id @default(cuid())
++  leadId           String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  lead             CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("CrmLeadStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([leadId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 11 Wave 2 ΓÇö capture identity + consent snapshot (source of email/phone for duplicates).
++model CrmCaptureRecord {
++  id                   String   @id @default(cuid())
++  leadId               String
++  sourceCode           String
++  channel              String
++  sourceIdempotencyKey String   @unique
++  emailNormalized      String?
++  phoneNormalized      String?
++  handoffRefType       String?
++  handoffRefId         String?
++  businessName         String?
++  contactName          String?
++  payload              Json?
++  consentStatus        String   @default("UNKNOWN")
++  consentPurposes      Json?
++  createdAt            DateTime @default(now())
++  lead                 CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
++
++  @@index([leadId])
++  @@index([emailNormalized])
++  @@index([phoneNormalized])
++  @@index([handoffRefType, handoffRefId])
++  @@index([sourceCode, createdAt])
++}
++
++/// Phase 11 Wave 2 ΓÇö duplicate candidates only (no auto-merge).
++model CrmDuplicateCandidate {
++  id                 String    @id @default(cuid())
++  leadId             String
++  candidateLeadId    String
++  matchType          String
++  matchValue         String?
++  status             String    @default("NEW")
++  confidence         String?
++  reviewedByAdminId  String?
++  reviewedAt         DateTime?
++  decisionReason     String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  lead               CrmLead   @relation("CrmDuplicateLead", fields: [leadId], references: [id], onDelete: Cascade)
++  candidateLead      CrmLead   @relation("CrmDuplicateCandidateLead", fields: [candidateLeadId], references: [id], onDelete: Cascade)
++  reviewedByAdmin    Admin?    @relation("CrmDuplicateReviewedBy", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([leadId, candidateLeadId, matchType])
++  @@index([status, createdAt])
++  @@index([leadId])
++  @@index([candidateLeadId])
++  @@index([reviewedByAdminId])
++}

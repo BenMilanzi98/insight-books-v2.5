@@ -2,59 +2,74 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, ClipboardList, LineChart, PieChart } from 'lucide-react';
 
-const tabs = [
-  { href: '/budget-forecast/reports', label: 'Variance reports', icon: PieChart },
-  { href: '/budget-forecast/budgets', label: 'Expense budgets', icon: ClipboardList },
-  { href: '/budget-forecast/forecasts', label: 'Revenue forecasts', icon: LineChart },
+const TABS = [
+  { href: '/budget-forecast/budgets', label: 'Budgets' },
+  { href: '/budget-forecast/forecasts', label: 'Forecasts' },
+  { href: '/budget-forecast/reports', label: 'Reports' },
 ];
 
-export default function BfShell({ children }) {
+export default function BfShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="w-full max-w-none px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
-        <header className="mb-8 border-b border-slate-200 pb-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Planning</p>
-              <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-                <BarChart3 className="h-8 w-8 text-emerald-600" aria-hidden />
-                Budget &amp; Forecast
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Plan expenses and revenue by chart of accounts. Actuals come from posted transactions and journals —
-                nothing is double-stored in budget tables.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Budget &amp; Forecast</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-900">{title}</h1>
+              {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
             </div>
+            {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
           </div>
-          <nav className="mt-6 flex flex-wrap gap-2">
-            {tabs.map(({ href, label, icon: Icon }) => {
-              const active =
-                href === '/budget-forecast/reports'
-                  ? pathname === '/budget-forecast/reports' || pathname === '/budget-forecast'
-                  : pathname === href || pathname.startsWith(`${href}/`);
+          <nav className="mt-5 flex gap-1 overflow-x-auto" aria-label="Budget and Forecast sections">
+            {TABS.map((tab) => {
+              const active = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
               return (
                 <Link
-                  key={href}
-                  href={href}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition ${
-                    active
-                      ? 'bg-emerald-600 text-white ring-emerald-600'
-                      : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+                  key={tab.href}
+                  href={tab.href}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap ${
+                    active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                  {label}
+                  {tab.label}
                 </Link>
               );
             })}
           </nav>
-        </header>
-        {children}
+        </div>
       </div>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+    </div>
+  );
+}
+
+export function StatusBadge({ status }) {
+  const s = String(status || '').toUpperCase();
+  const tone =
+    s.includes('ACTIVE') || s.includes('APPROVED')
+      ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+      : s.includes('LOCK')
+        ? 'bg-amber-50 text-amber-900 ring-amber-200'
+        : s.includes('REVIEW')
+          ? 'bg-sky-50 text-sky-900 ring-sky-200'
+          : 'bg-slate-100 text-slate-700 ring-slate-200';
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}>
+      {s || 'UNKNOWN'}
+    </span>
+  );
+}
+
+export function SummaryCard({ label, value, hint }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
 }

@@ -1,0 +1,9 @@
+{
+  "title": "Sales",
+  "invoices": "Invoices",
+  "quotations": "Quotations",
+  "customers": "Customers",
+  "pos": "Point of Sale",
+  "receipt": "Receipt",
+  "payment": "Payment"
+}

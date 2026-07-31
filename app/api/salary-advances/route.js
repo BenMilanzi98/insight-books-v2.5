@@ -178,31 +178,47 @@ export async function POST(request) {
       await assertPeriodOpen(user.tenantId, entryDate, tx);
       const referenceNumber = await generateReferenceNumber(tx, user.tenantId, entryDate);
 
-      await postGlEntry({
+      const advanceLines = [
+        {
+          lineNumber: 1,
+          accountId: receivableAccount.id,
+          debitAmount: advanceAmount,
+          creditAmount: 0,
+          description: `Salary Advance Receivable: ${employee.name}`,
+        },
+        {
+          lineNumber: 2,
+          accountId: paymentAccount.id,
+          debitAmount: 0,
+          creditAmount: advanceAmount,
+          description: `Payment for salary advance: ${employee.name}`,
+        },
+      ];
+      const advanceDesc = `Salary Advance: ${employee.name}${reference ? ` (${reference})` : ''}`;
+      const { postSalaryAdvanceAccounting } = await import(
+        '@/lib/accountingV2/adapters/remainingAdapters.js'
+      );
+      await postSalaryAdvanceAccounting({
+        db: tx,
         tenantId: user.tenantId,
         userId: user.id,
-        entryDate,
-        description: `Salary Advance: ${employee.name}${reference ? ` (${reference})` : ''}`,
-        reference: referenceNumber,
-        sourceType: 'SalaryAdvance',
-        sourceId: advance.id,
-        lines: [
-          {
-            lineNumber: 1,
-            accountId: receivableAccount.id,
-            debitAmount: advanceAmount,
-            creditAmount: 0,
-            description: `Salary Advance Receivable: ${employee.name}`,
-          },
-          {
-            lineNumber: 2,
-            accountId: paymentAccount.id,
-            debitAmount: 0,
-            creditAmount: advanceAmount,
-            description: `Payment for salary advance: ${employee.name}`,
-          },
-        ],
-        tx,
+        advanceId: advance.id,
+        amount: advanceAmount,
+        date: entryDate,
+        description: advanceDesc,
+        lines: advanceLines,
+        legacyPost: () =>
+          postGlEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            entryDate,
+            description: advanceDesc,
+            reference: referenceNumber,
+            sourceType: 'SalaryAdvance',
+            sourceId: advance.id,
+            lines: advanceLines,
+            tx,
+          }),
       });
 
       return advance;

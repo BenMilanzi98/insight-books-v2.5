@@ -48,6 +48,8 @@ import MultiBusinessComparisonPanel, {
 import { formatCurrency, formatDate, getDateRange, toYmdLocal } from "@/lib/dateUtils";
 import { addMoney, parseMoney } from "@/lib/money";
 import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
+import PageHeader from "@/components/shell/PageHeader";
+
 
 // Animated Counter Component
 const CountUp = ({ end, duration = 2000, format = (val) => val }) => {
@@ -1157,20 +1159,18 @@ const BusinessOwnerDashboard = () => {
             </div>
           </div>
         )}
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {/* Dashboard Header */}
-          <div className="mb-6 sm:mb-8">
-            <div className="flex items-center gap-3">
-              <div className="flex-shrink-0 w-1 h-8 sm:h-9 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-              <div className="min-w-0">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-                <p className="text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse flex-shrink-0"></span>
-                  <span>Overview of performance, cash position, receivables, payables, and inventory.</span>
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="w-full py-6 sm:py-8">
+          <PageHeader
+            title="Dashboard"
+            description="Overview of performance, cash position, receivables, payables, and inventory."
+            status={
+              <span
+                className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-[var(--status-success)]"
+                aria-label="Live overview"
+              />
+            }
+          />
+
 
           {/* Trial Countdown */}
           {!subscriptionLoading && userSubscription && (
@@ -1566,7 +1566,7 @@ const BusinessOwnerDashboard = () => {
                   </div>
                   <h2 className="font-bold text-gray-800 truncate">Income & Expense Overview</h2>
                 </div>
-                <a href="/reports/" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-indigo-100 text-indigo-600 rounded-lg text-sm font-medium transition-all duration-200">
+                <a href="/reports-v2" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-indigo-100 text-indigo-600 rounded-lg text-sm font-medium transition-all duration-200">
                   Detailed Report 
                   <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                 </a>

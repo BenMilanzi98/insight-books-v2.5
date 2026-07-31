@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import {
@@ -18,6 +21,7 @@ const btnPrimary =
   'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function EmailSuppressionPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,7 +33,7 @@ export default function EmailSuppressionPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/email/suppression', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/email/suppression', { credentials: 'include' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Failed to load');
       setRows(body.suppressions || []);
@@ -49,7 +53,7 @@ export default function EmailSuppressionPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/email/suppression', {
+      const res = await adminFetch('/api/admin/email/suppression', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -93,7 +97,7 @@ export default function EmailSuppressionPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Email suppression"
+        title={t('admin-pages.email.suppression.title')}
         description="Bounced, complained, or manually suppressed addresses. Retries skip suppressed recipients."
         actions={
           <button type="button" onClick={load} className={btnGhost}>

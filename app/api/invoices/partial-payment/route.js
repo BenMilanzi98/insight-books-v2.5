@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
+import { postCustomerPaymentAccounting } from '@/lib/accountingV2/adapters';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
@@ -143,22 +143,17 @@ export async function POST(request) {
         }
       });
 
-      // Create journal entry for invoice payment
-      try {
-        await createInvoicePaymentJournalEntry({
-          tenantId: user.tenantId,
-          userId: user.id,
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          paymentDate: paymentDateObj,
-          paymentAmount: numericAmount,
-          paymentMethod,
-          tx,
-        });
-      } catch (journalError) {
-        console.error('Error creating journal entry for invoice payment:', journalError);
-        // Don't fail the payment if journal entry creation fails
-      }
+      // V2 customer payment accounting — fail closed
+      await postCustomerPaymentAccounting({
+        db: tx,
+        tenantId: user.tenantId,
+        userId: user.id,
+        paymentId: payment.id,
+        invoiceId: invoice.id,
+        paymentAmount: numericAmount,
+        paymentDate: paymentDateObj,
+        paymentMethod,
+      });
 
       return { payment, invoice: updatedInvoice };
     });

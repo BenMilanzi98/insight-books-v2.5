@@ -1,5 +1,8 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -17,6 +20,7 @@ const inputCls =
   'rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
 
 export default function AdminMraEisCataloguePage() {
+  const { t } = useI18n();
   const [tenantId, setTenantId] = useState('');
   const [environment, setEnvironment] = useState('SANDBOX');
   const [rows, setRows] = useState([]);
@@ -27,7 +31,7 @@ export default function AdminMraEisCataloguePage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/mra-eis/mappings?kind=PRODUCT');
+      const res = await adminFetch('/api/admin/mra-eis/mappings?kind=PRODUCT');
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Failed to load');
       setRows(json.data?.rows || []);
@@ -77,8 +81,8 @@ export default function AdminMraEisCataloguePage() {
             Catalogue
           </>
         }
-        title="Catalogue & product mapping health"
-        description="Diagnostics only. Cannot edit external codes, force ACTIVE, delete history, adjust stock, or view credentials. Product sync production calls remain blocked (Q-003)."
+        title={t('admin-pages.mraEis.catalogue.title')}
+        description={t('admin-pages.mraEis.catalogue.description')}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">

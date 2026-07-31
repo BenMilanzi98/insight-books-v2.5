@@ -52,6 +52,7 @@ function AccountContent() {
     
     // Receipt Customization
     receiptFooter: "",
+    receiptPaperWidthMm: 80,
     
     // Banking Details (from customization) - single string as on /customization?tab=business
     defaultBankDetails: "",
@@ -64,7 +65,7 @@ function AccountContent() {
     emailFooter: "",
     currencyCode: "MWK",
     taxEnabled: true,
-    defaultTaxRate: 16.5,
+    defaultTaxRate: 17.5,
     customDomain: "",
     
     // Notifications
@@ -148,6 +149,7 @@ function AccountContent() {
         businessPhone: tenantData.businessPhone || "",
         businessEmail: tenantData.businessEmail || "",
         receiptFooter: tenantData.receiptFooter || "",
+        receiptPaperWidthMm: tenantData.receiptPaperWidthMm ?? 80,
         // NEW: Load banking details and tax outflow account (string, like customization)
         defaultBankDetails: (typeof tenantData.defaultBankDetails === 'string')
           ? tenantData.defaultBankDetails
@@ -161,7 +163,7 @@ function AccountContent() {
         emailFooter: accountData.emailFooter || tenantData.emailFooter || "",
         currencyCode: tenantData.currencyCode || "MWK",
         taxEnabled: tenantData.taxEnabled !== undefined ? tenantData.taxEnabled : true,
-        defaultTaxRate: tenantData.defaultTaxRate || 16.5,
+        defaultTaxRate: tenantData.defaultTaxRate || 17.5,
         customDomain: accountData.customDomain || "",
         emailNotifications: accountData.emailNotifications !== undefined ? accountData.emailNotifications : true,
         smsNotifications: accountData.smsNotifications || false,
@@ -328,6 +330,7 @@ function AccountContent() {
           businessPhone: settings.businessPhone,
           businessEmail: settings.businessEmail,
           receiptFooter: settings.receiptFooter,
+          receiptPaperWidthMm: settings.receiptPaperWidthMm ?? 80,
           // Default bank details (tax accounts 2041/2045 are fixed and not editable)
           defaultBankDetails: settings.defaultBankDetails,
           emailFooter: settings.emailFooter,
@@ -787,23 +790,46 @@ function AccountContent() {
                   <h2 className="text-xl font-semibold text-gray-900">Receipt Customization</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
-                  Customize the footer message that appears on your receipts.
+                  Customize receipt footer text and preferred thermal paper width.
                 </p>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Receipt Footer Message
-                  </label>
-                  <textarea
-                    value={settings.receiptFooter}
-                    onChange={(e) => handleChange('receiptFooter', e.target.value)}
-                    rows={3}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Thank you for your business! We appreciate your support."
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    This message will appear at the bottom of all receipts. Leave empty to use the default message.
-                  </p>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Thermal paper width
+                    </label>
+                    <select
+                      value={settings.receiptPaperWidthMm ?? 80}
+                      onChange={(e) =>
+                        handleChange('receiptPaperWidthMm', Number(e.target.value))
+                      }
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {[58, 70, 72, 76, 80, 88, 90].map((mm) => (
+                        <option key={mm} value={mm}>
+                          {mm} mm{mm === 80 ? ' (most common)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Default for POS thermal printing (58–90 mm).
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Receipt Footer Message
+                    </label>
+                    <textarea
+                      value={settings.receiptFooter}
+                      onChange={(e) => handleChange('receiptFooter', e.target.value)}
+                      rows={3}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Thank you for your business! We appreciate your support."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      This message will appear at the bottom of all receipts. Leave empty to use the default message.
+                    </p>
+                  </div>
                 </div>
               </div>
 

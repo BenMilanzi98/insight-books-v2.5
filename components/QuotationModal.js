@@ -3,11 +3,17 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
 import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations"; // Reuse the same calculations
+import { calculateInvoiceTotals as calculateInvoiceTotalsCanonical } from "@/lib/invoiceTotals";
+import { calculateProductTaxes } from "@/lib/productTaxCalculations";
+import { denormalizedPercentageTaxRate, normalizeLineTaxes } from "@/lib/documentLineTaxes";
 import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 import ClientModal from "./ClientModal";
 import ClientSearchCombobox from "./ClientSearchCombobox";
 import { fetchProductsForSaleAll } from "@/app/services/salesService";
 import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
+
+const lineTaxesOf = (item) =>
+  normalizeLineTaxes(item?.taxes || item?.itemTaxes || item?.productTaxes || []);
 
 // Enhanced calculation functions with per-item discount support for quotations
 const calculateQuotationItemTotals = (item) => {
@@ -18,7 +24,11 @@ const calculateQuotationItemTotals = (item) => {
   const lineTotal = multiplyMoney(quantity, unitPrice);
   const totalDiscountAmount = multiplyMoney(quantity, perItemDiscount); // Total discount = per-item discount × quantity
   const netAmount = subtractMoney(lineTotal, totalDiscountAmount);
-  const taxAmount = percentOfMoney(netAmount, item.taxRate || 0);
+  const taxes = lineTaxesOf(item);
+  const taxAmount =
+    taxes.length > 0
+      ? calculateProductTaxes(netAmount, taxes, quantity).totalTaxAmount
+      : percentOfMoney(netAmount, item.taxRate || 0);
   const finalAmount = addMoney(netAmount, taxAmount);
   
   return {
@@ -70,7 +80,7 @@ const QuotationModal = ({
   const [defaultTaxTypeForInflow, setDefaultTaxTypeForInflow] = useState(null);
   const [isLoadingTaxTypes, setIsLoadingTaxTypes] = useState(false);
   const [showNewTaxForm, setShowNewTaxForm] = useState(false);
-  const [newTaxData, setNewTaxData] = useState({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
+  const [newTaxData, setNewTaxData] = useState({ name: '', taxRate: 17.5, calculationType: 'Percentage', description: '' });
   
   // Unit management state
   const [unitQuantities, setUnitQuantities] = useState({});
@@ -148,14 +158,20 @@ const QuotationModal = ({
         title: quotation.title || "",
         orderNumber: quotation.orderNumber || "",
         orderNumberAutogenerate: false,
-        items: quotation.items?.map(item => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          taxRate: item.taxRate || "0",
-          productId: item.productId,
-          discountAmount: item.discountAmount || ""
-        })) || [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "" }],
+        items: quotation.items?.map(item => {
+          const taxes = normalizeLineTaxes(item.taxes || item.itemTaxes || item.productTaxes || []);
+          return {
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            productId: item.productId,
+            discountAmount: item.discountAmount || "",
+            taxes,
+            productTaxes: taxes,
+            selectedTaxTypeId: taxes[0]?.taxTypeId || taxes[0]?.id || "",
+            taxRate: taxes.length ? denormalizedPercentageTaxRate(taxes) : (item.taxRate || "0"),
+          };
+        }) || [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "", taxes: [], productTaxes: [], selectedTaxTypeId: "" }],
         issueDate: quotation.date || new Date().toISOString().split("T")[0],
         validUntil: quotation.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         status: "Approved",
@@ -358,29 +374,25 @@ const QuotationModal = ({
   };
 
   // NEW: Handle tax type selection for an item
-  const handleTaxTypeChange = (index, taxTypeId) => {
+  const handleTaxTypeToggle = (index, taxTypeId) => {
     const updatedItems = [...formData.items];
-    
-    if (!taxTypeId || taxTypeId === '') {
-      // Clear tax if empty selection
-      updatedItems[index] = {
-        ...updatedItems[index],
-        taxRate: 0,
-        selectedTaxTypeId: '',
-        productTaxes: []
-      };
+    const current = lineTaxesOf(updatedItems[index]);
+    let next;
+    if (!taxTypeId) {
+      next = [];
+    } else if (current.some((t) => t.taxTypeId === taxTypeId || t.id === taxTypeId)) {
+      next = current.filter((t) => t.taxTypeId !== taxTypeId && t.id !== taxTypeId);
     } else {
-      const selectedTax = taxTypes.find(t => t.id === taxTypeId);
-      if (selectedTax) {
-        updatedItems[index] = {
-          ...updatedItems[index],
-          taxRate: selectedTax.taxRate || 0,
-          selectedTaxTypeId: taxTypeId,
-          productTaxes: [selectedTax]
-        };
-      }
+      const selectedTax = taxTypes.find((t) => t.id === taxTypeId);
+      next = selectedTax ? normalizeLineTaxes([...current, selectedTax]) : current;
     }
-    
+    updatedItems[index] = {
+      ...updatedItems[index],
+      taxes: next,
+      productTaxes: next,
+      taxRate: denormalizedPercentageTaxRate(next),
+      selectedTaxTypeId: next[0]?.taxTypeId || next[0]?.id || '',
+    };
     setFormData({ ...formData, items: updatedItems });
   };
 
@@ -402,7 +414,7 @@ const QuotationModal = ({
         const createdTax = await response.json();
         setTaxTypes(prev => [...prev, createdTax]);
         setShowNewTaxForm(false);
-        setNewTaxData({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
+        setNewTaxData({ name: '', taxRate: 17.5, calculationType: 'Percentage', description: '' });
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to create tax type');
@@ -492,10 +504,11 @@ const QuotationModal = ({
     }
   };
   
-  // Calculate totals
-  const subtotal = calculateSubtotal(formData.items,formData.discount);
-  const tax = calculateTax(formData.items,formData.discount);
-  const total = calculateTotal(formData.items,formData.discount);
+  // Calculate totals (multi-tax aware)
+  const quoteTotals = calculateInvoiceTotalsCanonical(formData.items, formData.discount || 0);
+  const subtotal = quoteTotals.subtotal;
+  const tax = quoteTotals.taxAmount;
+  const total = quoteTotals.total;
   
   // Calculate total line item discounts
   const totalLineItemDiscounts = formData.items.reduce((total, item) => {
@@ -612,12 +625,16 @@ const QuotationModal = ({
             finalQuantity = totalBaseQuantity;
           }
           
+          const taxes = lineTaxesOf(item);
           return {
             ...item,
             quantity: finalQuantity,
             unitPrice: parseFloat(item.unitPrice) || 0,
-            taxRate: parseFloat(item.taxRate) || 0,
+            taxRate: taxes.length ? denormalizedPercentageTaxRate(taxes) : parseFloat(item.taxRate) || 0,
             discountAmount: parseFloat(item.discountAmount) || 0,
+            taxes,
+            productTaxes: taxes,
+            selectedTaxTypeId: taxes[0]?.taxTypeId || taxes[0]?.id || '',
             // Include unit quantities for unit-based products
             unitQuantities: hasUnitManagement(item.product) ? (unitQuantities[index] || {}) : null
           };
@@ -666,63 +683,52 @@ const QuotationModal = ({
 
   // Handle product selection from dropdown
   const handleProductSelect = async (index, product) => {
-    console.log(`Product selected: ${product.name} (ID: ${product.id}) for item ${index}`);
-    
     try {
-      // Fetch full product details including units
-      const response = await fetch(`/api/stock/${product.id}`);
-      if (response.ok) {
-        const productData = await response.json();
-        console.log("Full product data with units:", productData);
-        
-        const updatedItems = [...formData.items];
-        updatedItems[index] = {
-          ...updatedItems[index],
-          description: productData.name, // Set description from product name
-          unitPrice: productData.price || productData.unitPrice || "",
-          productId: productData.id,
-          // Apply product's tax rate if available
-          taxRate: productData.taxRate !== undefined && productData.taxRate !== null ? productData.taxRate : (updatedItems[index].taxRate || 0),
-          // Store full product data including units
-          product: productData
-        };
-        
-        // Initialize unit quantities for unit-based products
-        if (hasUnitManagement(productData)) {
-          const initialUnitQuantities = {};
-          productData.units?.forEach(unit => {
-            initialUnitQuantities[unit.id] = 0;
-          });
-          setUnitQuantities(prev => ({
-            ...prev,
-            [index]: initialUnitQuantities
-          }));
-        }
-        
-        setFormData({ ...formData, items: updatedItems });
-      } else {
-        // Fallback to basic product data if API fails
-        const updatedItems = [...formData.items];
-        updatedItems[index] = {
-          ...updatedItems[index],
-          description: product.name,
-          unitPrice: product.price || product.unitPrice || "",
-          productId: product.id,
-          // Apply product's tax rate if available
-          taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0)
-        };
-        setFormData({ ...formData, items: updatedItems });
+      const [productResponse, taxesResponse] = await Promise.all([
+        fetch(`/api/stock/${product.id}`),
+        fetch(`/api/products/${product.id}/taxes`),
+      ]);
+      let productData = product;
+      let productTaxes = [];
+      if (productResponse.ok) productData = await productResponse.json();
+      if (taxesResponse.ok) {
+        const taxesData = await taxesResponse.json();
+        productTaxes = taxesData.taxes || [];
       }
+      if (!productTaxes.length && productData.productTaxes?.length) {
+        productTaxes = productData.productTaxes.map((pt) => pt.taxType || pt).filter(Boolean);
+      }
+      const normalizedTaxes = normalizeLineTaxes(productTaxes);
+      const updatedItems = [...formData.items];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        description: productData.name,
+        unitPrice: productData.price || productData.unitPrice || "",
+        productId: productData.id,
+        taxRate: normalizedTaxes.length
+          ? denormalizedPercentageTaxRate(normalizedTaxes)
+          : productData.taxRate ?? updatedItems[index].taxRate ?? 0,
+        product: productData,
+        taxes: normalizedTaxes,
+        productTaxes: normalizedTaxes,
+        selectedTaxTypeId: normalizedTaxes[0]?.taxTypeId || normalizedTaxes[0]?.id || '',
+      };
+      if (hasUnitManagement(productData)) {
+        const initialUnitQuantities = {};
+        productData.units?.forEach((unit) => {
+          initialUnitQuantities[unit.id] = 0;
+        });
+        setUnitQuantities((prev) => ({ ...prev, [index]: initialUnitQuantities }));
+      }
+      setFormData({ ...formData, items: updatedItems });
     } catch (error) {
       console.error("Error fetching product details:", error);
-      // Fallback to basic product data
       const updatedItems = [...formData.items];
       updatedItems[index] = {
         ...updatedItems[index],
         description: product.name,
         unitPrice: product.price || product.unitPrice || "",
         productId: product.id,
-        // Apply product's tax rate if available
         taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0)
       };
       setFormData({ ...formData, items: updatedItems });
@@ -1047,36 +1053,63 @@ const QuotationModal = ({
                           <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.discountAmount`]}</p>
                         )}
                       </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <div className="relative">
-                            <select
-                              className={`w-24 p-2 border rounded-md text-sm ${errors[`items.${index}.taxRate`] ? 'border-red-500' : 'border-gray-300'}`}
-                              value={item.selectedTaxTypeId || ''}
-                              onChange={(e) => handleTaxTypeChange(index, e.target.value)}
-                              title="Select a tax type for this item"
-                            >
-                              <option value="">No Tax</option>
-                              {isLoadingTaxTypes ? (
-                                <option value="" disabled>Loading...</option>
-                              ) : (
-                                taxTypes.map(tax => (
-                                  <option key={tax.id} value={tax.id}>
-                                    {tax.taxRate ? `${tax.taxName || tax.taxId} (${tax.taxRate}%)` : (tax.taxName || tax.taxId)}
-                                  </option>
-                                ))
-                              )}
-                            </select>
+                      <td className="px-2 py-2 align-top">
+                        <div className="flex flex-col min-w-[11rem] max-w-[14rem]">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-[11px] font-medium text-slate-600">Taxes</span>
                             <button
                               type="button"
-                              className="ml-1 text-blue-600 hover:text-blue-800 text-xs"
+                              className="text-blue-600 hover:text-blue-800"
                               onClick={() => setShowNewTaxForm(!showNewTaxForm)}
                               title="Add new tax type"
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          
+                          <div
+                            className={`max-h-28 overflow-y-auto rounded-md border px-2 py-1.5 space-y-1 ${
+                              errors[`items.${index}.taxRate`] ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          >
+                            {isLoadingTaxTypes ? (
+                              <p className="text-xs text-slate-500">Loading...</p>
+                            ) : taxTypes.length === 0 ? (
+                              <p className="text-xs text-slate-500">No taxes configured</p>
+                            ) : (
+                              taxTypes.map((tax) => {
+                                const checked = lineTaxesOf(item).some(
+                                  (t) => t.taxTypeId === tax.id || t.id === tax.id
+                                );
+                                const label = tax.calculationType === 'Fixed'
+                                  ? `${tax.taxName || tax.taxId} (Fixed ${tax.taxRate})`
+                                  : `${tax.taxName || tax.taxId} (${tax.taxRate}%)`;
+                                return (
+                                  <label
+                                    key={tax.id}
+                                    className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 rounded px-0.5 py-0.5"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      checked={checked}
+                                      onChange={() => handleTaxTypeToggle(index, tax.id)}
+                                    />
+                                    <span className="leading-snug">{label}</span>
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                          {lineTaxesOf(item).length > 0 && (
+                            <button
+                              type="button"
+                              className="mt-1 text-left text-xs text-slate-500 hover:text-slate-700"
+                              onClick={() => handleTaxTypeToggle(index, '')}
+                            >
+                              Clear taxes
+                            </button>
+                          )}
+
                           {/* NEW TAX FORM */}
                           {showNewTaxForm && (
                             <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-xs">
@@ -1117,7 +1150,7 @@ const QuotationModal = ({
                                     className="p-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
                                     onClick={() => {
                                       setShowNewTaxForm(false);
-                                      setNewTaxData({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
+                                      setNewTaxData({ name: '', taxRate: 17.5, calculationType: 'Percentage', description: '' });
                                     }}
                                   >
                                     <XCircle className="w-3 h-3" />

@@ -1,4 +1,6 @@
-"use client";
+'use client';
+
+import { adminFetch } from '@/lib/admin/adminApi';
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -35,7 +37,7 @@ const TenantDashboard = () => {
 
   const fetchTenantData = async () => {
     try {
-      const response = await fetch(`/api/admin/tenants`);
+      const response = await adminFetch(`/api/admin/tenants`);
       const data = await response.json();
       
       if (data.success) {

@@ -1,0 +1,8 @@
+{
+  "unauthorized": "Simunalowe",
+  "permissionDenied": "Chilolezo chakanidwa",
+  "notFound": "Sizinapezeke",
+  "serverError": "Vuto la seva",
+  "networkError": "Vuto la netiweki",
+  "invalidLocale": "Chilankhulo sichivomerezedwa"
+}

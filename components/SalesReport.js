@@ -5,6 +5,7 @@ import { extractReportReconciliationMeta } from '@/components/ReportReconciliati
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange } from '@/lib/dateUtils';
 import { TrendingUp, BarChart, Users, Package } from 'lucide-react';
+import ReportAccountTable from '@/components/reports/ReportAccountTable';
 
 /**
  * Component for Sales Report
@@ -201,6 +202,14 @@ export const SalesReport = ({
               )}
             </div>
           </div>
+
+          {data.accountLines?.length > 0 && (
+            <ReportAccountTable
+              lines={data.accountLines}
+              title="Income Accounts — General Ledger Detail"
+              showOpeningClosing
+            />
+          )}
         </>
       )}
     </FinancialReport>

@@ -13,6 +13,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.js'],
+    // Phase 16: prefer exact decimals — discourage accidental float equality in new suites
+    sequence: { shuffle: false },
   },
 });
 

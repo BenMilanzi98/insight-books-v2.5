@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { sumBookedQuantityForWindow } from '@/lib/rentalAvailability';
+import { isQuantityPoolKind } from '@/lib/rentalKinds';
 
 export async function POST(request) {
   try {
@@ -44,11 +45,12 @@ export async function POST(request) {
       excludeTransactionId,
     });
     const cap = Math.max(1, Math.floor(Number(asset.totalQuantity) || 1));
-    const requested = asset.kind === 'hiring' ? Math.max(1, Math.floor(Number(quantity) || 1)) : 1;
+    const pool = isQuantityPoolKind(asset.kind);
+    const requested = pool ? Math.max(1, Math.floor(Number(quantity) || 1)) : 1;
 
     let available = 0;
     let allowed = false;
-    if (asset.kind === 'rental') {
+    if (!pool) {
       available = booked > 0 ? 0 : 1;
       allowed = booked === 0;
     } else {

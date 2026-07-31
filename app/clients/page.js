@@ -29,6 +29,9 @@ import { getPermission } from "@/lib/permissions";
 import BulkClientUpload from "@/components/Clients/BulkClientUpload";
 import InvoiceModal from "@/components/InvoiceModal";
 import PaymentModal from "@/components/PaymentModal";
+import PageHeader from "@/components/shell/PageHeader";
+import Button from "@/components/ui/Button";
+
 
 // Client service functions for API interaction
 const clientService = {
@@ -50,11 +53,16 @@ const clientService = {
       const url = `/api/clients?${queryString}`;
       
       const response = await fetch(url);
-      
       if (!response.ok) {
-        throw new Error(`Error fetching clients: ${response.statusText}`);
+        let detail = response.statusText;
+        try {
+          const body = await response.json();
+          detail = body.detail || body.error || detail;
+        } catch (_) {
+          /* ignore non-JSON error bodies */
+        }
+        throw new Error(`Error fetching clients: ${detail}`);
       }
-      
       return await response.json();
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -66,11 +74,16 @@ const clientService = {
   getClientStatistics: async () => {
     try {
       const response = await fetch('/api/clients/statistics');
-      
       if (!response.ok) {
-        throw new Error(`Error fetching client statistics: ${response.statusText}`);
+        let detail = response.statusText;
+        try {
+          const body = await response.json();
+          detail = body.detail || body.error || detail;
+        } catch (_) {
+          /* ignore non-JSON error bodies */
+        }
+        throw new Error(`Error fetching client statistics: ${detail}`);
       }
-      
       return await response.json();
     } catch (error) {
       console.error('Error fetching client statistics:', error);
@@ -196,11 +209,22 @@ const clientService = {
     }
     return res.json();
   },
+  // Full client record (profile + invoices + payments + sales)
+  getClientRecord: async (clientId) => {
+    const res = await fetch(`/api/clients/${clientId}/record`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to load client record');
+    }
+    return res.json();
+  },
+
   // Download client account summary (trading history)
   downloadAccountSummary: async (clientId, format = 'csv') => {
     const res = await fetch(`/api/clients/${clientId}/account-summary?format=${format}`);
     if (!res.ok) throw new Error('Failed to download');
-    return { blob: await res.blob(), contentType: res.headers.get('Content-Type') };
+    const ext = format === 'excel' ? 'xlsx' : format;
+    return { blob: await res.blob(), contentType: res.headers.get('Content-Type'), ext };
   },
 
   // Export clients as CSV
@@ -427,6 +451,9 @@ const ClientManagement = () => {
     totalBilled: 0
   });
   const [clientInvoices, setClientInvoices] = useState([]);
+  const [clientRecord, setClientRecord] = useState(null);
+  const [loadingClientRecord, setLoadingClientRecord] = useState(false);
+  const [detailTab, setDetailTab] = useState('overview');
   const [showSendEmailModal, setShowSendEmailModal] = useState(false);
   const [emailForm, setEmailForm] = useState({ to: '', subject: '', body: '' });
   const [emailFiles, setEmailFiles] = useState([]);
@@ -619,44 +646,38 @@ const ClientManagement = () => {
     }
   };
   
-  // Load client invoices
-  const loadClientInvoices = async (clientId) => {
+  // Load full client record (totals, invoices, payments, sales)
+  const loadClientRecord = async (clientId) => {
+    setLoadingClientRecord(true);
     try {
-      // Try to get from API, fall back to empty array
-      const data = await clientService.getClientInvoices(clientId).catch(() => {
-        // Return dummy data as fallback
-        return {
-          invoices: [
-            {
-              id: "inv-001",
-              invoiceNumber: "INV-2025-042",
-              status: "pending",
-              date: new Date().toISOString(),
-              amount: 15000
-            },
-            {
-              id: "inv-002",
-              invoiceNumber: "INV-2025-039",
-              status: "paid",
-              date: "2025-03-05",
-              amount: 25000
-            }
-          ]
-        };
-      });
-      
+      const data = await clientService.getClientRecord(clientId);
+      setClientRecord(data);
       setClientInvoices(data.invoices || []);
+      if (data.client) {
+        setSelectedClient((prev) => ({
+          ...(prev || {}),
+          ...data.client,
+          totalBilled: data.totals?.totalPurchases ?? prev?.totalBilled,
+          outstandingAmount: data.totals?.outstanding ?? prev?.outstandingAmount,
+          status: data.client.status,
+        }));
+      }
     } catch (error) {
-      console.error(`Error loading invoices for client ${clientId}:`, error);
+      console.error(`Error loading record for client ${clientId}:`, error);
+      setClientRecord(null);
       setClientInvoices([]);
+    } finally {
+      setLoadingClientRecord(false);
     }
   };
   
   // Handle client selection
   const handleClientClick = async (client) => {
     setSelectedClient(client);
+    setDetailTab('overview');
+    setClientRecord(null);
     setIsDetailOpen(true);
-    loadClientInvoices(client.id);
+    loadClientRecord(client.id);
   };
   
   // Open form for creating a new client
@@ -913,11 +934,11 @@ const ClientManagement = () => {
     if (!selectedClient?.id) return;
     setDownloadingAccountSummary(true);
     try {
-      const { blob } = await clientService.downloadAccountSummary(selectedClient.id, format);
+      const { blob, ext } = await clientService.downloadAccountSummary(selectedClient.id, format);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `account-summary-${(selectedClient.name || 'client').replace(/\s+/g, '-')}-${Date.now()}.${format}`;
+      a.download = `account-summary-${(selectedClient.name || 'client').replace(/\s+/g, '-')}-${Date.now()}.${ext || format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1201,30 +1222,25 @@ const ClientManagement = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Client Management</h1>
-          <p className="text-gray-600">Manage your clients, view activities, and track payment history</p>
-        </div>
-        {pagePermissions.canCreateClient && (
-          <div className="flex space-x-3">
-            <button 
-              className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
-              onClick={() => setIsBulkUploadOpen(true)}
-            >
-              <Upload size={16} />
-              <span>Bulk Upload</span>
-            </button>
-            <button 
-              className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
-              onClick={handleAddClient}
-            >
-              <Plus size={16} />
-              <span>Add New Client</span>
-            </button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Client Management"
+        description="Manage your clients, view activities, and track payment history"
+        actions={
+          pagePermissions.canCreateClient ? (
+            <>
+              <Button variant="secondary" onClick={() => setIsBulkUploadOpen(true)}>
+                <Upload size={16} aria-hidden="true" />
+                Bulk Upload
+              </Button>
+              <Button onClick={handleAddClient}>
+                <Plus size={16} aria-hidden="true" />
+                Add New Client
+              </Button>
+            </>
+          ) : null
+        }
+      />
+
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow flex items-center">
@@ -1669,44 +1685,85 @@ const ClientManagement = () => {
             className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold">{selectedClient.name}</h2>
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-semibold truncate">{selectedClient.name}</h2>
+                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                    selectedClient.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {selectedClient.status || 'Active'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 truncate">{selectedClient.email || 'No email'}</p>
+              </div>
               <button 
                 className="text-gray-500 hover:text-gray-700 text-2xl"
                 onClick={() => setIsDetailOpen(false)}
+                aria-label="Close client record"
               >
                 ×
               </button>
             </div>
+
+            <div className="px-5 pt-3 border-b border-gray-200 flex gap-1 overflow-x-auto" role="tablist">
+              {[
+                { id: 'overview', label: 'Overview' },
+                { id: 'invoices', label: `Invoices (${clientRecord?.totals?.invoiceCount ?? clientInvoices.length})` },
+                { id: 'payments', label: `Payments (${clientRecord?.totals?.paymentCount ?? 0})` },
+                { id: 'sales', label: `Sales (${clientRecord?.totals?.salesCount ?? 0})` },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={detailTab === tab.id}
+                  onClick={() => setDetailTab(tab.id)}
+                  className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px ${
+                    detailTab === tab.id
+                      ? 'border-blue-600 text-blue-700'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
             
             <div className="p-5 overflow-y-auto flex-grow">
+              {loadingClientRecord && (
+                <p className="text-sm text-gray-500 mb-4">Loading full client record…</p>
+              )}
+
+              {detailTab === 'overview' && (
+              <>
               <div className="mb-6">
                 <h3 className="text-lg font-medium mb-3 border-b pb-2">Client Information</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex items-center">
                     <User size={16} className="text-gray-400 mr-2" />
                     <span className="text-gray-600 mr-2">Contact Person:</span>
-                    <span className="font-medium">{selectedClient.contactPerson || selectedClient.contact}</span>
+                    <span className="font-medium">{selectedClient.contactPerson || selectedClient.contact || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <Mail size={16} className="text-gray-400 mr-2" />
                     <span className="text-gray-600 mr-2">Email:</span>
-                    <span className="font-medium">{selectedClient.email}</span>
+                    <span className="font-medium">{selectedClient.email || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <Phone size={16} className="text-gray-400 mr-2" />
                     <span className="text-gray-600 mr-2">Phone:</span>
-                    <span className="font-medium">{selectedClient.phone}</span>
+                    <span className="font-medium">{selectedClient.phone || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <MapPin size={16} className="text-gray-400 mr-2" />
                     <span className="text-gray-600 mr-2">Address:</span>
-                    <span className="font-medium">{selectedClient.address}</span>
+                    <span className="font-medium">{selectedClient.address || '—'}</span>
                   </div>
                   <div className="flex items-center">
-                    <Briefcase size={16} className="text-gray-400 mr-2" />
-                    <span className="text-gray-600 mr-2">Industry:</span>
-                    <span className="font-medium">{selectedClient.industry}</span>
+                    <CheckCircle size={16} className="text-gray-400 mr-2" />
+                    <span className="text-gray-600 mr-2">Status:</span>
+                    <span className="font-medium">{selectedClient.status || 'Active'}</span>
                   </div>
                   {selectedClient.additionalEmails && selectedClient.additionalEmails.length > 0 && (
                     <div className="sm:col-span-2 flex items-start">
@@ -1722,28 +1779,143 @@ const ClientManagement = () => {
               
               <div className="mb-6">
                 <h3 className="text-lg font-medium mb-3 border-b pb-2">Financial Overview</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">Total Billed</span>
-                    <span className="block text-lg font-bold">{formatCurrency(selectedClient.totalBilled)}</span>
+                    <span className="block text-sm text-gray-600 mb-1">Total Purchases</span>
+                    <span className="block text-lg font-bold">
+                      {formatCurrency(clientRecord?.totals?.totalPurchases ?? selectedClient.totalBilled)}
+                    </span>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <span className="block text-sm text-gray-600 mb-1">Invoiced</span>
+                    <span className="block text-lg font-bold">
+                      {formatCurrency(clientRecord?.totals?.totalInvoiced ?? selectedClient.totalBilled)}
+                    </span>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <span className="block text-sm text-gray-600 mb-1">Paid</span>
+                    <span className="block text-lg font-bold text-green-700">
+                      {formatCurrency(clientRecord?.totals?.totalPaid ?? 0)}
+                    </span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <span className="block text-sm text-gray-600 mb-1">Outstanding</span>
                     <span className={`block text-lg font-bold ${
-                      selectedClient.outstandingAmount > 0 ? "text-red-600" : "text-green-600"
+                      (clientRecord?.totals?.outstanding ?? selectedClient.outstandingAmount) > 0 ? "text-red-600" : "text-green-600"
                     }`}>
-                      {formatCurrency(selectedClient.outstandingAmount)}
+                      {formatCurrency(clientRecord?.totals?.outstanding ?? selectedClient.outstandingAmount)}
                     </span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">Last Invoice</span>
-                    <span className="block text-lg font-bold">{formatDate(selectedClient.lastInvoice)}</span>
+                    <span className="block text-sm text-gray-600 mb-1">POS Sales</span>
+                    <span className="block text-lg font-bold">
+                      {formatCurrency(clientRecord?.totals?.totalSales ?? 0)}
+                    </span>
                   </div>
                 </div>
               </div>
+              </>
+              )}
+
+              {detailTab === 'invoices' && (
+                <div className="mb-4 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-left">
+                      <tr>
+                        <th className="px-3 py-2 font-medium text-gray-600">Invoice</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Date</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Due</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Total</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Paid</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Outstanding</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(clientRecord?.invoices || clientInvoices || []).length === 0 ? (
+                        <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">No invoices for this client</td></tr>
+                      ) : (
+                        (clientRecord?.invoices || clientInvoices).map((inv) => (
+                          <tr key={inv.id}>
+                            <td className="px-3 py-2 font-medium">{inv.invoiceNumber}</td>
+                            <td className="px-3 py-2">{formatDate(inv.issueDate || inv.date)}</td>
+                            <td className="px-3 py-2">{formatDate(inv.dueDate)}</td>
+                            <td className="px-3 py-2 text-right">{formatCurrency(inv.total ?? inv.amount)}</td>
+                            <td className="px-3 py-2 text-right">{formatCurrency(inv.paid ?? 0)}</td>
+                            <td className="px-3 py-2 text-right">{formatCurrency(inv.outstanding ?? 0)}</td>
+                            <td className="px-3 py-2 capitalize">{inv.status}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {detailTab === 'payments' && (
+                <div className="mb-4 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-left">
+                      <tr>
+                        <th className="px-3 py-2 font-medium text-gray-600">Date</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Amount</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Method</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Reference</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Applied to</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(clientRecord?.payments || []).length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-gray-500">No payment records</td></tr>
+                      ) : (
+                        clientRecord.payments.map((p) => (
+                          <tr key={p.id}>
+                            <td className="px-3 py-2">{formatDate(p.paymentDate)}</td>
+                            <td className="px-3 py-2 font-medium text-green-700">{formatCurrency(p.amount)}</td>
+                            <td className="px-3 py-2">{p.paymentMethod || '—'}</td>
+                            <td className="px-3 py-2">{p.reference || '—'}</td>
+                            <td className="px-3 py-2">{p.sourceType} {p.sourceNumber}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {detailTab === 'sales' && (
+                <div className="mb-4 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-left">
+                      <tr>
+                        <th className="px-3 py-2 font-medium text-gray-600">Reference</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Date</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Total</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(clientRecord?.sales || []).length === 0 ? (
+                        <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-500">No POS sales for this client</td></tr>
+                      ) : (
+                        clientRecord.sales.map((sale) => (
+                          <tr key={sale.id}>
+                            <td className="px-3 py-2 font-medium">{sale.reference}</td>
+                            <td className="px-3 py-2">{formatDate(sale.saleDate)}</td>
+                            <td className="px-3 py-2 text-right">{formatCurrency(sale.total)}</td>
+                            <td className="px-3 py-2 capitalize">{sale.status}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {detailTab === 'overview' && (
+              <>
               
-              {pagePermissions.canUpdateClients && (
-                <div className="mb-6">
+              <div className="mb-6">
                   <h3 className="text-lg font-medium mb-4 border-b pb-2">Quick Actions</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {pagePermissions.canCreateInvoices && (
@@ -1768,6 +1940,7 @@ const ClientManagement = () => {
                         <span className="font-medium text-gray-900">Record Payment</span>
                       </button>
                     )}
+                    {pagePermissions.canUpdateClients && (
                     <button
                       onClick={() => {
                         setIsDetailOpen(false);
@@ -1780,6 +1953,7 @@ const ClientManagement = () => {
                       </div>
                       <span className="font-medium text-gray-900">Edit Profile</span>
                     </button>
+                    )}
                     <button
                       onClick={() => {
                         setEmailForm({
@@ -1801,12 +1975,12 @@ const ClientManagement = () => {
                       onClick={handleSendBalanceReminder}
                       disabled={sendingBalanceReminder}
                       className="group flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50"
-                      title="Send balance reminder using your template"
+                      title="Send payment reminder using your template"
                     >
                       <div className="p-2 bg-amber-100 rounded-full group-hover:bg-amber-200 transition-colors">
                         <AlertCircle size={16} className="text-amber-600" />
                       </div>
-                      <span className="font-medium text-gray-900">{sendingBalanceReminder ? 'Sending…' : 'Send balance reminder'}</span>
+                      <span className="font-medium text-gray-900">{sendingBalanceReminder ? 'Sending…' : 'Send payment reminder'}</span>
                     </button>
                     <button
                       onClick={handleDownloadBalanceReminderPdf}
@@ -1819,9 +1993,27 @@ const ClientManagement = () => {
                       </div>
                       <span className="font-medium text-gray-900">{downloadingReminderPdf ? 'Downloading…' : 'Download reminder (PDF)'}</span>
                     </button>
-                    <div className="flex flex-col gap-2">
-                      <span className="text-xs font-medium text-gray-500 px-1">Account summary</span>
-                      <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <span className="text-xs font-medium text-gray-500 px-1">Export full record</span>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleDownloadAccountSummary('pdf')}
+                          disabled={downloadingAccountSummary}
+                          className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                          title="Download client record as PDF"
+                        >
+                          <Download size={14} className="text-teal-600" />
+                          <span>PDF</span>
+                        </button>
+                        <button
+                          onClick={() => handleDownloadAccountSummary('xlsx')}
+                          disabled={downloadingAccountSummary}
+                          className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                          title="Download client record as Excel"
+                        >
+                          <Download size={14} className="text-teal-600" />
+                          <span>Excel</span>
+                        </button>
                         <button
                           onClick={() => handleDownloadAccountSummary('csv')}
                           disabled={downloadingAccountSummary}
@@ -1831,54 +2023,12 @@ const ClientManagement = () => {
                           <Download size={14} className="text-teal-600" />
                           <span>CSV</span>
                         </button>
-                        <button
-                          onClick={() => handleDownloadAccountSummary('pdf')}
-                          disabled={downloadingAccountSummary}
-                          className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
-                          title="Download client trading history as PDF"
-                        >
-                          <Download size={14} className="text-teal-600" />
-                          <span>PDF</span>
-                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
+              </>
               )}
-              <div>
-                <h3 className="text-lg font-medium mb-3 border-b pb-2">Recent Activity</h3>
-                <div className="space-y-4">
-                  {clientInvoices && clientInvoices.length > 0 ? (
-                    clientInvoices.slice(0, 5).map((invoice, index) => (
-                      <div key={invoice.id} className="flex items-start">
-                        <div className={`p-2 rounded-full mr-3 ${
-                          invoice.status === 'paid' ? 'bg-green-100' : 'bg-blue-100'
-                        }`}>
-                          {invoice.status === 'paid' ? (
-                            <DollarSign size={14} className="text-green-600" />
-                          ) : (
-                            <FileText size={14} className="text-blue-600" />
-                          )}
-                        </div>
-                        <div className="flex-grow">
-                          <div className="font-medium">
-                            {invoice.status === 'paid' 
-                              ? `Payment received for Invoice #${invoice.invoiceNumber}` 
-                              : `Invoice #${invoice.invoiceNumber} ${invoice.status}`}
-                          </div>
-                          <div className="text-sm text-gray-500">{formatDate(invoice.date)}</div>
-                        </div>
-                        <div className="font-bold">{formatCurrency(invoice.amount)}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-4 text-center text-gray-500">
-                      <FileText className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-                      <p>No recent activity found</p>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
             
             <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">

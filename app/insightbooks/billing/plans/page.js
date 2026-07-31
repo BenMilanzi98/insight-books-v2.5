@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import {
@@ -20,6 +23,7 @@ const btnPrimary =
   'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white disabled:opacity-50';
 
 export default function AdminBillingPlansPage() {
+  const { t } = useI18n();
   const [latest, setLatest] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,7 +41,7 @@ export default function AdminBillingPlansPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/platform-billing/plans', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/platform-billing/plans', { credentials: 'include' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Failed to load plans');
       setLatest(body.latest || body.plans || []);
@@ -57,7 +61,7 @@ export default function AdminBillingPlansPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/platform-billing/plans', {
+      const res = await adminFetch('/api/admin/platform-billing/plans', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -128,7 +132,7 @@ export default function AdminBillingPlansPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Subscription Plans"
+        title={t('admin-pages.billing.plans.title')}
         description="Versioned platform plans. Price changes create a new version — existing subscriptions keep agreed pricing until changed explicitly."
         actions={
           <>

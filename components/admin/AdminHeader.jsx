@@ -4,11 +4,18 @@ import { useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { LogOut, Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
 import AdminGlobalSearch from './AdminGlobalSearch';
-import { ADMIN_NAV_SECTIONS } from '@/lib/admin/adminNav';
+import AdminBreadcrumbs from './AdminBreadcrumbs';
+import AdminLanguageSwitcher from './AdminLanguageSwitcher';
+import AdminNotificationCentre from './AdminNotificationCentre';
+import {
+  ADMIN_NAV_SECTIONS,
+  resolveAdminNavLabel,
+} from '@/lib/admin/adminNav';
+import { useI18n } from '@/components/i18n/I18nProvider';
 import { cn } from '@/lib/utils';
 
-function resolveTitle(pathname) {
-  if (!pathname) return 'System Admin';
+function resolveTitle(pathname, t) {
+  if (!pathname) return t('admin-shell.brand');
   let best = null;
   let bestLen = -1;
   for (const section of ADMIN_NAV_SECTIONS) {
@@ -22,13 +29,13 @@ function resolveTitle(pathname) {
         ) {
           if (c.href.length > bestLen) {
             bestLen = c.href.length;
-            best = c.text;
+            best = c;
           }
         }
       }
     }
   }
-  return best || 'System Admin';
+  return best ? resolveAdminNavLabel(best, t) : t('admin-shell.brand');
 }
 
 function envLabel() {
@@ -50,7 +57,8 @@ export default function AdminHeader({
   className,
 }) {
   const pathname = usePathname();
-  const title = useMemo(() => resolveTitle(pathname), [pathname]);
+  const { t } = useI18n();
+  const title = useMemo(() => resolveTitle(pathname, t), [pathname, t]);
   const env = envLabel();
   const envTone =
     env === 'production' || env === 'prod'
@@ -71,18 +79,33 @@ export default function AdminHeader({
   return (
     <header
       className={cn(
-        'flex h-[var(--admin-header-height)] shrink-0 items-center gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-header-bg)] px-3 sm:px-4 lg:px-6',
+        'admin-header-shell flex h-[var(--admin-header-height)] shrink-0 items-center gap-3 border-b-2 border-transparent px-3 sm:px-4 lg:px-6',
         className
       )}
+      style={{
+        borderBottomColor: 'transparent',
+        boxShadow: 'inset 0 -2px 0 0 transparent',
+        backgroundImage:
+          'linear-gradient(var(--admin-header-bg), var(--admin-header-bg)), linear-gradient(90deg, #0ea5e9, #10b981, #f59e0b)',
+        backgroundSize: '100% 100%, 100% 2px',
+        backgroundPosition: '0 0, 0 100%',
+        backgroundRepeat: 'no-repeat',
+      }}
     >
       <button
         ref={menuButtonRef}
         type="button"
         onClick={onMenuClick}
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring)]"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text)] transition-colors hover:bg-[var(--admin-surface-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring)]"
         aria-controls={navId}
         aria-expanded={isMobile ? sidebarOpen : sidebarOpen}
-        aria-label={isMobile ? (sidebarOpen ? 'Close navigation' : 'Open navigation') : 'Toggle navigation'}
+        aria-label={
+          isMobile
+            ? sidebarOpen
+              ? t('admin-shell.closeNav')
+              : t('admin-shell.openNav')
+            : t('admin-shell.toggleNav')
+        }
       >
         {isMobile ? (
           <Menu className="h-5 w-5" aria-hidden />
@@ -97,16 +120,14 @@ export default function AdminHeader({
         <p className="truncate text-sm font-semibold tracking-tight text-[var(--admin-text)] sm:text-base">
           {title}
         </p>
-        <p className="hidden truncate text-xs text-[var(--admin-text-muted)] sm:block">
-          InsightBooks control plane
-        </p>
+        <AdminBreadcrumbs className="mt-0.5 hidden sm:block" />
       </div>
 
-      <div className="mx-auto hidden min-w-0 max-w-lg flex-1 md:block">
+      <div className="mx-auto hidden min-w-0 max-w-lg flex-1 transition-shadow duration-200 focus-within:drop-shadow-sm md:block">
         <AdminGlobalSearch variant="header" />
       </div>
 
-      <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
         <span
           className={cn(
             'hidden rounded-md px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ring-1 ring-inset sm:inline-flex',
@@ -116,7 +137,10 @@ export default function AdminHeader({
           {env}
         </span>
 
-        <div className="hidden min-w-0 text-right sm:block">
+        <AdminLanguageSwitcher className="hidden sm:inline-flex" />
+        <AdminNotificationCentre />
+
+        <div className="hidden min-w-0 text-right md:block">
           <div className="truncate text-sm font-medium text-[var(--admin-text)]">
             {admin?.name || 'Admin'}
           </div>
@@ -129,10 +153,10 @@ export default function AdminHeader({
           type="button"
           onClick={handleLogout}
           className="inline-flex h-11 items-center gap-2 rounded-[var(--admin-radius)] px-2.5 text-sm font-medium text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)] hover:text-[var(--admin-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring)]"
-          aria-label="Log out"
+          aria-label={t('admin-shell.logout')}
         >
           <LogOut className="h-4 w-4 shrink-0" aria-hidden />
-          <span className="hidden lg:inline">Log out</span>
+          <span className="hidden lg:inline">{t('admin-shell.logout')}</span>
         </button>
       </div>
     </header>

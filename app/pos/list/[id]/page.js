@@ -28,6 +28,8 @@ import {
 import { fetchSaleById, voidSale, refundSale, printReceipt } from "@/app/services/salesService";
 import { getPaymentMethodIcon, getPaymentMethodName } from "@/lib/paymentMethods";
 import { MIN_AUDIT_REASON_LENGTH } from "@/lib/auditReasonConstants";
+import { RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM } from "@/lib/receiptPaperWidthPresets";
+import { normalizeReceiptPaperWidthMm } from "@/lib/receiptPaperWidth";
 
 // This is the page component
 const SaleDetailPage = () => {
@@ -45,11 +47,33 @@ const SaleDetailPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionSuccess, setActionSuccess] = useState(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [receiptPaperWidthMm, setReceiptPaperWidthMm] = useState(80);
   
   // Load sale data
   useEffect(() => {
     loadSale();
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/tenant/settings');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setReceiptPaperWidthMm(
+            normalizeReceiptPaperWidthMm(data.receiptPaperWidthMm)
+          );
+        }
+      } catch {
+        // Keep default 80 mm
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // Close action success message after 5 seconds
   useEffect(() => {
@@ -155,9 +179,11 @@ const SaleDetailPage = () => {
   };
   
   // Handle print receipt
-  const handlePrintReceipt = async (paperWidth = 80) => {
+  const handlePrintReceipt = async (paperWidth = receiptPaperWidthMm) => {
     try {
-      await printReceipt(id, { paperWidth });
+      await printReceipt(id, {
+        paperWidth: normalizeReceiptPaperWidthMm(paperWidth),
+      });
     } catch (error) {
       console.error("Error printing receipt:", error);
       alert("Failed to print receipt. Please try again.");
@@ -320,19 +346,26 @@ const handleDeleteSale = async () => {
         </div>
         
         <div className="flex items-center space-x-2">
+          <select
+            value={receiptPaperWidthMm}
+            onChange={(e) =>
+              setReceiptPaperWidthMm(normalizeReceiptPaperWidthMm(e.target.value))
+            }
+            className="px-2 py-2 border border-gray-300 bg-white rounded-md text-sm"
+            title="Thermal paper width"
+          >
+            {RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM.map((mm) => (
+              <option key={mm} value={mm}>
+                {mm} mm
+              </option>
+            ))}
+          </select>
           <button
             className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center hover:bg-gray-50"
-            onClick={() => handlePrintReceipt(80)}
+            onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
           >
             <Printer className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Print Receipt</span>
-          </button>
-          <button
-            className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center hover:bg-gray-50"
-            onClick={() => handlePrintReceipt(58)}
-          >
-            <Printer className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Print 58mm</span>
           </button>
           
           {/* <div className="relative">
@@ -600,19 +633,30 @@ const handleDeleteSale = async () => {
             </div>
             
             <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Thermal paper width
+                </label>
+                <select
+                  value={receiptPaperWidthMm}
+                  onChange={(e) =>
+                    setReceiptPaperWidthMm(normalizeReceiptPaperWidthMm(e.target.value))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  {RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM.map((mm) => (
+                    <option key={mm} value={mm}>
+                      {mm} mm{mm === 80 ? ' (most common)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
-                onClick={() => handlePrintReceipt(80)}
+                onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                Print Receipt (80mm)
-              </button>
-              <button
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center justify-center hover:bg-indigo-700"
-                onClick={() => handlePrintReceipt(58)}
-              >
-                <Printer className="w-4 h-4 mr-2" />
-                Print Receipt (58mm)
+                Print Receipt
               </button>
               
               {sale.status === 'completed' && (

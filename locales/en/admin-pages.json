@@ -1,0 +1,1311 @@
+{
+  "common": {
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "edit": "Edit",
+    "export": "Export",
+    "back": "Back",
+    "unavailable": "Unavailable"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "description": "Platform control-tower overview",
+    "unavailable": "Dashboard unavailable",
+    "loading": "Loading control tower",
+    "mrr": "Estimated MRR",
+    "mrrHint": "Normalized from active AccountSubscription amounts",
+    "tenants": "Tenants",
+    "users": "Users",
+    "activeSubs": "Active subscriptions",
+    "paymentsPeriod": "Collected this period",
+    "outstanding": "Outstanding (platform invoices)"
+  },
+  "tenants": {
+    "title": "Tenant Management",
+    "description": "Create, activate, suspend, reactivate, and archive tenants"
+  },
+  "users": {
+    "title": "User Management",
+    "description": "Manage platform users"
+  },
+  "billing": {
+    "overview": {
+      "title": "Billing Overview",
+      "description": "InsightBooks platform SaaS billing — not tenant customer AR"
+    },
+    "plans": {
+      "title": "Subscription Plans",
+      "description": "Core commercial plans"
+    },
+    "mraEisPlans": {
+      "title": "MRA EIS Plans",
+      "description": "MRA EIS commercial plans"
+    },
+    "subscriptions": {
+      "title": "Subscription Management",
+      "description": "Tenant subscriptions"
+    },
+    "invoices": {
+      "title": "Platform invoices",
+      "description": "Platform invoices"
+    },
+    "payments": {
+      "title": "Platform payments",
+      "description": "Platform payments"
+    },
+    "credits": {
+      "title": "Credits & Refunds",
+      "description": "Credits and refunds"
+    },
+    "reconciliation": {
+      "title": "Billing Reconciliation",
+      "description": "Billing reconciliation"
+    }
+  },
+  "mraEis": {
+    "title": "MRA EIS entitlement",
+    "description": "Compliance entitlements",
+    "centre": {
+      "title": "MRA EIS Platform Overview",
+      "description": "Platform EIS centre"
+    },
+    "terminals": {
+      "title": "MRA EIS Terminals",
+      "description": "Terminal registry"
+    },
+    "configuration": {
+      "title": "MRA EIS Configuration",
+      "description": "Platform EIS configuration"
+    },
+    "mappings": {
+      "title": "MRA EIS Mappings",
+      "description": "Catalogue mappings"
+    },
+    "catalogue": {
+      "title": "MRA EIS Catalogue",
+      "description": "Catalogue readiness"
+    },
+    "tenantDetail": {
+      "back": "Back to EIS entitlements"
+    }
+  },
+  "email": {
+    "title": "Email Management",
+    "description": "Platform email operations",
+    "templates": {
+      "title": "Email templates",
+      "description": "Manage email templates"
+    },
+    "suppression": {
+      "title": "Email suppression",
+      "description": "Suppression list"
+    }
+  },
+  "affiliate": {
+    "title": "Affiliate management",
+    "description": "Partners and commissions",
+    "commissions": {
+      "title": "Affiliate commissions",
+      "description": "Commission records"
+    },
+    "payouts": {
+      "title": "Affiliate payouts",
+      "description": "Payout records"
+    }
+  },
+  "audit": {
+    "title": "Audit & security",
+    "description": "Admin and platform audit events"
+  },
+  "security": {
+    "title": "Security settings",
+    "description": "Security overview",
+    "monitoring": {
+      "title": "Security Monitoring",
+      "description": "Security monitoring signals"
+    },
+    "compliance": {
+      "title": "Security Compliance",
+      "description": "Compliance signals"
+    }
+  },
+  "health": {
+    "title": "System Health",
+    "description": "Operational health"
+  },
+  "settings": {
+    "title": "Global Settings",
+    "description": "Platform settings"
+  },
+  "features": {
+    "title": "Feature Entitlements",
+    "description": "Feature flags and entitlements"
+  },
+  "mobile": {
+    "title": "Android App",
+    "description": "Mobile app releases"
+  },
+  "reports": {
+    "title": "Platform Reports",
+    "description": "Platform reporting"
+  },
+  "imports": {
+    "title": "Import dry-run",
+    "description": "Dry-run imports"
+  },
+  "login": {
+    "title": "Admin sign in",
+    "submit": "Sign in"
+  },
+  "stubs": {
+    "subscriptionAnalytics": {
+      "title": "Subscription analytics",
+      "description": "Use the main dashboard and billing overview."
+    },
+    "subscriptionGrowth": {
+      "title": "Subscription growth",
+      "description": "Use the main dashboard and billing overview."
+    },
+    "systemLogs": {
+      "title": "System logs",
+      "description": "Use Audit & Security."
+    },
+    "systemPerformance": {
+      "title": "System performance",
+      "description": "Use System Health."
+    },
+    "userAnalytics": {
+      "title": "User analytics",
+      "description": "Use the main dashboard."
+    },
+    "revenueOverview": {
+      "title": "Revenue overview",
+      "description": "Use Billing Overview for platform SaaS revenue."
+    }
+  },
+  "analyticsPipeline": {
+    "title": "Analytics pipeline",
+    "description": "Outbox, events, facts, reconciliation — derived analytics foundation (not executive KPIs)"
+  },
+  "intelligence": {
+    "title": "Executive Intelligence",
+    "description": "Verified platform KPIs — SaaS billing, tenants, and ops signals. Never tenant GL sales.",
+    "forbidden": "You do not have permission to view executive intelligence.",
+    "loadFailed": "Failed to load executive KPI pack",
+    "catalogue": "Catalogue",
+    "generated": "Generated",
+    "attentionTitle": "Needs attention",
+    "attentionEmpty": "No attention items",
+    "attentionEmptyHint": "No stale, failed, or reconciliation issues in the current pack.",
+    "viewAll": "View all",
+    "open": "Open",
+    "emptySection": "No metrics in this section",
+    "emptySectionHint": "Metrics may be unavailable or filtered by permission.",
+    "exportTitle": "Executive export",
+    "exportHint": "Export the current verified KPI pack (JSON or CSV). Actions are audited.",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
+    "areas": {
+      "financial": "Financial",
+      "customers": "Customers & subscriptions",
+      "productOps": "Product, engagement & operations"
+    },
+    "sections": {
+      "financial": "Financial intelligence",
+      "customers": "Customer intelligence",
+      "subscriptions": "Subscription intelligence",
+      "engagement": "Engagement",
+      "products": "Product adoption",
+      "mraEis": "MRA EIS",
+      "operations": "Operations",
+      "security": "Security signals",
+      "attention": "Management attention",
+      "reports": "Executive reports"
+    },
+    "sectionHints": {
+      "financial": "Estimated MRR/ARR and platform payments from SaaS billing sources only.",
+      "customers": "Tenant and user counts from the platform plane.",
+      "subscriptions": "Active paid and trial commercial subscriptions.",
+      "engagement": "Unique-user DAU is not instrumented — shown as unavailable until facts exist.",
+      "products": "Feature adoption requires FEATURE_USED events (not yet emitted).",
+      "mraEis": "Entitlement counts for MRA EIS on the platform plane.",
+      "operations": "Process health and analytics pipeline freshness.",
+      "security": "Coarse ops signal only — use Audit & Security for investigations.",
+      "attention": "Stale pipeline, reconciliation mismatches, and query failures.",
+      "reports": "Export foundation for executive KPI packs (scheduled reports later)."
+    }
+  },
+  "revenue": {
+    "title": "Revenue Intelligence",
+    "description": "Platform SaaS revenue workbench — contracted MRR, billing signals, and matrix-gated metrics. Never tenant GL sales.",
+    "forbidden": "You do not have permission to view revenue intelligence.",
+    "loadFailed": "Failed to load revenue KPI pack",
+    "catalogue": "Catalogue",
+    "generated": "Generated",
+    "currency": "Currency",
+    "sectionNavLabel": "Revenue intelligence sections",
+    "emptySection": "No metrics in this section",
+    "emptySectionHint": "Metrics may be UNAVAILABLE, deferred by the readiness matrix, or filtered by permission.",
+    "stubTitle": "Metric not ready",
+    "stubHint": "UNAVAILABLE for this wave — coming in a later wave per the revenue readiness matrix.",
+    "reconStatusTitle": "Reconciliation status",
+    "reconStatusHint": "Read-only snapshot keys and pack attention. Reconstruct/persist is a separate privileged action.",
+    "reconAttention": "Attention items",
+    "snapshotKeys": "Snapshot keys",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
+    "exportFailed": "Export failed",
+    "forecastDisclaimer": "Deterministic renewal exposure from expiresAt + active estimated MRR. Scenario multipliers (0.9 / 1.0 / 1.1) are documented — not predictive revenue or ML.",
+    "contributor": "Contributor",
+    "masked": "masked",
+    "settingsReadOnly": "Revenue workbench settings are read-only in this phase.",
+    "settingsDefaultCurrency": "Default currency",
+    "settingsFx": "FX consolidation",
+    "settingsForecast": "Forecast model",
+    "areas": {
+      "recurring": "Recurring (estimated contracted)",
+      "movements": "MRR movements / bridge",
+      "commercial": "Commercial signals"
+    },
+    "sections": {
+      "overview": "Overview",
+      "recurring": "Recurring revenue",
+      "mrr": "MRR",
+      "arr": "ARR",
+      "movements": "MRR movements",
+      "billing": "Billing",
+      "collections": "Collections",
+      "receivables": "Receivables",
+      "paymentPerformance": "Payment performance",
+      "creditsRefunds": "Credits & refunds",
+      "mraEis": "MRA EIS commercial",
+      "customers": "Customers",
+      "segments": "Segments",
+      "concentration": "Concentration",
+      "retention": "Retention",
+      "cohorts": "Cohorts",
+      "subscriptions": "Subscriptions",
+      "plans": "Plans",
+      "forecast": "Forecast",
+      "reconciliation": "Reconciliation",
+      "reports": "Reports",
+      "definitions": "Definitions",
+      "settings": "Settings"
+    },
+    "sectionHints": {
+      "recurring": "Estimated contracted MRR/ARR and bridge envelopes from platform subscriptions only.",
+      "mrr": "Point-in-time estimated contracted MRR — CORE / MRA EIS split; never false zeroes.",
+      "arr": "Estimated ARR = estimated MRR × 12 (not a separate ARR engine).",
+      "movements": "Opening/closing and bridge components — UNAVAILABLE when reconstruct confidence fails.",
+      "billing": "PlatformInvoice billed totals for the period (void/cancelled excluded). Sparse vs PayChangu path.",
+      "collections": "Successful PlatformPayment collections for the period (native currency; reconcile vs invoices).",
+      "receivables": "Outstanding PlatformInvoice ageing as-of now — due reference is periodEnd, else createdAt (no dueDate column).",
+      "paymentPerformance": "Payment success/failure counts and rates. Retry analytics are NOT_SUPPORTED (no retry model).",
+      "creditsRefunds": "Open PlatformCredit remaining, credits issued, and completed PlatformRefund sums for the period.",
+      "mraEis": "MRA EIS commercial MRR and attributable billed/collected when plan is known — not tenant fiscal EISInvoice.",
+      "customers": "Top tenants by estimated contracted MRR. Names masked without tenants.view.",
+      "segments": "Industry / region / acquisition are NOT_SUPPORTED. Plan split uses active estimated MRR by plan code.",
+      "concentration": "Top-10 share and Herfindahl index of estimated contracted MRR (per currency).",
+      "retention": "Start-month cohort retention (count and contracted MRR) when reconstruct confidence covers the window.",
+      "cohorts": "Subscription start-month cohorts. UNAVAILABLE when reconstruct window or history is insufficient.",
+      "subscriptions": "Active paid subscription and tenant counts with estimated MRR (platform billing only).",
+      "plans": "Active paid estimated MRR grouped by plan code.",
+      "forecast": "Deterministic renewal exposure — sum of estimated MRR expiring within the horizon; scenarios use 0.9 / 1.0 / 1.1 multipliers.",
+      "reconciliation": "Read-only pack status, snapshot keys, and attention (no write side effects on GET).",
+      "reports": "Export revenue KPI pack as JSON or CSV (audit-logged). XLSX/PDF not implemented.",
+      "definitions": "Metric catalogue definitions, readiness classes, and forecast multiplier documentation.",
+      "settings": "Read-only workbench config — default currency MWK; FX consolidation UNAVAILABLE."
+    }
+  },
+  "customers": {
+    "title": "Customer Intelligence",
+    "description": "Platform customer (tenant) workbench — identity, lifecycle, commercial relationship, and readiness-gated signals. Never tenant GL sales.",
+    "forbidden": "You do not have permission to view customer intelligence.",
+    "loadFailed": "Failed to load customer intelligence",
+    "catalogue": "Catalogue",
+    "generated": "Generated",
+    "currency": "Currency",
+    "sectionNavLabel": "Customer intelligence sections",
+    "emptySection": "No metrics in this section",
+    "emptySectionHint": "Metrics may be UNAVAILABLE, deferred by the readiness matrix, or filtered by permission.",
+    "stubTitle": "Section not ready",
+    "stubHint": "UNAVAILABLE or deferred for this wave — open a customer 360 from Directory, or wait for a later wave per the readiness matrix.",
+    "unavailableTitle": "Unavailable",
+    "notInstrumentedTitle": "Not instrumented",
+    "signalsEmptyTitle": "No open signals",
+    "portfoliosEmptyTitle": "No portfolios yet",
+    "limitations": "Limitations",
+    "masked": "masked",
+    "areas": {
+      "adoption": "Adoption",
+      "support": "Support & service"
+    },
+    "signals": {
+      "loadFailed": "Failed to load attention queue",
+      "actionFailed": "Failed to update signal",
+      "ackOk": "Signal acknowledged.",
+      "dismissOk": "Signal dismissed.",
+      "acknowledge": "Acknowledge",
+      "dismiss": "Dismiss",
+      "dismissReason": "Dismiss reason (required)",
+      "queue": "Queue",
+      "ruleVersion": "Signal rules",
+      "emptyHint": "No deterministic verified-source signals in scope for this queue.",
+      "queues": {
+        "attention": "Attention",
+        "risk": "Risk",
+        "opportunity": "Opportunity",
+        "all": "All"
+      },
+      "columns": {
+        "customer": "Customer",
+        "code": "Signal",
+        "severity": "Severity",
+        "status": "Status",
+        "detected": "Last detected",
+        "actions": "Actions"
+      }
+    },
+    "reconciliation": {
+      "loadFailed": "Failed to load customer reconciliation"
+    },
+    "reports": {
+      "exportTitle": "Export foundation",
+      "exportHint": "JSON or CSV of directory (capped) or overview metrics. Audited. Never Tenant Sale.",
+      "dataset": "Dataset",
+      "datasets": {
+        "directory": "Directory",
+        "overview": "Overview"
+      },
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "Export downloaded.",
+      "exportFailed": "Export failed"
+    },
+    "portfolios": {
+      "listTitle": "Portfolios",
+      "emptyHint": "Create a Customer Success portfolio, then assign tenants to an owner.",
+      "createTitle": "Create portfolio",
+      "createAction": "Create",
+      "createOk": "Portfolio created.",
+      "createFailed": "Failed to create portfolio",
+      "loadFailed": "Failed to load portfolios",
+      "membersTitle": "Portfolio members",
+      "membersLabel": "assignments",
+      "membersFailed": "Failed to load members",
+      "noMembers": "No active members in this portfolio.",
+      "assignTitle": "Assign / reassign ownership",
+      "assignAction": "Assign owner",
+      "assignOk": "Ownership assigned.",
+      "assignFailed": "Failed to assign ownership",
+      "tenantId": "Tenant id",
+      "ownerAdminId": "Owner admin id",
+      "ownerAdminHint": "Defaults to you if left blank",
+      "reason": "Reason (optional)",
+      "code": "Code",
+      "name": "Name",
+      "description": "Description",
+      "primary": "Primary",
+      "unassignedTitle": "Unassigned attention",
+      "unassignedEmpty": "No unassigned customers in the recent scan.",
+      "manageHint": "Creating and assigning require systemAdmin.intel.customers.managePortfolios (Super Admin always allowed)."
+    },
+    "sections": {
+      "overview": "Overview",
+      "directory": "Directory",
+      "lifecycle": "Lifecycle",
+      "engagement": "Engagement",
+      "commercial": "Commercial",
+      "renewals": "Renewals",
+      "mraEis": "MRA EIS",
+      "adoption": "Adoption",
+      "support": "Support",
+      "signals": "Signals",
+      "portfolios": "Portfolios",
+      "reconciliation": "Reconciliation",
+      "reports": "Reports",
+      "definitions": "Definitions",
+      "settings": "Settings"
+    },
+    "sectionHints": {
+      "overview": "Aggregate customer counts from Tenant and AccountSubscription — never false zeroes.",
+      "directory": "Searchable paginated customer directory. Open a row for the full 360 view.",
+      "lifecycle": "Lifecycle stages are resolved on each customer 360. Use Directory to open a customer.",
+      "engagement": "Login proxies only — not unique-user DAU. Open a customer 360 for detail.",
+      "commercial": "Contracted MRR/ARR and billing envelopes live on customer 360 (platform billing only).",
+      "renewals": "Renewal dates surface on customer 360 commercial section. Dedicated renewals queue comes later.",
+      "mraEis": "MRA EIS entitlement and commercial plan live on customer 360 — not tenant fiscal EIS.",
+      "adoption": "UNAVAILABLE until FEATURE_USED events are emitted. No fake adoption rates.",
+      "support": "Support, onboarding, and training are NOT_INSTRUMENTED in this phase.",
+      "signals": "Deterministic verified-source attention queue — login inactivity, renewals, outstanding platform billing, suspended tenants, MRA EIS pending, missing owner. No probability or health scores.",
+      "portfolios": "Customer Success portfolios and ownership. Agents with active ownership only see their tenants; managers with no ownership rows see all.",
+      "reconciliation": "Light tenant vs directory inventory and ownership orphan coverage. UNAVAILABLE stays null — no false zeroes.",
+      "reports": "Export foundation for directory or overview (JSON/CSV) with audit log. XLSX/PDF not implemented.",
+      "definitions": "Customer catalogue, lifecycle rule version, and readiness classes (matrix language).",
+      "settings": "Customer workbench settings are read-only / deferred in this wave."
+    },
+    "directory": {
+      "searchPlaceholder": "Search name, subdomain, or tenant id…",
+      "pageSize": "Page size",
+      "emptyTitle": "No customers found",
+      "emptyHint": "Try a different search, or clear filters.",
+      "showing": "Showing {{count}} of {{total}} · page {{page}}/{{totalPages}}",
+      "prev": "Previous",
+      "next": "Next",
+      "columns": {
+        "name": "Customer",
+        "reference": "Reference",
+        "lifecycle": "Lifecycle",
+        "plan": "Plan",
+        "mrr": "MRR",
+        "outstanding": "Outstanding",
+        "status": "Status"
+      }
+    },
+    "detail": {
+      "title": "Customer 360",
+      "description": "Verified customer sections — partial OK; unavailable sections stay honest.",
+      "missingId": "Customer id is required.",
+      "notFound": "Customer not found.",
+      "identity": "Identity",
+      "hierarchy": "Hierarchy",
+      "commercial": "Commercial",
+      "engagement": "Engagement",
+      "adoption": "Adoption",
+      "mraEis": "MRA EIS",
+      "support": "Support & service",
+      "signals": "Signals",
+      "ownership": "Ownership & portfolios",
+      "signalsEmpty": "No signals",
+      "unavailableValue": "Unavailable",
+      "displayName": "Display name",
+      "reference": "Customer reference",
+      "tenantId": "Tenant id",
+      "lifecycle": "Lifecycle stage",
+      "status": "Status",
+      "customerSince": "Customer since",
+      "branches": "Branches",
+      "users": "Users",
+      "activeUsers": "Active users",
+      "plan": "Plan",
+      "subscriptionStatus": "Subscription status",
+      "renewalDate": "Renewal date",
+      "lastLogin": "Last login",
+      "lastActivity": "Last meaningful activity",
+      "activeUsersProxy": "Active users (proxy)",
+      "entitlementStatus": "Entitlement status",
+      "commercialPlan": "Commercial plan",
+      "operationalReadiness": "Operational readiness",
+      "portfolioId": "Portfolio",
+      "primaryOwner": "Primary owner"
+    }
+  },
+  "customerHealth": {
+    "title": "Customer Health",
+    "description": "Explainable health score, band, and confidence — not churn or renewal probability. Missing dimensions show as N/A, never 0.",
+    "forbidden": "You do not have permission to view customer health.",
+    "loadFailed": "Failed to load customer health",
+    "sectionNavLabel": "Customer health sections",
+    "definitionVersion": "Definition",
+    "disclaimer": "Health is explainable evidence — not churn or renewal probability.",
+    "bandCounts": "Band distribution",
+    "tenantsWithSnapshots": "Tenants with snapshots",
+    "limitations": "Limitations",
+    "inspectTitle": "Inspect customer health",
+    "inspectHint": "Enter a tenant id to load live score, band, confidence, and drivers.",
+    "tenantId": "Tenant id",
+    "inspectAction": "Evaluate",
+    "score": "Score",
+    "band": "Band",
+    "confidence": "Confidence",
+    "drivers": "Drivers",
+    "dimensions": "Dimensions",
+    "overrides": "Overrides",
+    "naLabel": "N/A",
+    "weightLabel": "weight",
+    "noDrivers": "No scored drivers for this evaluation.",
+    "emptySnapshots": "No health snapshots in portfolio scope yet.",
+    "emptySnapshotsHint": "Rebuild snapshots (privileged) or wait for scheduled evaluation. Band counts stay empty — never invent fleet scores.",
+    "stubTitle": "Section not ready",
+    "sections": {
+      "overview": "Overview",
+      "definitions": "Definitions",
+      "snapshots": "Snapshots",
+      "reconciliation": "Reconciliation",
+      "reports": "Reports"
+    },
+    "sectionHints": {
+      "overview": "Portfolio band counts from latest snapshots plus live tenant inspect. Missing dims labelled N/A.",
+      "definitions": "Active health definition, weights, bands, and missing-data policy.",
+      "snapshots": "Immutable health snapshots in portfolio scope.",
+      "reconciliation": "Light weight-renormalise and snapshot inventory checks.",
+      "reports": "Export health snapshots (JSON/CSV) — audited; never Tenant Sale."
+    },
+    "definitions": {
+      "loadFailed": "Failed to load health definition",
+      "weights": "Base weights",
+      "bands": "Band ranges",
+      "missingPolicy": "Missing dimension policy",
+      "naDimensions": "Not applicable dimensions (never scored as 0)"
+    },
+    "snapshots": {
+      "loadFailed": "Failed to load health snapshots",
+      "columns": {
+        "customer": "Customer",
+        "score": "Score",
+        "band": "Band",
+        "confidence": "Confidence",
+        "created": "Created"
+      }
+    },
+    "reconciliation": {
+      "loadFailed": "Failed to load health reconciliation"
+    },
+    "reports": {
+      "exportTitle": "Export foundation",
+      "exportHint": "JSON or CSV of latest health snapshots in portfolio scope. Audited. Never Tenant Sale / churn probability.",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "Export downloaded.",
+      "exportFailed": "Export failed"
+    }
+  },
+  "customerSuccess": {
+    "title": "Customer Success",
+    "description": "Portfolio-scoped Command Centre. Cases, tasks, renewals, playbooks, plans, and handoffs are live; onboarding/training/survey stay source-gated. No invented adoption or support progress.",
+    "forbidden": "You do not have permission to view Customer Success.",
+    "loadFailed": "Failed to load Customer Success",
+    "sectionNavLabel": "Customer Success sections",
+    "portfolioFilter": "Portfolio filter",
+    "portfolioAll": "All in scope",
+    "portfolioLoadFailed": "Failed to load portfolios",
+    "noPortfolios": "No portfolios yet — create one under Customer Intelligence → Portfolios.",
+    "sectionCards": "Ops sections",
+    "gated": "Permission required",
+    "readiness": {
+      "live": "Live",
+      "stub": "Stub",
+      "unavailable": "Unavailable"
+    },
+    "stubTitle": "Section not ready",
+    "stubHint": "Matrix-gated for a later wave. No invented case/task/progress data.",
+    "unavailableTitle": "Not instrumented",
+    "unavailableHint": "Source-gated UNAVAILABLE until onboarding/training/survey facts exist. Never invent progress.",
+    "sections": {
+      "commandCentre": "Command Centre",
+      "cases": "Cases",
+      "tasks": "Tasks",
+      "interventions": "Interventions",
+      "renewals": "Renewals",
+      "playbooks": "Playbooks",
+      "successPlans": "Success plans",
+      "onboarding": "Onboarding",
+      "training": "Training",
+      "surveys": "Surveys",
+      "handoffs": "Expansion handoffs",
+      "reports": "Reports"
+    },
+    "sectionHints": {
+      "commandCentre": "Portfolio filter and gated section cards for CS ops.",
+      "cases": "Portfolio-scoped case queue. Signal/health opens are idempotent; never a support ticket substitute.",
+      "tasks": "Assignable CS tasks linked to cases (admin assignees only).",
+      "interventions": "Agent-logged interventions (manageCases). Not support tickets.",
+      "renewals": "Renewal workspace — outcomes require matching AccountSubscription evidence.",
+      "playbooks": "Versioned playbooks expand steps into CS tasks deterministically.",
+      "successPlans": "Success plans and goals for portfolio tenants — no invented progress %.",
+      "onboarding": "NOT_INSTRUMENTED until onboarding source rows exist — never invent % complete.",
+      "training": "NOT_INSTRUMENTED until training source rows exist — never invent progress.",
+      "surveys": "NOT_INSTRUMENTED until survey responses exist — never invent NPS.",
+      "handoffs": "Expansion handoffs are record-only — no CRM opportunity or auto upgrade.",
+      "reports": "Portfolio-scoped CS export foundation (JSON/CSV)."
+    },
+    "cases": {
+      "loadFailed": "Failed to load cases",
+      "updateFailed": "Failed to update case",
+      "notFound": "Case not found",
+      "emptyTitle": "No cases in scope",
+      "emptyHint": "Open cases from allowed signals or AT_RISK/CRITICAL health, or create manually. Portfolio scope applies.",
+      "status": "Status",
+      "statusAll": "All statuses",
+      "colTitle": "Title",
+      "colTenant": "Tenant",
+      "colTrigger": "Trigger",
+      "colPriority": "Priority",
+      "detailHint": "Case detail with tasks and interventions. Source facts are never mutated here.",
+      "backToQueue": "Back to cases"
+    },
+    "tasks": {
+      "loadFailed": "Failed to load tasks",
+      "createFailed": "Failed to create task",
+      "emptyTitle": "No tasks in scope",
+      "emptyHint": "Create tasks from a case detail page. Assignees are System Admin users.",
+      "colTitle": "Task",
+      "titlePlaceholder": "Task title",
+      "add": "Add task"
+    },
+    "interventions": {
+      "loadFailed": "Failed to load interventions",
+      "createFailed": "Failed to log intervention",
+      "emptyTitle": "No interventions yet",
+      "emptyHint": "Log calls, notes, or meetings from a case. Never invents support tickets.",
+      "notTicket": "Interventions are CS activity logs — not support tickets.",
+      "notesPlaceholder": "Notes",
+      "add": "Log intervention"
+    },
+    "renewals": {
+      "loadFailed": "Failed to load renewal workspaces",
+      "openFailed": "Failed to open renewal workspace",
+      "openOk": "Renewal workspace ready",
+      "outcomeFailed": "Outcome rejected — subscription evidence required",
+      "outcomeOk": "Renewal outcome recorded",
+      "emptyTitle": "No renewal workspaces",
+      "emptyHint": "Open a workspace for a tenant period. Outcomes need AccountSubscription evidence.",
+      "evidenceHint": "RENEWED/EXTENDED require an active subscription with future expiresAt. Outcomes never write subscription rows.",
+      "period": "Period",
+      "outcome": "Outcome",
+      "actions": "Actions",
+      "open": "Open workspace"
+    },
+    "playbooks": {
+      "loadFailed": "Failed to load playbooks",
+      "executeFailed": "Failed to execute playbook",
+      "executeOk": "Playbook executed — tasks created",
+      "executeIdempotent": "Playbook already executed for this tenant/case",
+      "emptyTitle": "No playbooks defined",
+      "emptyHint": "Create a versioned playbook via API; execution creates one task per step.",
+      "tenantId": "Tenant ID",
+      "tenantRequired": "Enter a tenant ID in portfolio scope before executing.",
+      "colName": "Playbook",
+      "colVersion": "Version",
+      "colSteps": "Steps",
+      "colStatus": "Status",
+      "actions": "Actions",
+      "execute": "Execute",
+      "running": "Running…"
+    },
+    "plans": {
+      "loadFailed": "Failed to load success plans",
+      "emptyTitle": "No success plans in scope",
+      "emptyHint": "Create plans via API for portfolio tenants. Goals are discrete — never a fake completion %.",
+      "colTitle": "Plan"
+    },
+    "handoffs": {
+      "loadFailed": "Failed to load expansion handoffs",
+      "emptyTitle": "No expansion handoffs",
+      "emptyHint": "Record-only handoffs for expansion discussions. Never auto-upgrades a plan.",
+      "recordOnlyHint": "Record-only: no CRM opportunity and no AccountSubscription mutation.",
+      "colReason": "Reason",
+      "colAction": "Recommended action"
+    },
+    "foundations": {
+      "loadFailed": "Failed to load foundation status",
+      "notInstrumentedHint": "NOT_INSTRUMENTED — source rows missing. Never invent progress from logins or engagement.",
+      "status": "Status",
+      "noPercent": "Progress % is never invented.",
+      "colKey": "Key"
+    },
+    "reports": {
+      "foundationHint": "Export foundation — portfolio-scoped cases/tasks/plans/handoffs. Never Tenant Sale.",
+      "dataset": "Dataset",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "CSV export started",
+      "exportJsonOk": "JSON export ready",
+      "exportFailed": "Export failed"
+    },
+    "onboardingHub": {
+      "title": "Customer Onboarding",
+      "overview": "Overview",
+      "myWork": "My Work",
+      "queues": "Queues",
+      "reports": "Onboarding reports",
+      "contextBar": "Context bar — population, watermark, freshness, recon, DQ, permission scope, timezone",
+      "progressNotReadiness": "Progress percent is not readiness",
+      "progressNotCompletion": "Progress percent is not completion",
+      "completionNotAdoption": "Onboarding completion is not adoption"
+    },
+    "trainingHub": {
+      "title": "Customer Training",
+      "overview": "Overview",
+      "myWork": "My Work",
+      "queues": "Queues",
+      "reports": "Training reports",
+      "contextBar": "Context bar — population, watermark, freshness, recon, DQ, permission scope, timezone",
+      "progressNotQuality": "Progress percent is not quality",
+      "progressNotCompletion": "Progress percent is not completion",
+      "completionNotAdoption": "Training completion is not adoption",
+      "trainingNotMarketingAttribution": "Training is not marketing attribution or acquisition"
+    },
+    "adoptionHub": {
+      "title": "Customer Adoption",
+      "overview": "Overview",
+      "myWork": "My Work",
+      "queues": "Queues",
+      "reports": "Adoption reports",
+      "contextBar": "Context bar — population, watermark, freshness, recon, DQ, permission scope, timezone"
+    }
+  },
+
+  "productAnalytics": {
+    "title": "Product Analytics",
+    "description": "Server-verified commerce product usage — activation, first value, and adoption. Uninstrumented modules show NOT_INSTRUMENTED / N/A, never false zeros.",
+    "forbidden": "You do not have permission to view product analytics.",
+    "loadFailed": "Failed to load product analytics",
+    "sectionNavLabel": "Product analytics sections",
+    "catalogue": "Catalogue",
+    "generated": "Generated",
+    "commerceMetrics": "Instrumented commerce metrics",
+    "moduleSnapshot": "Module instrumentation snapshot",
+    "naHint": "Uninstrumented modules and features are labelled N/A — never coerced to 0.",
+    "naLabel": "N/A",
+    "limitations": "Limitations",
+    "emptyMetrics": "No commerce metric envelopes returned",
+    "emptyMetricsHint": "Overview stays empty rather than inventing zeros when the pack cannot build envelopes.",
+    "emptyCatalogue": "Catalogue empty",
+    "emptyCatalogueHint": "Repo-backed product catalogue returned no rows.",
+    "stubTitle": "Section not ready",
+    "honestUnavailable": "Honest UNAVAILABLE / NOT_INSTRUMENTED — value not shown as zero.",
+    "tenantId": "Tenant id",
+    "featureCode": "Feature code",
+    "inspectAction": "Evaluate",
+    "columns": {
+      "code": "Code",
+      "name": "Name",
+      "module": "Module",
+      "area": "Area",
+      "status": "Status",
+      "value": "Value"
+    },
+    "sections": {
+      "overview": "Overview",
+      "modules": "Modules",
+      "features": "Features",
+      "adoption": "Adoption",
+      "activation": "Activation",
+      "firstValue": "First value",
+      "funnels": "Funnels",
+      "cohorts": "Cohorts",
+      "signals": "Signals",
+      "definitions": "Definitions",
+      "reconciliation": "Reconciliation",
+      "reports": "Reports"
+    },
+    "sectionHints": {
+      "overview": "Invoice / POS / MRA commerce metrics from usage facts with reliability envelopes. Uninstrumented areas stay NOT_INSTRUMENTED.",
+      "modules": "Repo-backed product modules. Non-instrumented modules show N/A — never 0.",
+      "features": "Catalogue features with instrumentation status. Only the commerce trio is instrumented in Wave 1–3.",
+      "adoption": "Evaluate adoption state for a tenant + instrumented feature. Uninstrumented features return NOT_INSTRUMENTED.",
+      "activation": "Evaluate activation for a tenant + feature. Entitlement / login alone never activates.",
+      "firstValue": "Load first-value fact for a tenant + feature. Missing facts stay UNAVAILABLE — never invent a first value.",
+      "funnels": "Versioned funnels for Invoice / POS / EIS accept. Missing events → incomplete, never false zero conversion.",
+      "cohorts": "First-value cohorts only where facts exist. Missing periods omitted (no zero-fill). Association ≠ causation.",
+      "signals": "Deterministic product risk/opportunity signals. No invented probability or revenue.",
+      "definitions": "Definition browser deferred — catalogue version surfaces on overview.",
+      "reconciliation": "Light catalogue ↔ events ↔ facts recon for the commerce trio. Failed recon blocks false-complete metrics.",
+      "reports": "JSON/CSV export foundation — permission and portfolio aware."
+    },
+    "funnelCode": "Funnel code",
+    "exportDataset": "Export dataset",
+    "definitionVersion": "Definition version",
+    "emptyCohorts": "No first-value cohort periods",
+    "emptyCohortsHint": "Cohorts appear only when first-value facts exist — missing months are omitted, never zero-filled.",
+    "emptySignals": "No signals for this tenant",
+    "emptySignalsHint": "Enter a tenant id to evaluate deterministic product signals for instrumented features.",
+    "reconBlocked": "Reconciliation failed or unavailable — metrics stay incomplete (not false READY)."
+  },
+
+  "support": {
+    "title": "Support",
+    "description": "Support tickets, My Work, and SLA clocks. Distinct from Customer Success cases.",
+    "forbidden": "You do not have permission to view Support.",
+    "loadFailed": "Failed to load Support",
+    "sectionNavLabel": "Support sections",
+    "gated": "Permission required",
+    "channelNotAvailable": "NOT_AVAILABLE",
+    "sections": {
+      "myWork": "My Work",
+      "tickets": "Tickets",
+      "handoffs": "Handoffs",
+      "reports": "Reports",
+      "foundations": "Foundations"
+    },
+    "sectionHints": {
+      "myWork": "Tickets assigned to you, plus unassigned GENERAL_SUPPORT queue items. Empty states are honest.",
+      "tickets": "Paged support ticket list with status filters. Not a CsCase queue.",
+      "handoffs": "Link-only handoffs to CS / Product / Finance / Billing / MRA. Never mutates subscriptions, GL, MRA fiscal, or CsCase status.",
+      "reports": "JSON/CSV ticket export foundation and light reconciliation. Empty ≠ invent rows; failed recon ≠ false zeroes.",
+      "foundations": "Knowledge Base, Problem Management, CSAT, and Automation contracts — NOT_AVAILABLE / FOUNDATION only; no fake CSAT scores."
+    },
+    "handoffs": {
+      "loadFailed": "Failed to load support handoffs",
+      "emptyTitle": "No handoffs yet",
+      "emptyHint": "Create a link-only handoff from a ticket API (POST …/tickets/{id}/handoffs). No CsCase or billing side-effects.",
+      "recordOnlyHint": "Record-only links — Support Ticket ≠ CsCase. No subscription, Tenant GL, MRA, or CsCase status mutation.",
+      "colTarget": "Target",
+      "colSummary": "Summary"
+    },
+    "foundations": {
+      "loadFailed": "Failed to load support foundations",
+      "emptyTitle": "No foundation contracts",
+      "emptyHint": "Foundations API returned no items.",
+      "noCsatHint": "CSAT score is always null here — never invent satisfaction averages.",
+      "scoreLabel": "Score"
+    },
+    "reports": {
+      "exportHint": "Export foundation for tickets (JSON/CSV). Requires systemAdmin.support.export. XLSX/PDF not offered.",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "Export downloaded.",
+      "exportFailed": "Export failed",
+      "runRecon": "Run reconciliation",
+      "reconOk": "Reconciliation finished.",
+      "reconFailed": "Reconciliation failed",
+      "reconStatus": "Recon status",
+      "noFalseZero": "numeric KPIs blocked (no false zeroes)"
+    },
+    "myWork": {
+      "emptyTitle": "No tickets in My Work",
+      "emptyHint": "Nothing assigned to you and no unassigned GENERAL_SUPPORT items right now."
+    },
+    "tickets": {
+      "status": "Status",
+      "statusAll": "All statuses",
+      "colNumber": "Ticket",
+      "colTitle": "Title",
+      "colTenant": "Tenant",
+      "colPriority": "Priority",
+      "colQueue": "Queue",
+      "colChannel": "Channel",
+      "emptyTitle": "No support tickets",
+      "emptyHint": "Create a ticket via the Support API, or adjust status filters. No fabricated rows.",
+      "loadFailed": "Failed to load tickets",
+      "notFound": "Ticket not found",
+      "updateFailed": "Failed to update status",
+      "assignFailed": "Failed to assign ticket",
+      "messageFailed": "Failed to post message",
+      "prev": "Previous",
+      "next": "Next",
+      "pageOffset": "Offset",
+      "backToList": "Back to tickets",
+      "transition": "Status transition",
+      "selectStatus": "Select status…",
+      "resolutionCategory": "Resolution category",
+      "applyStatus": "Apply status",
+      "assign": "Assignment",
+      "assigneeAdminId": "Assignee admin id",
+      "queueCode": "Queue code",
+      "applyAssign": "Apply assignment",
+      "messages": "Messages",
+      "noMessages": "No messages yet",
+      "publicReply": "Public agent reply",
+      "sendReply": "Send public reply",
+      "internalNote": "Internal note",
+      "addNote": "Add internal note"
+    },
+    "sla": {
+      "title": "SLA clocks",
+      "unavailable": "SLA clocks UNAVAILABLE — tables or client not ready. Breach rate is not shown (never fake 0%).",
+      "empty": "No SLA clocks on this ticket yet.",
+      "dueAt": "Due at",
+      "policyVersion": "Policy version",
+      "calendarVersion": "Calendar version"
+    }
+  },
+
+  "crm": {
+    "title": "CRM",
+    "description": "CRM Leads, Accounts, and Contacts. Distinct from Customers, Support tickets, and CsCase.",
+    "forbidden": "You do not have permission to view CRM.",
+    "loadFailed": "Failed to load CRM",
+    "sectionNavLabel": "CRM sections",
+    "gated": "Permission required",
+    "channelNotAvailable": "NOT_AVAILABLE",
+    "sections": {
+      "myWork": "My Work",
+      "leads": "Leads",
+      "pipeline": "Pipeline",
+      "pipelineBoard": "Pipeline board",
+      "myPipeline": "My Pipeline",
+      "opportunities": "Opportunities",
+      "activities": "Activities",
+      "activitiesMyWork": "My Activities",
+      "activitiesList": "All Activities",
+      "activityDetail": "Activity",
+      "tasks": "Tasks",
+      "followUps": "Follow-Ups",
+      "calls": "Calls",
+      "emails": "Emails",
+      "emailCompose": "Compose email",
+      "meetings": "Meetings",
+      "demos": "Demos",
+      "demosMyDemos": "My Demos",
+      "demosList": "All Demos",
+      "demoDetail": "Demo",
+      "demoAgenda": "Demo Agenda",
+      "demoScript": "Demo Script",
+      "demoContent": "Demo Content",
+      "demoEnvironment": "Demo Environment",
+      "demoChecklist": "Demo Checklist",
+      "demoEnvironments": "Demo Environments",
+      "demoDataPacks": "Demo Data Packs",
+      "demoDelivery": "Demo Delivery",
+      "demoAttendance": "Demo Attendance",
+      "demoRecording": "Demo Recording",
+      "demoOutcome": "Demo Outcome",
+      "demoFeedbackForms": "Demo Feedback Forms",
+      "demoReports": "Demo Reports",
+      "demoRequests": "Demo Requests",
+      "calendar": "Calendar",
+      "calendarDay": "Calendar — Day",
+      "calendarWeek": "Calendar — Week",
+      "calendarMonth": "Calendar — Month",
+      "calendarAgenda": "Calendar — Agenda",
+      "reminders": "Reminders",
+      "templates": "Templates",
+      "rules": "Automation rules",
+      "activityReports": "Activity reports",
+      "accounts": "Accounts",
+      "contacts": "Contacts",
+      "duplicates": "Duplicates",
+      "imports": "Imports",
+      "reports": "Reports",
+      "settings": "Settings",
+      "foundations": "Foundations",
+      "conversionsOverview": "Conversion overview",
+      "conversionsMyWork": "Conversion My Work",
+      "conversionsQueues": "Conversion queues",
+      "conversionsRequests": "Conversion requests",
+      "conversionsDetail": "Conversion detail",
+      "closedWon": "Closed-Won"
+    },
+    "conversionHub": {
+      "title": "Lead Conversion / Closed-Won",
+      "overview": "Overview — reliability-gated conversion cards (never false zeroes)",
+      "myWork": "My Work",
+      "queues": "Queues",
+      "reports": "Conversion reports",
+      "acceptedValueNotRevenue": "Accepted value is not collected or recognised Revenue",
+      "closedWonNotCollectedRevenue": "Closed-Won value is not collected or recognised Revenue",
+      "closedWonAliasHint": "Thin Closed-Won alias to conversion readiness queues — not a second domain"
+    },
+    "conversionsOverview": {
+      "emptyTitle": "No conversion overview cards",
+      "emptyHint": "Gate fail → UNAVAILABLE / null — never invent zeroes. Accepted ≠ Revenue."
+    },
+    "conversionsMyWork": {
+      "emptyTitle": "No conversions in My Work",
+      "emptyHint": "Sales-team / territory / customer / tenant scope fail-closed — never global fleet."
+    },
+    "conversionsQueues": {
+      "emptyTitle": "No conversion queue items",
+      "emptyHint": "Queues stay empty rather than inventing volume when scope or reliability gate fails."
+    },
+    "sectionHints": {
+      "myWork": "Leads you own and open CRM tasks. Empty states are honest — never fabricated.",
+      "leads": "Server-paginated CrmLead list. Lead ≠ Opportunity ≠ Support Ticket ≠ CsCase.",
+      "leadDetail": "Status, score explanation (not probability), qualification, consent, and opportunity readiness.",
+      "pipeline": "NEW_BUSINESS Pipeline board and lists. Stage moves are server-authorised.",
+      "pipelineBoard": "Bounded columns; stage selector (accessible non-drag). Drag never persists alone.",
+      "myPipeline": "Opportunities you own — same board rules, owner-scoped.",
+      "opportunities": "CrmOpportunity list. Opportunity ≠ Lead ≠ Customer ≠ Subscription.",
+      "activities": "Canonical CrmActivity spine (ACT-YYYY-######). Activity ≠ Audit ≠ Analytics. Waves 1–4: channels, reminders, templates, automation foundations, Activity reports.",
+      "activitiesMyWork": "Activities you own. Empty is honest — never fabricated engagement.",
+      "activitiesList": "Server-paginated Activity list. One Activity; many entity projections.",
+      "activityDetail": "Activity detail stub — Task/Follow-Up/Call/Email/Meeting children and timeline projections.",
+      "tasks": "CRM Tasks under Activity (not CsTask). TODO → COMPLETED; due date ≠ complete.",
+      "followUps": "Follow-Ups + Next-Action. Consent-blocked never auto-executed.",
+      "calls": "Manual/planned Calls (CALL-YYYY-######). Telephony + recording NOT_AVAILABLE. DNC enforced.",
+      "emails": "CRM Email Activity via SMTP. Accept ≠ delivered; no fabricated opens/replies; no tracking pixels.",
+      "emailCompose": "Compose stub — server draft + eligibility + idempotent send-request APIs are live.",
+      "meetings": "Meetings (MEET-YYYY-######). Explicit timezone; RSVP ≠ attendance; Google/Outlook NOT_CONNECTED.",
+      "demos": "Demo Management (DEMO-YYYY-######). Demo ≠ Meeting; schedule requires Meeting + Calendar; readiness honesty-gated.",
+      "demosMyDemos": "Demos you own. Empty is honest — never fabricated engagement.",
+      "demosList": "Server-paginated Demo list. Convert Demo Request ≠ create Opportunity.",
+      "demoDetail": "Demo detail stub — schedule, participants, readiness, pinned Agenda/Script/Content.",
+      "demoAgenda": "Versioned Demo Agenda. ACTIVE is not editable in place — create a new version. SoD approve required.",
+      "demoScript": "Versioned Demo Script. RESTRICTED never on invitations/Customer APIs. en/ny label foundations.",
+      "demoContent": "Versioned Demo Scenario/Content library. Pin ACTIVE versions to a Demo; historical pins retained.",
+      "demoEnvironment": "Logical Demo Environment (DENV). READY only via approved provision + health. ≠ MRA EIS sandbox. DEMO banner required.",
+      "demoChecklist": "Versioned Demo checklist + rehearsal. Critical fails block READY_TO_DELIVER when configured.",
+      "demoEnvironments": "Logical Demo Environments hub. Expiry required; provision/reset/deprovision idempotent; cloud infra NOT_AVAILABLE.",
+      "demoDataPacks": "Safe versioned data packs. Production Tenant/data/credentials rejected. Checksums recorded.",
+      "demoDelivery": "Delivery session, agenda coverage, live issues, customer questions. Meeting COMPLETED ≠ Demo DELIVERED.",
+      "demoAttendance": "Source-backed attendance only. RSVP ACCEPTED ≠ ATTENDED. Never invent attendance.",
+      "demoRecording": "Recording governance (request/consent/approve/deny). Provider NOT_AVAILABLE — no fabricated media files.",
+      "demoOutcome": "Demo outcome + completeness (≠ success). Never auto-mutates Opportunity stage/probability/close date.",
+      "demoFeedbackForms": "Optional feedback forms/responses. Never invent scores. Completeness ≠ outcome success.",
+      "demoReports": "Demo reporting centre + audited schedules. Gate fail → EMPTY/UNAVAILABLE — never false zeroes.",
+      "demoRequests": "Demo Requests (DMR-YYYY-######). Qualify → convert idempotent. Never auto-creates Opportunity/Proposal/Tenant.",
+      "calendar": "Internal CRM Calendar (day/week/month/agenda) + ICS export. External sync NOT_CONNECTED.",
+      "reminders": "Activity Reminders with dedupe. Delivery ≠ Activity complete; ≠ Sales contact; ≠ billing reminders.",
+      "templates": "Versioned Activity/Task templates. ACTIVE rows are not directly editable — create a new version.",
+      "rules": "Automation foundations only — SoD approval, small approved triggers, idempotent execution. No full sequences.",
+      "activityReports": "Activity reporting centre + schedules. Metric gate fail → EMPTY/UNAVAILABLE — never false zeroes.",
+      "accounts": "CrmAccount list foundation. CRM Account ≠ canonical Customer billing truth.",
+      "contacts": "CrmContact list foundation. Contact ≠ Platform User.",
+      "duplicates": "Duplicate candidate review. Merge uses SoD — no silent merges.",
+      "imports": "Opportunity bulk import preview + confirm. Idempotent keys; no fake success rates.",
+      "reports": "Lead export + Pipeline + Activity reporting. Empty ≠ invent zeroes. Weighted dark until Phase 16.",
+      "settings": "CRM settings deferred — catalogue definitions managed via APIs.",
+      "foundations": "Import, reporting, Email/WhatsApp ingest, Opportunity pipeline, Activity spine, and Demo spine contracts.",
+      "conversionsOverview": "Conversion Overview hub. Reliability gate never invents zeroes. Accepted / Closed-Won ≠ Revenue.",
+      "conversionsMyWork": "Conversions in your sales-team / territory / customer / tenant scope.",
+      "conversionsQueues": "Conversion readiness and request queues — fail-closed on missing scope."
+    },
+    "activities": {
+      "emptyTitle": "No activities yet",
+      "emptyHint": "Tasks, Follow-Ups, Calls, Emails, and Meetings create Activity parents.",
+      "detailEmptyTitle": "Activity detail foundation",
+      "detailEmptyHint": "Wave 1 stub — use APIs for get/status while the full panel lands."
+    },
+    "tasks": {
+      "emptyTitle": "No CRM tasks",
+      "emptyHint": "Tasks link under CrmActivity. Never aliases Support or CsTask."
+    },
+    "followUps": {
+      "emptyTitle": "No follow-ups",
+      "emptyHint": "Consent-blocked Follow-Ups stay BLOCKED_BY_CONSENT — never auto-executed."
+    },
+    "calls": {
+      "emptyTitle": "No calls yet",
+      "emptyHint": "Plan or log manual Calls under CrmActivity. Telephony CONNECTED and recording stay NOT_AVAILABLE."
+    },
+    "emails": {
+      "emptyTitle": "No CRM emails",
+      "emptyHint": "Draft → eligibility → SMTP send-request. Not Support threads. Accept ≠ delivered.",
+      "composeEmptyTitle": "Compose foundation",
+      "composeEmptyHint": "Use POST /api/admin/crm/emails then /send. Retries are idempotent."
+    },
+    "meetings": {
+      "emptyTitle": "No meetings yet",
+      "emptyHint": "Schedule Meetings under CrmActivity. RSVP ACCEPTED ≠ ATTENDED. Google/Outlook stay NOT_CONNECTED."
+    },
+    "demos": {
+      "emptyTitle": "No demos yet",
+      "emptyHint": "Qualify a Demo Request then convert, or create a Demo. Schedule requires Meeting + Calendar. RSVP ≠ attendance.",
+      "detailEmptyTitle": "Demo detail foundation",
+      "detailEmptyHint": "Wave 1–4 stub — use APIs for schedule / readiness / delivery / attendance / outcome / handoffs.",
+      "agendaEmptyTitle": "Demo Agenda foundation",
+      "agendaEmptyHint": "Create versions via /api/admin/crm/demo-agendas; pin ACTIVE with POST .../demos/{id}/pin-agenda. ACTIVE is immutable.",
+      "scriptEmptyTitle": "Demo Script foundation",
+      "scriptEmptyHint": "Versioned scripts with SoD approve. RESTRICTED scripts never appear on Customer/invitation projections.",
+      "contentEmptyTitle": "Demo Content foundation",
+      "contentEmptyHint": "Scenario + content packs are versioned. Pin ACTIVE versions; historical Demo pins are retained.",
+      "environmentEmptyTitle": "Logical Demo Environment",
+      "environmentEmptyHint": "Request → approve (SoD) → provision (logical). READY only after health. Expiry + DEMO banner required. Never aliases MRA EIS.",
+      "checklistEmptyTitle": "Demo checklist / rehearsal",
+      "checklistEmptyHint": "Execute versioned checklists; record rehearsal outcomes. Critical fails block readiness when configured.",
+      "environmentsEmptyTitle": "Demo Environments hub",
+      "environmentsEmptyHint": "DENV-YYYY-###### logical environments. Cloud/container provision is NOT_AVAILABLE.",
+      "dataPacksEmptyTitle": "Demo Data Packs",
+      "dataPacksEmptyHint": "Synthetic/fixture packs only. Production data and credentials are rejected with typed errors.",
+      "deliveryEmptyTitle": "Demo Delivery",
+      "deliveryEmptyHint": "Start/end delivery sessions; record agenda coverage, live issues, and customer questions. Meeting COMPLETED ≠ DELIVERED.",
+      "attendanceEmptyTitle": "Demo Attendance",
+      "attendanceEmptyHint": "Authorised confirmation or Meeting attendance projection only. RSVP alone never marks attended.",
+      "recordingEmptyTitle": "Recording governance",
+      "recordingEmptyHint": "Request / consent / approve / deny only. Provider stays NOT_AVAILABLE — no recording files.",
+      "outcomeEmptyTitle": "Demo Outcome",
+      "outcomeEmptyHint": "Record outcome + completeness. Completeness ≠ success. Never auto-mutates Opportunity.",
+      "feedbackFormsEmptyTitle": "Demo Feedback Forms",
+      "feedbackFormsEmptyHint": "Optional forms/responses. Scores never invented. Feedback optional for outcome completeness.",
+      "reportsEmptyTitle": "Demo Reports",
+      "reportsEmptyHint": "Honesty-gated KPIs + audited schedules. Empty ≠ invent zeroes. Lead DEMO_REQUEST counts are not Demo volume."
+    },
+    "demoRequests": {
+      "emptyTitle": "No demo requests",
+      "emptyHint": "Capture DEMO_REQUEST / REQUEST_DEMO into DMR numbers. Convert is idempotent and never creates Opportunity."
+    },
+    "calendar": {
+      "emptyTitle": "No calendar events",
+      "emptyHint": "Internal day/week/month/agenda + ICS export. External sync is NOT_CONNECTED — never fabricated."
+    },
+    "reminders": {
+      "emptyTitle": "No reminders yet",
+      "emptyHint": "Schedule Reminders against Activities. Delivery never completes the Activity. Dedupe on rule+activity+recipient+occurrence+channel."
+    },
+    "templates": {
+      "emptyTitle": "No activity templates",
+      "emptyHint": "Versioned Activity/Task templates. ACTIVE is not directly editable — ship a new version."
+    },
+    "rules": {
+      "emptyTitle": "No automation rules",
+      "emptyHint": "Foundations only: Lead assigned → first-contact Task; stage entry → checklist; no-next-action warning. SoD required."
+    },
+    "activityReports": {
+      "emptyTitle": "No activity report data",
+      "emptyHint": "Honesty-gated Activity metrics + audited schedules. Gate failure never invents zeroes."
+    },
+    "pipeline": {
+      "loadFailed": "Failed to load pipeline board",
+      "emptyTitle": "No opportunities on the board",
+      "emptyHint": "Create from a READY lead handoff. No fabricated cards.",
+      "boardHint": "Stage changes post to the server. On failure the card is restored and missing criteria are shown.",
+      "boardLabel": "Pipeline stage columns",
+      "boardView": "Board",
+      "listView": "List",
+      "moveStage": "Move stage",
+      "transitionFailed": "Stage transition denied",
+      "truncated": "truncated",
+      "weightedDark": "Weighted pipeline amounts stay dark until Phase 16."
+    },
+    "opportunities": {
+      "loadFailed": "Failed to load opportunities",
+      "notFound": "Opportunity not found",
+      "emptyTitle": "No opportunities",
+      "emptyHint": "Create from a Phase 11 READY handoff. No fabricated rows.",
+      "new": "New opportunity",
+      "newHint": "Creates from a READY CRM_OPPORTUNITY_HANDOFF. Never provisions Tenant or Subscription.",
+      "create": "Create opportunity",
+      "createFailed": "Failed to create opportunity",
+      "leadId": "Lead id",
+      "idempotencyKey": "Idempotency key (optional)",
+      "colNumber": "Opportunity",
+      "colTitle": "Title",
+      "stage": "Stage",
+      "stageAll": "All stages",
+      "status": "Status",
+      "amount": "Amount",
+      "prev": "Previous",
+      "next": "Next",
+      "pageOffset": "Offset",
+      "backToList": "Back to opportunities",
+      "summary": "Summary",
+      "closeTitle": "Win / loss close",
+      "closeHint": "Closed Won requires evidence, win reason, and decision date. Never creates Tenant, Subscription, or Invoice.",
+      "winReason": "Win reason",
+      "lossReason": "Loss reason",
+      "decisionDate": "Decision date",
+      "evidence": "Evidence (one reference per line)",
+      "evidenceHint": "Contract ref, email id, meeting notes…",
+      "closeWon": "Close won",
+      "closeLost": "Close lost",
+      "closeFailed": "Close failed",
+      "closedWonOk": "Closed won recorded (no provision).",
+      "closedLostOk": "Closed lost recorded.",
+      "risks": "Risk signals",
+      "noRisks": "No open risk signals.",
+      "tasks": "Tasks",
+      "taskTitle": "Task title",
+      "addTask": "Add task",
+      "timeline": "Timeline",
+      "noTimeline": "No timeline events yet.",
+      "readiness": "Proposal / conversion readiness",
+      "readinessHint": "Handoff payloads only — never creates Proposal or executes conversion.",
+      "evalProposal": "Evaluate proposal readiness",
+      "evalConversion": "Evaluate conversion readiness"
+    },
+    "myWork": {
+      "emptyTitle": "No leads in My Work",
+      "emptyHint": "Nothing assigned to you right now. Ownership uses ownerAdminId — no fabricated queue.",
+      "openTasks": "Open tasks"
+    },
+    "leads": {
+      "status": "Status",
+      "statusAll": "All statuses",
+      "colNumber": "Lead",
+      "colTitle": "Title",
+      "colSource": "Source",
+      "colChannel": "Channel",
+      "emptyTitle": "No CRM leads",
+      "emptyHint": "Create a lead via the CRM API or public capture. No fabricated rows.",
+      "loadFailed": "Failed to load leads",
+      "notFound": "Lead not found",
+      "prev": "Previous",
+      "next": "Next",
+      "pageOffset": "Offset",
+      "backToList": "Back to leads",
+      "account": "Account",
+      "contact": "Primary contact",
+      "owner": "Owner",
+      "qualification": "Qualification",
+      "qualifiedYes": "Qualified (or opportunity-ready)",
+      "qualifiedNo": "Not yet QUALIFIED",
+      "scoreSection": "Lead fit score",
+      "scoreNeverProbability": "Score is a deterministic fit score with confidence — never probability, conversion chance, or expected revenue.",
+      "scoreRunHint": "Run scoring via API, then evaluate readiness to surface the pinned score version.",
+      "scoreConfidence": "Confidence",
+      "scoreDimensions": "Dimensions",
+      "scoreInsufficient": "Score insufficient or unavailable — no evaluation pinned yet. Never invents a default score version.",
+      "scoreUnavailable": "Score model unavailable — cannot load evaluation.",
+      "fitScoreLabel": "Lead fit score",
+      "consent": "Consent & eligibility",
+      "consentHint": "Consent is never inferred. UNKNOWN blocks READY. Manage via consent API.",
+      "notes": "Notes",
+      "noNotes": "No notes yet (restricted notes omitted without permission).",
+      "noteRedacted": "[RESTRICTED — redacted]",
+      "timeline": "Timeline",
+      "noTimeline": "No timeline events yet."
+    },
+    "readiness": {
+      "title": "Opportunity readiness",
+      "evaluate": "Evaluate readiness",
+      "markReady": "Mark OPPORTUNITY_READY",
+      "failed": "Readiness evaluation failed",
+      "noOpportunity": "Never creates Opportunity, Pipeline, or Revenue — handoff payload only for Phase 12."
+    },
+    "foundations": {
+      "loadFailed": "Failed to load CRM foundations",
+      "deferredTo": "Deferred to"
+    },
+    "imports": {
+      "hint": "Paste Opportunity rows as JSON. Requires importIdempotencyKey, title, pipelineCode, stageCode. Amounts need currency + amountBasis. No invented success %.",
+      "jsonLabel": "Import rows (JSON array)",
+      "rowsMustBeArray": "Rows must be a JSON array",
+      "preview": "Preview import",
+      "confirm": "Confirm import",
+      "previewOk": "Preview complete.",
+      "previewFailed": "Import preview failed",
+      "confirmOk": "Import confirm finished.",
+      "confirmFailed": "Import confirm failed",
+      "honesty": "Honesty",
+      "noSuccessRate": "successRate always null — never invented"
+    },
+    "reports": {
+      "exportHint": "Lead export (JSON/CSV) plus Pipeline reporting centre. Requires systemAdmin.crm.export / pipeline view. Weighted totals stay dark until Phase 16.",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "exportOk": "Export downloaded.",
+      "exportFailed": "Export failed",
+      "runRecon": "Run reconciliation",
+      "reconOk": "Reconciliation finished.",
+      "reconFailed": "Reconciliation failed",
+      "reconStatus": "Recon status",
+      "noFalseZero": "numeric KPIs blocked (no false zeroes)",
+      "loadPipeline": "Load pipeline report",
+      "pipelineOk": "Pipeline report loaded.",
+      "pipelineFailed": "Pipeline report failed",
+      "pipelineStatus": "Pipeline report status",
+      "emptyEnvelope": "Empty / unavailable envelope — counts not invented as zeroes.",
+      "loadSchedules": "List report schedules",
+      "schedulesOk": "Schedules loaded.",
+      "schedulesFailed": "Failed to load schedules",
+      "createSchedule": "Create schedule",
+      "scheduleCreateOk": "Schedule created.",
+      "scheduleCreateFailed": "Schedule create failed"
+    },
+    "stubs": {
+      "accountsTitle": "Accounts UI stub",
+      "accountsHint": "Account create/list APIs exist; rich UI deferred. No fabricated account KPIs.",
+      "contactsTitle": "Contacts UI stub",
+      "contactsHint": "Contact create/list APIs exist; rich UI deferred.",
+      "duplicatesTitle": "Duplicates UI stub",
+      "duplicatesHint": "Use duplicates + merge APIs. SoD required — requester ≠ approver.",
+      "importsTitle": "Opportunity import",
+      "importsHint": "Use the import surface — idempotent preview/confirm. No fake success metrics.",
+      "settingsTitle": "CRM settings stub",
+      "settingsHint": "Definition catalogues are versioned in code/APIs for this phase."
+    }
+  },
+
+  "placeholder": {
+    "notInPhase": "This module is not implemented in Phase 2.",
+    "plannedPhase": "Planned for a later phase.",
+    "noFakeData": "No sample production metrics are shown."
+  }
+}
+

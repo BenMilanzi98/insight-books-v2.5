@@ -328,29 +328,49 @@ export async function POST(request) {
         ? 'Cash capital contribution'
         : `Asset capital contribution - ${assetName || assetType || 'Asset'}`);
 
-    const transaction = await postGlEntry({
-      tenantId: user.tenantId,
-      userId: user.id,
-      entryDate,
-      description: txDescription,
-      reference,
-      sourceType: 'capital_contribution',
-      sourceId: reference,
-      lines: [
-        {
-          accountId: debitAccount.id,
-          debitAmount: parsedAmount,
-          creditAmount: 0,
-          description: txDescription,
-        },
-        {
-          accountId: equityAccountForCredit.id,
-          debitAmount: 0,
-          creditAmount: parsedAmount,
-          description: txDescription,
-        },
-      ],
-    });
+    const capitalLines = [
+      {
+        lineNumber: 1,
+        accountId: debitAccount.id,
+        debitAmount: parsedAmount,
+        creditAmount: 0,
+        description: txDescription,
+      },
+      {
+        lineNumber: 2,
+        accountId: equityAccountForCredit.id,
+        debitAmount: 0,
+        creditAmount: parsedAmount,
+        description: txDescription,
+      },
+    ];
+    const { postCapitalContributionAccounting } = await import(
+      '@/lib/accountingV2/adapters/remainingAdapters.js'
+    );
+    const transaction = (
+      await postCapitalContributionAccounting({
+        db: prisma,
+        tenantId: user.tenantId,
+        userId: user.id,
+        sourceType: 'capital_contribution',
+        sourceId: reference,
+        amount: parsedAmount,
+        date: entryDate,
+        description: txDescription,
+        lines: capitalLines,
+        legacyPost: () =>
+          postGlEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            entryDate,
+            description: txDescription,
+            reference,
+            sourceType: 'capital_contribution',
+            sourceId: reference,
+            lines: capitalLines,
+          }),
+      })
+    ).result;
 
     const parentRollupBalance = await syncCapitalParentRollupBalance(
       user.tenantId,

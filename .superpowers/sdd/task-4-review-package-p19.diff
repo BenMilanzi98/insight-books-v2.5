@@ -1,0 +1,2209 @@
+# Task 4 P19
+
+
+===== lib/admin/customerSuccess/adoption/metrics.js =====
+
+/**
+ * Adoption metrics — Phase 19 Wave 4.
+ * Reliability-gated; gate fail ≠ fabricated zero.
+ * Portfolio-scoped for non–Super Admin (same fail-closed rules as list/search).
+ */
+
+import {
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  resolveAdoptionActor,
+} from './model.js';
+import { getAdoptionDomainContract } from './catalogue.js';
+import {
+  applyAdoptionReportHonesty,
+  safeAdoptionCount,
+  gatedMetricCard,
+  ADOPTION_REPORT_STATUS,
+} from './reliabilityGate.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+export const ADOPTION_METRIC_VERSION = 'cs-adoption-metric-v1-2026-07-31';
+
+function unavailableCards(honesty) {
+  return {
+    active: gatedMetricCard({
+      label: 'active',
+      counted: { ok: false, value: null },
+      honesty,
+    }),
+    atRisk: gatedMetricCard({
+      label: 'at_risk',
+      counted: { ok: false, value: null },
+      honesty,
+    }),
+    valueReview: gatedMetricCard({
+      label: 'value_review',
+      counted: { ok: false, value: null },
+      honesty,
+    }),
+    completed: gatedMetricCard({
+      label: 'completed',
+      counted: { ok: false, value: null },
+      honesty,
+    }),
+  };
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ admin?: object, actorContext?: object, metric?: string, portfolioTenantIds?: string[] }} args
+ */
+export async function getAdoptionMetric(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin)) {
+    const honesty = applyAdoptionReportHonesty({ permissionOk: false });
+    return {
+      ok: false,
+      forbidden: true,
+      status: honesty.status,
+      value: null,
+      honesty,
+      definitionVersion: ADOPTION_METRIC_VERSION,
+    };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    const honesty = applyAdoptionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      value: null,
+      honesty,
+      reason: 'customer_adoption_plan_model_unavailable',
+      definitionVersion: ADOPTION_METRIC_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      value: null,
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: ADOPTION_METRIC_VERSION,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const metric = String(args.metric || 'plan_count').trim().toLowerCase();
+  const where = { ...tenantWhereFromScope(scopeResult.tenantScope) };
+  const counted = await safeAdoptionCount(() =>
+    prisma.customerAdoptionPlan.count({ where })
+  );
+
+  if (!counted.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: honesty.status,
+      value: null,
+      honesty,
+      reason: 'adoption_metric_query_failed',
+      definitionVersion: ADOPTION_METRIC_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const honesty = applyAdoptionReportHonesty({
+    modelAvailable: true,
+    queryOk: true,
+    permissionOk: true,
+  });
+
+  return {
+    ok: true,
+    status: ADOPTION_REPORT_STATUS.READY,
+    metric,
+    value: counted.value,
+    honesty: {
+      ...honesty,
+      reliability: 'AVAILABLE',
+      portfolioScoped: scopeResult.portfolioScoped,
+    },
+    definitionVersion: ADOPTION_METRIC_VERSION,
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+/**
+ * Overview queue cards — each value reliability-gated and portfolio-scoped.
+ */
+export async function getAdoptionOverviewCards(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin)) {
+    const honesty = applyAdoptionReportHonesty({ permissionOk: false });
+    return {
+      ok: false,
+      forbidden: true,
+      status: honesty.status,
+      cards: null,
+      honesty,
+    };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    const honesty = applyAdoptionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      cards: unavailableCards(honesty),
+      honesty,
+      definitionVersion: ADOPTION_METRIC_VERSION,
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      cards: unavailableCards(honesty),
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: ADOPTION_METRIC_VERSION,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const scopeWhere = tenantWhereFromScope(scopeResult.tenantScope);
+  const counts = await Promise.all([
+    safeAdoptionCount(() =>
+      prisma.customerAdoptionPlan.count({
+        where: { ...scopeWhere, status: 'ACTIVE' },
+      })
+    ),
+    safeAdoptionCount(() =>
+      prisma.customerAdoptionPlan.count({
+        where: { ...scopeWhere, status: 'AT_RISK' },
+      })
+    ),
+    safeAdoptionCount(() =>
+      prisma.customerAdoptionPlan.count({
+        where: { ...scopeWhere, status: 'VALUE_REVIEW' },
+      })
+    ),
+    safeAdoptionCount(() =>
+      prisma.customerAdoptionPlan.count({
+        where: { ...scopeWhere, status: 'COMPLETED' },
+      })
+    ),
+  ]);
+
+  const anyFail = counts.some((c) => !c.ok);
+  if (anyFail) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      cards: unavailableCards(honesty),
+      honesty,
+      definitionVersion: ADOPTION_METRIC_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const honesty = applyAdoptionReportHonesty({
+    modelAvailable: true,
+    queryOk: true,
+    permissionOk: true,
+  });
+
+  return {
+    ok: true,
+    status: ADOPTION_REPORT_STATUS.READY,
+    cards: {
+      active: gatedMetricCard({
+        label: 'active',
+        counted: counts[0],
+        honesty,
+      }),
+      atRisk: gatedMetricCard({
+        label: 'at_risk',
+        counted: counts[1],
+        honesty,
+      }),
+      valueReview: gatedMetricCard({
+        label: 'value_review',
+        counted: counts[2],
+        honesty,
+      }),
+      completed: gatedMetricCard({
+        label: 'completed',
+        counted: counts[3],
+        honesty,
+      }),
+    },
+    honesty: {
+      ...honesty,
+      reliability: 'AVAILABLE',
+      portfolioScoped: scopeResult.portfolioScoped,
+    },
+    definitionVersion: ADOPTION_METRIC_VERSION,
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/reliabilityGate.js =====
+
+/**
+ * Adoption reliability gate — Phase 19 Wave 4.
+ * Gate fail → never fabricated zeroes (UNAVAILABLE / value: null).
+ */
+
+export const ADOPTION_REPORT_STATUS = Object.freeze({
+  READY: 'READY',
+  EMPTY: 'EMPTY',
+  UNAVAILABLE: 'UNAVAILABLE',
+});
+
+/**
+ * Apply honesty envelope for adoption metrics/reports.
+ * @param {{ permissionOk?: boolean, modelAvailable?: boolean, queryOk?: boolean, freshnessOk?: boolean }} gate
+ */
+export function applyAdoptionReportHonesty(gate = {}) {
+  if (gate.permissionOk === false) {
+    return {
+      kpiSafe: false,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      reliability: 'PERMISSION_RESTRICTED',
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+    };
+  }
+  if (gate.modelAvailable === false) {
+    return {
+      kpiSafe: false,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      reliability: 'NOT_INSTRUMENTED',
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+    };
+  }
+  if (gate.queryOk === false || gate.freshnessOk === false) {
+    return {
+      kpiSafe: false,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      reliability: 'RECONCILIATION_FAILED',
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+    };
+  }
+  return {
+    kpiSafe: true,
+    inventZeroesForbidden: true,
+    falseZeroes: false,
+  };
+}
+
+/**
+ * Shared safe count — failures return null, never invent 0.
+ */
+export async function safeAdoptionCount(fn) {
+  try {
+    const value = await fn();
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return { ok: false, value: null };
+    }
+    return { ok: true, value };
+  } catch {
+    return { ok: false, value: null };
+  }
+}
+
+/**
+ * Wrap a metric card — gate fail forces value null (never 0).
+ */
+export function gatedMetricCard({ label, counted, honesty }) {
+  if (!honesty?.kpiSafe || !counted?.ok) {
+    return {
+      label,
+      value: null,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      inventZeroesForbidden: true,
+    };
+  }
+  return {
+    label,
+    value: counted.value,
+    status:
+      counted.value === 0
+        ? ADOPTION_REPORT_STATUS.EMPTY
+        : ADOPTION_REPORT_STATUS.READY,
+    inventZeroesForbidden: true,
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/search.js =====
+
+/**
+ * Adoption global search index — Phase 19 Wave 4.
+ * ADR / ADP / expansion handoff ids. No secrets or tokens.
+ * Fail closed when portfolio scope is required but omitted/empty for
+ * non–Super Admin actors — never fail-open to all tenants.
+ * Expansion handoffs have no tenantId — scope via planId → plan.tenantId.
+ */
+
+import {
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  hasCustomerAdoptionRequestModel,
+  hasCustomerAdoptionExpansionHandoffModel,
+  resolveAdoptionActor,
+} from './model.js';
+import { getAdoptionDomainContract } from './catalogue.js';
+import { resolveAdoptionListScope } from './listScope.js';
+
+const SENSITIVE_KEYS = /password|credential|secret|token|answer/i;
+
+function sanitizeHit(row, kind) {
+  return {
+    id: row.id,
+    kind,
+    number: row.planNumber || row.requestNumber || row.id || null,
+    status: row.status || null,
+    tenantId: row.tenantId || null,
+    customerId: row.customerId || null,
+  };
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ admin?: object, query?: string, portfolioTenantIds?: string[]|null, now?: Date }} args
+ */
+export async function searchAdoptionIndex(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      results: [],
+      reason: 'adoption_search_forbidden',
+    };
+  }
+
+  const q = String(args.query || '').trim();
+  if (!q) {
+    return { ok: true, results: [], reason: 'empty_query' };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    return {
+      ok: true,
+      results: [],
+      reason: scopeResult.reason,
+      domain: getAdoptionDomainContract(),
+      meta: {
+        excludesSecrets: true,
+        excludesTokens: true,
+        portfolioScoped: true,
+        failClosed: true,
+      },
+    };
+  }
+
+  const tenantScope = scopeResult.tenantScope;
+  const results = [];
+
+  if (hasCustomerAdoptionPlanModel(prisma)) {
+    const where = {
+      OR: [{ planNumber: { contains: q } }],
+    };
+    if (tenantScope) {
+      where.tenantId = { in: tenantScope };
+    }
+    try {
+      const plans = await prisma.customerAdoptionPlan.findMany({ where });
+      for (const p of plans || []) {
+        if (tenantScope && !tenantScope.includes(p.tenantId)) continue;
+        results.push(sanitizeHit(p, 'PLAN'));
+      }
+    } catch {
+      // fail closed — omit plans
+    }
+  }
+
+  if (hasCustomerAdoptionRequestModel(prisma)) {
+    const where = {
+      OR: [{ requestNumber: { contains: q } }],
+    };
+    if (tenantScope) {
+      where.tenantId = { in: tenantScope };
+    }
+    try {
+      const requests = await prisma.customerAdoptionRequest.findMany({ where });
+      for (const r of requests || []) {
+        if (tenantScope && !tenantScope.includes(r.tenantId)) continue;
+        results.push(sanitizeHit(r, 'REQUEST'));
+      }
+    } catch {
+      // fail closed
+    }
+  }
+
+  if (hasCustomerAdoptionExpansionHandoffModel(prisma)) {
+    try {
+      let scopedPlanIds = null;
+      if (tenantScope) {
+        if (!hasCustomerAdoptionPlanModel(prisma)) {
+          scopedPlanIds = [];
+        } else {
+          const scopedPlans = await prisma.customerAdoptionPlan.findMany({
+            where: { tenantId: { in: tenantScope } },
+          });
+          scopedPlanIds = (scopedPlans || [])
+            .filter((p) => tenantScope.includes(String(p.tenantId)))
+            .map((p) => p.id);
+        }
+        if (!scopedPlanIds.length) {
+          // fail closed — no handoff enumeration outside portfolio
+        } else {
+          const where = {
+            OR: [{ id: { contains: q } }],
+            planId: { in: scopedPlanIds },
+          };
+          const handoffs = await prisma.customerAdoptionExpansionHandoff.findMany({
+            where,
+          });
+          const allowed = new Set(scopedPlanIds);
+          for (const h of handoffs || []) {
+            if (!h.planId || !allowed.has(h.planId)) continue;
+            results.push(sanitizeHit(h, 'EXPANSION_HANDOFF'));
+          }
+        }
+      } else {
+        const where = {
+          OR: [{ id: { contains: q } }],
+        };
+        const handoffs = await prisma.customerAdoptionExpansionHandoff.findMany({
+          where,
+        });
+        for (const h of handoffs || []) {
+          results.push(sanitizeHit(h, 'EXPANSION_HANDOFF'));
+        }
+      }
+    } catch {
+      // fail closed — omit handoffs
+    }
+  }
+
+  const payload = JSON.stringify(results);
+  if (SENSITIVE_KEYS.test(payload)) {
+    return {
+      ok: false,
+      error: 'search_sanitization_failed',
+      results: [],
+    };
+  }
+
+  return {
+    ok: true,
+    results,
+    domain: getAdoptionDomainContract(),
+    meta: {
+      excludesSecrets: true,
+      excludesTokens: true,
+      portfolioScoped: scopeResult.portfolioScoped,
+    },
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/exports.js =====
+
+/**
+ * Adoption report exports — Phase 19 Wave 4.
+ * Permission recheck; strip secrets / tokens.
+ * Portfolio-scoped for non–Super Admin (fail-closed empty scope).
+ */
+
+import {
+  canManageAdoption,
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  resolveAdoptionActor,
+} from './model.js';
+import { getAdoptionDomainContract } from './catalogue.js';
+import { ADOPTION_REPORT_CATALOGUE } from './reports.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+const STRIP_KEYS = new Set([
+  'accessToken',
+  'token',
+  'secret',
+  'secretNote',
+  'password',
+  'apiKey',
+  'credentials',
+]);
+
+function stripSensitive(row) {
+  if (!row || typeof row !== 'object') return row;
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (
+      STRIP_KEYS.has(k) ||
+      /password|credential|secret|token/i.test(k)
+    ) {
+      continue;
+    }
+    if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
+      out[k] = stripSensitive(v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function toCsv(rows) {
+  if (!rows.length) return 'planNumber,status,tenantId,customerId\n';
+  const keys = ['planNumber', 'status', 'tenantId', 'customerId', 'id'];
+  const header = keys.join(',');
+  const lines = rows.map((r) =>
+    keys.map((k) => JSON.stringify(r[k] ?? '')).join(',')
+  );
+  return [header, ...lines].join('\n');
+}
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ admin?: object, reportKey?: string, format?: string, portfolioTenantIds?: string[] }} args
+ */
+export async function exportAdoptionReport(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin) || !canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      error: 'adoption_export_forbidden',
+    };
+  }
+
+  const reportKey = String(args.reportKey || 'overview').trim().toLowerCase();
+  if (!ADOPTION_REPORT_CATALOGUE.some((r) => r.key === reportKey)) {
+    return { ok: false, error: 'unknown_report_key', reportKey };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_plan_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    return {
+      ok: true,
+      reportKey,
+      format: String(args.format || 'csv').toLowerCase(),
+      rows: [],
+      body: toCsv([]),
+      reason: scopeResult.reason,
+      strippedSecrets: true,
+      strippedTokens: true,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const where = { ...tenantWhereFromScope(scopeResult.tenantScope) };
+  let rows = [];
+  try {
+    rows = await prisma.customerAdoptionPlan.findMany({ where });
+  } catch {
+    rows = [];
+  }
+
+  const sanitized = (rows || []).map((r) =>
+    stripSensitive({
+      id: r.id,
+      planNumber: r.planNumber,
+      status: r.status,
+      tenantId: r.tenantId,
+      customerId: r.customerId,
+    })
+  );
+
+  const format = String(args.format || 'csv').toLowerCase();
+  return {
+    ok: true,
+    reportKey,
+    format,
+    rows: sanitized,
+    body: format === 'json' ? JSON.stringify(sanitized) : toCsv(sanitized),
+    strippedSecrets: true,
+    strippedTokens: true,
+    domain: getAdoptionDomainContract(),
+    meta: { portfolioScoped: scopeResult.portfolioScoped },
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/dataQuality.js =====
+
+/**
+ * Adoption data-quality foundations — Phase 19 Wave 4.
+ * Never invent DQ scores or false zeroes on gate failure.
+ * Portfolio-scoped for non–Super Admin (fail-closed empty scope).
+ */
+
+import {
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  hasCustomerAdoptionRequestModel,
+  resolveAdoptionActor,
+} from './model.js';
+import { getAdoptionDomainContract } from './catalogue.js';
+import {
+  applyAdoptionReportHonesty,
+  safeAdoptionCount,
+  ADOPTION_REPORT_STATUS,
+} from './reliabilityGate.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+export const ADOPTION_DQ_VERSION = 'cs-adoption-dq-v1-2026-07-31';
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ admin?: object, portfolioTenantIds?: string[] }} args
+ */
+export async function runAdoptionDataQuality(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      checks: null,
+      reason: 'adoption_dq_forbidden',
+    };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    const honesty = applyAdoptionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      checks: null,
+      honesty,
+      definitionVersion: ADOPTION_DQ_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      checks: null,
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: ADOPTION_DQ_VERSION,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const scopeWhere = tenantWhereFromScope(scopeResult.tenantScope);
+  const plans = await safeAdoptionCount(() =>
+    prisma.customerAdoptionPlan.count({ where: scopeWhere })
+  );
+  if (!plans.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: honesty.status,
+      checks: null,
+      honesty,
+      definitionVersion: ADOPTION_DQ_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  // Request model missing / gate fail → UNAVAILABLE + null — never invent 0.
+  if (!hasCustomerAdoptionRequestModel(prisma)) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: false,
+      queryOk: true,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      checks: {
+        totalPlans: plans.value,
+        totalRequests: null,
+        orphanedRequests: null,
+        blockingDq: null,
+        blockingDqStatus: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      },
+      honesty: {
+        ...honesty,
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+      },
+      reason: 'customer_adoption_request_model_unavailable',
+      definitionVersion: ADOPTION_DQ_VERSION,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped },
+    };
+  }
+
+  const requests = await safeAdoptionCount(() =>
+    prisma.customerAdoptionRequest.count({ where: scopeWhere })
+  );
+  if (!requests.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: honesty.status,
+      checks: {
+        totalPlans: plans.value,
+        totalRequests: null,
+        orphanedRequests: null,
+        blockingDq: null,
+        blockingDqStatus: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      },
+      honesty: {
+        ...honesty,
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+      },
+      reason: 'adoption_dq_request_query_failed',
+      definitionVersion: ADOPTION_DQ_VERSION,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped },
+    };
+  }
+
+  // Counts are real; orphaned/blocking DQ checks are not instrumented — null + UNAVAILABLE.
+  return {
+    ok: true,
+    status: ADOPTION_REPORT_STATUS.READY,
+    checks: {
+      totalPlans: plans.value,
+      totalRequests: requests.value,
+      orphanedRequests: null,
+      orphanedRequestsStatus: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      blockingDq: null,
+      blockingDqStatus: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+    },
+    honesty: {
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+      portfolioScoped: scopeResult.portfolioScoped,
+      thinInstrumentation: true,
+    },
+    definitionVersion: ADOPTION_DQ_VERSION,
+    domain: getAdoptionDomainContract(),
+    meta: { portfolioScoped: scopeResult.portfolioScoped },
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/reconciliation.js =====
+
+/**
+ * Adoption reconciliation — Phase 19 Wave 4.
+ * Request ↔ Plan ↔ Phase 8 Success Plan link ↔ milestones ↔ expansion.
+ * Never invent zeroes on gate failure.
+ * Portfolio-scoped for non–Super Admin (fail-closed empty scope).
+ */
+
+import {
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  resolveAdoptionActor,
+} from './model.js';
+import { getAdoptionDomainContract } from './catalogue.js';
+import {
+  applyAdoptionReportHonesty,
+  safeAdoptionCount,
+  ADOPTION_REPORT_STATUS,
+} from './reliabilityGate.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+export const ADOPTION_RECON_VERSION = 'cs-adoption-recon-v1-2026-07-31';
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ admin?: object, portfolioTenantIds?: string[] }} args
+ */
+export async function runAdoptionReconciliation(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      cards: null,
+      reason: 'adoption_recon_forbidden',
+    };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    const honesty = applyAdoptionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      cards: null,
+      honesty,
+      definitionVersion: ADOPTION_RECON_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      cards: null,
+      honesty,
+      reason: scopeResult.reason,
+      definitionVersion: ADOPTION_RECON_VERSION,
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const scopeWhere = tenantWhereFromScope(scopeResult.tenantScope);
+  const plans = await safeAdoptionCount(() =>
+    prisma.customerAdoptionPlan.count({ where: scopeWhere })
+  );
+  if (!plans.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: honesty.status,
+      cards: null,
+      honesty,
+      definitionVersion: ADOPTION_RECON_VERSION,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  // Thin stub: plans count is real; lineage integrity is not instrumented —
+  // never invent lineageIntact: true. Null + UNAVAILABLE for that check.
+  return {
+    ok: true,
+    status: ADOPTION_REPORT_STATUS.READY,
+    cards: {
+      plans: plans.value,
+      phase8Linked: null,
+      lineageIntact: null,
+      lineageIntactStatus: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+    },
+    honesty: {
+      inventZeroesForbidden: true,
+      falseZeroes: false,
+      portfolioScoped: scopeResult.portfolioScoped,
+      thinInstrumentation: true,
+    },
+    definitionVersion: ADOPTION_RECON_VERSION,
+    domain: getAdoptionDomainContract(),
+    meta: { portfolioScoped: scopeResult.portfolioScoped },
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/myWork.js =====
+
+/**
+ * Adoption My Work — Phase 19 Wave 4.
+ * Portfolio + owner scoped: excludes other CS owners' plans and out-of-portfolio tenants.
+ */
+
+import {
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  resolveAdoptionActor,
+  serializeAdoptionPlan,
+} from './model.js';
+import { getAdoptionDomainContract } from './catalogue.js';
+import {
+  applyAdoptionReportHonesty,
+  ADOPTION_REPORT_STATUS,
+} from './reliabilityGate.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ admin?: object, actorContext?: object, portfolioTenantIds?: string[] }} args
+ */
+export async function getAdoptionMyWork(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin)) {
+    const honesty = applyAdoptionReportHonesty({ permissionOk: false });
+    return {
+      ok: false,
+      forbidden: true,
+      status: honesty.status,
+      count: null,
+      plans: [],
+      honesty,
+    };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    const honesty = applyAdoptionReportHonesty({ modelAvailable: false });
+    return {
+      ok: true,
+      status: honesty.status,
+      count: null,
+      plans: [],
+      honesty,
+      reason: 'customer_adoption_plan_model_unavailable',
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: !scopeResult.forbidden,
+    });
+    return {
+      ok: scopeResult.forbidden ? false : true,
+      forbidden: Boolean(scopeResult.forbidden),
+      status: ADOPTION_REPORT_STATUS.UNAVAILABLE,
+      count: null,
+      plans: [],
+      honesty,
+      reason: scopeResult.reason,
+      meta: { portfolioScoped: true, failClosed: true },
+    };
+  }
+
+  const ownerId = admin?.id ? String(admin.id) : '';
+  if (!ownerId) {
+    return {
+      ok: true,
+      status: ADOPTION_REPORT_STATUS.EMPTY,
+      count: 0,
+      plans: [],
+      honesty: { inventZeroesForbidden: true, falseZeroes: false },
+    };
+  }
+
+  try {
+    const scopeWhere = tenantWhereFromScope(scopeResult.tenantScope);
+    const rows = await prisma.customerAdoptionPlan.findMany({
+      where: {
+        ...scopeWhere,
+        OR: [{ csOwnerAdminId: ownerId }, { ownerAdminId: ownerId }],
+      },
+    });
+
+    const mine = (rows || []).filter((r) => {
+      // Column pins required — JSON-only ownership is not My Work
+      return r.csOwnerAdminId === ownerId || r.ownerAdminId === ownerId;
+    });
+
+    return {
+      ok: true,
+      status:
+        mine.length === 0
+          ? ADOPTION_REPORT_STATUS.EMPTY
+          : ADOPTION_REPORT_STATUS.READY,
+      count: mine.length,
+      plans: mine.map(serializeAdoptionPlan),
+      honesty: {
+        inventZeroesForbidden: true,
+        falseZeroes: false,
+        portfolioScoped: scopeResult.portfolioScoped,
+      },
+      domain: getAdoptionDomainContract(),
+      meta: { portfolioScoped: scopeResult.portfolioScoped, ownerScoped: true },
+    };
+  } catch {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: true,
+      queryOk: false,
+      permissionOk: true,
+    });
+    return {
+      ok: true,
+      status: honesty.status,
+      count: null,
+      plans: [],
+      honesty,
+      reason: 'adoption_my_work_query_failed',
+    };
+  }
+}
+
+
+===== test/systemAdmin.cs.adoptionWave4.test.js =====
+
+/**
+ * Phase 19 Wave 4 — UI hubs, metrics/reliability, DQ/recon, Phase 8 reconcile, Phase 20 pack.
+ * Gate fail → UNAVAILABLE / value: null (never false zero).
+ * Portfolio My Work excludes other CS owners; search excludes inaccessible ADR/ADP;
+ * export/DQ/recon fail-closed; never invent totalRequests:0 / lineageIntact:true;
+ * Phase 8 foundations broken link ≠ COMPLETED; EN+NY adoptionHub; Phase 20 WITH_BLOCKERS.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  applyAdoptionReportHonesty,
+  ADOPTION_REPORT_STATUS,
+  getAdoptionMetric,
+  getAdoptionOverviewCards,
+  getAdoptionMyWork,
+  getAdoptionLineage,
+  searchAdoptionIndex,
+  exportAdoptionReport,
+  runAdoptionDataQuality,
+  runAdoptionReconciliation,
+  migratePhase8SuccessPlans,
+  getFoundationStatusWithPlan,
+  getAdoptionDomainContract,
+  listAdoptionPlans,
+} from '@/lib/admin/customerSuccess/adoption';
+import { getFoundationStatus } from '@/lib/admin/customerSuccess/foundations.js';
+
+function superAdmin(id = 'super-adp-4') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+      'systemAdmin.customerSuccess.manageCases': true,
+    },
+  };
+}
+
+function csAgent(id = 'cs-agent-a') {
+  return {
+    id,
+    role: 'System Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+      'systemAdmin.customerSuccess.manageCases': true,
+    },
+  };
+}
+
+function csViewerOnly(id = 'cs-viewer-only') {
+  return {
+    id,
+    role: 'System Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+    },
+  };
+}
+
+function makeStoreCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.planNumber) {
+        return store.find((r) => r.planNumber === where.planNumber) || null;
+      }
+      if (where.requestNumber) {
+        return store.find((r) => r.requestNumber === where.requestNumber) || null;
+      }
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.planId) rows = rows.filter((r) => r.planId === where.planId);
+      if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+      if (where.adoptionPlanId === null) {
+        rows = rows.filter((r) => r.adoptionPlanId == null);
+      }
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.tenantId) {
+        if (where.tenantId.in) {
+          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+        } else {
+          rows = rows.filter((r) => r.tenantId === where.tenantId);
+        }
+      }
+      if (where.customerId) rows = rows.filter((r) => r.customerId === where.customerId);
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      if (where.planId) {
+        if (where.planId.in) {
+          rows = rows.filter((r) => where.planId.in.includes(r.planId));
+        } else {
+          rows = rows.filter((r) => r.planId === where.planId);
+        }
+      }
+      if (where.adoptionPlanId === null) {
+        rows = rows.filter((r) => r.adoptionPlanId == null);
+      }
+      if (where.OR) {
+        rows = rows.filter((r) =>
+          where.OR.some((clause) => {
+            if (clause.planNumber?.contains) {
+              return String(r.planNumber || '').includes(clause.planNumber.contains);
+            }
+            if (clause.requestNumber?.contains) {
+              return String(r.requestNumber || '').includes(clause.requestNumber.contains);
+            }
+            if (clause.id?.contains) {
+              return String(r.id || '').includes(clause.id.contains);
+            }
+            if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
+            if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
+            return false;
+          })
+        );
+      }
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    count: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.tenantId) {
+        if (where.tenantId.in) {
+          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+        } else {
+          rows = rows.filter((r) => r.tenantId === where.tenantId);
+        }
+      }
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      if (where.csOwnerAdminId) {
+        rows = rows.filter((r) => r.csOwnerAdminId === where.csOwnerAdminId);
+      }
+      if (where.ownerAdminId) {
+        rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
+      }
+      if (where.OR) {
+        rows = rows.filter((r) =>
+          where.OR.some((clause) => {
+            if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
+            if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
+            return Object.entries(clause).every(([k, v]) => r[k] === v);
+          })
+        );
+      }
+      return rows.length;
+    }),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const planStore = overrides._planStore || [];
+  const requestStore = overrides._requestStore || [];
+  const expansionStore = overrides._expansionStore || [];
+  const csSuccessPlanStore = overrides._csSuccessPlanStore || [];
+  const seqStore = overrides._seqStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _planStore: planStore,
+    _requestStore: requestStore,
+    _expansionStore: expansionStore,
+    _csSuccessPlanStore: csSuccessPlanStore,
+    _seqStore: seqStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async ({ data }) => {
+        seqStore.push(data);
+        return data;
+      }),
+      updateMany: vi.fn(async () => ({ count: 0 })),
+    },
+    customerAdoptionPlan: {
+      ...makeStoreCrud(planStore, 'adp'),
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `adp-${planStore.length + 1}`,
+          status: data.status || 'ACTIVE',
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planStore.find((r) => r.id === where.id) || null;
+        if (where.planNumber) {
+          return planStore.find((r) => r.planNumber === where.planNumber) || null;
+        }
+        return null;
+      }),
+      count: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...planStore];
+        if (where.tenantId) {
+          if (where.tenantId.in) {
+            rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+          } else {
+            rows = rows.filter((r) => r.tenantId === where.tenantId);
+          }
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        if (where.csOwnerAdminId) {
+          rows = rows.filter((r) => r.csOwnerAdminId === where.csOwnerAdminId);
+        }
+        if (where.ownerAdminId) {
+          rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
+        }
+        if (where.OR) {
+          rows = rows.filter((r) =>
+            where.OR.some((clause) => {
+              if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
+              if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
+              return Object.entries(clause).every(([k, v]) => r[k] === v);
+            })
+          );
+        }
+        return rows.length;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...planStore];
+        if (where.tenantId) {
+          if (where.tenantId.in) {
+            rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+          } else {
+            rows = rows.filter((r) => r.tenantId === where.tenantId);
+          }
+        }
+        if (where.customerId) rows = rows.filter((r) => r.customerId === where.customerId);
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        if (where.OR) {
+          rows = rows.filter((r) =>
+            where.OR.some((clause) => {
+              if (clause.planNumber?.contains) {
+                return String(r.planNumber || '').includes(clause.planNumber.contains);
+              }
+              if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
+              if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
+              return false;
+            })
+          );
+        }
+        return rows;
+      }),
+    },
+    customerAdoptionRequest: {
+      ...makeStoreCrud(requestStore, 'adr'),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.tenantId) {
+          if (where.tenantId.in) {
+            rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+          } else {
+            rows = rows.filter((r) => r.tenantId === where.tenantId);
+          }
+        }
+        if (where.OR) {
+          rows = rows.filter((r) =>
+            where.OR.some((clause) => {
+              if (clause.requestNumber?.contains) {
+                return String(r.requestNumber || '').includes(clause.requestNumber.contains);
+              }
+              return false;
+            })
+          );
+        }
+        return rows;
+      }),
+      count: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.tenantId) {
+          if (where.tenantId.in) {
+            rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+          } else {
+            rows = rows.filter((r) => r.tenantId === where.tenantId);
+          }
+        }
+        return rows.length;
+      }),
+    },
+    customerAdoptionExpansionHandoff: {
+      ...makeStoreCrud(expansionStore, 'xph'),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...expansionStore];
+        if (where.planId) {
+          if (where.planId.in) {
+            rows = rows.filter((r) => where.planId.in.includes(r.planId));
+          } else {
+            rows = rows.filter((r) => r.planId === where.planId);
+          }
+        }
+        if (where.OR) {
+          rows = rows.filter((r) =>
+            where.OR.some((clause) => {
+              if (clause.id?.contains) {
+                return String(r.id || '').includes(clause.id.contains);
+              }
+              return false;
+            })
+          );
+        }
+        return rows;
+      }),
+    },
+    csSuccessPlan: {
+      ...makeStoreCrud(csSuccessPlanStore, 'csp'),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...csSuccessPlanStore];
+        if (where.tenantId) {
+          if (where.tenantId.in) {
+            rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+          } else {
+            rows = rows.filter((r) => r.tenantId === where.tenantId);
+          }
+        }
+        if (where.adoptionPlanId === null) {
+          rows = rows.filter((r) => r.adoptionPlanId == null);
+        }
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = csSuccessPlanStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+  };
+
+  return prisma;
+}
+
+describe('Phase 19 Wave 4 — metrics / reliability / hubs / Phase 8 / Phase 20', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reliability gate fail → UNAVAILABLE / value null — never false zero', async () => {
+    const honesty = applyAdoptionReportHonesty({
+      modelAvailable: false,
+      permissionOk: true,
+      queryOk: true,
+    });
+    expect(honesty.kpiSafe).toBe(false);
+    expect(honesty.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(honesty.inventZeroesForbidden).toBe(true);
+    expect(honesty.falseZeroes).toBe(false);
+
+    const broken = makePrisma();
+    broken.customerAdoptionPlan.count = vi.fn(async () => {
+      throw new Error('db down');
+    });
+
+    const metric = await getAdoptionMetric(broken, {
+      admin: superAdmin(),
+      metric: 'plan_count',
+    });
+    expect(metric.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(metric.value).toBeNull();
+    expect(metric.value).not.toBe(0);
+
+    const cards = await getAdoptionOverviewCards(broken, {
+      admin: superAdmin(),
+    });
+    expect(cards.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    const values = Object.values(cards.cards || {}).map((c) => c?.value);
+    for (const v of values) {
+      expect(v).not.toBe(0);
+      expect(v === null || v === undefined).toBe(true);
+    }
+  });
+
+  it('metrics/overview counts are portfolio-scoped (not global) for CS agents', async () => {
+    const prisma = makePrisma();
+    const agent = csAgent('cs-agent-metrics');
+
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-m-owned',
+        planNumber: 'ADP-2026-000450',
+        status: 'ACTIVE',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+        csOwnerAdminId: agent.id,
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-m-other',
+        planNumber: 'ADP-2026-000451',
+        status: 'ACTIVE',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+        csOwnerAdminId: 'cs-agent-b',
+      },
+    });
+
+    const unscoped = await getAdoptionMetric(prisma, {
+      admin: agent,
+      metric: 'plan_count',
+    });
+    expect(unscoped.value).toBeNull();
+    expect(unscoped.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(unscoped.meta?.failClosed || unscoped.reason).toBeTruthy();
+
+    const scoped = await getAdoptionMetric(prisma, {
+      admin: agent,
+      metric: 'plan_count',
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(scoped.ok).toBe(true);
+    expect(scoped.value).toBe(1);
+
+    const cards = await getAdoptionOverviewCards(prisma, {
+      admin: agent,
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(cards.ok).toBe(true);
+    expect(cards.cards.active.value).toBe(1);
+
+    const listDenied = await listAdoptionPlans(prisma, {
+      admin: agent,
+    });
+    expect(listDenied.ok).toBe(true);
+    expect(listDenied.plans).toEqual([]);
+    expect(listDenied.meta?.failClosed || listDenied.reason).toBeTruthy();
+  });
+
+  it('My Work portfolio scope excludes other CS owner plans', async () => {
+    const prisma = makePrisma();
+    const agentA = csAgent('cs-agent-a');
+    const agentB = csAgent('cs-agent-b');
+
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-mine',
+        planNumber: 'ADP-2026-000401',
+        status: 'ACTIVE',
+        tenantId: 'tenant-a',
+        customerId: 'cust-a',
+        csOwnerAdminId: agentA.id,
+        ownerAdminId: agentA.id,
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-other',
+        planNumber: 'ADP-2026-000402',
+        status: 'ACTIVE',
+        tenantId: 'tenant-b',
+        customerId: 'cust-b',
+        csOwnerAdminId: agentB.id,
+        ownerAdminId: agentB.id,
+      },
+    });
+
+    const closed = await getAdoptionMyWork(prisma, {
+      admin: agentA,
+      actorContext: { admin: agentA },
+    });
+    expect(closed.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(closed.count).toBeNull();
+    expect(closed.meta?.failClosed || closed.reason).toBeTruthy();
+
+    const mine = await getAdoptionMyWork(prisma, {
+      admin: agentA,
+      actorContext: { admin: agentA },
+      portfolioTenantIds: ['tenant-a', 'tenant-b', 'tenant-c'],
+    });
+    expect(mine.ok).toBe(true);
+    expect(mine.count).toBe(1);
+    expect(mine.plans.every((p) => p.id === 'adp-mine')).toBe(true);
+    expect(mine.plans.some((p) => p.id === 'adp-other')).toBe(false);
+
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-json-only',
+        planNumber: 'ADP-2026-000403',
+        status: 'ACTIVE',
+        tenantId: 'tenant-c',
+        customerId: 'cust-c',
+        ownerAssignmentsJson: { csOwnerAdminId: agentA.id, ownerAdminId: agentA.id },
+      },
+    });
+    const afterJsonOnly = await getAdoptionMyWork(prisma, {
+      admin: agentA,
+      actorContext: { admin: agentA },
+      portfolioTenantIds: ['tenant-a', 'tenant-b', 'tenant-c'],
+    });
+    expect(afterJsonOnly.plans.some((p) => p.id === 'adp-json-only')).toBe(false);
+    expect(afterJsonOnly.count).toBe(1);
+
+    const crossPortfolio = await getAdoptionMyWork(prisma, {
+      admin: agentA,
+      actorContext: { admin: agentA },
+      portfolioTenantIds: ['tenant-other-only'],
+    });
+    expect(crossPortfolio.ok).toBe(true);
+    expect(crossPortfolio.count).toBe(0);
+    expect(crossPortfolio.plans).toEqual([]);
+  });
+
+  it('search excludes inaccessible ADR/ADP and never returns secrets/tokens', async () => {
+    const prisma = makePrisma();
+    const agentA = csAgent('cs-agent-a');
+
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-vis',
+        planNumber: 'ADP-2026-000410',
+        status: 'ACTIVE',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-1',
+        csOwnerAdminId: agentA.id,
+        accessToken: 'tok-secret-xyz',
+        secretNote: 'SECRET_NOTE',
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-hid',
+        planNumber: 'ADP-2026-000411',
+        status: 'ACTIVE',
+        tenantId: 'tenant-other',
+        customerId: 'cust-2',
+        csOwnerAdminId: 'cs-agent-b',
+      },
+    });
+    await prisma.customerAdoptionRequest.create({
+      data: {
+        id: 'adr-vis',
+        requestNumber: 'ADR-2026-000410',
+        status: 'NEW',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-1',
+      },
+    });
+    await prisma.customerAdoptionRequest.create({
+      data: {
+        id: 'adr-hid',
+        requestNumber: 'ADR-2026-000411',
+        status: 'NEW',
+        tenantId: 'tenant-other',
+        customerId: 'cust-2',
+      },
+    });
+
+    const scoped = await searchAdoptionIndex(prisma, {
+      admin: agentA,
+      query: 'ADP-2026',
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(scoped.ok).toBe(true);
+    const ids = (scoped.results || []).map((r) => r.id);
+    expect(ids).toContain('adp-vis');
+    expect(ids).not.toContain('adp-hid');
+    const payload = JSON.stringify(scoped.results);
+    expect(payload).not.toMatch(/tok-secret|SECRET_NOTE|accessToken|secretNote/i);
+
+    const omitted = await searchAdoptionIndex(prisma, {
+      admin: agentA,
+      query: 'ADP-2026',
+    });
+    expect(omitted.ok).toBe(true);
+    expect(omitted.results).toEqual([]);
+    expect(omitted.meta?.failClosed || omitted.reason).toBeTruthy();
+
+    const emptyScope = await searchAdoptionIndex(prisma, {
+      admin: agentA,
+      query: 'ADP-2026',
+      portfolioTenantIds: [],
+    });
+    expect(emptyScope.ok).toBe(true);
+    expect(emptyScope.results).toEqual([]);
+    expect(emptyScope.meta?.failClosed).toBe(true);
+
+    // Expansion handoff search scoped via planId → plan.tenantId
+    await prisma.customerAdoptionExpansionHandoff.create({
+      data: {
+        id: 'xph-vis-handoff',
+        planId: 'adp-vis',
+        status: 'HANDED_OFF',
+      },
+    });
+    await prisma.customerAdoptionExpansionHandoff.create({
+      data: {
+        id: 'xph-hid-handoff',
+        planId: 'adp-hid',
+        status: 'HANDED_OFF',
+      },
+    });
+    await prisma.customerAdoptionExpansionHandoff.create({
+      data: {
+        id: 'xph-orphan-handoff',
+        planId: null,
+        status: 'DRAFT',
+      },
+    });
+
+    const handoffScoped = await searchAdoptionIndex(prisma, {
+      admin: agentA,
+      query: 'xph-',
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(handoffScoped.ok).toBe(true);
+    const handoffIds = (handoffScoped.results || []).map((r) => r.id);
+    expect(handoffIds).toContain('xph-vis-handoff');
+    expect(handoffIds).not.toContain('xph-hid-handoff');
+    expect(handoffIds).not.toContain('xph-orphan-handoff');
+
+    const handoffUnscoped = await searchAdoptionIndex(prisma, {
+      admin: agentA,
+      query: 'xph-',
+    });
+    expect(handoffUnscoped.ok).toBe(true);
+    expect(handoffUnscoped.results).toEqual([]);
+    expect(handoffUnscoped.meta?.failClosed || handoffUnscoped.reason).toBeTruthy();
+  });
+
+  it('export / DQ / recon apply portfolio scope; DQ never invents request zero', async () => {
+    const prisma = makePrisma();
+    const agent = csAgent('cs-agent-export-dq');
+
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-exp-owned',
+        planNumber: 'ADP-2026-000460',
+        status: 'ACTIVE',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+        csOwnerAdminId: agent.id,
+        accessToken: 'tok-export-secret',
+        secretNote: 'SECRET_ANSWER_EXPORT',
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-exp-other',
+        planNumber: 'ADP-2026-000461',
+        status: 'ACTIVE',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+        csOwnerAdminId: 'cs-agent-b',
+      },
+    });
+    await prisma.customerAdoptionRequest.create({
+      data: {
+        id: 'adr-owned',
+        requestNumber: 'ADR-2026-000460',
+        status: 'NEW',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+      },
+    });
+    await prisma.customerAdoptionRequest.create({
+      data: {
+        id: 'adr-other',
+        requestNumber: 'ADR-2026-000461',
+        status: 'NEW',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+      },
+    });
+
+    const exportClosed = await exportAdoptionReport(prisma, {
+      admin: agent,
+      reportKey: 'overview',
+      format: 'csv',
+    });
+    expect(exportClosed.ok).toBe(true);
+    expect(exportClosed.rows).toEqual([]);
+    expect(exportClosed.meta?.failClosed || exportClosed.reason).toBeTruthy();
+
+    const exportScoped = await exportAdoptionReport(prisma, {
+      admin: agent,
+      reportKey: 'overview',
+      format: 'csv',
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(exportScoped.ok).toBe(true);
+    expect(exportScoped.rows).toHaveLength(1);
+    expect(exportScoped.rows[0].id).toBe('adp-exp-owned');
+    expect(exportScoped.rows.some((r) => r.id === 'adp-exp-other')).toBe(false);
+    const exportBody =
+      typeof exportScoped.body === 'string'
+        ? exportScoped.body
+        : JSON.stringify(exportScoped.rows);
+    expect(exportBody).not.toMatch(
+      /SECRET_ANSWER|tok-export|accessToken|secretNote/i
+    );
+
+    const dqClosed = await runAdoptionDataQuality(prisma, { admin: agent });
+    expect(dqClosed.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(dqClosed.checks).toBeNull();
+    expect(dqClosed.meta?.failClosed || dqClosed.reason).toBeTruthy();
+
+    const dqScoped = await runAdoptionDataQuality(prisma, {
+      admin: agent,
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(dqScoped.ok).toBe(true);
+    expect(dqScoped.status).toBe(ADOPTION_REPORT_STATUS.READY);
+    expect(dqScoped.checks.totalPlans).toBe(1);
+    expect(dqScoped.checks.totalRequests).toBe(1);
+
+    const reconClosed = await runAdoptionReconciliation(prisma, { admin: agent });
+    expect(reconClosed.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(reconClosed.cards).toBeNull();
+    expect(reconClosed.meta?.failClosed || reconClosed.reason).toBeTruthy();
+
+    const reconScoped = await runAdoptionReconciliation(prisma, {
+      admin: agent,
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(reconScoped.ok).toBe(true);
+    expect(reconScoped.status).toBe(ADOPTION_REPORT_STATUS.READY);
+    expect(reconScoped.cards.plans).toBe(1);
+    expect(reconScoped.cards.lineageIntact).toBeNull();
+    expect(reconScoped.cards.lineageIntact).not.toBe(true);
+    expect(dqScoped.checks.blockingDq).toBeNull();
+    expect(dqScoped.checks.blockingDq).not.toBe(false);
+
+    // Missing request model → UNAVAILABLE / totalRequests null — never invent 0.
+    const noRequestPrisma = makePrisma();
+    delete noRequestPrisma.customerAdoptionRequest;
+    await noRequestPrisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-dq-only',
+        planNumber: 'ADP-2026-000470',
+        status: 'ACTIVE',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+      },
+    });
+    const dqNoRequest = await runAdoptionDataQuality(noRequestPrisma, {
+      admin: superAdmin(),
+    });
+    expect(dqNoRequest.status).toBe(ADOPTION_REPORT_STATUS.UNAVAILABLE);
+    expect(dqNoRequest.checks?.totalRequests).toBeNull();
+    expect(dqNoRequest.checks?.totalRequests).not.toBe(0);
+    expect(dqNoRequest.honesty?.falseZeroes).toBe(false);
+  });
+
+  it('Phase 8 linked CsSuccessPlan projects Plan status — never invent COMPLETED', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const viewer = csViewerOnly();
+
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-p8',
+        planNumber: 'ADP-2026-000430',
+        status: 'ACTIVE',
+        tenantId: 'tenant-p8',
+        customerId: 'cust-p8',
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-p8-b',
+        planNumber: 'ADP-2026-000431',
+        status: 'ACTIVE',
+        tenantId: 'tenant-ambiguous',
+        customerId: 'cust-amb-a',
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-p8-c',
+        planNumber: 'ADP-2026-000432',
+        status: 'ACTIVE',
+        tenantId: 'tenant-ambiguous',
+        customerId: 'cust-amb-b',
+      },
+    });
+    await prisma.csSuccessPlan.create({
+      data: {
+        id: 'csp-1',
+        tenantId: 'tenant-p8',
+        customerId: 'cust-p8',
+        title: 'Legacy success plan',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-01'),
+        sourceNote: 'legacy',
+      },
+    });
+    await prisma.csSuccessPlan.create({
+      data: {
+        id: 'csp-orphan',
+        tenantId: 'tenant-orphan',
+        title: 'Orphan plan',
+        status: 'DONE',
+      },
+    });
+    await prisma.csSuccessPlan.create({
+      data: {
+        id: 'csp-ambiguous',
+        tenantId: 'tenant-ambiguous',
+        title: 'Ambiguous',
+        status: 'COMPLETED',
+      },
+    });
+
+    const viewDenied = await migratePhase8SuccessPlans(prisma, {
+      admin: viewer,
+      actorContext: { admin: viewer },
+    });
+    expect(viewDenied.ok).toBe(false);
+    expect(viewDenied.forbidden).toBe(true);
+
+    const migrated = await migratePhase8SuccessPlans(prisma, {
+      admin,
+      actorContext: { admin },
+    });
+    expect(migrated.ok).toBe(true);
+    expect(migrated.linked).toBeGreaterThanOrEqual(1);
+    expect(migrated.explicitMatchOnly).toBe(true);
+
+    const linked = prisma._csSuccessPlanStore.find((r) => r.id === 'csp-1');
+    expect(linked.adoptionPlanId).toBe('adp-p8');
+
+    const orphan = prisma._csSuccessPlanStore.find((r) => r.id === 'csp-orphan');
+    expect(orphan.adoptionPlanId == null || orphan.migrationStatus === 'UNKNOWN').toBe(
+      true
+    );
+    expect(orphan.status).not.toBe('COMPLETED');
+
+    const ambiguous = prisma._csSuccessPlanStore.find((r) => r.id === 'csp-ambiguous');
+    expect(ambiguous.adoptionPlanId).toBeFalsy();
+    expect(ambiguous.migrationStatus).toBe('UNKNOWN');
+
+    const foundation = await getFoundationStatus(prisma, {
+      admin,
+      kind: 'plans',
+      tenantId: 'tenant-p8',
+    });
+    expect(foundation.ok).toBe(true);
+    const item = foundation.items?.find((i) => i.id === 'csp-1');
+    expect(item).toBeTruthy();
+    expect(item.projectedFromPlan || item.projectedFromProgram).toBe(true);
+    expect(item.status).toBe('ACTIVE');
+    expect(item.status).not.toBe('COMPLETED');
+
+    await prisma.csSuccessPlan.create({
+      data: {
+        id: 'csp-broken-link',
+        tenantId: 'tenant-p8',
+        title: 'Broken link',
+        status: 'COMPLETED',
+        completedAt: new Date('2026-01-02'),
+        adoptionPlanId: 'adp-does-not-exist',
+        migrationStatus: 'UNKNOWN',
+      },
+    });
+    const foundationBroken = await getFoundationStatus(prisma, {
+      admin,
+      kind: 'plans',
+      tenantId: 'tenant-p8',
+    });
+    const broken = foundationBroken.items?.find((i) => i.id === 'csp-broken-link');
+    expect(broken).toBeTruthy();
+    expect(broken.linkBroken).toBe(true);
+    expect(broken.projectedFromPlan || broken.projectedFromProgram).toBe(false);
+    expect(broken.status).not.toBe('COMPLETED');
+    expect(['UNKNOWN', 'NOT_INSTRUMENTED', 'LINK_BROKEN']).toContain(broken.status);
+    expect(broken.completedAt).toBeNull();
+
+    const viaHelper = await getFoundationStatusWithPlan(prisma, {
+      admin,
+      kind: 'plans',
+      tenantId: 'tenant-p8',
+    });
+    expect(viaHelper.items?.find((i) => i.id === 'csp-1')?.status).toBe('ACTIVE');
+    expect(getAdoptionDomainContract().phase).toBe(19);
+  });
+
+  it('EN + NY i18n keys for adoption surfaces resolve (smoke)', () => {
+    const en = JSON.parse(
+      readFileSync(join(process.cwd(), 'locales/en/admin-pages.json'), 'utf8')
+    );
+    const ny = JSON.parse(
+      readFileSync(join(process.cwd(), 'locales/ny/admin-pages.json'), 'utf8')
+    );
+    const keys = [
+      'customerSuccess.adoptionHub.title',
+      'customerSuccess.adoptionHub.overview',
+      'customerSuccess.adoptionHub.myWork',
+      'customerSuccess.adoptionHub.queues',
+      'customerSuccess.adoptionHub.reports',
+      'customerSuccess.adoptionHub.contextBar',
+    ];
+    for (const path of keys) {
+      const parts = path.split('.');
+      let nodeEn = en;
+      let nodeNy = ny;
+      for (const p of parts) {
+        nodeEn = nodeEn?.[p];
+        nodeNy = nodeNy?.[p];
+      }
+      expect(typeof nodeEn).toBe('string');
+      expect(nodeEn.length).toBeGreaterThan(0);
+      expect(typeof nodeNy).toBe('string');
+      expect(nodeNy.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('Phase 20 pack present with READY_FOR_PHASE_20_WITH_BLOCKERS', () => {
+    const base = join(process.cwd(), 'docs/admin-intelligence-crm/phase-19');
+    const inputs = join(base, 'PHASE_20_INPUTS.md');
+    const checklist = join(base, 'PHASE_20_READINESS_CHECKLIST.md');
+    const finalReport = join(base, 'FINAL_PHASE_19_REPORT.md');
+    const decision = join(base, 'FINAL_READINESS_DECISION.md');
+    for (const p of [inputs, checklist, finalReport, decision]) {
+      expect(existsSync(p)).toBe(true);
+    }
+    const decisionBody = readFileSync(decision, 'utf8');
+    expect(decisionBody).toMatch(/READY_FOR_PHASE_20_WITH_BLOCKERS/);
+    const inputsBody = readFileSync(inputs, 'utf8');
+    expect(inputsBody).toMatch(/blocker|carry/i);
+    const reportBody = readFileSync(finalReport, 'utf8');
+    expect(reportBody).toMatch(/READY_FOR_PHASE_20_WITH_BLOCKERS/);
+  });
+
+  it('lineage is portfolio-scoped (fail-closed)', async () => {
+    const prisma = makePrisma();
+    const agent = csAgent('cs-lineage');
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-lin-owned',
+        planNumber: 'ADP-2026-000480',
+        status: 'ACTIVE',
+        tenantId: 'tenant-owned',
+        customerId: 'cust-a',
+        adoptionRequestId: 'adr-1',
+        trainingProgramId: 'trn-1',
+        onboardingHandoverId: 'handover-1',
+      },
+    });
+    await prisma.customerAdoptionPlan.create({
+      data: {
+        id: 'adp-lin-other',
+        planNumber: 'ADP-2026-000481',
+        status: 'ACTIVE',
+        tenantId: 'tenant-other',
+        customerId: 'cust-b',
+      },
+    });
+
+    const denied = await getAdoptionLineage(prisma, {
+      admin: agent,
+      planId: 'adp-lin-other',
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(denied.ok).toBe(false);
+    expect(denied.error || denied.reason).toMatch(/out.?of.?scope|forbidden|denied/i);
+    expect(denied.lineage).toBeNull();
+
+    const ok = await getAdoptionLineage(prisma, {
+      admin: agent,
+      planId: 'adp-lin-owned',
+      portfolioTenantIds: ['tenant-owned'],
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.lineage.plan.id).toBe('adp-lin-owned');
+    expect(ok.lineage.adoptionRequestId).toBe('adr-1');
+    expect(ok.lineage.trainingProgramId).toBe('trn-1');
+  });
+});
+
+
+===== docs/admin-intelligence-crm/phase-19/FINAL_READINESS_DECISION.md =====
+
+# Final Readiness Decision — Exit Phase 19 / Enter Phase 20
+
+**Decision:** **READY_FOR_PHASE_20_WITH_BLOCKERS**
+
+**Date:** 2026-07-31
+
+## Rationale
+
+Phase 19 Waves 0–4 deliver a trustworthy Customer Adoption plane:
+
+1. **Wave 0** forensic pack + CONDITIONAL GO validated Phase 18 inputs and Phase 8/9 reuse honesty.
+2. **Waves 1–3** deliver durable Request/Plan saga, milestones/value/Phase 9 evidence, champions/dormancy/Phase 8 intervention links, expansion handoffs — with honesty boundaries (Training WITH_GAPS ≠ auto Request; handover ≠ invent COMPLETED; expansion ≠ execute billing; no Tenant GL).
+3. **Wave 4** delivers Overview/My Work/Team/Portfolio/Attention/Context Bar UI, reliability-gated metrics (gate fail → UNAVAILABLE / `value: null`), DQ/recon/lineage, report catalogue + secret/token-stripped exports, Phase 8 `CsSuccessPlan` link (or UNKNOWN — never invent COMPLETED), EN+NY hub keys, and Phase 20 input pack.
+4. Vitest Waves 1–4 green (WORKING_TREE). Exit docs written.
+5. Optional gaps explicit: Phase 18 carry blockers + advanced ML / portal / deep renewals execute.
+
+## Conditions for Phase 20
+
+1. Consume Adoption Plans / expansion handoffs without inventing completion from foundations emptiness or Success Plan legacy COMPLETED.
+2. Never invent KPI zeroes on reliability gate failure.
+3. Never treat Phase 8 historical Success Plan COMPLETED as Adoption Plan COMPLETED without linked Plan evidence.
+4. Expansion ACK ≠ renewals/billing/entitlement execute until Phase 20 wires that path honestly.
+5. Treat virtual provider / recording / rich banks / portal / payment/e-sign / ML churn / self-serve portal as explicit blockers until configured.
+
+## Wave / pack completion
+
+- [x] Phase input validation PASS (Wave 0)
+- [x] CURRENT_* + ADOPTION_* audits + matrices
+- [x] Gap register + IMPLEMENTATION_PLAN Waves 1–4
+- [x] Wave 1 application code
+- [x] Wave 2 application code
+- [x] Wave 3 application code
+- [x] Wave 4 application code + Phase 20 pack
+- [x] **READY_FOR_PHASE_20_WITH_BLOCKERS** recorded
+
+**Next:** Phase 20 may consume Adoption Plans / handoffs / value outcomes under documented blockers.
+
+**Stop:** Do not fabricate Plan COMPLETED from Training/onboarding/Phase 8 emptiness; do not invent KPI zeroes on gate fail; do not execute billing/entitlements from Adoption; do not leak secrets/tokens in search/exports.
+
+===== docs/admin-intelligence-crm/phase-19/PHASE_20_INPUTS.md =====
+
+# Phase 20 Inputs — from Customer Adoption Phase 19
+
+**Source exit:** `READY_FOR_PHASE_20_WITH_BLOCKERS` (see `FINAL_PHASE_19_REPORT.md`)  
+**Date:** 2026-07-31
+
+## What Phase 20 may consume
+
+| Input | Location / contract | Notes |
+|-------|---------------------|-------|
+| CustomerAdoptionRequest / Plan spine | `lib/admin/customerSuccess/adoption/*` | ADR + ADP durable; Training COMPLETED consume; handover attach ≠ invent COMPLETED |
+| Milestones / value outcomes / Plan completion | Wave 2 services | Phase 9 evidence honesty; COMPLETED gated by evaluation |
+| Champions / dormancy / Phase 8 intervention links | Wave 3 | Contact-verified champions; dormancy RECOVERED evidence gate; link-by-id only |
+| Expansion handoffs | `expansion.js` | DRAFT→HANDED_OFF→ACKNOWLEDGED; no Subscription/entitlement/invoice writes |
+| Health / metrics / reliability | `health.js`, `metrics.js`, `reliabilityGate.js` | Gate fail → UNAVAILABLE / `value: null` |
+| DQ / recon / lineage | `dataQuality.js`, `reconciliation.js`, `lineage.js` | Never invent zeroes / `lineageIntact: true` |
+| Reports / exports / search | `reports.js`, `exports.js`, `search.js` | Secrets/tokens stripped; portfolio fail-closed |
+| Phase 8 Success Plan link | `phase8Migrate.js`, `foundations.js` | Plan when linked; UNKNOWN if unresolved / broken |
+| EN + NY hub keys | `locales/*/admin-pages.json` `customerSuccess.adoptionHub.*` | Smoke-covered |
+
+## What Phase 20 must not assume
+
+- Expansion ACK implies renewals/billing/entitlement execute
+- Reliability gate failures may be rendered as zero KPIs
+- Phase 8 historical `CsSuccessPlan.status=COMPLETED` implies Adoption Plan COMPLETED
+- Training COMPLETED / onboarding handover alone implies Plan COMPLETED
+- Advanced ML churn scoring / rich customer self-serve adoption portal are delivered
+- Virtual provider / session recording / rich LMS banks / training portal / payment/e-sign are configured (Phase 18 carry)
+
+## Suggested Phase 20 scope seeds
+
+1. Deepen renewals execute-after-ACK consuming Expansion handoffs honestly
+2. Optional: expansion quoting / commercial package attachment (typed until wired)
+3. Optional: advanced health / churn scoring when instrumented (never invent scores)
+4. Optional: customer self-serve adoption portal evidence path (typed unavailable until then)
+5. Keep invent-zeroes / handoff≠execute / accounting boundary / Phase 8 UNKNOWN invariants
+
+## Carry gaps (explicit blockers)
+
+### From Phase 18
+- Virtual provider → `VIRTUAL_PROVIDER_NOT_CONFIGURED`
+- Session recording → not delivered
+- Rich LMS authoring / question banks → optional gap
+- Customer training portal → typed unavailable if referenced
+- Payment provider / e-sign → `NOT_CONFIGURED` (Phase 16 carry)
+
+### From Phase 19 (optional / out of thin Wave 4)
+- Advanced ML churn scoring → out of scope / typed unavailable
+- Rich customer self-serve adoption portal → typed unavailable if referenced
+- Deep renewals execute integration beyond handoff ACK → Phase 20+
+- Prisma EPERM on Windows generate/push → SQL fallback (`scripts/sql/cs-adoption-phase19-wave4.sql`)
+- Rich UI polish beyond thin AdminShell hubs → product waves
+
+## Honesty gates to preserve
+
+- Gate fail → `UNAVAILABLE` with `value: null` — never false zero
+- Plan COMPLETED only from Adoption evaluation policy + manage/portfolio authz
+- Phase 8 Success Plan link or UNKNOWN — never invent Plan COMPLETED from legacy rows
+- Expansion handoff ≠ execute billing / entitlements / Tenant GL
+- No secrets / tokens in search / exports
+- Portfolio list/search/export/DQ/metrics/writes fail-closed

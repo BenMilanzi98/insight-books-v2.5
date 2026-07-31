@@ -1,4 +1,4 @@
-import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma.js';
 import { eisErrorResponse, eisJson, readRequestId } from '@/lib/mraEis/http.js';
 import { EisErrors } from '@/lib/mraEis/domain/errors.js';
@@ -7,14 +7,14 @@ import { evaluateConfigurationFreshness } from '@/lib/mraEis/application/configu
 
 export async function GET(request) {
   try {
-    const user = await getUserFromSession();
-    if (!user) throw EisErrors.permissionDenied({ httpStatus: 401, message: 'Unauthorized' });
-    const allowed =
-      adminHasEisPermission(user, SYSTEM_EIS_PERMISSIONS.CONFIGURATION_VIEW) ||
-      adminHasEisPermission(user, SYSTEM_EIS_PERMISSIONS.VIEW) ||
-      hasPermission(user, 'admin.access') ||
-      user.role === 'Super Admin';
-    if (!allowed) throw EisErrors.permissionDenied();
+    const admin = await getAdminFromRequest(request);
+    if (!admin) throw EisErrors.permissionDenied({ httpStatus: 401, message: 'Unauthorized' });
+    if (
+      !adminHasEisPermission(admin, SYSTEM_EIS_PERMISSIONS.CONFIGURATION_VIEW) &&
+      !adminHasEisPermission(admin, SYSTEM_EIS_PERMISSIONS.VIEW)
+    ) {
+      throw EisErrors.permissionDenied();
+    }
 
     const { searchParams } = new URL(request.url);
     const where = {};

@@ -1,0 +1,5091 @@
+﻿# Review package — Phase 12 Task 1 (WORKING_TREE)
+
+diff --git "a/lib\\admin\\crm\\pipeline\\catalogue.js" "b/lib\\admin\\crm\\pipeline\\catalogue.js"
+new file mode 100644
+index 0000000..7ebebb4
+--- /dev/null
++++ "b/lib\\admin\\crm\\pipeline\\catalogue.js"
+@@ -0,0 +1,60 @@
++/**
++ * Pipeline catalogue constants ΓÇö Phase 12 Wave 1.
++ * Pipeline stages Γëá Lead statuses Γëá analytics-pipeline.
++ */
++
++export const CRM_PIPELINE_DEFINITION_VERSION = 'crm-pipeline-new-business-v1-2026-07-30';
++
++export const CRM_PIPELINE_CODE = Object.freeze({
++  NEW_BUSINESS: 'NEW_BUSINESS',
++});
++
++export const CRM_PIPELINE_CODES = Object.freeze(Object.values(CRM_PIPELINE_CODE));
++
++export const CRM_PIPELINE_STATUS = Object.freeze({
++  ACTIVE: 'ACTIVE',
++  DRAFT: 'DRAFT',
++  RETIRED: 'RETIRED',
++});
++
++export const CRM_PIPELINE_STAGE = Object.freeze({
++  OPPORTUNITY_IDENTIFIED: 'OPPORTUNITY_IDENTIFIED',
++  DISCOVERY: 'DISCOVERY',
++  NEED_CONFIRMED: 'NEED_CONFIRMED',
++  SOLUTION_FIT: 'SOLUTION_FIT',
++  COMMERCIAL_SCOPING: 'COMMERCIAL_SCOPING',
++  DECISION_PROCESS: 'DECISION_PROCESS',
++  PROPOSAL_READY: 'PROPOSAL_READY',
++  CUSTOMER_DECISION: 'CUSTOMER_DECISION',
++  CLOSED_WON: 'CLOSED_WON',
++  CLOSED_LOST: 'CLOSED_LOST',
++});
++
++/** Ordered open ΓåÆ terminal stages (stable codes). */
++export const CRM_PIPELINE_STAGES_ORDERED = Object.freeze([
++  CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED,
++  CRM_PIPELINE_STAGE.DISCOVERY,
++  CRM_PIPELINE_STAGE.NEED_CONFIRMED,
++  CRM_PIPELINE_STAGE.SOLUTION_FIT,
++  CRM_PIPELINE_STAGE.COMMERCIAL_SCOPING,
++  CRM_PIPELINE_STAGE.DECISION_PROCESS,
++  CRM_PIPELINE_STAGE.PROPOSAL_READY,
++  CRM_PIPELINE_STAGE.CUSTOMER_DECISION,
++  CRM_PIPELINE_STAGE.CLOSED_WON,
++  CRM_PIPELINE_STAGE.CLOSED_LOST,
++]);
++
++export const CRM_PIPELINE_TERMINAL_STAGES = Object.freeze([
++  CRM_PIPELINE_STAGE.CLOSED_WON,
++  CRM_PIPELINE_STAGE.CLOSED_LOST,
++]);
++
++export const CRM_OPPORTUNITY_STATUS = Object.freeze({
++  OPEN: 'OPEN',
++  WON: 'WON',
++  LOST: 'LOST',
++});
++
++export const CRM_OPPORTUNITY_NUMBER_RE = /^OPP-\d{4}-\d{6}$/;
++
++export const CRM_HANDOFF_TYPE_OPPORTUNITY = 'CRM_OPPORTUNITY_HANDOFF';
+diff --git "a/lib\\admin\\crm\\pipeline\\definitions.js" "b/lib\\admin\\crm\\pipeline\\definitions.js"
+new file mode 100644
+index 0000000..83b6bb3
+--- /dev/null
++++ "b/lib\\admin\\crm\\pipeline\\definitions.js"
+@@ -0,0 +1,162 @@
++/**
++ * Pipeline definitions ΓÇö Phase 12 Wave 1.
++ * ACTIVE NEW_BUSINESS v1 seed (catalogue). DB seed optional via SQL.
++ */
++
++import {
++  CRM_PIPELINE_CODE,
++  CRM_PIPELINE_DEFINITION_VERSION,
++  CRM_PIPELINE_STAGE,
++  CRM_PIPELINE_STAGES_ORDERED,
++  CRM_PIPELINE_STATUS,
++  CRM_PIPELINE_TERMINAL_STAGES,
++} from './catalogue.js';
++
++const STAGE_META = Object.freeze({
++  [CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED]: {
++    name: 'Opportunity Identified',
++    defaultProbability: 10,
++    entryCriteria: Object.freeze(['handoff_ready']),
++    exitCriteria: Object.freeze(['discovery_started']),
++  },
++  [CRM_PIPELINE_STAGE.DISCOVERY]: {
++    name: 'Discovery',
++    defaultProbability: 20,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['need_documented']),
++  },
++  [CRM_PIPELINE_STAGE.NEED_CONFIRMED]: {
++    name: 'Need Confirmed',
++    defaultProbability: 30,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['solution_fit_assessed']),
++  },
++  [CRM_PIPELINE_STAGE.SOLUTION_FIT]: {
++    name: 'Solution Fit',
++    defaultProbability: 40,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['commercial_scope_started']),
++  },
++  [CRM_PIPELINE_STAGE.COMMERCIAL_SCOPING]: {
++    name: 'Commercial Scoping',
++    defaultProbability: 50,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['decision_process_mapped']),
++  },
++  [CRM_PIPELINE_STAGE.DECISION_PROCESS]: {
++    name: 'Decision Process',
++    defaultProbability: 60,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['proposal_ready']),
++  },
++  [CRM_PIPELINE_STAGE.PROPOSAL_READY]: {
++    name: 'Proposal Ready',
++    defaultProbability: 70,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['customer_decision_pending']),
++  },
++  [CRM_PIPELINE_STAGE.CUSTOMER_DECISION]: {
++    name: 'Customer Decision',
++    defaultProbability: 80,
++    entryCriteria: Object.freeze(['prior_stage']),
++    exitCriteria: Object.freeze(['closed_outcome']),
++  },
++  [CRM_PIPELINE_STAGE.CLOSED_WON]: {
++    name: 'Closed Won',
++    defaultProbability: 100,
++    entryCriteria: Object.freeze(['terminal_close']),
++    exitCriteria: Object.freeze([]),
++  },
++  [CRM_PIPELINE_STAGE.CLOSED_LOST]: {
++    name: 'Closed Lost',
++    defaultProbability: 0,
++    entryCriteria: Object.freeze(['terminal_close']),
++    exitCriteria: Object.freeze([]),
++  },
++});
++
++/**
++ * Default ACTIVE NEW_BUSINESS Pipeline definition (Wave 1).
++ */
++export function getDefaultNewBusinessPipelineDefinition() {
++  const stages = CRM_PIPELINE_STAGES_ORDERED.map((code, index) => {
++    const meta = STAGE_META[code];
++    const terminal = CRM_PIPELINE_TERMINAL_STAGES.includes(code);
++    return Object.freeze({
++      code,
++      name: meta.name,
++      sortOrder: index + 1,
++      terminal,
++      /** Wave 2 consumes; stub OK in Wave 1 */
++      defaultProbability: meta.defaultProbability,
++      entryCriteria: meta.entryCriteria,
++      exitCriteria: meta.exitCriteria,
++    });
++  });
++
++  return Object.freeze({
++    id: 'pipeline-new-business-catalogue',
++    code: CRM_PIPELINE_CODE.NEW_BUSINESS,
++    name: 'New Business',
++    status: CRM_PIPELINE_STATUS.ACTIVE,
++    version: CRM_PIPELINE_DEFINITION_VERSION,
++    versionId: CRM_PIPELINE_DEFINITION_VERSION,
++    stages: Object.freeze(stages),
++    source: 'catalogue',
++    weightedUiEnabled: false,
++  });
++}
++
++/**
++ * @param {string} code
++ */
++export function getPipelineDefinitionByCode(code) {
++  const c = String(code || '').trim().toUpperCase();
++  if (c === CRM_PIPELINE_CODE.NEW_BUSINESS) {
++    return getDefaultNewBusinessPipelineDefinition();
++  }
++  return null;
++}
++
++/**
++ * @param {string} stageCode
++ */
++export function isTerminalStage(stageCode) {
++  return CRM_PIPELINE_TERMINAL_STAGES.includes(String(stageCode || '').toUpperCase());
++}
++
++/**
++ * @param {string} stageCode
++ */
++export function stageSortOrder(stageCode) {
++  const code = String(stageCode || '').toUpperCase();
++  const idx = CRM_PIPELINE_STAGES_ORDERED.indexOf(code);
++  return idx >= 0 ? idx + 1 : -1;
++}
++
++/**
++ * Wave 1: sequential forward only + jump to terminal CLOSED_*.
++ * @param {string} fromStageCode
++ * @param {string} toStageCode
++ */
++export function canTransitionStage(fromStageCode, toStageCode) {
++  const from = String(fromStageCode || '').toUpperCase();
++  const to = String(toStageCode || '').toUpperCase();
++  if (!from || !to || from === to) return false;
++  if (isTerminalStage(from)) return false;
++  if (!CRM_PIPELINE_STAGES_ORDERED.includes(from)) return false;
++  if (!CRM_PIPELINE_STAGES_ORDERED.includes(to)) return false;
++
++  if (isTerminalStage(to)) return true;
++
++  const fromIdx = CRM_PIPELINE_STAGES_ORDERED.indexOf(from);
++  const toIdx = CRM_PIPELINE_STAGES_ORDERED.indexOf(to);
++  // sequential forward among non-terminal (CLOSED_* sit at end; open next = fromIdx+1)
++  const openStages = CRM_PIPELINE_STAGES_ORDERED.filter((c) => !isTerminalStage(c));
++  const fromOpen = openStages.indexOf(from);
++  const toOpen = openStages.indexOf(to);
++  if (fromOpen < 0 || toOpen < 0) return false;
++  return toOpen === fromOpen + 1;
++}
++
++export { STAGE_META };
+diff --git "a/lib\\admin\\crm\\pipeline\\index.js" "b/lib\\admin\\crm\\pipeline\\index.js"
+new file mode 100644
+index 0000000..13e16dc
+--- /dev/null
++++ "b/lib\\admin\\crm\\pipeline\\index.js"
+@@ -0,0 +1,191 @@
++/**
++ * Pipeline public surface ΓÇö Phase 12 Wave 1.
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import {
++  CRM_PIPELINE_CODE,
++  CRM_PIPELINE_CODES,
++  CRM_PIPELINE_DEFINITION_VERSION,
++  CRM_PIPELINE_STAGE,
++  CRM_PIPELINE_STAGES_ORDERED,
++  CRM_PIPELINE_STATUS,
++  CRM_PIPELINE_TERMINAL_STAGES,
++  CRM_OPPORTUNITY_STATUS,
++  CRM_HANDOFF_TYPE_OPPORTUNITY,
++} from './catalogue.js';
++import {
++  getDefaultNewBusinessPipelineDefinition,
++  getPipelineDefinitionByCode,
++  canTransitionStage,
++  isTerminalStage,
++  stageSortOrder,
++} from './definitions.js';
++import {
++  listPipelineStages,
++  getStageDefinition,
++  hasCrmPipelineStageModel,
++} from './stages.js';
++import {
++  transitionOpportunityStage,
++  hasCrmOpportunityModel,
++  hasCrmOpportunityStageHistoryModel,
++  serializeOpportunity,
++} from './transition.js';
++
++export function hasCrmPipelineModel(prisma) {
++  return typeof prisma?.crmPipeline?.findMany === 'function';
++}
++
++export function hasCrmPipelineVersionModel(prisma) {
++  return typeof prisma?.crmPipelineVersion?.findFirst === 'function';
++}
++
++/**
++ * List Pipelines (catalogue fallback when DB empty / EPERM).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object }} args
++ */
++export async function listPipelines(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewPipeline) {
++    return { ok: false, forbidden: true, reason: 'crm_pipeline_view_forbidden' };
++  }
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  const items = [];
++
++  if (hasCrmPipelineModel(prisma)) {
++    try {
++      const rows = await prisma.crmPipeline.findMany({});
++      for (const p of rows || []) {
++        let version = null;
++        if (hasCrmPipelineVersionModel(prisma)) {
++          version = await prisma.crmPipelineVersion.findFirst({
++            where: { pipelineId: p.id, status: CRM_PIPELINE_STATUS.ACTIVE },
++          });
++        }
++        const stagesRes = await listPipelineStages(prisma, {
++          pipelineCode: p.code,
++          pipelineVersionId: version?.id || null,
++        });
++        items.push({
++          id: p.id,
++          code: p.code,
++          name: p.name,
++          status: p.status || CRM_PIPELINE_STATUS.ACTIVE,
++          version: version?.versionId || version?.version || null,
++          versionId: version?.id || null,
++          stages: stagesRes.stages,
++          source: 'db',
++          weightedUiEnabled: false,
++        });
++      }
++    } catch {
++      // fall through
++    }
++  }
++
++  if (items.length === 0) {
++    const def = getDefaultNewBusinessPipelineDefinition();
++    items.push({ ...def });
++  }
++
++  return {
++    ok: true,
++    items,
++    meta: {
++      scopeMode: scope.mode,
++      scopeStub: scope.stub === true,
++      weightedUiEnabled: false,
++      definitionVersion: CRM_PIPELINE_DEFINITION_VERSION,
++    },
++  };
++}
++
++/**
++ * Get Pipeline by id or code.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, id: string }} args
++ */
++export async function getPipeline(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewPipeline) {
++    return { ok: false, forbidden: true, reason: 'crm_pipeline_view_forbidden' };
++  }
++
++  const id = args.id ? String(args.id).trim() : '';
++  if (!id) return { ok: false, error: 'id_required' };
++
++  if (hasCrmPipelineModel(prisma)) {
++    try {
++      let row =
++        (await prisma.crmPipeline.findUnique({ where: { id } }).catch(() => null)) ||
++        (await prisma.crmPipeline.findUnique({ where: { code: id.toUpperCase() } }).catch(
++          () => null
++        ));
++      if (row) {
++        let version = null;
++        if (hasCrmPipelineVersionModel(prisma)) {
++          version = await prisma.crmPipelineVersion.findFirst({
++            where: { pipelineId: row.id, status: CRM_PIPELINE_STATUS.ACTIVE },
++          });
++        }
++        const stagesRes = await listPipelineStages(prisma, {
++          pipelineCode: row.code,
++          pipelineVersionId: version?.id || null,
++        });
++        return {
++          ok: true,
++          pipeline: {
++            id: row.id,
++            code: row.code,
++            name: row.name,
++            status: row.status,
++            version: version?.versionId || version?.version || null,
++            versionId: version?.id || null,
++            stages: stagesRes.stages,
++            source: 'db',
++            weightedUiEnabled: false,
++          },
++        };
++      }
++    } catch {
++      // catalogue fallback
++    }
++  }
++
++  const def = getPipelineDefinitionByCode(id) || getPipelineDefinitionByCode(id.toUpperCase());
++  if (!def) return { ok: false, notFound: true, error: 'pipeline_not_found' };
++  return { ok: true, pipeline: { ...def } };
++}
++
++export {
++  CRM_PIPELINE_CODE,
++  CRM_PIPELINE_CODES,
++  CRM_PIPELINE_DEFINITION_VERSION,
++  CRM_PIPELINE_STAGE,
++  CRM_PIPELINE_STAGES_ORDERED,
++  CRM_PIPELINE_STATUS,
++  CRM_PIPELINE_TERMINAL_STAGES,
++  CRM_OPPORTUNITY_STATUS,
++  CRM_HANDOFF_TYPE_OPPORTUNITY,
++  getDefaultNewBusinessPipelineDefinition,
++  getPipelineDefinitionByCode,
++  canTransitionStage,
++  isTerminalStage,
++  stageSortOrder,
++  listPipelineStages,
++  getStageDefinition,
++  hasCrmPipelineStageModel,
++  transitionOpportunityStage,
++  hasCrmOpportunityModel,
++  hasCrmOpportunityStageHistoryModel,
++  serializeOpportunity,
++};
+diff --git "a/lib\\admin\\crm\\pipeline\\stages.js" "b/lib\\admin\\crm\\pipeline\\stages.js"
+new file mode 100644
+index 0000000..6762487
+--- /dev/null
++++ "b/lib\\admin\\crm\\pipeline\\stages.js"
+@@ -0,0 +1,77 @@
++/**
++ * Pipeline stages helpers ΓÇö Phase 12 Wave 1.
++ */
++
++import {
++  getDefaultNewBusinessPipelineDefinition,
++  getPipelineDefinitionByCode,
++  isTerminalStage,
++  stageSortOrder,
++  canTransitionStage,
++} from './definitions.js';
++import { CRM_PIPELINE_CODE, CRM_PIPELINE_STAGE } from './catalogue.js';
++
++export function hasCrmPipelineStageModel(prisma) {
++  return typeof prisma?.crmPipelineStage?.findMany === 'function';
++}
++
++/**
++ * Resolve stages for a pipeline (DB version if present, else catalogue).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ pipelineCode?: string, pipelineVersionId?: string|null }} [opts]
++ */
++export async function listPipelineStages(prisma, opts = {}) {
++  const code = String(opts.pipelineCode || CRM_PIPELINE_CODE.NEW_BUSINESS)
++    .trim()
++    .toUpperCase();
++  const def = getPipelineDefinitionByCode(code) || getDefaultNewBusinessPipelineDefinition();
++
++  if (opts.pipelineVersionId && hasCrmPipelineStageModel(prisma)) {
++    try {
++      const rows = await prisma.crmPipelineStage.findMany({
++        where: { pipelineVersionId: String(opts.pipelineVersionId) },
++        orderBy: { sortOrder: 'asc' },
++      });
++      if (rows?.length) {
++        return {
++          ok: true,
++          source: 'db',
++          stages: rows.map((r) => ({
++            code: r.code,
++            name: r.name,
++            sortOrder: r.sortOrder,
++            terminal: Boolean(r.terminal),
++            defaultProbability:
++              r.defaultProbability != null ? Number(r.defaultProbability) : null,
++            entryCriteria: r.entryCriteria ?? null,
++            exitCriteria: r.exitCriteria ?? null,
++          })),
++        };
++      }
++    } catch {
++      // fall through to catalogue
++    }
++  }
++
++  return { ok: true, source: 'catalogue', stages: [...def.stages] };
++}
++
++/**
++ * @param {string} stageCode
++ * @param {{ pipelineCode?: string }} [opts]
++ */
++export function getStageDefinition(stageCode, opts = {}) {
++  const code = String(stageCode || '').trim().toUpperCase();
++  const def =
++    getPipelineDefinitionByCode(opts.pipelineCode) ||
++    getDefaultNewBusinessPipelineDefinition();
++  return def.stages.find((s) => s.code === code) || null;
++}
++
++export {
++  isTerminalStage,
++  stageSortOrder,
++  canTransitionStage,
++  CRM_PIPELINE_STAGE,
++};
+diff --git "a/lib\\admin\\crm\\pipeline\\transition.js" "b/lib\\admin\\crm\\pipeline\\transition.js"
+new file mode 100644
+index 0000000..d3569b7
+--- /dev/null
++++ "b/lib\\admin\\crm\\pipeline\\transition.js"
+@@ -0,0 +1,231 @@
++/**
++ * Opportunity stage transition service ΓÇö Phase 12 Wave 1.
++ * Server-governed only; drag clients must call this API.
++ * Invalid ΓåÆ INVALID_TRANSITION (never silent coerce).
++ * Scope: Wave 1 `all` stub (document).
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { canTransitionStage, isTerminalStage } from './definitions.js';
++import {
++  CRM_OPPORTUNITY_STATUS,
++  CRM_PIPELINE_STAGE,
++  CRM_PIPELINE_TERMINAL_STAGES,
++} from './catalogue.js';
++
++export function hasCrmOpportunityModel(prisma) {
++  return typeof prisma?.crmOpportunity?.findUnique === 'function';
++}
++
++export function hasCrmOpportunityStageHistoryModel(prisma) {
++  return typeof prisma?.crmOpportunityStageHistory?.create === 'function';
++}
++
++function serializeOpportunity(row) {
++  if (!row) return null;
++  const out = {
++    id: row.id,
++    opportunityNumber: row.opportunityNumber,
++    pipelineCode: row.pipelineCode || null,
++    pipelineVersionId: row.pipelineVersionId || null,
++    stageCode: row.stageCode,
++    status: row.status,
++    leadId: row.leadId || null,
++    accountId: row.accountId || null,
++    contactId: row.contactId || null,
++    title: row.title || null,
++    ownerAdminId: row.ownerAdminId || null,
++    handoffIdempotencyKey: row.handoffIdempotencyKey || null,
++    version: row.version ?? 1,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++  // Wave 1 honesty: do not invent commercial fields
++  return out;
++}
++
++function opportunityStatusForStage(stageCode) {
++  const code = String(stageCode || '').toUpperCase();
++  if (code === CRM_PIPELINE_STAGE.CLOSED_WON) return CRM_OPPORTUNITY_STATUS.WON;
++  if (code === CRM_PIPELINE_STAGE.CLOSED_LOST) return CRM_OPPORTUNITY_STATUS.LOST;
++  return CRM_OPPORTUNITY_STATUS.OPEN;
++}
++
++/**
++ * @param {object} args
++ * @param {import('@prisma/client').PrismaClient} args.prisma
++ * @param {object} args.admin
++ * @param {string} args.opportunityId
++ * @param {string} args.toStageCode
++ * @param {string} [args.reason]
++ * @param {unknown} [args.evidenceReferences]
++ * @param {string} [args.idempotencyKey]
++ * @param {number} [args.expectedVersion] ΓÇö optimistic lock
++ * @param {Date} [args.now]
++ */
++export async function transitionOpportunityStage(args = {}) {
++  const {
++    prisma,
++    admin,
++    opportunityId,
++    toStageCode,
++    reason,
++    evidenceReferences,
++    idempotencyKey,
++    expectedVersion,
++    now: nowArg,
++  } = args;
++
++  const access = resolveCrmAccess(admin);
++  if (!access.canTransitionOpportunityStages) {
++    return { ok: false, forbidden: true, reason: 'crm_pipeline_transition_forbidden' };
++  }
++
++  if (!hasCrmOpportunityModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_opportunity_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id) return { ok: false, error: 'opportunityId_required' };
++
++  const to = String(toStageCode || '').trim().toUpperCase();
++  if (!to) return { ok: false, error: 'toStageCode_required' };
++
++  /** Wave 1 scope stub ΓÇö holders with transition see all */
++  const scope = await resolveCrmScope(prisma, admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied', scopeMode: scope.mode };
++  }
++
++  let row = null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      row = await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    } else {
++      row = await prisma.crmOpportunity.findUnique({ where: { id } });
++    }
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const key = idempotencyKey != null ? String(idempotencyKey).trim() : '';
++  if (key && hasCrmOpportunityStageHistoryModel(prisma)) {
++    try {
++      const prior = await prisma.crmOpportunityStageHistory.findFirst({
++        where: { opportunityId: row.id, idempotencyKey: key },
++      });
++      if (prior) {
++        const fresh = await prisma.crmOpportunity.findUnique({ where: { id: row.id } });
++        return {
++          ok: true,
++          idempotent: true,
++          opportunity: serializeOpportunity(fresh || row),
++          historyId: prior.id,
++          scopeMode: scope.mode,
++          scopeStub: scope.stub === true,
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  const from = String(row.stageCode || '').toUpperCase();
++  if (!canTransitionStage(from, to)) {
++    return {
++      ok: false,
++      error: 'INVALID_TRANSITION',
++      fromStageCode: from,
++      toStageCode: to,
++      reason: isTerminalStage(from)
++        ? 'terminal_stage'
++        : from === to
++          ? 'same_stage'
++          : 'not_sequential_or_terminal',
++    };
++  }
++
++  if (expectedVersion != null && Number(row.version) !== Number(expectedVersion)) {
++    return {
++      ok: false,
++      error: 'OPTIMISTIC_LOCK_CONFLICT',
++      expectedVersion: Number(expectedVersion),
++      actualVersion: row.version ?? 1,
++    };
++  }
++
++  const now = nowArg || new Date();
++  const nextVersion = (row.version ?? 1) + 1;
++  const status = opportunityStatusForStage(to);
++
++  let updated = null;
++  if (typeof prisma.crmOpportunity.updateMany === 'function') {
++    const lockWhere = { id: row.id };
++    if (row.version != null) lockWhere.version = row.version;
++    const res = await prisma.crmOpportunity.updateMany({
++      where: lockWhere,
++      data: {
++        stageCode: to,
++        status,
++        version: nextVersion,
++        updatedAt: now,
++      },
++    });
++    if (res.count !== 1) {
++      return {
++        ok: false,
++        error: 'OPTIMISTIC_LOCK_CONFLICT',
++        expectedVersion: row.version ?? 1,
++      };
++    }
++    updated = await prisma.crmOpportunity.findUnique({ where: { id: row.id } });
++  } else {
++    updated = await prisma.crmOpportunity.update({
++      where: { id: row.id },
++      data: {
++        stageCode: to,
++        status,
++        version: nextVersion,
++        updatedAt: now,
++      },
++    });
++  }
++
++  let historyId = null;
++  if (hasCrmOpportunityStageHistoryModel(prisma)) {
++    const hist = await prisma.crmOpportunityStageHistory.create({
++      data: {
++        opportunityId: row.id,
++        fromStageCode: from,
++        toStageCode: to,
++        changedByAdminId: admin?.id || null,
++        reason: reason != null ? String(reason) : null,
++        evidenceReferences:
++          evidenceReferences != null ? evidenceReferences : undefined,
++        idempotencyKey: key || null,
++        at: now,
++      },
++    });
++    historyId = hist?.id || null;
++  }
++
++  return {
++    ok: true,
++    idempotent: false,
++    opportunity: serializeOpportunity(updated),
++    historyId,
++    fromStageCode: from,
++    toStageCode: to,
++    scopeMode: scope.mode,
++    scopeStub: scope.stub === true,
++    /** Drag-and-drop must not persist client-side */
++    clientStagePersistForbidden: true,
++  };
++}
++
++export { serializeOpportunity, opportunityStatusForStage, CRM_PIPELINE_TERMINAL_STAGES };
+diff --git "a/lib\\admin\\crm\\opportunities\\create.js" "b/lib\\admin\\crm\\opportunities\\create.js"
+new file mode 100644
+index 0000000..0e9e242
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\create.js"
+@@ -0,0 +1,253 @@
++/**
++ * Create Opportunity from Phase 11 READY handoff ΓÇö Phase 12 Wave 1.
++ * Never invents amounts/probability/close dates.
++ * Never creates Tenant / Subscription / Invoice.
++ */
++
++import { CRM_LEAD_STATUS, CRM_READINESS_STATUS, CRM_NUMBER_PREFIX } from '../catalogue.js';
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { allocateCrmNumber } from '../numbering.js';
++import {
++  CRM_HANDOFF_TYPE_OPPORTUNITY,
++  CRM_OPPORTUNITY_STATUS,
++  CRM_PIPELINE_CODE,
++  CRM_PIPELINE_DEFINITION_VERSION,
++  CRM_PIPELINE_STAGE,
++} from '../pipeline/catalogue.js';
++import {
++  hasCrmOpportunityModel,
++  hasCrmOpportunityStageHistoryModel,
++  serializeOpportunity,
++} from '../pipeline/transition.js';
++import { convertLeadAfterOpportunityCreate } from './leads.js';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   handoffPayload: object,
++ *   title?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function createOpportunityFromHandoff(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canCreateOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_create_forbidden' };
++  }
++
++  if (!hasCrmOpportunityModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_opportunity_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  const payload = args.handoffPayload && typeof args.handoffPayload === 'object'
++    ? args.handoffPayload
++    : null;
++  if (!payload) {
++    return { ok: false, error: 'handoffPayload_required' };
++  }
++
++  const type = String(payload.type || '').trim();
++  if (type !== CRM_HANDOFF_TYPE_OPPORTUNITY) {
++    return {
++      ok: false,
++      error: 'invalid_handoff_type',
++      expected: CRM_HANDOFF_TYPE_OPPORTUNITY,
++      received: type || null,
++    };
++  }
++
++  const readiness = String(payload.readinessStatus || '').trim().toUpperCase();
++  if (readiness !== CRM_READINESS_STATUS.READY) {
++    return {
++      ok: false,
++      error: 'handoff_not_ready',
++      readinessStatus: readiness || null,
++      detail: 'Opportunity create requires readinessStatus READY',
++    };
++  }
++
++  const leadId = payload.leadId ? String(payload.leadId).trim() : '';
++  if (!leadId) return { ok: false, error: 'handoff_leadId_required' };
++
++  const idempotencyKey = payload.idempotencyKey
++    ? String(payload.idempotencyKey).trim()
++    : '';
++  if (!idempotencyKey) {
++    return { ok: false, error: 'handoff_idempotencyKey_required' };
++  }
++
++  try {
++    const existing = await prisma.crmOpportunity.findUnique({
++      where: { handoffIdempotencyKey: idempotencyKey },
++    });
++    if (existing) {
++      return {
++        ok: true,
++        created: false,
++        idempotent: true,
++        opportunity: serializeOpportunity(existing),
++        subscriptionCreated: false,
++        invoiceCreated: false,
++        tenantCreated: false,
++      };
++    }
++  } catch {
++    // unique lookup optional when model partial
++  }
++
++  let lead = null;
++  if (typeof prisma.crmLead?.findUnique === 'function') {
++    try {
++      lead = await prisma.crmLead.findUnique({ where: { id: leadId } });
++    } catch {
++      lead = null;
++    }
++  }
++  if (!lead) {
++    return { ok: false, notFound: true, error: 'lead_not_found' };
++  }
++
++  const convertible = new Set([
++    CRM_LEAD_STATUS.OPPORTUNITY_READY,
++    CRM_LEAD_STATUS.QUALIFIED,
++  ]);
++  if (lead.status === CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY) {
++    // Lead already converted ΓÇö try find by leadId
++    try {
++      const byLead = await prisma.crmOpportunity.findFirst({
++        where: { leadId: lead.id },
++      });
++      if (byLead) {
++        return {
++          ok: true,
++          created: false,
++          idempotent: true,
++          opportunity: serializeOpportunity(byLead),
++          subscriptionCreated: false,
++          invoiceCreated: false,
++          tenantCreated: false,
++        };
++      }
++    } catch {
++      // continue to reject
++    }
++  }
++  if (!convertible.has(lead.status)) {
++    return {
++      ok: false,
++      error: 'lead_not_convertible',
++      leadStatus: lead.status,
++      detail: 'Lead must be OPPORTUNITY_READY or QUALIFIED',
++    };
++  }
++
++  const now = args.now || new Date();
++  const allocated = await allocateCrmNumber(prisma, {
++    prefix: CRM_NUMBER_PREFIX.OPP,
++    now,
++  });
++  if (!allocated.ok) {
++    return { ok: false, error: allocated.error || 'crm_number_allocation_failed' };
++  }
++
++  const title =
++    (args.title != null && String(args.title).trim()) ||
++    lead.title ||
++    `Opportunity from ${lead.leadNumber || leadId}`;
++
++  const accountId = payload.accountId || lead.accountId || null;
++  const contactId = payload.contactId || lead.contactId || null;
++
++  let row;
++  try {
++    row = await prisma.crmOpportunity.create({
++      data: {
++        opportunityNumber: allocated.number,
++        pipelineCode: CRM_PIPELINE_CODE.NEW_BUSINESS,
++        pipelineVersionId: CRM_PIPELINE_DEFINITION_VERSION,
++        stageCode: CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED,
++        status: CRM_OPPORTUNITY_STATUS.OPEN,
++        leadId: lead.id,
++        accountId,
++        contactId,
++        title,
++        ownerAdminId: lead.ownerAdminId || args.admin?.id || null,
++        handoffIdempotencyKey: idempotencyKey,
++        createdByAdminId: args.admin?.id || null,
++        version: 1,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++  } catch (err) {
++    if (err && typeof err === 'object' && err.code === 'P2002') {
++      try {
++        const raced = await prisma.crmOpportunity.findUnique({
++          where: { handoffIdempotencyKey: idempotencyKey },
++        });
++        if (raced) {
++          return {
++            ok: true,
++            created: false,
++            idempotent: true,
++            opportunity: serializeOpportunity(raced),
++            subscriptionCreated: false,
++            invoiceCreated: false,
++            tenantCreated: false,
++          };
++        }
++      } catch {
++        // fall through
++      }
++    }
++    throw err;
++  }
++
++  if (hasCrmOpportunityStageHistoryModel(prisma)) {
++    await prisma.crmOpportunityStageHistory.create({
++      data: {
++        opportunityId: row.id,
++        fromStageCode: null,
++        toStageCode: CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED,
++        changedByAdminId: args.admin?.id || null,
++        reason: 'opportunity_create_from_ready_handoff',
++        idempotencyKey: `create:${idempotencyKey}`,
++        at: now,
++      },
++    });
++  }
++
++  const convert = await convertLeadAfterOpportunityCreate(prisma, {
++    admin: args.admin,
++    leadId: lead.id,
++    opportunityId: row.id,
++    opportunityNumber: row.opportunityNumber,
++    now,
++  });
++
++  return {
++    ok: true,
++    created: true,
++    idempotent: false,
++    opportunity: serializeOpportunity(row),
++    leadConversion: convert,
++    subscriptionCreated: false,
++    invoiceCreated: false,
++    tenantCreated: false,
++    amountInvented: false,
++    probabilityInvented: false,
++    closeDateInvented: false,
++    scopeMode: scope.mode,
++    scopeStub: scope.stub === true,
++  };
++}
+diff --git "a/lib\\admin\\crm\\opportunities\\get.js" "b/lib\\admin\\crm\\opportunities\\get.js"
+new file mode 100644
+index 0000000..4f74fc9
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\get.js"
+@@ -0,0 +1,82 @@
++/**
++ * Get Opportunity ΓÇö Phase 12 Wave 1.
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { CRM_OPPORTUNITY_NUMBER_RE } from '../pipeline/catalogue.js';
++import {
++  hasCrmOpportunityModel,
++  serializeOpportunity,
++} from '../pipeline/transition.js';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, id: string }} args
++ */
++export async function getOpportunity(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden' };
++  }
++
++  if (!hasCrmOpportunityModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_opportunity_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  const id = args.id ? String(args.id).trim() : '';
++  if (!id) return { ok: false, error: 'id_required' };
++
++  let row = null;
++  try {
++    if (CRM_OPPORTUNITY_NUMBER_RE.test(id)) {
++      row = await prisma.crmOpportunity.findUnique({
++        where: { opportunityNumber: id },
++      });
++    } else {
++      row = await prisma.crmOpportunity.findUnique({ where: { id } });
++    }
++  } catch {
++    row = null;
++  }
++
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  let stageHistory = [];
++  if (typeof prisma.crmOpportunityStageHistory?.findMany === 'function') {
++    try {
++      stageHistory = await prisma.crmOpportunityStageHistory.findMany({
++        where: { opportunityId: row.id },
++      });
++    } catch {
++      stageHistory = [];
++    }
++  }
++
++  return {
++    ok: true,
++    opportunity: serializeOpportunity(row),
++    stageHistory: (stageHistory || []).map((h) => ({
++      id: h.id,
++      fromStageCode: h.fromStageCode || null,
++      toStageCode: h.toStageCode,
++      reason: h.reason || null,
++      changedByAdminId: h.changedByAdminId || null,
++      idempotencyKey: h.idempotencyKey || null,
++      at: h.at ? new Date(h.at).toISOString() : null,
++    })),
++    meta: {
++      scopeMode: scope.mode,
++      scopeStub: scope.stub === true,
++      weightedUiEnabled: false,
++    },
++  };
++}
+diff --git "a/lib\\admin\\crm\\opportunities\\index.js" "b/lib\\admin\\crm\\opportunities\\index.js"
+new file mode 100644
+index 0000000..9adb865
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\index.js"
+@@ -0,0 +1,17 @@
++/**
++ * Opportunities public surface ΓÇö Phase 12 Wave 1.
++ */
++
++export {
++  allocateOpportunityNumber,
++  CRM_OPPORTUNITY_NUMBER_RE,
++  CRM_NUMBER_PREFIX,
++} from './numbering.js';
++
++export { createOpportunityFromHandoff } from './create.js';
++
++export { convertLeadAfterOpportunityCreate } from './leads.js';
++
++export { getOpportunity } from './get.js';
++
++export { listOpportunities } from './list.js';
+diff --git "a/lib\\admin\\crm\\opportunities\\leads.js" "b/lib\\admin\\crm\\opportunities\\leads.js"
+new file mode 100644
+index 0000000..c4df27f
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\leads.js"
+@@ -0,0 +1,33 @@
++/**
++ * Lead ΓåÆ CONVERTED_TO_OPPORTUNITY ΓÇö only from Opportunity create success path.
++ */
++
++import { CRM_LEAD_STATUS } from '../catalogue.js';
++import { transitionLeadStatus } from '../leads.js';
++
++/**
++ * Convert Lead after successful Opportunity create.
++ * Uses state machine with fromOpportunityCreate gate.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   leadId: string,
++ *   opportunityId: string,
++ *   opportunityNumber?: string,
++ *   now?: Date,
++ * }} args
++ */
++export async function convertLeadAfterOpportunityCreate(prisma, args = {}) {
++  const leadId = args.leadId ? String(args.leadId).trim() : '';
++  if (!leadId) return { ok: false, error: 'leadId_required' };
++
++  return transitionLeadStatus(prisma, {
++    admin: args.admin,
++    leadId,
++    toStatus: CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY,
++    reason: `opportunity_create:${args.opportunityNumber || args.opportunityId || ''}`,
++    fromOpportunityCreate: true,
++    now: args.now,
++  });
++}
+diff --git "a/lib\\admin\\crm\\opportunities\\list.js" "b/lib\\admin\\crm\\opportunities\\list.js"
+new file mode 100644
+index 0000000..72ab154
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\list.js"
+@@ -0,0 +1,80 @@
++/**
++ * List Opportunities ΓÇö Phase 12 Wave 1.
++ */
++
++import {
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import {
++  hasCrmOpportunityModel,
++  serializeOpportunity,
++} from '../pipeline/transition.js';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   stageCode?: string,
++ *   leadId?: string,
++ *   limit?: string|number,
++ *   offset?: string|number,
++ * }} args
++ */
++export async function listOpportunities(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden' };
++  }
++
++  if (!hasCrmOpportunityModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_opportunity_model_unavailable',
++      status: 'UNAVAILABLE',
++      items: [],
++    };
++  }
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied', items: [] };
++  }
++
++  let limit = Number.parseInt(String(args.limit ?? CRM_LIST_DEFAULT_LIMIT), 10);
++  if (!Number.isFinite(limit) || limit < 1) limit = CRM_LIST_DEFAULT_LIMIT;
++  if (limit > CRM_LIST_MAX_LIMIT) limit = CRM_LIST_MAX_LIMIT;
++
++  let offset = Number.parseInt(String(args.offset ?? 0), 10);
++  if (!Number.isFinite(offset) || offset < 0) offset = 0;
++
++  const where = {};
++  if (args.stageCode) where.stageCode = String(args.stageCode).trim().toUpperCase();
++  if (args.leadId) where.leadId = String(args.leadId).trim();
++
++  let rows = [];
++  try {
++    rows = await prisma.crmOpportunity.findMany({
++      where,
++      take: limit,
++      skip: offset,
++      orderBy: { createdAt: 'desc' },
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeOpportunity),
++    meta: {
++      count: (rows || []).length,
++      limit,
++      offset,
++      scopeMode: scope.mode,
++      scopeStub: scope.stub === true,
++      weightedUiEnabled: false,
++    },
++  };
++}
+diff --git "a/lib\\admin\\crm\\opportunities\\numbering.js" "b/lib\\admin\\crm\\opportunities\\numbering.js"
+new file mode 100644
+index 0000000..ccdf731
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\numbering.js"
+@@ -0,0 +1,20 @@
++/**
++ * Opportunity numbering ΓÇö OPP-YYYY-###### (UTC year).
++ * Reuses CrmNumberSeq CAS via allocateCrmNumber.
++ */
++
++import { allocateCrmNumber, formatCrmNumber, utcYearOf } from '../numbering.js';
++import { CRM_NUMBER_PREFIX, CRM_OPPORTUNITY_NUMBER_RE } from '../catalogue.js';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ now?: Date }} [opts]
++ */
++export async function allocateOpportunityNumber(prisma, opts = {}) {
++  return allocateCrmNumber(prisma, {
++    prefix: CRM_NUMBER_PREFIX.OPP,
++    now: opts.now,
++  });
++}
++
++export { formatCrmNumber, utcYearOf, CRM_OPPORTUNITY_NUMBER_RE, CRM_NUMBER_PREFIX };
+diff --git a/scripts/sql/crm-pipeline-phase12-wave1.sql b/scripts/sql/crm-pipeline-phase12-wave1.sql
+new file mode 100644
+index 0000000..238c805
+--- /dev/null
++++ b/scripts/sql/crm-pipeline-phase12-wave1.sql
+@@ -0,0 +1,245 @@
++-- Phase 12 Wave 1 ΓÇö CrmPipeline*, CrmOpportunity*, stage history (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Apply steps (EPERM fallback):
++--   1. psql "$DATABASE_URL" -f scripts/sql/crm-pipeline-phase12-wave1.sql
++--   2. Ensure app code uses hasCrmOpportunityModel / hasCrmPipelineModel guards
++--   3. Retry `npx prisma generate` when the query-engine file lock clears.
++--
++-- CrmOpportunity Γëá Lead Γëá Customer Γëá Subscription Γëá Invoice.
++-- OPP numbers use existing CrmNumberSeq (prefix OPP).
++
++CREATE TABLE IF NOT EXISTS "CrmPipeline" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmPipeline_code_key"
++  ON "CrmPipeline"("code");
++CREATE INDEX IF NOT EXISTS "CrmPipeline_status_idx"
++  ON "CrmPipeline"("status");
++
++CREATE TABLE IF NOT EXISTS "CrmPipelineVersion" (
++  "id" TEXT PRIMARY KEY,
++  "pipelineId" TEXT NOT NULL,
++  "versionId" TEXT NOT NULL,
++  "version" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmPipelineVersion_pipelineId_versionId_key"
++  ON "CrmPipelineVersion"("pipelineId", "versionId");
++CREATE INDEX IF NOT EXISTS "CrmPipelineVersion_pipelineId_status_idx"
++  ON "CrmPipelineVersion"("pipelineId", "status");
++CREATE INDEX IF NOT EXISTS "CrmPipelineVersion_status_idx"
++  ON "CrmPipelineVersion"("status");
++
++CREATE TABLE IF NOT EXISTS "CrmPipelineStage" (
++  "id" TEXT PRIMARY KEY,
++  "pipelineVersionId" TEXT NOT NULL,
++  "code" TEXT NOT NULL,
++  "name" TEXT NOT NULL,
++  "sortOrder" INTEGER NOT NULL,
++  "terminal" BOOLEAN NOT NULL DEFAULT FALSE,
++  "defaultProbability" INTEGER,
++  "entryCriteria" JSONB,
++  "exitCriteria" JSONB,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmPipelineStage_pipelineVersionId_code_key"
++  ON "CrmPipelineStage"("pipelineVersionId", "code");
++CREATE INDEX IF NOT EXISTS "CrmPipelineStage_pipelineVersionId_sortOrder_idx"
++  ON "CrmPipelineStage"("pipelineVersionId", "sortOrder");
++
++CREATE TABLE IF NOT EXISTS "CrmOpportunity" (
++  "id" TEXT PRIMARY KEY,
++  "opportunityNumber" TEXT NOT NULL,
++  "pipelineCode" TEXT NOT NULL DEFAULT 'NEW_BUSINESS',
++  "pipelineVersionId" TEXT,
++  "stageCode" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'OPEN',
++  "leadId" TEXT,
++  "accountId" TEXT,
++  "contactId" TEXT,
++  "title" TEXT NOT NULL,
++  "ownerAdminId" TEXT,
++  "createdByAdminId" TEXT,
++  "handoffIdempotencyKey" TEXT,
++  "version" INTEGER NOT NULL DEFAULT 1,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmOpportunity_opportunityNumber_key"
++  ON "CrmOpportunity"("opportunityNumber");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmOpportunity_handoffIdempotencyKey_key"
++  ON "CrmOpportunity"("handoffIdempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_stageCode_createdAt_idx"
++  ON "CrmOpportunity"("stageCode", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_status_createdAt_idx"
++  ON "CrmOpportunity"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_leadId_idx"
++  ON "CrmOpportunity"("leadId");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_accountId_idx"
++  ON "CrmOpportunity"("accountId");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_contactId_idx"
++  ON "CrmOpportunity"("contactId");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_ownerAdminId_status_idx"
++  ON "CrmOpportunity"("ownerAdminId", "status");
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_pipelineCode_stageCode_idx"
++  ON "CrmOpportunity"("pipelineCode", "stageCode");
++
++CREATE TABLE IF NOT EXISTS "CrmOpportunityStageHistory" (
++  "id" TEXT PRIMARY KEY,
++  "opportunityId" TEXT NOT NULL,
++  "fromStageCode" TEXT,
++  "toStageCode" TEXT NOT NULL,
++  "changedByAdminId" TEXT,
++  "reason" TEXT,
++  "evidenceReferences" JSONB,
++  "idempotencyKey" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmOpportunityStageHistory_opportunityId_idempotencyKey_key"
++  ON "CrmOpportunityStageHistory"("opportunityId", "idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmOpportunityStageHistory_opportunityId_at_idx"
++  ON "CrmOpportunityStageHistory"("opportunityId", "at");
++CREATE INDEX IF NOT EXISTS "CrmOpportunityStageHistory_changedByAdminId_idx"
++  ON "CrmOpportunityStageHistory"("changedByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmOpportunityStageHistory_toStageCode_at_idx"
++  ON "CrmOpportunityStageHistory"("toStageCode", "at");
++
++-- Seed ACTIVE NEW_BUSINESS Pipeline + version + stages (idempotent)
++INSERT INTO "CrmPipeline" ("id", "code", "name", "status", "createdAt", "updatedAt")
++VALUES (
++  'pipeline-new-business',
++  'NEW_BUSINESS',
++  'New Business',
++  'ACTIVE',
++  CURRENT_TIMESTAMP,
++  CURRENT_TIMESTAMP
++)
++ON CONFLICT ("code") DO NOTHING;
++
++INSERT INTO "CrmPipelineVersion" ("id", "pipelineId", "versionId", "version", "status", "createdAt", "updatedAt")
++SELECT
++  'pipeline-ver-new-business-v1',
++  p."id",
++  'crm-pipeline-new-business-v1-2026-07-30',
++  'crm-pipeline-new-business-v1-2026-07-30',
++  'ACTIVE',
++  CURRENT_TIMESTAMP,
++  CURRENT_TIMESTAMP
++FROM "CrmPipeline" p
++WHERE p."code" = 'NEW_BUSINESS'
++ON CONFLICT ("pipelineId", "versionId") DO NOTHING;
++
++INSERT INTO "CrmPipelineStage" ("id", "pipelineVersionId", "code", "name", "sortOrder", "terminal", "defaultProbability", "createdAt", "updatedAt")
++VALUES
++  ('stage-nb-1', 'pipeline-ver-new-business-v1', 'OPPORTUNITY_IDENTIFIED', 'Opportunity Identified', 1, FALSE, 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-2', 'pipeline-ver-new-business-v1', 'DISCOVERY', 'Discovery', 2, FALSE, 20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-3', 'pipeline-ver-new-business-v1', 'NEED_CONFIRMED', 'Need Confirmed', 3, FALSE, 30, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-4', 'pipeline-ver-new-business-v1', 'SOLUTION_FIT', 'Solution Fit', 4, FALSE, 40, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-5', 'pipeline-ver-new-business-v1', 'COMMERCIAL_SCOPING', 'Commercial Scoping', 5, FALSE, 50, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-6', 'pipeline-ver-new-business-v1', 'DECISION_PROCESS', 'Decision Process', 6, FALSE, 60, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-7', 'pipeline-ver-new-business-v1', 'PROPOSAL_READY', 'Proposal Ready', 7, FALSE, 70, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-8', 'pipeline-ver-new-business-v1', 'CUSTOMER_DECISION', 'Customer Decision', 8, FALSE, 80, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-9', 'pipeline-ver-new-business-v1', 'CLOSED_WON', 'Closed Won', 9, TRUE, 100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
++  ('stage-nb-10', 'pipeline-ver-new-business-v1', 'CLOSED_LOST', 'Closed Lost', 10, TRUE, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
++ON CONFLICT ("pipelineVersionId", "code") DO NOTHING;
++
++-- Foreign keys (idempotent DO $$ parity with Phase 11)
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmPipelineVersion_pipelineId_fkey'
++  ) THEN
++    ALTER TABLE "CrmPipelineVersion"
++      ADD CONSTRAINT "CrmPipelineVersion_pipelineId_fkey"
++      FOREIGN KEY ("pipelineId") REFERENCES "CrmPipeline"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmPipelineStage_pipelineVersionId_fkey'
++  ) THEN
++    ALTER TABLE "CrmPipelineStage"
++      ADD CONSTRAINT "CrmPipelineStage_pipelineVersionId_fkey"
++      FOREIGN KEY ("pipelineVersionId") REFERENCES "CrmPipelineVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunity_ownerAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunity"
++      ADD CONSTRAINT "CrmOpportunity_ownerAdminId_fkey"
++      FOREIGN KEY ("ownerAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunity_createdByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunity"
++      ADD CONSTRAINT "CrmOpportunity_createdByAdminId_fkey"
++      FOREIGN KEY ("createdByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunityStageHistory_opportunityId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunityStageHistory"
++      ADD CONSTRAINT "CrmOpportunityStageHistory_opportunityId_fkey"
++      FOREIGN KEY ("opportunityId") REFERENCES "CrmOpportunity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunityStageHistory_changedByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunityStageHistory"
++      ADD CONSTRAINT "CrmOpportunityStageHistory_changedByAdminId_fkey"
++      FOREIGN KEY ("changedByAdminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION
++  WHEN undefined_table THEN NULL;
++  WHEN duplicate_object THEN NULL;
++END $$;
+diff --git a/test/systemAdmin.crm.pipeline.test.js b/test/systemAdmin.crm.pipeline.test.js
+new file mode 100644
+index 0000000..1a4e81e
+--- /dev/null
++++ b/test/systemAdmin.crm.pipeline.test.js
+@@ -0,0 +1,560 @@
++/**
++ * Phase 12 Wave 1 ΓÇö NEW_BUSINESS Pipeline + stage transitions
++ * (Γëá Lead status machine Γëá analytics-pipeline Γëá POS sales.*).
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  CRM_PIPELINE_CODE,
++  CRM_PIPELINE_STAGE,
++  CRM_PIPELINE_STAGES_ORDERED,
++  CRM_OPPORTUNITY_NUMBER_RE,
++  CRM_NUMBER_PREFIX,
++  getDefaultNewBusinessPipelineDefinition,
++  listPipelines,
++  getPipeline,
++  transitionOpportunityStage,
++  createOpportunityFromHandoff,
++  allocateCrmNumber,
++} from '@/lib/admin/crm';
++import { SYSTEM_ADMIN_PERMISSIONS, NAV_PERMISSION_MAP } from '@/lib/admin/permissions';
++
++describe('CRM Pipeline catalogue (Phase 12 Wave 1)', () => {
++  it('defines NEW_BUSINESS Pipeline v1 with 10 ordered stages', () => {
++    const def = getDefaultNewBusinessPipelineDefinition();
++    expect(def.code).toBe(CRM_PIPELINE_CODE.NEW_BUSINESS);
++    expect(def.status).toBe('ACTIVE');
++    expect(def.version).toBeTruthy();
++    expect(def.stages.map((s) => s.code)).toEqual([...CRM_PIPELINE_STAGES_ORDERED]);
++    expect(CRM_PIPELINE_STAGES_ORDERED).toHaveLength(10);
++    expect(CRM_PIPELINE_STAGES_ORDERED[0]).toBe(CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED);
++    expect(CRM_PIPELINE_STAGES_ORDERED).toContain(CRM_PIPELINE_STAGE.CLOSED_WON);
++    expect(CRM_PIPELINE_STAGES_ORDERED).toContain(CRM_PIPELINE_STAGE.CLOSED_LOST);
++  });
++
++  it('marks CLOSED_WON and CLOSED_LOST as terminal', () => {
++    const def = getDefaultNewBusinessPipelineDefinition();
++    const won = def.stages.find((s) => s.code === CRM_PIPELINE_STAGE.CLOSED_WON);
++    const lost = def.stages.find((s) => s.code === CRM_PIPELINE_STAGE.CLOSED_LOST);
++    expect(won.terminal).toBe(true);
++    expect(lost.terminal).toBe(true);
++    const open = def.stages.filter((s) => !s.terminal);
++    expect(open).toHaveLength(8);
++  });
++
++  it('exposes live pipeline + opportunities permissions and nav maps', () => {
++    expect(SYSTEM_ADMIN_PERMISSIONS.crm.pipelineView).toBe(
++      'systemAdmin.crm.pipeline.view'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.crm.pipelineManageDefinitions).toBe(
++      'systemAdmin.crm.pipeline.manageDefinitions'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.crm.pipelineTransitionStages).toBe(
++      'systemAdmin.crm.pipeline.transitionStages'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.crm.opportunitiesView).toBe(
++      'systemAdmin.crm.opportunities.view'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.crm.opportunitiesCreate).toBe(
++      'systemAdmin.crm.opportunities.create'
++    );
++    expect(SYSTEM_ADMIN_PERMISSIONS.crm.opportunitiesEdit).toBe(
++      'systemAdmin.crm.opportunities.edit'
++    );
++    expect(NAV_PERMISSION_MAP['/insightbooks/crm/pipeline']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.crm.pipelineView
++    );
++    expect(NAV_PERMISSION_MAP['/insightbooks/crm/opportunities']).toBe(
++      SYSTEM_ADMIN_PERMISSIONS.crm.opportunitiesView
++    );
++  });
++});
++
++function makeAdmin(perms = {}) {
++  return {
++    id: 'admin-pipeline-1',
++    role: 'CRM Agent',
++    permissions: {
++      'systemAdmin.crm.view': true,
++      'systemAdmin.crm.pipeline.view': true,
++      'systemAdmin.crm.pipeline.transitionStages': true,
++      'systemAdmin.crm.opportunities.view': true,
++      'systemAdmin.crm.opportunities.create': true,
++      'systemAdmin.crm.opportunities.edit': true,
++      'systemAdmin.crm.viewLeads': true,
++      'systemAdmin.crm.editLeads': true,
++      'systemAdmin.crm.transitionStatus': true,
++      ...perms,
++    },
++  };
++}
++
++function makePrisma(overrides = {}) {
++  const oppStore = overrides._oppStore || [];
++  const historyStore = overrides._historyStore || [];
++  const seqStore = overrides._seqStore || [];
++  const leadStore = overrides._leadStore || [];
++  const pipelineStore = overrides._pipelineStore || [];
++  const versionStore = overrides._versionStore || [];
++  const stageStore = overrides._stageStore || [];
++  const subscriptionStore = overrides._subscriptionStore || [];
++  const invoiceStore = overrides._invoiceStore || [];
++
++  const prisma = {
++    crmOpportunity: {
++      findMany: vi.fn(async ({ where = {}, take, skip, orderBy } = {}) => {
++        let rows = [...oppStore];
++        if (where?.stageCode) rows = rows.filter((r) => r.stageCode === where.stageCode);
++        if (where?.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        if (where?.handoffIdempotencyKey) {
++          rows = rows.filter((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey);
++        }
++        if (orderBy?.createdAt === 'desc') {
++          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        }
++        const start = typeof skip === 'number' ? skip : 0;
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(start, start + limit);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return oppStore.find((r) => r.id === where.id) || null;
++        if (where.opportunityNumber) {
++          return oppStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null;
++        }
++        if (where.handoffIdempotencyKey) {
++          return (
++            oppStore.find((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...oppStore];
++        if (where?.handoffIdempotencyKey) {
++          rows = rows.filter((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey);
++        }
++        if (where?.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        return rows[0] || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `opp-${oppStore.length + 1}`,
++          version: data.version ?? 1,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        oppStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = oppStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, {
++          updatedAt: data.updatedAt || new Date(),
++          version: data.version != null ? data.version : (row.version || 1) + 1,
++        });
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        let rows = oppStore.filter((r) => r.id === where.id);
++        if (where.version != null) rows = rows.filter((r) => r.version === where.version);
++        for (const row of rows) {
++          Object.assign(row, data, {
++            updatedAt: data.updatedAt || new Date(),
++          });
++        }
++        return { count: rows.length };
++      }),
++    },
++    crmOpportunityStageHistory: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        if (where?.idempotencyKey) {
++          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
++        }
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        if (where?.idempotencyKey) {
++          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
++        }
++        return rows[0] || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `hist-${historyStore.length + 1}`,
++          at: data.at || new Date(),
++          ...data,
++        };
++        historyStore.push(row);
++        return row;
++      }),
++      count: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        return rows.length;
++      }),
++    },
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        row.updatedAt = new Date();
++        return { count: 1 };
++      }),
++    },
++    crmLead: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return leadStore.find((r) => r.id === where.id) || null;
++        if (where.leadNumber) {
++          return leadStore.find((r) => r.leadNumber === where.leadNumber) || null;
++        }
++        return null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = leadStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: new Date() });
++        return row;
++      }),
++    },
++    crmLeadStatusHistory: {
++      create: vi.fn(async ({ data }) => data),
++    },
++    crmPipeline: {
++      findMany: vi.fn(async () => pipelineStore),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return pipelineStore.find((r) => r.id === where.id) || null;
++        if (where.code) return pipelineStore.find((r) => r.code === where.code) || null;
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...pipelineStore];
++        if (where?.code) rows = rows.filter((r) => r.code === where.code);
++        if (where?.status) rows = rows.filter((r) => r.status === where.status);
++        return rows[0] || null;
++      }),
++    },
++    crmPipelineVersion: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...versionStore];
++        if (where?.pipelineId) rows = rows.filter((r) => r.pipelineId === where.pipelineId);
++        if (where?.status) rows = rows.filter((r) => r.status === where.status);
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...versionStore];
++        if (where?.pipelineId) rows = rows.filter((r) => r.pipelineId === where.pipelineId);
++        if (where?.status) rows = rows.filter((r) => r.status === where.status);
++        return rows[0] || null;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return versionStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++    },
++    crmPipelineStage: {
++      findMany: vi.fn(async ({ where = {}, orderBy } = {}) => {
++        let rows = [...stageStore];
++        if (where?.pipelineVersionId) {
++          rows = rows.filter((r) => r.pipelineVersionId === where.pipelineVersionId);
++        }
++        if (orderBy?.sortOrder === 'asc') {
++          rows.sort((a, b) => a.sortOrder - b.sortOrder);
++        }
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...stageStore];
++        if (where?.pipelineVersionId) {
++          rows = rows.filter((r) => r.pipelineVersionId === where.pipelineVersionId);
++        }
++        if (where?.code) rows = rows.filter((r) => r.code === where.code);
++        return rows[0] || null;
++      }),
++    },
++    subscription: {
++      create: vi.fn(async ({ data }) => {
++        subscriptionStore.push(data);
++        return data;
++      }),
++      findMany: vi.fn(async () => subscriptionStore),
++    },
++    invoice: {
++      create: vi.fn(async ({ data }) => {
++        invoiceStore.push(data);
++        return data;
++      }),
++      findMany: vi.fn(async () => invoiceStore),
++    },
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    _oppStore: oppStore,
++    _historyStore: historyStore,
++    _leadStore: leadStore,
++    _subscriptionStore: subscriptionStore,
++    _invoiceStore: invoiceStore,
++  };
++
++  return prisma;
++}
++
++describe('CRM Pipeline list / get', () => {
++  it('lists ACTIVE NEW_BUSINESS from catalogue when DB empty', async () => {
++    const prisma = makePrisma();
++    const result = await listPipelines(prisma, { admin: makeAdmin() });
++    expect(result.ok).toBe(true);
++    expect(result.items.length).toBeGreaterThanOrEqual(1);
++    expect(result.items[0].code).toBe(CRM_PIPELINE_CODE.NEW_BUSINESS);
++    expect(result.items[0].stages).toHaveLength(10);
++  });
++
++  it('forbids pipeline list without view permission', async () => {
++    const prisma = makePrisma();
++    const result = await listPipelines(prisma, {
++      admin: makeAdmin({
++        'systemAdmin.crm.pipeline.view': false,
++        'systemAdmin.crm.view': false,
++      }),
++    });
++    expect(result.ok).toBe(false);
++    expect(result.forbidden).toBe(true);
++  });
++
++  it('getPipeline returns definition by code', async () => {
++    const prisma = makePrisma();
++    const result = await getPipeline(prisma, {
++      admin: makeAdmin(),
++      id: CRM_PIPELINE_CODE.NEW_BUSINESS,
++    });
++    expect(result.ok).toBe(true);
++    expect(result.pipeline.code).toBe(CRM_PIPELINE_CODE.NEW_BUSINESS);
++  });
++});
++
++describe('CRM Opportunity stage transitions', () => {
++  async function seedOpenOpportunity(prisma, stageCode = CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED) {
++    const created = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: {
++        type: 'CRM_OPPORTUNITY_HANDOFF',
++        readinessStatus: 'READY',
++        leadId: 'lead-1',
++        leadNumber: 'LEAD-2026-000001',
++        accountId: 'acc-1',
++        contactId: 'con-1',
++        idempotencyKey: `opp-ready:lead-1:v1:none:${stageCode}`,
++        opportunityId: null,
++        opportunityCreated: false,
++      },
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(created.ok).toBe(true);
++    if (stageCode !== CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED) {
++      // force stage for mid-path tests
++      const row = prisma._oppStore.find((r) => r.id === created.opportunity.id);
++      row.stageCode = stageCode;
++    }
++    return created.opportunity;
++  }
++
++  it('allows sequential forward DISCOVERY and appends immutable history', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-1',
++          leadNumber: 'LEAD-2026-000001',
++          status: 'OPPORTUNITY_READY',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++        },
++      ],
++    });
++    const opp = await seedOpenOpportunity(prisma);
++    const result = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.DISCOVERY,
++      reason: 'kickoff scheduled',
++    });
++    expect(result.ok).toBe(true);
++    expect(result.opportunity.stageCode).toBe(CRM_PIPELINE_STAGE.DISCOVERY);
++    expect(prisma._historyStore.length).toBeGreaterThanOrEqual(2); // create + transition
++    const last = prisma._historyStore[prisma._historyStore.length - 1];
++    expect(last.toStageCode).toBe(CRM_PIPELINE_STAGE.DISCOVERY);
++    expect(last.fromStageCode).toBe(CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED);
++  });
++
++  it('rejects skip-forward and same-stage as INVALID_TRANSITION', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-1',
++          leadNumber: 'LEAD-2026-000001',
++          status: 'OPPORTUNITY_READY',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++        },
++      ],
++    });
++    const opp = await seedOpenOpportunity(prisma);
++    const skip = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.NEED_CONFIRMED,
++    });
++    expect(skip.ok).toBe(false);
++    expect(skip.error).toBe('INVALID_TRANSITION');
++
++    const same = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED,
++    });
++    expect(same.ok).toBe(false);
++    expect(same.error).toBe('INVALID_TRANSITION');
++  });
++
++  it('allows terminal CLOSED_LOST from open stage and blocks further moves', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-1',
++          leadNumber: 'LEAD-2026-000001',
++          status: 'OPPORTUNITY_READY',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++        },
++      ],
++    });
++    const opp = await seedOpenOpportunity(prisma);
++    const closed = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.CLOSED_LOST,
++      reason: 'no budget',
++    });
++    expect(closed.ok).toBe(true);
++    expect(closed.opportunity.stageCode).toBe(CRM_PIPELINE_STAGE.CLOSED_LOST);
++
++    const reopen = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.DISCOVERY,
++    });
++    expect(reopen.ok).toBe(false);
++    expect(reopen.error).toBe('INVALID_TRANSITION');
++  });
++
++  it('retries exact transition idempotencyKey without duplicate history', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-1',
++          leadNumber: 'LEAD-2026-000001',
++          status: 'OPPORTUNITY_READY',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++        },
++      ],
++    });
++    const opp = await seedOpenOpportunity(prisma);
++    const key = 'trans-idem-1';
++    const first = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.DISCOVERY,
++      idempotencyKey: key,
++    });
++    expect(first.ok).toBe(true);
++    const histCount = prisma._historyStore.length;
++    const second = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.DISCOVERY,
++      idempotencyKey: key,
++    });
++    expect(second.ok).toBe(true);
++    expect(second.idempotent).toBe(true);
++    expect(prisma._historyStore.length).toBe(histCount);
++  });
++
++  it('forbids transition without transitionStages / edit permission', async () => {
++    const prisma = makePrisma({
++      _leadStore: [
++        {
++          id: 'lead-1',
++          leadNumber: 'LEAD-2026-000001',
++          status: 'OPPORTUNITY_READY',
++          accountId: 'acc-1',
++          contactId: 'con-1',
++        },
++      ],
++    });
++    const opp = await seedOpenOpportunity(prisma);
++    const result = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin({
++        'systemAdmin.crm.pipeline.transitionStages': false,
++        'systemAdmin.crm.opportunities.edit': false,
++        'systemAdmin.crm.editLeads': false,
++      }),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.DISCOVERY,
++    });
++    expect(result.ok).toBe(false);
++    expect(result.forbidden).toBe(true);
++  });
++});
++
++describe('CRM OPP numbering', () => {
++  it('allocates OPP-YYYY-###### concurrency-safe', async () => {
++    const prisma = makePrisma();
++    const a = await allocateCrmNumber(prisma, {
++      prefix: CRM_NUMBER_PREFIX.OPP,
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    const b = await allocateCrmNumber(prisma, {
++      prefix: CRM_NUMBER_PREFIX.OPP,
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(a.ok).toBe(true);
++    expect(b.ok).toBe(true);
++    expect(a.number).toMatch(CRM_OPPORTUNITY_NUMBER_RE);
++    expect(a.number).toBe('OPP-2026-000001');
++    expect(b.number).toBe('OPP-2026-000002');
++  });
++});
+diff --git a/test/systemAdmin.crm.opportunities.test.js b/test/systemAdmin.crm.opportunities.test.js
+new file mode 100644
+index 0000000..629b7ad
+--- /dev/null
++++ b/test/systemAdmin.crm.opportunities.test.js
+@@ -0,0 +1,389 @@
++/**
++ * Phase 12 Wave 1 ΓÇö Opportunity create from READY handoff + Lead convert
++ * (Γëá Subscription Γëá Invoice Γëá Tenant provision; Lead convert only after Opp create).
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  CRM_LEAD_STATUS,
++  CRM_PIPELINE_STAGE,
++  CRM_OPPORTUNITY_NUMBER_RE,
++  CRM_READINESS_STATUS,
++  createOpportunityFromHandoff,
++  getOpportunity,
++  listOpportunities,
++  transitionLeadStatus,
++  canTransition,
++  assertTransition,
++} from '@/lib/admin/crm';
++
++function makeAdmin(perms = {}) {
++  return {
++    id: 'admin-opp-1',
++    role: 'CRM Agent',
++    permissions: {
++      'systemAdmin.crm.view': true,
++      'systemAdmin.crm.viewLeads': true,
++      'systemAdmin.crm.editLeads': true,
++      'systemAdmin.crm.transitionStatus': true,
++      'systemAdmin.crm.pipeline.view': true,
++      'systemAdmin.crm.pipeline.transitionStages': true,
++      'systemAdmin.crm.opportunities.view': true,
++      'systemAdmin.crm.opportunities.create': true,
++      'systemAdmin.crm.opportunities.edit': true,
++      ...perms,
++    },
++  };
++}
++
++function makePrisma(overrides = {}) {
++  const oppStore = overrides._oppStore || [];
++  const historyStore = overrides._historyStore || [];
++  const leadHistoryStore = overrides._leadHistoryStore || [];
++  const seqStore = overrides._seqStore || [];
++  const leadStore = overrides._leadStore || [
++    {
++      id: 'lead-ready-1',
++      leadNumber: 'LEAD-2026-000010',
++      status: CRM_LEAD_STATUS.OPPORTUNITY_READY,
++      accountId: 'acc-1',
++      contactId: 'con-1',
++      title: 'Ready lead',
++      source: 'MANUAL',
++      channel: 'ADMIN_MANUAL',
++    },
++  ];
++  const subscriptionStore = overrides._subscriptionStore || [];
++  const invoiceStore = overrides._invoiceStore || [];
++  const tenantStore = overrides._tenantStore || [];
++
++  const prisma = {
++    crmOpportunity: {
++      findMany: vi.fn(async ({ where = {}, take, skip, orderBy } = {}) => {
++        let rows = [...oppStore];
++        if (where?.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        if (where?.stageCode) rows = rows.filter((r) => r.stageCode === where.stageCode);
++        if (orderBy?.createdAt === 'desc') {
++          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        }
++        const start = typeof skip === 'number' ? skip : 0;
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(start, start + limit);
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return oppStore.find((r) => r.id === where.id) || null;
++        if (where.opportunityNumber) {
++          return oppStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null;
++        }
++        if (where.handoffIdempotencyKey) {
++          return (
++            oppStore.find((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...oppStore];
++        if (where?.handoffIdempotencyKey) {
++          rows = rows.filter((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey);
++        }
++        return rows[0] || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `opp-${oppStore.length + 1}`,
++          version: data.version ?? 1,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        oppStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = oppStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: new Date() });
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        let rows = oppStore.filter((r) => r.id === where.id);
++        if (where.version != null) rows = rows.filter((r) => r.version === where.version);
++        for (const row of rows) Object.assign(row, data, { updatedAt: new Date() });
++        return { count: rows.length };
++      }),
++    },
++    crmOpportunityStageHistory: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        if (where?.idempotencyKey) {
++          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
++        }
++        return rows[0] || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `ohist-${historyStore.length + 1}`,
++          at: data.at || new Date(),
++          ...data,
++        };
++        historyStore.push(row);
++        return row;
++      }),
++    },
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmLead: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return leadStore.find((r) => r.id === where.id) || null;
++        if (where.leadNumber) {
++          return leadStore.find((r) => r.leadNumber === where.leadNumber) || null;
++        }
++        return null;
++      }),
++      findMany: vi.fn(async () => leadStore),
++      update: vi.fn(async ({ where, data }) => {
++        const row = leadStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: new Date() });
++        return row;
++      }),
++    },
++    crmLeadStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        leadHistoryStore.push(data);
++        return data;
++      }),
++      findMany: vi.fn(async () => leadHistoryStore),
++    },
++    subscription: {
++      create: vi.fn(async ({ data }) => {
++        subscriptionStore.push(data);
++        return data;
++      }),
++      count: vi.fn(async () => subscriptionStore.length),
++    },
++    invoice: {
++      create: vi.fn(async ({ data }) => {
++        invoiceStore.push(data);
++        return data;
++      }),
++      count: vi.fn(async () => invoiceStore.length),
++    },
++    tenant: {
++      create: vi.fn(async ({ data }) => {
++        tenantStore.push(data);
++        return data;
++      }),
++      count: vi.fn(async () => tenantStore.length),
++    },
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    _oppStore: oppStore,
++    _historyStore: historyStore,
++    _leadStore: leadStore,
++    _leadHistoryStore: leadHistoryStore,
++    _subscriptionStore: subscriptionStore,
++    _invoiceStore: invoiceStore,
++    _tenantStore: tenantStore,
++  };
++  return prisma;
++}
++
++function readyHandoff(overrides = {}) {
++  return {
++    type: 'CRM_OPPORTUNITY_HANDOFF',
++    version: 'crm-core-wave4-2026-07-30',
++    readinessStatus: CRM_READINESS_STATUS.READY,
++    leadId: 'lead-ready-1',
++    leadNumber: 'LEAD-2026-000010',
++    accountId: 'acc-1',
++    contactId: 'con-1',
++    source: 'MANUAL',
++    channel: 'ADMIN_MANUAL',
++    scoreVersionId: null,
++    qualificationVersionId: 'qual-small-business-standard-v1',
++    idempotencyKey: 'opp-ready:lead-ready-1:qual-v1:none',
++    opportunityId: null,
++    opportunityCreated: false,
++    pipelineCreated: false,
++    revenueInvented: false,
++    ...overrides,
++  };
++}
++
++describe('Opportunity create from READY handoff', () => {
++  it('creates Opportunity at OPPORTUNITY_IDENTIFIED with OPP number', async () => {
++    const prisma = makePrisma();
++    const result = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: readyHandoff(),
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(result.ok).toBe(true);
++    expect(result.created).toBe(true);
++    expect(result.opportunity.opportunityNumber).toMatch(CRM_OPPORTUNITY_NUMBER_RE);
++    expect(result.opportunity.stageCode).toBe(CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED);
++    expect(result.opportunity.leadId).toBe('lead-ready-1');
++    expect(result.opportunity.accountId).toBe('acc-1');
++    expect(result.opportunity.contactId).toBe('con-1');
++    expect(result.opportunity.amount).toBeUndefined();
++    expect(result.opportunity.probability).toBeUndefined();
++    expect(result.opportunity.closeDate).toBeUndefined();
++  });
++
++  it('is idempotent on handoffPayload.idempotencyKey', async () => {
++    const prisma = makePrisma();
++    const payload = readyHandoff();
++    const first = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: payload,
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    const second = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: payload,
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(first.ok).toBe(true);
++    expect(second.ok).toBe(true);
++    expect(second.idempotent).toBe(true);
++    expect(second.opportunity.id).toBe(first.opportunity.id);
++    expect(prisma._oppStore).toHaveLength(1);
++  });
++
++  it('rejects non-READY / wrong type handoff', async () => {
++    const prisma = makePrisma();
++    const notReady = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: readyHandoff({ readinessStatus: 'NOT_READY' }),
++    });
++    expect(notReady.ok).toBe(false);
++    expect(notReady.error).toMatch(/not_ready|READY/i);
++
++    const badType = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: readyHandoff({ type: 'SOMETHING_ELSE' }),
++    });
++    expect(badType.ok).toBe(false);
++  });
++
++  it('does not create Subscription, Invoice, or Tenant', async () => {
++    const prisma = makePrisma();
++    const result = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: readyHandoff(),
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(result.ok).toBe(true);
++    expect(prisma.subscription.create).not.toHaveBeenCalled();
++    expect(prisma.invoice.create).not.toHaveBeenCalled();
++    expect(prisma.tenant.create).not.toHaveBeenCalled();
++    expect(prisma._subscriptionStore).toHaveLength(0);
++    expect(prisma._invoiceStore).toHaveLength(0);
++    expect(prisma._tenantStore).toHaveLength(0);
++  });
++
++  it('transitions Lead to CONVERTED_TO_OPPORTUNITY only after Opp create', async () => {
++    const prisma = makePrisma();
++
++    // Direct transition still blocked for API / public path
++    expect(
++      canTransition(
++        CRM_LEAD_STATUS.OPPORTUNITY_READY,
++        CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY
++      )
++    ).toBe(false);
++    const direct = await transitionLeadStatus(prisma, {
++      admin: makeAdmin(),
++      leadId: 'lead-ready-1',
++      toStatus: CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY,
++    });
++    expect(direct.ok).toBe(false);
++    expect(['INVALID_TRANSITION', 'NOT_IMPLEMENTED']).toContain(direct.error);
++    expect(prisma._leadStore[0].status).toBe(CRM_LEAD_STATUS.OPPORTUNITY_READY);
++
++    const created = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: readyHandoff(),
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    expect(created.ok).toBe(true);
++    expect(prisma._leadStore[0].status).toBe(CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY);
++    expect(prisma._leadHistoryStore.some(
++      (h) => h.toStatus === CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY
++    )).toBe(true);
++
++    // State machine allows only with fromOpportunityCreate flag
++    const gated = assertTransition(
++      CRM_LEAD_STATUS.OPPORTUNITY_READY,
++      CRM_LEAD_STATUS.CONVERTED_TO_OPPORTUNITY,
++      { fromOpportunityCreate: true }
++    );
++    expect(gated.ok).toBe(true);
++  });
++
++  it('rejects create without opportunities.create permission', async () => {
++    const prisma = makePrisma();
++    const result = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin({
++        'systemAdmin.crm.opportunities.create': false,
++        'systemAdmin.crm.createLeads': false,
++        'systemAdmin.crm.editLeads': false,
++      }),
++      handoffPayload: readyHandoff(),
++    });
++    expect(result.ok).toBe(false);
++    expect(result.forbidden).toBe(true);
++  });
++
++  it('list and get opportunity', async () => {
++    const prisma = makePrisma();
++    const created = await createOpportunityFromHandoff(prisma, {
++      admin: makeAdmin(),
++      handoffPayload: readyHandoff(),
++      now: new Date('2026-07-30T12:00:00.000Z'),
++    });
++    const listed = await listOpportunities(prisma, { admin: makeAdmin() });
++    expect(listed.ok).toBe(true);
++    expect(listed.items.length).toBe(1);
++
++    const got = await getOpportunity(prisma, {
++      admin: makeAdmin(),
++      id: created.opportunity.id,
++    });
++    expect(got.ok).toBe(true);
++    expect(got.opportunity.opportunityNumber).toBe(created.opportunity.opportunityNumber);
++  });
++});
+diff --git "a/app\\api\\admin\\crm\\opportunities\\route.js" "b/app\\api\\admin\\crm\\opportunities\\route.js"
+new file mode 100644
+index 0000000..5a3dfa5
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\opportunities\\route.js"
+@@ -0,0 +1,101 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { createOpportunityFromHandoff, listOpportunities } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listOpportunities(prisma, {
++      admin,
++      stageCode: searchParams.get('stageCode') || undefined,
++      leadId: searchParams.get('leadId') || undefined,
++      limit: searchParams.get('limit') || '50',
++      offset: searchParams.get('offset') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    if (!result.ok && result.status === 'UNAVAILABLE') {
++      return NextResponse.json(
++        { success: false, error: result.error, items: [] },
++        { status: 503 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM opportunities list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM opportunities' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await createOpportunityFromHandoff(prisma, {
++      admin,
++      handoffPayload: body.handoffPayload || body,
++      title: body.title || null,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Lead not found' },
++        { status: 404 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to create opportunity', ...result },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json(
++      {
++        success: true,
++        opportunity: result.opportunity,
++        created: result.created !== false,
++        idempotent: Boolean(result.idempotent),
++        leadConversion: result.leadConversion || null,
++        subscriptionCreated: false,
++        invoiceCreated: false,
++        tenantCreated: false,
++      },
++      { status: result.idempotent ? 200 : 201 }
++    );
++  } catch (error) {
++    console.error('CRM opportunity create error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to create CRM opportunity' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\opportunities\\[id]\\route.js" "b/app\\api\\admin\\crm\\opportunities\\[id]\\route.js"
+new file mode 100644
+index 0000000..c410348
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\opportunities\\[id]\\route.js"
+@@ -0,0 +1,51 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { getOpportunity } from '@/lib/admin/crm';
++
++export async function GET(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const id = params?.id;
++    const result = await getOpportunity(prisma, { admin, id });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: 'Opportunity not found' },
++        { status: 404 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to get opportunity' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({
++      success: true,
++      opportunity: result.opportunity,
++      stageHistory: result.stageHistory,
++      meta: result.meta,
++    });
++  } catch (error) {
++    console.error('CRM opportunity get error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to get CRM opportunity' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\opportunities\\[id]\\stage\\route.js" "b/app\\api\\admin\\crm\\opportunities\\[id]\\stage\\route.js"
+new file mode 100644
+index 0000000..61f4e1a
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\opportunities\\[id]\\stage\\route.js"
+@@ -0,0 +1,72 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { transitionOpportunityStage } from '@/lib/admin/crm';
++
++export async function POST(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const id = params?.id;
++    const body = await request.json().catch(() => ({}));
++
++    const result = await transitionOpportunityStage({
++      prisma,
++      admin,
++      opportunityId: id,
++      toStageCode: body.toStageCode,
++      reason: body.reason,
++      evidenceReferences: body.evidence ?? body.evidenceReferences,
++      idempotencyKey: body.idempotencyKey,
++      expectedVersion: body.expectedVersion ?? body.version,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: 'Opportunity not found' },
++        { status: 404 }
++      );
++    }
++
++    if (!result.ok) {
++      const status =
++        result.error === 'INVALID_TRANSITION'
++          ? 409
++          : result.error === 'OPTIMISTIC_LOCK_CONFLICT'
++            ? 409
++            : result.status === 'UNAVAILABLE'
++              ? 503
++              : 400;
++      return NextResponse.json(
++        { success: false, error: result.error || 'Stage transition failed', ...result },
++        { status }
++      );
++    }
++
++    return NextResponse.json({
++      success: true,
++      opportunity: result.opportunity,
++      idempotent: Boolean(result.idempotent),
++      fromStageCode: result.fromStageCode,
++      toStageCode: result.toStageCode,
++      historyId: result.historyId,
++    });
++  } catch (error) {
++    console.error('CRM opportunity stage transition error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to transition opportunity stage' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\opportunity-readiness\\route.js" "b/app\\api\\admin\\crm\\opportunity-readiness\\route.js"
+new file mode 100644
+index 0000000..91783c7
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\opportunity-readiness\\route.js"
+@@ -0,0 +1,55 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { evaluateOpportunityReadiness } from '@/lib/admin/crm';
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await evaluateOpportunityReadiness(prisma, {
++      admin,
++      leadId: body.leadId,
++      allowUnknownProductInterest: body.allowUnknownProductInterest === true,
++      accountContactExceptionReason: body.accountContactExceptionReason || null,
++      markReady: body.markReady === true,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Readiness evaluation failed' },
++        { status: 400 }
++      );
++    }
++
++    return NextResponse.json({
++      success: true,
++      readinessStatus: result.readinessStatus,
++      checklist: result.checklist,
++      handoffPayload: result.handoffPayload,
++      opportunityCreated: false,
++      leadStatus: result.leadStatus,
++      transition: result.transition || null,
++      meta: result.meta,
++    });
++  } catch (error) {
++    console.error('CRM opportunity readiness error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to evaluate opportunity readiness' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\pipelines\\route.js" "b/app\\api\\admin\\crm\\pipelines\\route.js"
+new file mode 100644
+index 0000000..367b3b3
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\pipelines\\route.js"
+@@ -0,0 +1,30 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { listPipelines } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const result = await listPipelines(prisma, { admin });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM pipelines list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM pipelines' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\pipelines\\[id]\\route.js" "b/app\\api\\admin\\crm\\pipelines\\[id]\\route.js"
+new file mode 100644
+index 0000000..24f3ae5
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\pipelines\\[id]\\route.js"
+@@ -0,0 +1,46 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { getPipeline } from '@/lib/admin/crm';
++
++export async function GET(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const id = params?.id;
++    const result = await getPipeline(prisma, { admin, id });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: 'Pipeline not found' },
++        { status: 404 }
++      );
++    }
++
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to get pipeline' },
++        { status: 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, pipeline: result.pipeline });
++  } catch (error) {
++    console.error('CRM pipeline get error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to get CRM pipeline' },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/lib/admin/permissions.js b/lib/admin/permissions.js
+index a7c04b3..93d191c 100644
+--- a/lib/admin/permissions.js
++++ b/lib/admin/permissions.js
+@@ -1,8 +1,10 @@
+ /**
+  * Granular systemAdmin.* permission catalog for the platform control plane.
+- * Stored on Admin.permissions as nested objects; Super Admin bypasses checks.
++ * Stored on Admin.permissions as nested objects; Super Admin is break-glass via decision service.
+  */
+ 
++import { authorizeAdminDecision } from './authorization/authorizeAdminDecision.js';
++
+ export const SYSTEM_ADMIN_PERMISSIONS = {
+   dashboard: {
+     view: 'systemAdmin.dashboard.view',
+@@ -71,6 +73,18 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     reconciliation: 'systemAdmin.billing.reconciliation',
+     reportsExport: 'systemAdmin.billing.reports.export',
+   },
++  mraPlans: {
++    view: 'systemAdmin.mraPlans.view',
++    create: 'systemAdmin.mraPlans.create',
++    editDraft: 'systemAdmin.mraPlans.editDraft',
++    approve: 'systemAdmin.mraPlans.approve',
++    publish: 'systemAdmin.mraPlans.publish',
++    suspend: 'systemAdmin.mraPlans.suspend',
++    retire: 'systemAdmin.mraPlans.retire',
++    version: 'systemAdmin.mraPlans.version',
++    preview: 'systemAdmin.mraPlans.preview',
++    export: 'systemAdmin.mraPlans.export',
++  },
+   email: {
+     view: 'systemAdmin.email.view',
+     configurationManage: 'systemAdmin.email.configuration.manage',
+@@ -103,6 +117,91 @@ export const SYSTEM_ADMIN_PERMISSIONS = {
+     cancelJobs: 'systemAdmin.health.cancelJobs',
+     manageIncidents: 'systemAdmin.health.manageIncidents',
+   },
++  /** Intelligence ΓÇö Phase 5 executive summaries (routes gated; default deny until granted). */
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    /** Wave 3 ΓÇö create portfolios / assign ownership (view still customersRead). */
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    /** Phase 8 Wave 1 ΓÇö Customer Health */
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    /** Phase 9 Wave 1 ΓÇö Product Analytics */
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  /** Phase 8 Wave 2/3 ΓÇö Customer Success Ops. */
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  /**
++   * Phase 10 Wave 1 ΓÇö Support Ops (Γëá CsCase Γëá PlatformSupportAccess).
++   * Active: viewTickets / createTickets / transitionStatus.
++   * Remaining keys stubbed from SUPPORT_SECURITY_MATRIX for later waves.
++   */
++  support: {
++    view: 'systemAdmin.support.viewTickets',
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
++  /**
++   * Phase 11 Wave 1ΓÇô3 ΓÇö CRM Core (Γëá Customer Γëá SupportTicket Γëá CsCase).
++   * Active Wave 3+: assignLeads, qualifyLeads, scoreLeads, manageConsent,
++   * overrideQualification. Remaining keys stubbed for later waves.
++   * Never use POS sales.*.
++   */
++  crm: {
++    view: 'systemAdmin.crm.view',
++    viewLeads: 'systemAdmin.crm.viewLeads',
++    createLeads: 'systemAdmin.crm.createLeads',
++    editLeads: 'systemAdmin.crm.editLeads',
++    viewAccounts: 'systemAdmin.crm.viewAccounts',
++    createAccounts: 'systemAdmin.crm.createAccounts',
++    viewContacts: 'systemAdmin.crm.viewContacts',
++    createContacts: 'systemAdmin.crm.createContacts',
++    transitionStatus: 'systemAdmin.crm.transitionStatus',
++    assignLeads: 'systemAdmin.crm.assignLeads',
++    qualifyLeads: 'systemAdmin.crm.qualifyLeads',
++    scoreLeads: 'systemAdmin.crm.scoreLeads',
++    overrideQualification: 'systemAdmin.crm.overrideQualification',
++    manageConsent: 'systemAdmin.crm.manageConsent',
++    /** Stub ΓÇö Wave 4 merge / later */
++    mergeLeads: 'systemAdmin.crm.mergeLeads',
++    export: 'systemAdmin.crm.export',
++    runReconciliation: 'systemAdmin.crm.runReconciliation',
++    /** Phase 12 Wave 1 ΓÇö live Pipeline / Opportunities */
++    pipelineView: 'systemAdmin.crm.pipeline.view',
++    pipelineManageDefinitions: 'systemAdmin.crm.pipeline.manageDefinitions',
++    pipelineTransitionStages: 'systemAdmin.crm.pipeline.transitionStages',
++    /** Legacy scaffold alias */
++    pipelineManage: 'systemAdmin.crm.pipeline.manage',
++    opportunitiesView: 'systemAdmin.crm.opportunities.view',
++    opportunitiesCreate: 'systemAdmin.crm.opportunities.create',
++    opportunitiesEdit: 'systemAdmin.crm.opportunities.edit',
++  },
+ };
+ 
+ export const ADMIN_ROLES = {
+@@ -118,6 +217,7 @@ export const ADMIN_ROLES = {
+ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/dashboard': SYSTEM_ADMIN_PERMISSIONS.dashboard.view,
+   '/insightbooks/tenant-management': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
++  '/insightbooks/tenant-identity-transfer': SYSTEM_ADMIN_PERMISSIONS.tenants.view,
+   '/insightbooks/user-management': SYSTEM_ADMIN_PERMISSIONS.users.view,
+   '/insightbooks/global-settings': SYSTEM_ADMIN_PERMISSIONS.settings.view,
+   '/insightbooks/feature-entitlements': SYSTEM_ADMIN_PERMISSIONS.settings.features,
+@@ -126,17 +226,223 @@ export const NAV_PERMISSION_MAP = {
+   '/insightbooks/affiliate/commissions': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/affiliate/payouts': SYSTEM_ADMIN_PERMISSIONS.affiliates.view,
+   '/insightbooks/billing': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/overview': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/mra-eis-plans': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/subscriptions': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/invoices': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/payments': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/credits': SYSTEM_ADMIN_PERMISSIONS.billing.view,
++  '/insightbooks/billing/reconciliation': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/reports': SYSTEM_ADMIN_PERMISSIONS.billing.view,
+   '/insightbooks/imports': SYSTEM_ADMIN_PERMISSIONS.tenants.create,
+   '/insightbooks/email-management': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/templates': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/email-management/suppression': SYSTEM_ADMIN_PERMISSIONS.email.view,
+   '/insightbooks/mra-eis': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/centre': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/terminals': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/configuration': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/mappings': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
++  '/insightbooks/mra-eis/catalogue': SYSTEM_ADMIN_PERMISSIONS.mraEntitlement.view,
+   '/insightbooks/audit': SYSTEM_ADMIN_PERMISSIONS.audit.view,
+   '/insightbooks/security': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/monitoring': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/security/compliance': SYSTEM_ADMIN_PERMISSIONS.security.view,
+   '/insightbooks/system-health': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/analytics-pipeline': SYSTEM_ADMIN_PERMISSIONS.health.view,
++  '/insightbooks/intelligence': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/executive': SYSTEM_ADMIN_PERMISSIONS.intel.executiveRead,
++  '/insightbooks/intelligence/revenue': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/overview': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/recurring': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mrr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/arr': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/movements': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/billing': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/collections': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/receivables': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/payment-performance':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/credits-refunds':
++    SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/customers': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/segments': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/concentration': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/retention': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/cohorts': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/subscriptions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/plans': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/forecast': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reconciliation': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/reports': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/revenue/settings': SYSTEM_ADMIN_PERMISSIONS.intel.revenueRead,
++  '/insightbooks/intelligence/customers': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/overview': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/directory': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/lifecycle': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/engagement': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/commercial': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/renewals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/mra-eis': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/adoption': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/support': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/signals': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/portfolios': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/reports': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/definitions': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customers/settings': SYSTEM_ADMIN_PERMISSIONS.intel.customersRead,
++  '/insightbooks/intelligence/customer-health':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/snapshots':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/customer-health/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.customerHealthRead,
++  '/insightbooks/intelligence/product-analytics':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/overview':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/modules':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/features':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/adoption':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/activation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/first-value':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/funnels':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/cohorts':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/signals':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/definitions':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reconciliation':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsRead,
++  '/insightbooks/intelligence/product-analytics/reports':
++    SYSTEM_ADMIN_PERMISSIONS.intel.productAnalyticsExport,
++  '/insightbooks/customer-success': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/command-centre':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/cases': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/tasks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/interventions':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.manageCases,
++  '/insightbooks/customer-success/renewals': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/playbooks': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/success-plans':
++    SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/onboarding': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/training': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/surveys': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/handoffs': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/customer-success/reports': SYSTEM_ADMIN_PERMISSIONS.customerSuccess.read,
++  '/insightbooks/support': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/tickets': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/my-work': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/queues': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/sla': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/handoffs': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/foundations': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/support/reports': SYSTEM_ADMIN_PERMISSIONS.support.viewTickets,
++  '/insightbooks/crm': SYSTEM_ADMIN_PERMISSIONS.crm.view,
++  '/insightbooks/crm/my-work': SYSTEM_ADMIN_PERMISSIONS.crm.viewLeads,
++  '/insightbooks/crm/overview': SYSTEM_ADMIN_PERMISSIONS.crm.view,
++  '/insightbooks/crm/leads': SYSTEM_ADMIN_PERMISSIONS.crm.viewLeads,
++  '/insightbooks/crm/accounts': SYSTEM_ADMIN_PERMISSIONS.crm.viewAccounts,
++  '/insightbooks/crm/contacts': SYSTEM_ADMIN_PERMISSIONS.crm.viewContacts,
++  '/insightbooks/crm/duplicates': SYSTEM_ADMIN_PERMISSIONS.crm.viewLeads,
++  '/insightbooks/crm/imports': SYSTEM_ADMIN_PERMISSIONS.crm.view,
++  '/insightbooks/crm/reports': SYSTEM_ADMIN_PERMISSIONS.crm.view,
++  '/insightbooks/crm/settings': SYSTEM_ADMIN_PERMISSIONS.crm.view,
++  '/insightbooks/crm/foundations': SYSTEM_ADMIN_PERMISSIONS.crm.view,
++  '/insightbooks/crm/pipeline': SYSTEM_ADMIN_PERMISSIONS.crm.pipelineView,
++  '/insightbooks/crm/opportunities': SYSTEM_ADMIN_PERMISSIONS.crm.opportunitiesView,
++};
++
++/** Future Intelligence / CRM keys ΓÇö scaffold only; default deny until later phases. */
++export const INTEL_CRM_PERMISSION_SCAFFOLD = {
++  intel: {
++    executiveRead: 'systemAdmin.intel.executive.read',
++    revenueRead: 'systemAdmin.intel.revenue.read',
++    customersRead: 'systemAdmin.intel.customers.read',
++    managePortfolios: 'systemAdmin.intel.customers.managePortfolios',
++    customerHealthRead: 'systemAdmin.intel.customerHealth.read',
++    customerHealthManageDefinitions: 'systemAdmin.intel.customerHealth.manageDefinitions',
++    customerHealthRebuild: 'systemAdmin.intel.customerHealth.rebuild',
++    productRead: 'systemAdmin.intel.product.read',
++    productAnalyticsRead: 'systemAdmin.intel.productAnalytics.read',
++    productAnalyticsManageDefinitions:
++      'systemAdmin.intel.productAnalytics.manageDefinitions',
++    productAnalyticsExport: 'systemAdmin.intel.productAnalytics.export',
++    productAnalyticsRunReconciliation:
++      'systemAdmin.intel.productAnalytics.runReconciliation',
++    productAnalyticsAcknowledgeSignals:
++      'systemAdmin.intel.productAnalytics.acknowledgeSignals',
++    productAnalyticsViewUserLevel:
++      'systemAdmin.intel.productAnalytics.viewUserLevelData',
++  },
++  customerSuccess: {
++    read: 'systemAdmin.customerSuccess.read',
++    manageCases: 'systemAdmin.customerSuccess.manageCases',
++    manageRenewals: 'systemAdmin.customerSuccess.manageRenewals',
++  },
++  support: {
++    viewTickets: 'systemAdmin.support.viewTickets',
++    createTickets: 'systemAdmin.support.createTickets',
++    transitionStatus: 'systemAdmin.support.transitionStatus',
++    replyPublicly: 'systemAdmin.support.replyPublicly',
++    addInternalNotes: 'systemAdmin.support.addInternalNotes',
++    addRestrictedNotes: 'systemAdmin.support.addRestrictedNotes',
++    assignTickets: 'systemAdmin.support.assignTickets',
++    mergeTickets: 'systemAdmin.support.mergeTickets',
++    manageSla: 'systemAdmin.support.manageSla',
++    export: 'systemAdmin.support.export',
++    scheduleReports: 'systemAdmin.support.scheduleReports',
++    runReconciliation: 'systemAdmin.support.runReconciliation',
++  },
++  crm: {
++    /** Legacy scaffold aliases ΓÇö prefer SYSTEM_ADMIN_PERMISSIONS.crm.* */
++    leadsView: 'systemAdmin.crm.leads.view',
++    leadsManage: 'systemAdmin.crm.leads.manage',
++    pipelineView: 'systemAdmin.crm.pipeline.view',
++    pipelineManage: 'systemAdmin.crm.pipeline.manage',
++    pipelineManageDefinitions: 'systemAdmin.crm.pipeline.manageDefinitions',
++    pipelineTransitionStages: 'systemAdmin.crm.pipeline.transitionStages',
++    opportunitiesView: 'systemAdmin.crm.opportunities.view',
++    opportunitiesCreate: 'systemAdmin.crm.opportunities.create',
++    opportunitiesEdit: 'systemAdmin.crm.opportunities.edit',
++    view: 'systemAdmin.crm.view',
++    viewLeads: 'systemAdmin.crm.viewLeads',
++    createLeads: 'systemAdmin.crm.createLeads',
++    editLeads: 'systemAdmin.crm.editLeads',
++    viewAccounts: 'systemAdmin.crm.viewAccounts',
++    createAccounts: 'systemAdmin.crm.createAccounts',
++    viewContacts: 'systemAdmin.crm.viewContacts',
++    createContacts: 'systemAdmin.crm.createContacts',
++    transitionStatus: 'systemAdmin.crm.transitionStatus',
++    assignLeads: 'systemAdmin.crm.assignLeads',
++    qualifyLeads: 'systemAdmin.crm.qualifyLeads',
++    scoreLeads: 'systemAdmin.crm.scoreLeads',
++    overrideQualification: 'systemAdmin.crm.overrideQualification',
++    manageConsent: 'systemAdmin.crm.manageConsent',
++    mergeLeads: 'systemAdmin.crm.mergeLeads',
++    export: 'systemAdmin.crm.export',
++    runReconciliation: 'systemAdmin.crm.runReconciliation',
++  },
+ };
+ 
+ /**
+@@ -160,28 +466,9 @@ export function permissionKeyParts(permission) {
+ 
+ /**
+  * Client-safe permission check (no Prisma / JWT imports).
+- * Super Admin always allowed. Supports systemAdmin.* and legacy category.action.
++ * Delegates to canonical authorizeAdminDecision (default deny; Super Admin break-glass).
++ * Supports systemAdmin.* and legacy category.action.
+  */
+ export function adminHasPermission(admin, permission) {
+-  if (!admin) return false;
+-  if (admin.role === 'Super Admin' || admin.role === ADMIN_ROLES.SUPER_ADMIN) {
+-    return true;
+-  }
+-  if (!admin.permissions || typeof admin.permissions !== 'object') {
+-    return false;
+-  }
+-  const parts = permissionKeyParts(permission);
+-  if (!parts) return false;
+-
+-  if (parts.root === 'systemAdmin') {
+-    const bucket = admin.permissions.systemAdmin?.[parts.category];
+-    if (bucket && typeof bucket === 'object') {
+-      return bucket[parts.action] === true;
+-    }
+-    // Flat key fallback: permissions['systemAdmin.tenants.view']
+-    if (admin.permissions[permission] === true) return true;
+-    return false;
+-  }
+-
+-  return admin.permissions[parts.category]?.[parts.action] === true;
++  return authorizeAdminDecision({ admin, permission }).allowed === true;
+ }
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 110ea53..e694e81 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -27,6 +27,22 @@ model Tenant {
+   AccountBalance               AccountBalance[]
+   accountSubscriptions         AccountSubscription[]
+   adminAccess                  AdminTenantAccess[]
++  customerOwnerships           CustomerOwnership[]
++  customerSegmentMemberships   CustomerSegmentMembership[]
++  customerSignals              CustomerSignal[]
++  customerHealthSnapshots      CustomerHealthSnapshot[]
++  csCases                      CsCase[]
++  csTasks                      CsTask[]
++  csInterventions              CsIntervention[]
++  csRenewalWorkspaces          CsRenewalWorkspace[]
++  csPlaybookExecutions         CsPlaybookExecution[]
++  csSuccessPlans               CsSuccessPlan[]
++  csExpansionHandoffs          CsExpansionHandoff[]
++  csOnboardingRecords          CsOnboardingRecord[]
++  csTrainingRecords            CsTrainingRecord[]
++  csSurveyResponses            CsSurveyResponse[]
++  supportTickets               SupportTicket[]
++  crmAccounts                  CrmAccount[]
+   affiliateReferrals           AffiliateReferral[]
+   assets                       Asset[]
+   assetCategories              AssetCategory[]
+@@ -238,6 +254,8 @@ model TenantSettings {
+   businessEmail                    String?
+   businessPhone                    String?
+   receiptFooter                    String?
++  /// Preferred thermal receipt roll width in mm (58ΓÇô90). Used by web + Android POS print.
++  receiptPaperWidthMm              Int       @default(80)
+   defaultBankDetails               String? // Default bank account details for invoice/quotation/receipt footers
+   // NPS rates are tenant-configurable; null means "not configured".
+   // Calculation code should treat null as 0% unless explicitly set.
+@@ -531,9 +549,61 @@ model Admin {
+   phone          String?
+   department     String?
+   notes          String?
+-  adminAuditLogs AdminAuditLog[]
+-  managedTenants AdminTenantAccess[]
+-  emailLogs      EmailLog[]          @relation("EmailLogAdminSender")
++  adminAuditLogs              AdminAuditLog[]
++  managedTenants              AdminTenantAccess[]
++  emailLogs                   EmailLog[]               @relation("EmailLogAdminSender")
++  ownedCustomerPortfolios     CustomerPortfolio[]      @relation("PortfolioOwner")
++  customerOwnerships          CustomerOwnership[]      @relation("OwnershipOwner")
++  assignedCustomerOwnerships  CustomerOwnership[]      @relation("OwnershipAssignedBy")
++  csCasesOpened               CsCase[]                 @relation("CsCaseOpenedBy")
++  csCasesOwned                CsCase[]                 @relation("CsCaseOwner")
++  csTasksAssigned             CsTask[]                 @relation("CsTaskAssignee")
++  csTasksCreated              CsTask[]                 @relation("CsTaskCreatedBy")
++  csInterventionsPerformed    CsIntervention[]         @relation("CsInterventionPerformedBy")
++  csRenewalsOpened            CsRenewalWorkspace[]     @relation("CsRenewalOpenedBy")
++  csRenewalsOutcomeBy         CsRenewalWorkspace[]     @relation("CsRenewalOutcomeBy")
++  csPlaybookExecutionsStarted CsPlaybookExecution[]    @relation("CsPlaybookExecutionStartedBy")
++  csSuccessPlansOwned         CsSuccessPlan[]          @relation("CsSuccessPlanOwner")
++  csSuccessPlansCreated       CsSuccessPlan[]          @relation("CsSuccessPlanCreatedBy")
++  csExpansionHandoffsCreated  CsExpansionHandoff[]     @relation("CsExpansionHandoffCreatedBy")
++  supportTicketsCreated       SupportTicket[]          @relation("SupportTicketCreatedBy")
++  supportTicketsAssigned      SupportTicket[]          @relation("SupportTicketAssignee")
++  supportTicketStatusChanges  SupportTicketStatusHistory[] @relation("SupportTicketStatusChangedBy")
++  supportMessagesAuthored     SupportMessage[]         @relation("SupportMessageAuthor")
++  supportAttachmentsUploaded  SupportAttachment[]      @relation("SupportAttachmentUploadedBy")
++  supportAssignmentChanges    SupportAssignmentHistory[] @relation("SupportAssignmentChangedBy")
++  supportTeamMemberships      SupportTeamMembership[]
++  supportSlaPoliciesCreated   SupportSlaPolicy[]       @relation("SupportSlaPolicyCreatedBy")
++  supportSlaCalendarsCreated  SupportSlaCalendar[]     @relation("SupportSlaCalendarCreatedBy")
++  supportHandoffsCreated      SupportHandoff[]         @relation("SupportHandoffCreatedBy")
++  supportReconciliationRuns   SupportReconciliationRun[] @relation("SupportReconciliationRunBy")
++  supportExportAudits         SupportExportAudit[]     @relation("SupportExportAuditBy")
++  crmAccountsOwned            CrmAccount[]             @relation("CrmAccountOwner")
++  crmContactsOwned            CrmContact[]             @relation("CrmContactOwner")
++  crmLeadsOwned               CrmLead[]                @relation("CrmLeadOwner")
++  crmLeadsCreated             CrmLead[]                @relation("CrmLeadCreatedBy")
++  crmLeadStatusChanges        CrmLeadStatusHistory[]   @relation("CrmLeadStatusChangedBy")
++  crmDuplicateReviews         CrmDuplicateCandidate[]  @relation("CrmDuplicateReviewedBy")
++  crmQualificationResponses   CrmQualificationResponse[] @relation("CrmQualificationAnsweredBy")
++  crmQualificationVersions    CrmQualificationDefinitionVersion[] @relation("CrmQualificationVersionCreatedBy")
++  crmScoreEvaluations         CrmScoreEvaluation[]     @relation("CrmScoreEvaluationCreatedBy")
++  crmScoreVersions            CrmScoreDefinitionVersion[] @relation("CrmScoreVersionCreatedBy")
++  crmSalesTeamMemberships     CrmSalesTeamMember[]
++  crmAssignmentChanges        CrmAssignmentHistory[]   @relation("CrmAssignmentChangedBy")
++  crmConsentRecords           CrmConsentRecord[]       @relation("CrmConsentCreatedBy")
++  crmDoNotContactSets         CrmDoNotContact[]        @relation("CrmDncSetBy")
++  crmTimelineEvents           CrmTimelineEvent[]       @relation("CrmTimelineActor")
++  crmNotesAuthored            CrmNote[]                @relation("CrmNoteAuthor")
++  crmTasksAssigned            CrmTask[]                @relation("CrmTaskAssignee")
++  crmTasksCreated             CrmTask[]                @relation("CrmTaskCreatedBy")
++  crmMergeRequestsRequested   CrmMergeRequest[]        @relation("CrmMergeRequestedBy")
++  crmMergeRequestsApproved    CrmMergeRequest[]        @relation("CrmMergeApprovedBy")
++  crmMergeRequestsExecuted    CrmMergeRequest[]        @relation("CrmMergeExecutedBy")
++  crmReconciliationRuns       CrmReconciliationRun[]   @relation("CrmReconciliationRunBy")
++  crmExportAudits             CrmExportAudit[]         @relation("CrmExportAuditBy")
++  crmOpportunitiesOwned       CrmOpportunity[]         @relation("CrmOpportunityOwner")
++  crmOpportunitiesCreated     CrmOpportunity[]         @relation("CrmOpportunityCreatedBy")
++  crmOpportunityStageChanges  CrmOpportunityStageHistory[] @relation("CrmOpportunityStageChangedBy")
+ 
+   @@index([email])
+   @@index([role])
+@@ -1421,11 +1491,29 @@ model InvoiceItem {
+   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   product        Product? @relation(fields: [productId], references: [id])
+   account        Account? @relation(fields: [accountId], references: [id])
++  itemTaxes      InvoiceItemTax[]
+ 
+   @@index([invoiceId])
+   @@index([accountId])
+ }
+ 
++model InvoiceItemTax {
++  id               String      @id @default(cuid())
++  invoiceItemId    String
++  taxTypeId        String
++  taxName          String
++  taxCode          String      @default("")
++  taxRate          Float
++  calculationType  String      @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime    @default(now())
++  invoiceItem      InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType     @relation(fields: [taxTypeId], references: [id])
++
++  @@index([invoiceItemId])
++  @@index([taxTypeId])
++}
++
+ model InvoiceRefund {
+   id              String    @id @default(cuid())
+   invoiceId       String
+@@ -3141,6 +3229,8 @@ model TaxType {
+   updatedAt          DateTime            @updatedAt
+   productTaxes       ProductTax[]
+   saleItemTaxes      SaleItemTax[]
++  invoiceItemTaxes   InvoiceItemTax[]
++  quotationItemTaxes QuotationItemTax[]
+   purchaseOrderItems PurchaseOrderItem[]
+   expenses           Expense[]
+   account            Account             @relation("TaxTypeAccount", fields: [accountId], references: [id])
+@@ -3635,11 +3725,29 @@ model QuotationItem {
+   netAmount      Float     @default(0)
+   product        Product?  @relation(fields: [productId], references: [id])
+   quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
++  itemTaxes      QuotationItemTax[]
+ 
+   @@index([quotationId])
+   @@index([productId])
+ }
+ 
++model QuotationItemTax {
++  id               String        @id @default(cuid())
++  quotationItemId  String
++  taxTypeId        String
++  taxName          String
++  taxCode          String        @default("")
++  taxRate          Float
++  calculationType  String        @default("Percentage")
++  taxAmount        Float
++  createdAt        DateTime      @default(now())
++  quotationItem    QuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
++  taxType          TaxType       @relation(fields: [taxTypeId], references: [id])
++
++  @@index([quotationItemId])
++  @@index([taxTypeId])
++}
++
+ model AccountSubscription {
+   id              String       @id @default(cuid())
+   tenantId        String
+@@ -10314,19 +10422,35 @@ model PlatformPayment {
+ }
+ 
+ /// Versioned SaaS subscription plans ΓÇö price edits create a new version.
++/// planCategory: CORE | MRA_EIS (and future product families).
+ model PlatformPlanVersion {
+   id               String    @id @default(cuid())
+   planCode         String
+   version          Int
+   name             String
++  publicName       String?
+   description      String?
++  planCategory     String    @default("CORE")
++  productCode      String?
+   currency         String    @default("MWK")
+   basePrice        Decimal   @db.Decimal(18, 2)
+   billingFrequency String    @default("month")
+   userLimit        Int?
+   businessLimit    Int?
+   featuresJson     Json      @default("[]")
++  limitsJson       Json      @default("{}")
++  eligibilityJson  Json      @default("{}")
++  billingCyclesJson Json     @default("[]")
++  presentationJson Json      @default("{}")
++  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ACTIVE | SUSPENDED | RETIRED | SUPERSEDED
+   status           String    @default("ACTIVE")
++  isPublic         Boolean   @default(false)
++  isFeatured       Boolean   @default(false)
++  displayOrder     Int       @default(0)
++  trialEnabled     Boolean   @default(false)
++  trialDays        Int?
++  ctaText          String?
++  highlightText    String?
+   effectiveFrom    DateTime  @default(now())
+   effectiveTo      DateTime?
+   createdAt        DateTime  @default(now())
+@@ -10336,6 +10460,8 @@ model PlatformPlanVersion {
+   @@unique([planCode, version])
+   @@index([planCode])
+   @@index([status])
++  @@index([planCategory])
++  @@index([isPublic, planCategory, displayOrder])
+ }
+ 
+ /// Platform credits (e.g. overpayment) ΓÇö separate from tenant AR.
+@@ -10437,3 +10563,1607 @@ model PlatformFeatureEntitlement {
+   @@index([featureCode])
+   @@index([status])
+ }
++
++/// Platform analytics transactional outbox (BI plane ΓÇö not AcctV2/MraEis).
++model AnalyticsOutbox {
++  id             String    @id @default(cuid())
++  tenantId       String?
++  aggregateType  String
++  aggregateId    String
++  eventType      String
++  schemaVersion  String    @default("1")
++  payload        Json
++  payloadChecksum String
++  idempotencyKey String    @unique
++  status         String    @default("PENDING")
++  availableAt    DateTime  @default(now())
++  claimedAt      DateTime?
++  claimExpiresAt DateTime?
++  claimedBy      String?
++  processedAt    DateTime?
++  attemptCount   Int       @default(0)
++  nextAttemptAt  DateTime?
++  lastError      String?
++  correlationId  String?
++  requestId      String?
++  privacyClass   String    @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  occurredAt     DateTime  @default(now())
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  @@index([status, availableAt])
++  @@index([tenantId, eventType])
++  @@index([aggregateType, aggregateId])
++}
++
++/// Append-only canonical analytics events (derived, rebuildable).
++model AnalyticsEvent {
++  id             String   @id @default(cuid())
++  eventType      String
++  schemaVersion  String   @default("1")
++  tenantId       String?
++  sourceType     String
++  sourceId       String
++  idempotencyKey String   @unique
++  occurredAt     DateTime
++  ingestedAt     DateTime @default(now())
++  privacyClass   String   @default("INTERNAL")
++  actorType      String?
++  actorId        String?
++  correlationId  String?
++  requestId      String?
++  payload        Json
++  outboxId       String?
++
++  @@index([eventType, occurredAt])
++  @@index([tenantId, occurredAt])
++  @@index([sourceType, sourceId])
++}
++
++model AnalyticsConsumerCheckpoint {
++  id           String   @id @default(cuid())
++  consumerName String   @unique
++  lastEventId  String?
++  lastOccurredAt DateTime?
++  cursor       Json?
++  updatedAt    DateTime @updatedAt
++}
++
++model AnalyticsDeadLetter {
++  id             String   @id @default(cuid())
++  outboxId       String?
++  eventId        String?
++  eventType      String?
++  errorCode      String?
++  errorMessage   String
++  payload        Json?
++  attemptCount   Int      @default(0)
++  createdAt      DateTime @default(now())
++  resolvedAt     DateTime?
++
++  @@index([createdAt])
++  @@index([eventType])
++}
++
++model AnalyticsFactPlatformBilling {
++  id              String   @id @default(cuid())
++  tenantId        String
++  sourceType      String
++  sourceId        String
++  eventType       String
++  amount          Decimal  @db.Decimal(18, 2)
++  currency        String   @default("MWK")
++  occurredAt      DateTime
++  idempotencyKey  String   @unique
++  createdAt       DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++model AnalyticsFactSubscription {
++  id             String   @id @default(cuid())
++  tenantId       String
++  subscriptionId String
++  eventType      String
++  planCode       String?
++  amount         Decimal? @db.Decimal(18, 2)
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([subscriptionId])
++}
++
++model AnalyticsFactTenantActivity {
++  id             String   @id @default(cuid())
++  tenantId       String
++  eventType      String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, occurredAt])
++  @@index([eventType, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö product usage facts from instrumented commerce events.
++model AnalyticsFactProductUsage {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  meta           Json?
++  createdAt      DateTime @default(now())
++
++  @@index([tenantId, featureCode, occurredAt])
++  @@index([tenantId, eventType, occurredAt])
++  @@index([featureCode, occurredAt])
++}
++
++/// Phase 9 Wave 2 ΓÇö first-value uniqueness per tenant + feature + ruleVersion.
++model ProductFirstValueFact {
++  id             String   @id @default(cuid())
++  tenantId       String
++  featureCode    String
++  ruleVersion    String
++  eventType      String
++  sourceType     String
++  sourceId       String
++  sourceEventId  String?
++  occurredAt     DateTime
++  idempotencyKey String   @unique
++  createdAt      DateTime @default(now())
++
++  @@unique([tenantId, featureCode, ruleVersion])
++  @@index([tenantId, featureCode])
++}
++
++/// Phase 9 Wave 2 ΓÇö append-only adoption state history (never silent overwrite).
++model ProductAdoptionStateHistory {
++  id                String   @id @default(cuid())
++  tenantId          String
++  featureCode       String
++  state             String
++  previousState     String?
++  ruleVersion       String
++  definitionVersion String
++  reasonCode        String?
++  evidence          Json?
++  observedAt        DateTime @default(now())
++  createdAt         DateTime @default(now())
++
++  @@index([tenantId, featureCode, observedAt])
++  @@index([tenantId, featureCode, state])
++}
++
++model AnalyticsDailySnapshot {
++  id             String   @id @default(cuid())
++  snapshotDate   DateTime @db.Date
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([snapshotDate, metricKey, tenantId])
++  @@index([metricKey, snapshotDate])
++}
++
++model AnalyticsMonthlySnapshot {
++  id             String   @id @default(cuid())
++  yearMonth      String
++  metricKey      String
++  tenantId       String   @default("")
++  valueNumeric   Decimal? @db.Decimal(18, 4)
++  valueJson      Json?
++  createdAt      DateTime @default(now())
++  rebuiltAt      DateTime @default(now())
++
++  @@unique([yearMonth, metricKey, tenantId])
++  @@index([metricKey, yearMonth])
++}
++
++model AnalyticsDataFreshness {
++  id              String   @id @default(cuid())
++  sourceKey       String   @unique
++  lastSuccessAt   DateTime?
++  lastAttemptAt   DateTime?
++  lagSeconds      Int?
++  status          String   @default("UNKNOWN")
++  detail          Json?
++  updatedAt       DateTime @updatedAt
++}
++
++model AnalyticsReconciliationRun {
++  id           String   @id @default(cuid())
++  checkKey     String
++  periodStart  DateTime
++  periodEnd    DateTime
++  expected     Int
++  actual       Int
++  variance     Int
++  status       String
++  detail       Json?
++  createdAt    DateTime @default(now())
++
++  @@index([checkKey, createdAt])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS portfolio (not AdminTenantAccess / Tenant.ownerUserId)
++model CustomerPortfolio {
++  id           String              @id @default(cuid())
++  code         String              @unique
++  name         String
++  description  String?
++  type         String              @default("CUSTOMER_SUCCESS")
++  status       String              @default("ACTIVE")
++  ownerAdminId String?
++  ownerAdmin   Admin?              @relation("PortfolioOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdAt    DateTime            @default(now())
++  updatedAt    DateTime            @updatedAt
++  ownerships     CustomerOwnership[]
++  csCases        CsCase[]
++  supportTickets SupportTicket[]
++
++  @@index([status])
++  @@index([ownerAdminId])
++  @@index([type])
++}
++
++/// Phase 7 Wave 3 ΓÇö CS ownership assignment (tenant ΓåÆ CS owner / portfolio)
++model CustomerOwnership {
++  id                String             @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  ownerAdminId      String
++  assignmentType    String             @default("CUSTOMER_SUCCESS_OWNER")
++  isPrimary         Boolean            @default(true)
++  startAt           DateTime           @default(now())
++  endAt             DateTime?
++  reason            String?
++  assignedByAdminId String?
++  status            String             @default("ACTIVE")
++  createdAt         DateTime           @default(now())
++  updatedAt         DateTime           @updatedAt
++  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin              @relation("OwnershipOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
++  assignedByAdmin   Admin?             @relation("OwnershipAssignedBy", fields: [assignedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId, status])
++  @@index([status, endAt])
++  @@index([isPrimary, status])
++}
++
++/// Optional segment foundation (Wave 3). Dynamic engine deferred; system filters in code.
++model CustomerSegment {
++  id          String                       @id @default(cuid())
++  code        String                       @unique
++  name        String
++  description String?
++  kind        String                       @default("SYSTEM")
++  status      String                       @default("ACTIVE")
++  createdAt   DateTime                     @default(now())
++  updatedAt   DateTime                     @updatedAt
++  memberships CustomerSegmentMembership[]
++
++  @@index([status])
++  @@index([kind])
++}
++
++model CustomerSegmentMembership {
++  id        String          @id @default(cuid())
++  segmentId String
++  tenantId  String
++  status    String          @default("ACTIVE")
++  startAt   DateTime        @default(now())
++  endAt     DateTime?
++  createdAt DateTime        @default(now())
++  updatedAt DateTime        @updatedAt
++  segment   CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
++  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([segmentId, tenantId])
++  @@index([tenantId, status])
++  @@index([segmentId, status])
++}
++
++/// Phase 7 Wave 4 ΓÇö deterministic customer signals (verified sources only).
++/// Status: NEW | ACKNOWLEDGED | RESOLVED_BY_SOURCE | DISMISSED
++/// Ephemeral evaluation is used when this table/client is unavailable.
++model CustomerSignal {
++  id              String   @id @default(cuid())
++  tenantId        String
++  code            String
++  severity        String
++  status          String   @default("NEW")
++  payload         Json?
++  firstDetectedAt DateTime @default(now())
++  lastDetectedAt  DateTime @default(now())
++  ruleVersion     String
++  createdAt       DateTime @default(now())
++  updatedAt       DateTime @updatedAt
++  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@unique([tenantId, code])
++  @@index([tenantId, status])
++  @@index([status, severity])
++  @@index([code, status])
++  @@index([lastDetectedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö versioned health definition (optional DB override of builtin).
++model CustomerHealthDefinition {
++  id          String    @id @default(cuid())
++  version     String    @unique
++  name        String?
++  isActive    Boolean   @default(false)
++  payload     Json
++  activatedAt DateTime?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++
++  @@index([isActive, activatedAt])
++}
++
++/// Phase 8 Wave 1 ΓÇö immutable health snapshot (rebuild creates a new row).
++model CustomerHealthSnapshot {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  definitionVersion  String
++  score              Float?
++  band               String
++  confidence         String
++  asOf               DateTime
++  payload            Json?
++  createdAt          DateTime @default(now())
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, createdAt])
++  @@index([band, createdAt])
++  @@index([definitionVersion])
++  @@index([asOf])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS case (not a support ticket; not signal ACK substitute).
++/// Status: OPEN | IN_PROGRESS | RESOLVED | CLOSED
++/// triggerType: SIGNAL | HEALTH | MANUAL
++model CsCase {
++  id                String           @id @default(cuid())
++  tenantId          String
++  portfolioId       String?
++  status            String           @default("OPEN")
++  priority          String           @default("MEDIUM")
++  severity          String?
++  title             String
++  summary           String?
++  triggerType       String
++  triggerCode       String?
++  definitionVersion String?
++  idempotencyKey    String
++  signalId          String?
++  snapshotId        String?
++  ownerAdminId      String?
++  openedByAdminId   String?
++  openedAt          DateTime         @default(now())
++  closedAt          DateTime?
++  resolvedAt        DateTime?
++  payload           Json?
++  createdAt         DateTime         @default(now())
++  updatedAt         DateTime         @updatedAt
++  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio         CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  ownerAdmin        Admin?           @relation("CsCaseOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  openedByAdmin     Admin?           @relation("CsCaseOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  tasks             CsTask[]
++  interventions     CsIntervention[]
++  playbookExecutions CsPlaybookExecution[]
++
++  // Open-only uniqueness (OPEN/IN_PROGRESS) is enforced by partial unique index
++  // CsCase_open_idempotencyKey_key in scripts/sql/customer-success-phase08.sql ΓÇö
++  // closed/resolved cases may reuse the same key so re-triggers can open a new case.
++  @@index([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([status, openedAt])
++  @@index([triggerType, triggerCode])
++  @@index([ownerAdminId, status])
++  @@index([portfolioId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS task (assignee = System Admin id).
++model CsTask {
++  id                String    @id @default(cuid())
++  caseId            String?
++  tenantId          String
++  title             String
++  status            String    @default("OPEN")
++  assigneeAdminId   String?
++  dueAt             DateTime?
++  stepId            String?
++  executionId       String?
++  idempotencyKey    String?
++  notes             String?
++  createdByAdminId  String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  assigneeAdmin     Admin?    @relation("CsTaskAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?    @relation("CsTaskCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([idempotencyKey])
++  @@index([tenantId, status])
++  @@index([caseId, status])
++  @@index([assigneeAdminId, status])
++  @@index([executionId, stepId])
++}
++
++/// Phase 8 Wave 3 ΓÇö CS intervention log (not a support ticket).
++model CsIntervention {
++  id                  String   @id @default(cuid())
++  caseId              String?
++  tenantId            String
++  type                String
++  notes               String?
++  channel             String?
++  performedByAdminId  String?
++  performedAt         DateTime @default(now())
++  payload             Json?
++  createdAt           DateTime @default(now())
++  case                CsCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  performedByAdmin    Admin?   @relation("CsInterventionPerformedBy", fields: [performedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, performedAt])
++  @@index([caseId, performedAt])
++  @@index([type])
++}
++
++/// Phase 8 Wave 3 ΓÇö renewal workspace; outcome requires AccountSubscription evidence.
++model CsRenewalWorkspace {
++  id                String    @id @default(cuid())
++  tenantId          String
++  periodKey         String
++  status            String    @default("OPEN")
++  outcome           String?
++  outcomeAt         DateTime?
++  outcomeByAdminId  String?
++  subscriptionId    String?
++  evidenceNote      String?
++  notes             String?
++  openedByAdminId   String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  openedByAdmin     Admin?    @relation("CsRenewalOpenedBy", fields: [openedByAdminId], references: [id], onDelete: SetNull)
++  outcomeByAdmin    Admin?    @relation("CsRenewalOutcomeBy", fields: [outcomeByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([tenantId, periodKey])
++  @@index([tenantId, status])
++  @@index([outcome])
++  @@index([periodKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö versioned playbook definition (steps JSON ΓåÆ tasks on execute).
++model CsPlaybook {
++  id          String                @id @default(cuid())
++  key         String
++  name        String
++  version     String
++  description String?
++  status      String                @default("ACTIVE")
++  steps       Json
++  createdAt   DateTime              @default(now())
++  updatedAt   DateTime              @updatedAt
++  executions  CsPlaybookExecution[]
++
++  @@unique([key, version])
++  @@index([status, key])
++}
++
++/// Phase 8 Wave 4 ΓÇö playbook run; idempotent per key+version+tenant+case.
++model CsPlaybookExecution {
++  id                String    @id @default(cuid())
++  playbookId        String
++  tenantId          String
++  caseId            String?
++  status            String    @default("RUNNING")
++  playbookVersion   String
++  idempotencyKey    String?   @unique
++  startedByAdminId  String?
++  startedAt         DateTime  @default(now())
++  completedAt       DateTime?
++  payload           Json?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
++  playbook          CsPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
++  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  case              CsCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
++  startedByAdmin    Admin?    @relation("CsPlaybookExecutionStartedBy", fields: [startedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([playbookId, startedAt])
++  @@index([caseId])
++}
++
++/// Phase 8 Wave 4 ΓÇö success plan (no invented progress %).
++model CsSuccessPlan {
++  id                String          @id @default(cuid())
++  tenantId          String
++  title             String
++  status            String          @default("ACTIVE")
++  summary           String?
++  ownerAdminId      String?
++  createdByAdminId  String?
++  startedAt         DateTime?
++  targetAt          DateTime?
++  createdAt         DateTime        @default(now())
++  updatedAt         DateTime        @updatedAt
++  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  ownerAdmin        Admin?          @relation("CsSuccessPlanOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?          @relation("CsSuccessPlanCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  goals             CsSuccessGoal[]
++
++  @@index([tenantId, status])
++  @@index([ownerAdminId, status])
++}
++
++/// Phase 8 Wave 4 ΓÇö success goal under a plan.
++model CsSuccessGoal {
++  id         String        @id @default(cuid())
++  planId     String
++  title      String
++  status     String        @default("OPEN")
++  targetNote String?
++  dueAt      DateTime?
++  sortOrder  Int           @default(0)
++  createdAt  DateTime      @default(now())
++  updatedAt  DateTime      @updatedAt
++  plan       CsSuccessPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
++
++  @@index([planId, status])
++  @@index([planId, sortOrder])
++}
++
++/// Phase 8 Wave 4 ΓÇö expansion handoff record-only (no CRM opportunity / auto upgrade).
++model CsExpansionHandoff {
++  id                 String   @id @default(cuid())
++  tenantId           String
++  status             String   @default("OPEN")
++  reason             String?
++  notes              String?
++  recommendedAction  String   @default("OTHER")
++  createdByAdminId   String?
++  payload            Json?
++  createdAt          DateTime @default(now())
++  updatedAt          DateTime @updatedAt
++  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  createdByAdmin     Admin?   @relation("CsExpansionHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([tenantId, status])
++  @@index([recommendedAction])
++  @@index([createdAt])
++}
++
++/// Phase 8 Wave 4 ΓÇö onboarding foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsOnboardingRecord {
++  id           String    @id @default(cuid())
++  tenantId     String
++  checklistKey String?
++  status       String?
++  completedAt  DateTime?
++  sourceNote   String?
++  createdAt    DateTime  @default(now())
++  updatedAt    DateTime  @updatedAt
++  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([checklistKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö training foundation rows only (empty ΓåÆ NOT_INSTRUMENTED).
++model CsTrainingRecord {
++  id          String    @id @default(cuid())
++  tenantId    String
++  moduleKey   String?
++  status      String?
++  completedAt DateTime?
++  sourceNote  String?
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([moduleKey])
++}
++
++/// Phase 8 Wave 4 ΓÇö survey foundation rows only (empty ΓåÆ NOT_INSTRUMENTED; never invent NPS).
++model CsSurveyResponse {
++  id         String    @id @default(cuid())
++  tenantId   String
++  surveyKey  String?
++  status     String?
++  score      Int?
++  completedAt DateTime?
++  sourceNote String?
++  createdAt  DateTime  @default(now())
++  updatedAt  DateTime  @updatedAt
++  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  @@index([tenantId, status])
++  @@index([surveyKey])
++}
++
++/// Phase 10 Wave 1 ΓÇö per-UTC-year sequence for SUP-YYYY-###### (concurrency-safe CAS).
++model SupportTicketNumberSeq {
++  year       Int      @id
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++}
++
++/// Phase 10 Wave 1 ΓÇö Support ticket (Γëá CsCase Γëá PlatformSupportAccess).
++/// Never store Tenant GL lines, MRA credentials, or payment secrets.
++model SupportTicket {
++  id                 String    @id @default(cuid())
++  ticketNumber       String    @unique
++  tenantId           String
++  portfolioId        String?
++  status             String    @default("NEW")
++  type               String
++  impact             String?
++  urgency            String?
++  priority           String?
++  severity           String?
++  title              String
++  description        String    @db.Text
++  resolutionCategory String?
++  createdByAdminId   String?
++  assigneeAdminId    String?
++  queueCode          String?
++  sourceChannel      String    @default("ADMIN_MANUAL")
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  resolvedAt         DateTime?
++  closedAt           DateTime?
++  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++  portfolio          CustomerPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
++  createdByAdmin     Admin?    @relation("SupportTicketCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  assigneeAdmin      Admin?    @relation("SupportTicketAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  statusHistory      SupportTicketStatusHistory[]
++  messages           SupportMessage[]
++  attachments        SupportAttachment[]
++  assignmentHistory  SupportAssignmentHistory[]
++  slaClocks          SupportSlaClock[]
++  handoffs           SupportHandoff[]
++
++  @@index([tenantId, status])
++  @@index([status, createdAt])
++  @@index([assigneeAdminId, status])
++  @@index([queueCode, status])
++  @@index([portfolioId])
++  @@index([sourceChannel])
++}
++
++/// Phase 10 Wave 1 ΓÇö append-only status history (evidence preserved on terminal statuses).
++model SupportTicketStatusHistory {
++  id               String   @id @default(cuid())
++  ticketId         String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("SupportTicketStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 10 Wave 2 ΓÇö ticket messages (PUBLIC / INTERNAL / RESTRICTED). Never expose INTERNAL/RESTRICTED to customers.
++model SupportMessage {
++  id              String   @id @default(cuid())
++  ticketId        String
++  type            String
++  body            String   @db.Text
++  authorAdminId   String?
++  visibility      String?
++  systemEventCode String?
++  createdAt       DateTime @default(now())
++  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  authorAdmin     Admin?   @relation("SupportMessageAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([ticketId, type])
++  @@index([authorAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö attachment metadata; bytes in private storage/support-attachments/ (not public/uploads).
++model SupportAttachment {
++  id                 String    @id @default(cuid())
++  ticketId           String
++  fileName           String
++  mimeType           String
++  sizeBytes          Int
++  storageKey         String
++  scanState          String    @default("PENDING_SCAN")
++  uploadedByAdminId  String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  scannedAt          DateTime?
++  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  uploadedByAdmin    Admin?    @relation("SupportAttachmentUploadedBy", fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([storageKey])
++  @@index([ticketId, scanState])
++  @@index([scanState])
++  @@index([uploadedByAdminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö queue catalogue (QUEUE_TEAM_MATRIX). liveStatus stays NOT_FOUND until real owners exist.
++model SupportQueue {
++  id                String   @id @default(cuid())
++  code              String   @unique
++  name              String
++  typicalOwnership  String?
++  liveStatus        String   @default("NOT_FOUND")
++  active            Boolean  @default(true)
++  createdAt         DateTime @default(now())
++  updatedAt         DateTime @updatedAt
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö team stub definitions for assignment eligibility.
++model SupportTeam {
++  id         String   @id @default(cuid())
++  code       String   @unique
++  name       String
++  queueCodes String[] @default([])
++  active     Boolean  @default(true)
++  createdAt  DateTime @default(now())
++  updatedAt  DateTime @updatedAt
++  memberships SupportTeamMembership[]
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 2 ΓÇö optional team membership (stub; empty ΓçÆ eligibility not locked out).
++model SupportTeamMembership {
++  id        String   @id @default(cuid())
++  teamCode  String
++  adminId   String
++  createdAt DateTime @default(now())
++  team      SupportTeam @relation(fields: [teamCode], references: [code], onDelete: Cascade)
++  admin     Admin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
++
++  @@unique([teamCode, adminId])
++  @@index([adminId])
++}
++
++/// Phase 10 Wave 2 ΓÇö append-only assignment / queue change history.
++model SupportAssignmentHistory {
++  id                   String   @id @default(cuid())
++  ticketId             String
++  fromAssigneeAdminId  String?
++  toAssigneeAdminId    String?
++  fromQueueCode        String?
++  toQueueCode          String?
++  changedByAdminId     String?
++  reason               String?
++  at                   DateTime @default(now())
++  ticket               SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  changedByAdmin       Admin?   @relation("SupportAssignmentChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, at])
++  @@index([changedByAdminId])
++  @@index([toAssigneeAdminId])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned SLA policy (pinned onto clock rows).
++model SupportSlaPolicy {
++  id                            String   @id @default(cuid())
++  versionId                     String   @unique
++  name                          String
++  ackCountsAsFirstResponse      Boolean  @default(false)
++  resolutionStartsOn            String   @default("CREATE")
++  stopResolutionOnClosed        Boolean  @default(true)
++  pauseOnWaitingForCustomer     Boolean  @default(true)
++  pauseOnWaitingForInternalTeam Boolean  @default(true)
++  pauseOnWaitingForVendor       Boolean  @default(true)
++  /// JSON targets map: { FIRST_RESPONSE: { businessMs }, RESOLUTION: { businessMs }, ... }
++  targetsJson                   String   @db.Text
++  active                        Boolean  @default(true)
++  createdByAdminId              String?
++  createdAt                     DateTime @default(now())
++  updatedAt                     DateTime @updatedAt
++  createdByAdmin                Admin?   @relation("SupportSlaPolicyCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö versioned business calendar (pinned onto clock rows).
++model SupportSlaCalendar {
++  id               String   @id @default(cuid())
++  versionId        String   @unique
++  name             String
++  timezone         String
++  /// JSON: workdays[], workingHours {start,end}, holidays[]
++  definitionJson   String   @db.Text
++  active           Boolean  @default(true)
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  createdByAdmin   Admin?   @relation("SupportSlaCalendarCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([active])
++}
++
++/// Phase 10 Wave 3 ΓÇö SLA clock instance; policyVersion + calendarVersion pinned at start.
++model SupportSlaClock {
++  id               String    @id @default(cuid())
++  ticketId         String
++  clockType        String
++  state            String    @default("RUNNING")
++  policyVersion    String
++  calendarVersion  String
++  targetBusinessMs Int
++  startedAt        DateTime  @default(now())
++  dueAt            DateTime?
++  pausedAt         DateTime?
++  pausedMs         Int       @default(0)
++  stoppedAt        DateTime?
++  breachedAt       DateTime?
++  createdAt        DateTime  @default(now())
++  updatedAt        DateTime  @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  events           SupportSlaEvent[]
++
++  @@index([ticketId, clockType])
++  @@index([ticketId, state])
++  @@index([state, dueAt])
++  @@index([policyVersion])
++  @@index([calendarVersion])
++}
++
++/// Phase 10 Wave 3 ΓÇö append-only SLA events (breach facts immutable).
++model SupportSlaEvent {
++  id        String   @id @default(cuid())
++  clockId   String
++  eventType String
++  at        DateTime @default(now())
++  metaJson  String?
++  clock     SupportSlaClock @relation(fields: [clockId], references: [id], onDelete: Cascade)
++
++  @@index([clockId, at])
++  @@index([clockId, eventType])
++  @@index([eventType, at])
++}
++
++/// Phase 10 Wave 4 ΓÇö link-only handoff (Γëá open/close CsCase; Γëá billing/MRA/GL mutation).
++model SupportHandoff {
++  id               String   @id @default(cuid())
++  ticketId         String
++  tenantId         String
++  /// CS | PRODUCT | FINANCE | BILLING | MRA
++  targetType       String
++  status           String   @default("OPEN")
++  summary          String?
++  /// Optional link id only (csCaseId / invoiceId / subscriptionId / fiscalTransmissionId).
++  targetRefId      String?
++  /// Optional Phase 9 catalogue feature code (PRODUCT target).
++  featureCode      String?
++  /// Allowed link payload only ΓÇö never credentials, raw MRA, or payment secrets.
++  payload          Json?
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
++  createdByAdmin   Admin?   @relation("SupportHandoffCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([ticketId, createdAt])
++  @@index([tenantId, targetType])
++  @@index([targetType, status])
++  @@index([createdByAdminId])
++}
++
++/// Phase 10 Wave 4 ΓÇö optional reconciliation run audit (never invents false zeroes).
++model SupportReconciliationRun {
++  id             String   @id @default(cuid())
++  status         String
++  summaryJson    String   @db.Text
++  runByAdminId   String?
++  createdAt      DateTime @default(now())
++  runByAdmin     Admin?   @relation("SupportReconciliationRunBy", fields: [runByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([status, createdAt])
++  @@index([runByAdminId])
++}
++
++/// Phase 10 Wave 4 ΓÇö export download audit (permission rechecked at download time).
++model SupportExportAudit {
++  id        String   @id @default(cuid())
++  adminId   String?
++  dataset   String
++  format    String
++  rowCount  Int?
++  createdAt DateTime @default(now())
++  admin     Admin?   @relation("SupportExportAuditBy", fields: [adminId], references: [id], onDelete: SetNull)
++
++  @@index([adminId, createdAt])
++  @@index([dataset, createdAt])
++}
++
++/// Phase 11 Wave 1 ΓÇö per-prefix + UTC-year sequence for LEAD|ACC|CON-YYYY-###### (concurrency-safe CAS).
++model CrmNumberSeq {
++  prefix     String
++  year       Int
++  lastIssued Int      @default(0)
++  updatedAt  DateTime @updatedAt
++
++  @@id([prefix, year])
++}
++
++/// Phase 11 Wave 1 ΓÇö CRM Account (Γëá canonical Customer; optional tenant/customer link only).
++/// Never store Tenant GL, payment secrets, or MRA credentials.
++model CrmAccount {
++  id            String    @id @default(cuid())
++  accountNumber String    @unique
++  type          String    @default("PROSPECT")
++  displayName   String
++  status        String    @default("ACTIVE")
++  country       String?
++  region        String?
++  ownerAdminId  String?
++  /// Optional link to Customer identity (no auto-link; no billing copy).
++  customerId    String?
++  tenantId      String?
++  createdAt     DateTime  @default(now())
++  updatedAt     DateTime  @updatedAt
++  ownerAdmin    Admin?    @relation("CrmAccountOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
++  contacts      CrmContact[]
++  leads         CrmLead[]
++
++  @@index([status, createdAt])
++  @@index([ownerAdminId])
++  @@index([tenantId])
++  @@index([customerId])
++  @@index([type, status])
++}
++
++/// Phase 11 Wave 1 ΓÇö CRM Contact (Γëá Platform User). No national ID / bank / passwords.
++model CrmContact {
++  id            String    @id @default(cuid())
++  contactNumber String    @unique
++  firstName     String
++  lastName      String
++  email         String?
++  phone         String?
++  role          String?
++  accountId     String?
++  ownerAdminId  String?
++  createdAt     DateTime  @default(now())
++  updatedAt     DateTime  @updatedAt
++  account       CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
++  ownerAdmin    Admin?    @relation("CrmContactOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  leads         CrmLead[]
++  consentRecords CrmConsentRecord[]
++  communicationPreferences CrmCommunicationPreference[]
++  doNotContact  CrmDoNotContact[]
++
++  @@index([accountId])
++  @@index([ownerAdminId])
++  @@index([email])
++  @@index([createdAt])
++}
++
++/// Phase 11 Wave 1ΓÇô3 ΓÇö CRM Lead (Γëá Opportunity Γëá SupportTicket Γëá CsCase).
++model CrmLead {
++  id                     String    @id @default(cuid())
++  leadNumber             String    @unique
++  type                   String
++  personOrOrganisation   String
++  accountId              String?
++  contactId              String?
++  source                 String
++  channel                String    @default("ADMIN_MANUAL")
++  sourceIdempotencyKey   String?   @unique
++  status                 String    @default("NEW")
++  title                  String
++  summary                String?   @db.Text
++  ownerAdminId           String?
++  /// Wave 3 ΓÇö sales team / territory ownership + acceptance SLA foundation
++  teamId                 String?
++  territoryId            String?
++  assignedAt             DateTime?
++  acceptedAt             DateTime?
++  createdByAdminId       String?
++  disqualificationReason String?
++  createdAt              DateTime  @default(now())
++  updatedAt              DateTime  @updatedAt
++  account                CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
++  contact                CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
++  ownerAdmin             Admin?    @relation("CrmLeadOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin         Admin?    @relation("CrmLeadCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  statusHistory          CrmLeadStatusHistory[]
++  captureRecords         CrmCaptureRecord[]
++  duplicateAsLead        CrmDuplicateCandidate[] @relation("CrmDuplicateLead")
++  duplicateAsCandidate   CrmDuplicateCandidate[] @relation("CrmDuplicateCandidateLead")
++  qualificationResponses CrmQualificationResponse[]
++  scoreEvaluations       CrmScoreEvaluation[]
++  assignmentHistory      CrmAssignmentHistory[]
++  /// Wave 4 ΓÇö set when this lead is the loser of an executed merge (evidence; history kept).
++  mergedIntoLeadId       String?
++
++  @@index([status, createdAt])
++  @@index([ownerAdminId, status])
++  @@index([teamId, status])
++  @@index([territoryId])
++  @@index([accountId])
++  @@index([contactId])
++  @@index([source, channel])
++  @@index([type, status])
++  @@index([mergedIntoLeadId])
++}
++
++/// Phase 11 Wave 1 ΓÇö append-only Lead status history.
++model CrmLeadStatusHistory {
++  id               String   @id @default(cuid())
++  leadId           String
++  fromStatus       String?
++  toStatus         String
++  changedByAdminId String?
++  reason           String?
++  at               DateTime @default(now())
++  lead             CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
++  changedByAdmin   Admin?   @relation("CrmLeadStatusChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([leadId, at])
++  @@index([changedByAdminId])
++  @@index([toStatus, at])
++}
++
++/// Phase 11 Wave 2 ΓÇö capture identity + consent snapshot (source of email/phone for duplicates).
++model CrmCaptureRecord {
++  id                   String   @id @default(cuid())
++  leadId               String
++  sourceCode           String
++  channel              String
++  sourceIdempotencyKey String   @unique
++  emailNormalized      String?
++  phoneNormalized      String?
++  handoffRefType       String?
++  handoffRefId         String?
++  businessName         String?
++  contactName          String?
++  payload              Json?
++  consentStatus        String   @default("UNKNOWN")
++  consentPurposes      Json?
++  createdAt            DateTime @default(now())
++  lead                 CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
++
++  @@index([leadId])
++  @@index([emailNormalized])
++  @@index([phoneNormalized])
++  @@index([handoffRefType, handoffRefId])
++  @@index([sourceCode, createdAt])
++}
++
++/// Phase 11 Wave 2 ΓÇö duplicate candidates only (no auto-merge).
++model CrmDuplicateCandidate {
++  id                 String    @id @default(cuid())
++  leadId             String
++  candidateLeadId    String
++  matchType          String
++  matchValue         String?
++  status             String    @default("NEW")
++  confidence         String?
++  reviewedByAdminId  String?
++  reviewedAt         DateTime?
++  decisionReason     String?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++  lead               CrmLead   @relation("CrmDuplicateLead", fields: [leadId], references: [id], onDelete: Cascade)
++  candidateLead      CrmLead   @relation("CrmDuplicateCandidateLead", fields: [candidateLeadId], references: [id], onDelete: Cascade)
++  reviewedByAdmin    Admin?    @relation("CrmDuplicateReviewedBy", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([leadId, candidateLeadId, matchType])
++  @@index([status, createdAt])
++  @@index([leadId])
++  @@index([candidateLeadId])
++  @@index([reviewedByAdminId])
++}
++
++/// Phase 11 Wave 3 ΓÇö versioned qualification definition header.
++model CrmQualificationDefinition {
++  id        String   @id @default(cuid())
++  key       String   @unique
++  name      String
++  status    String   @default("ACTIVE")
++  createdAt DateTime @default(now())
++  updatedAt DateTime @updatedAt
++  versions  CrmQualificationDefinitionVersion[]
++
++  @@index([status])
++}
++
++/// Phase 11 Wave 3 ΓÇö immutable published qualification version (criteria JSON).
++model CrmQualificationDefinitionVersion {
++  id               String   @id @default(cuid())
++  definitionId     String?
++  key              String?
++  name             String?
++  versionId        String   @unique
++  status           String   @default("ACTIVE")
++  criteriaJson     Json
++  createdByAdminId String?
++  createdAt        DateTime @default(now())
++  definition       CrmQualificationDefinition? @relation(fields: [definitionId], references: [id], onDelete: SetNull)
++  createdByAdmin   Admin?   @relation("CrmQualificationVersionCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([status, createdAt])
++  @@index([key])
++}
++
++/// Phase 11 Wave 3 ΓÇö per-lead criterion responses (UNKNOWN Γëá NO).
++/// definitionVersionId is a pinned string (catalogue or DB) ΓÇö no FK (SLA pattern).
++model CrmQualificationResponse {
++  id                   String   @id @default(cuid())
++  leadId               String
++  definitionVersionId  String
++  criterionKey         String
++  state                String
++  note                 String?
++  answeredByAdminId    String?
++  answeredAt           DateTime @default(now())
++  overrideReason       String?
++  lead                 CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
++  answeredByAdmin      Admin?   @relation("CrmQualificationAnsweredBy", fields: [answeredByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([leadId, definitionVersionId, criterionKey])
++  @@index([leadId, definitionVersionId])
++  @@index([answeredByAdminId])
++}
++
++/// Phase 11 Wave 3 ΓÇö versioned score definition header.
++model CrmScoreDefinition {
++  id        String   @id @default(cuid())
++  key       String   @unique
++  name      String
++  status    String   @default("ACTIVE")
++  createdAt DateTime @default(now())
++  updatedAt DateTime @updatedAt
++  versions  CrmScoreDefinitionVersion[]
++
++  @@index([status])
++}
++
++/// Phase 11 Wave 3 ΓÇö immutable published score version (weights / bands / caps).
++model CrmScoreDefinitionVersion {
++  id                String   @id @default(cuid())
++  definitionId      String?
++  key               String?
++  name              String?
++  versionId         String   @unique
++  status            String   @default("ACTIVE")
++  displayLabel      String   @default("Lead fit score")
++  dimensionsJson    Json
++  bandsJson         Json
++  criticalCapsJson  Json
++  createdByAdminId  String?
++  createdAt         DateTime @default(now())
++  definition        CrmScoreDefinition? @relation(fields: [definitionId], references: [id], onDelete: SetNull)
++  createdByAdmin    Admin?   @relation("CrmScoreVersionCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([status, createdAt])
++}
++
++/// Phase 11 Wave 3 ΓÇö immutable score evaluation (pinned definitionVersionId string; no FK).
++model CrmScoreEvaluation {
++  id                   String   @id @default(cuid())
++  leadId               String
++  definitionVersionId  String
++  score                Int
++  band                 String
++  confidence           String
++  capped               Boolean  @default(false)
++  capKey               String?
++  displayLabel         String   @default("Lead fit score")
++  createdByAdminId     String?
++  createdAt            DateTime @default(now())
++  lead                 CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
++  createdByAdmin       Admin?   @relation("CrmScoreEvaluationCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  contributions        CrmScoreContribution[]
++
++  @@index([leadId, createdAt])
++  @@index([definitionVersionId])
++  @@index([createdByAdminId])
++}
++
++/// Phase 11 Wave 3 ΓÇö explainable score contributions (missing Γëá invented).
++model CrmScoreContribution {
++  id            String @id @default(cuid())
++  evaluationId  String
++  dimensionKey  String
++  label         String?
++  weight        Float
++  maxPoints     Float
++  rawValue      Float?
++  points        Float  @default(0)
++  missing       Boolean @default(false)
++  evaluation    CrmScoreEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
++
++  @@index([evaluationId])
++  @@index([dimensionKey])
++}
++
++/// Phase 11 Wave 3 ΓÇö CRM sales team (Γëá SupportTeam / POS).
++model CrmSalesTeam {
++  id        String   @id @default(cuid())
++  code      String   @unique
++  name      String
++  active    Boolean  @default(true)
++  createdAt DateTime @default(now())
++  updatedAt DateTime @updatedAt
++  members   CrmSalesTeamMember[]
++
++  @@index([active])
++}
++
++model CrmSalesTeamMember {
++  id        String   @id @default(cuid())
++  teamId    String
++  adminId   String
++  active    Boolean  @default(true)
++  createdAt DateTime @default(now())
++  team      CrmSalesTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
++  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
++
++  @@unique([teamId, adminId])
++  @@index([adminId])
++  @@index([active])
++}
++
++/// Phase 11 Wave 3 ΓÇö CRM territory + precedence rules.
++model CrmTerritory {
++  id                   String   @id @default(cuid())
++  code                 String   @unique
++  name                 String
++  active               Boolean  @default(true)
++  defaultTeamId        String?
++  defaultOwnerAdminId  String?
++  createdAt            DateTime @default(now())
++  updatedAt            DateTime @updatedAt
++  rules                CrmTerritoryRule[]
++
++  @@index([active])
++}
++
++model CrmTerritoryRule {
++  id          String   @id @default(cuid())
++  territoryId String
++  matchType   String
++  matchValue  String
++  precedence  Int      @default(0)
++  active      Boolean  @default(true)
++  createdAt   DateTime @default(now())
++  territory   CrmTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
++
++  @@index([territoryId, precedence])
++  @@index([matchType, matchValue])
++  @@index([active])
++}
++
++/// Phase 11 Wave 3 ΓÇö assignment history (no silent reassign loops).
++model CrmAssignmentHistory {
++  id                 String    @id @default(cuid())
++  leadId             String
++  action             String
++  strategy           String?
++  fromOwnerAdminId   String?
++  toOwnerAdminId     String?
++  fromTeamId         String?
++  toTeamId           String?
++  territoryId        String?
++  changedByAdminId   String?
++  reason             String?
++  assignedAt         DateTime?
++  acceptedAt         DateTime?
++  at                 DateTime  @default(now())
++  lead               CrmLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
++  changedByAdmin     Admin?    @relation("CrmAssignmentChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([leadId, at])
++  @@index([toOwnerAdminId, at])
++  @@index([changedByAdminId])
++  @@index([action, at])
++}
++
++/// Phase 11 Wave 3 ΓÇö source-traceable consent (never inferred GRANTED).
++model CrmConsentRecord {
++  id               String    @id @default(cuid())
++  contactId        String
++  purpose          String
++  status           String    @default("UNKNOWN")
++  source           String
++  evidence         String?
++  channel          String?
++  grantedAt        DateTime?
++  withdrawnAt      DateTime?
++  createdByAdminId String?
++  createdAt        DateTime  @default(now())
++  contact          CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
++  createdByAdmin   Admin?    @relation("CrmConsentCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([contactId, purpose])
++  @@index([contactId, status])
++  @@index([purpose, status])
++  @@index([createdByAdminId])
++}
++
++/// Phase 11 Wave 3 ΓÇö communication preference (optional channel prefs).
++model CrmCommunicationPreference {
++  id        String   @id @default(cuid())
++  contactId String
++  channel   String
++  preference String  @default("UNKNOWN")
++  source    String?
++  updatedAt DateTime @updatedAt
++  createdAt DateTime @default(now())
++  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
++
++  @@unique([contactId, channel])
++  @@index([contactId])
++}
++
++/// Phase 11 Wave 3 ΓÇö do-not-contact flags (eligibility blocks).
++model CrmDoNotContact {
++  id           String   @id @default(cuid())
++  contactId    String
++  flag         String
++  reason       String?
++  source       String
++  active       Boolean  @default(true)
++  setAt        DateTime @default(now())
++  setByAdminId String?
++  contact      CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
++  setByAdmin   Admin?   @relation("CrmDncSetBy", fields: [setByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([contactId, flag])
++  @@index([contactId, active])
++  @@index([flag, active])
++  @@index([setByAdminId])
++}
++
++/// Phase 11 Wave 4 ΓÇö CRM timeline event (Γëá Support/CS activity).
++model CrmTimelineEvent {
++  id           String   @id @default(cuid())
++  subjectType  String
++  subjectId    String
++  eventType    String
++  summary      String?  @db.Text
++  payload      Json?
++  actorAdminId String?
++  at           DateTime @default(now())
++  createdAt    DateTime @default(now())
++  actorAdmin   Admin?   @relation("CrmTimelineActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([subjectType, subjectId, at])
++  @@index([eventType, at])
++  @@index([actorAdminId])
++}
++
++/// Phase 11 Wave 4 ΓÇö CRM notes (INTERNAL / RESTRICTED; API-enforced).
++model CrmNote {
++  id            String   @id @default(cuid())
++  subjectType   String
++  subjectId     String
++  body          String   @db.Text
++  visibility    String   @default("INTERNAL")
++  authorAdminId String?
++  createdAt     DateTime @default(now())
++  updatedAt     DateTime @updatedAt
++  authorAdmin   Admin?   @relation("CrmNoteAuthor", fields: [authorAdminId], references: [id], onDelete: SetNull)
++
++  @@index([subjectType, subjectId, createdAt])
++  @@index([visibility])
++  @@index([authorAdminId])
++}
++
++/// Phase 11 Wave 4 ΓÇö CRM tasks (TODO ΓåÆ COMPLETED; no sales sequences).
++model CrmTask {
++  id               String    @id @default(cuid())
++  subjectType      String
++  subjectId        String
++  title            String
++  status           String    @default("TODO")
++  dueAt            DateTime?
++  assigneeAdminId  String?
++  createdByAdminId String?
++  completedAt      DateTime?
++  createdAt        DateTime  @default(now())
++  updatedAt        DateTime  @updatedAt
++  assigneeAdmin    Admin?    @relation("CrmTaskAssignee", fields: [assigneeAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin   Admin?    @relation("CrmTaskCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([subjectType, subjectId, status])
++  @@index([assigneeAdminId, status])
++  @@index([status, dueAt])
++  @@index([createdByAdminId])
++}
++
++/// Phase 11 Wave 4 ΓÇö controlled merge request (SoD: requester Γëá approver).
++model CrmMergeRequest {
++  id                   String    @id @default(cuid())
++  entityType           String    @default("LEAD")
++  survivorId           String
++  loserId              String
++  status               String    @default("PENDING")
++  requestedByAdminId   String?
++  approvedByAdminId    String?
++  executedByAdminId    String?
++  duplicateCandidateId String?
++  reason               String?
++  evidenceJson         Json?
++  requestedAt          DateTime  @default(now())
++  approvedAt           DateTime?
++  executedAt           DateTime?
++  createdAt            DateTime  @default(now())
++  updatedAt            DateTime  @updatedAt
++  requestedByAdmin     Admin?    @relation("CrmMergeRequestedBy", fields: [requestedByAdminId], references: [id], onDelete: SetNull)
++  approvedByAdmin      Admin?    @relation("CrmMergeApprovedBy", fields: [approvedByAdminId], references: [id], onDelete: SetNull)
++  executedByAdmin      Admin?    @relation("CrmMergeExecutedBy", fields: [executedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([status, createdAt])
++  @@index([survivorId])
++  @@index([loserId])
++  @@index([entityType, status])
++  @@index([requestedByAdminId])
++  @@index([approvedByAdminId])
++}
++
++/// Phase 11 Wave 4 ΓÇö light CRM reconciliation run audit.
++model CrmReconciliationRun {
++  id          String   @id @default(cuid())
++  status      String
++  summaryJson Json?
++  runByAdminId String?
++  at          DateTime @default(now())
++  runByAdmin  Admin?   @relation("CrmReconciliationRunBy", fields: [runByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([at])
++  @@index([status, at])
++  @@index([runByAdminId])
++}
++
++/// Phase 11 Wave 4 ΓÇö CRM export audit (JSON/CSV foundation).
++model CrmExportAudit {
++  id               String   @id @default(cuid())
++  dataset          String
++  format           String
++  rowCount         Int      @default(0)
++  exportedByAdminId String?
++  at               DateTime @default(now())
++  exportedByAdmin  Admin?   @relation("CrmExportAuditBy", fields: [exportedByAdminId], references: [id], onDelete: SetNull)
++
++  @@index([at])
++  @@index([dataset, at])
++  @@index([exportedByAdminId])
++}
++
++/// Phase 12 Wave 1 ΓÇö versioned Sales Pipeline catalogue (Γëá analytics-pipeline).
++model CrmPipeline {
++  id        String   @id @default(cuid())
++  code      String   @unique
++  name      String
++  status    String   @default("ACTIVE")
++  createdAt DateTime @default(now())
++  updatedAt DateTime @updatedAt
++  versions  CrmPipelineVersion[]
++
++  @@index([status])
++}
++
++/// Phase 12 Wave 1 ΓÇö Pipeline version (ACTIVE NEW_BUSINESS v1 first).
++model CrmPipelineVersion {
++  id          String   @id @default(cuid())
++  pipelineId  String
++  versionId   String
++  version     String
++  status      String   @default("ACTIVE")
++  createdAt   DateTime @default(now())
++  updatedAt   DateTime @updatedAt
++  pipeline    CrmPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
++  stages      CrmPipelineStage[]
++
++  @@unique([pipelineId, versionId])
++  @@index([pipelineId, status])
++  @@index([status])
++}
++
++/// Phase 12 Wave 1 ΓÇö Pipeline stage defs (entry/exit + optional defaultProbability stub).
++model CrmPipelineStage {
++  id                String   @id @default(cuid())
++  pipelineVersionId String
++  code              String
++  name              String
++  sortOrder         Int
++  terminal          Boolean  @default(false)
++  /// Wave 2 consumes; Wave 1 stub OK
++  defaultProbability Int?
++  entryCriteria     Json?
++  exitCriteria      Json?
++  createdAt         DateTime @default(now())
++  updatedAt         DateTime @updatedAt
++  pipelineVersion   CrmPipelineVersion @relation(fields: [pipelineVersionId], references: [id], onDelete: Cascade)
++
++  @@unique([pipelineVersionId, code])
++  @@index([pipelineVersionId, sortOrder])
++}
++
++/// Phase 12 Wave 1 ΓÇö CrmOpportunity (Γëá Lead Γëá Customer Γëá Subscription Γëá Invoice).
++/// Never invent amount / probability / closeDate in Wave 1.
++model CrmOpportunity {
++  id                     String   @id @default(cuid())
++  opportunityNumber      String   @unique
++  pipelineCode           String   @default("NEW_BUSINESS")
++  pipelineVersionId      String?
++  stageCode              String
++  status                 String   @default("OPEN")
++  leadId                 String?
++  accountId              String?
++  contactId              String?
++  title                  String
++  ownerAdminId           String?
++  createdByAdminId       String?
++  handoffIdempotencyKey  String?  @unique
++  /// Optimistic locking for stage transitions
++  version                Int      @default(1)
++  createdAt              DateTime @default(now())
++  updatedAt              DateTime @updatedAt
++  ownerAdmin             Admin?   @relation("CrmOpportunityOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
++  createdByAdmin         Admin?   @relation("CrmOpportunityCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
++  stageHistory           CrmOpportunityStageHistory[]
++
++  @@index([stageCode, createdAt])
++  @@index([status, createdAt])
++  @@index([leadId])
++  @@index([accountId])
++  @@index([contactId])
++  @@index([ownerAdminId, status])
++  @@index([pipelineCode, stageCode])
++}
++
++/// Phase 12 Wave 1 ΓÇö append-only Opportunity stage history (immutable).
++model CrmOpportunityStageHistory {
++  id                 String   @id @default(cuid())
++  opportunityId      String
++  fromStageCode      String?
++  toStageCode        String
++  changedByAdminId   String?
++  reason             String?
++  evidenceReferences Json?
++  idempotencyKey     String?
++  at                 DateTime @default(now())
++  opportunity        CrmOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
++  changedByAdmin     Admin?   @relation("CrmOpportunityStageChangedBy", fields: [changedByAdminId], references: [id], onDelete: SetNull)
++
++  @@unique([opportunityId, idempotencyKey])
++  @@index([opportunityId, at])
++  @@index([changedByAdminId])
++  @@index([toStageCode, at])
++}

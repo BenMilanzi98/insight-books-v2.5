@@ -81,7 +81,10 @@ export async function PUT(request, { params }) {
       calculationType,
       accountId,
       status,
+      effectiveFrom,
+      effectiveTo,
     } = body;
+
 
     // Check if tax type exists
     const existingTax = await prisma.taxType.findFirst({
@@ -211,8 +214,15 @@ export async function PUT(request, { params }) {
     if (calculationType !== undefined) updateData.calculationType = calculationType;
     if (accountId !== undefined) updateData.accountId = accountId || null;
     if (status !== undefined) updateData.status = status;
+    if (effectiveFrom !== undefined) {
+      updateData.effectiveFrom = effectiveFrom ? new Date(effectiveFrom) : null;
+    }
+    if (effectiveTo !== undefined) {
+      updateData.effectiveTo = effectiveTo ? new Date(effectiveTo) : null;
+    }
 
     const taxType = await prisma.taxType.update({
+
       where: { id },
       data: updateData,
       include: {

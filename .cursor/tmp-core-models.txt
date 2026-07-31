@@ -1,0 +1,261 @@
+﻿model Transaction {
+  id                    String            @id @default(cuid())
+  date                  DateTime
+  description           String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  tenantId              String
+  reference             String?
+  status                String            @default("posted")
+  createdById           String?
+  entryType             String            @default("Regular")
+  notes                 String?
+  postedById            String?
+  postedDate            DateTime?
+  sourceId              String?
+  sourceType            String?
+  branchId              String?
+  isReversal            Boolean           @default(false)
+  reversedTransactionId String?
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+  branch                Branch?           @relation(fields: [branchId], references: [id])
+  createdBy             User?             @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  postedBy              User?             @relation("TransactionPostedBy", fields: [postedById], references: [id])
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  lines                 TransactionLine[]
+
+  @@index([tenantId])
+  @@index([date])
+  @@index([status])
+  @@index([sourceType])
+  @@index([sourceId])
+  @@index([reference])
+  @@index([branchId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
+}
+
+model TransactionLine {
+  id            String      @id @default(cuid())
+  transactionId String
+  lineNumber    Int
+  accountId     String
+  debitAmount   Decimal     @default(0) @db.Decimal(18, 2)
+  creditAmount  Decimal     @default(0) @db.Decimal(18, 2)
+  description   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  account       Account     @relation("TransactionLineAccount", fields: [accountId], references: [id])
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([accountId])
+}
+
+model JournalEntry {
+  id               String             @id @default(cuid())
+  transactionId    String?            @map("transactionId")
+  accountId        String?            @map("accountId")
+  debit            Float?             @default(0) @map("debit")
+  credit           Float?             @default(0) @map("credit")
+  description      String?
+  status           String             @default("Draft")
+  createdAt        DateTime           @default(now())
+  createdById      String?
+  entryDate        DateTime?
+  entryType        String             @default("Regular")
+  notes            String?
+  postedById       String?
+  postedDate       DateTime?
+  referenceNumber  String?            @unique
+  sourceId         String?
+  sourceType       String?
+  tenantId         String?
+  updatedAt        DateTime           @default(now())
+  branchId         String?
+  goodsReceipts    GoodsReceipt[]     @relation("GoodsReceiptJournalEntry")
+  branch           Branch?            @relation(fields: [branchId], references: [id])
+  createdBy        User?              @relation("JournalEntryCreatedBy", fields: [createdById], references: [id])
+  postedBy         User?              @relation("JournalEntryPostedBy", fields: [postedById], references: [id])
+  tenant           Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines            JournalEntryLine[]
+  supplierBills    SupplierBill[]     @relation("SupplierBillJournalEntry")
+  supplierPayments SupplierPayment[]  @relation("SupplierPaymentJournalEntry")
+
+  @@index([tenantId])
+  @@index([entryDate])
+  @@index([status])
+  @@index([entryType])
+  @@index([referenceNumber])
+  @@index([branchId])
+}
+
+model JournalEntryLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  lineNumber     Int
+  accountId      String
+  debitAmount    Decimal      @default(0) @db.Decimal(18, 2)
+  creditAmount   Decimal      @default(0) @db.Decimal(18, 2)
+  description    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  account        Account      @relation(fields: [accountId], references: [id])
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+}
+
+model Account {
+  id                       String                  @id @default(cuid())
+  code                     String?                 @map("code")
+  name                     String?                 @map("name")
+  type                     String?                 @map("type")
+  balance                  Decimal                 @default(0) @db.Decimal(18, 2)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  tenantId                 String?
+  isActive                 Boolean                 @default(true)
+  isSystem                 Boolean                 @default(false)
+  accountCode              String?
+  accountName              String?
+  accountSubtype           String?
+  accountType              String?
+  description              String?
+  normalBalance            String?
+  parentAccountId          String?
+  /// Logical merge (system CoA): posting stays on this row (original code); reporting/UI roll up to mergedInto target.
+  mergedIntoAccountId      String?
+  parentAccount            Account?                @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts            Account[]               @relation("AccountHierarchy")
+  mergedIntoAccount        Account?                @relation("AccountCoaMerge", fields: [mergedIntoAccountId], references: [id], onDelete: SetNull)
+  accountsMergedIntoThis   Account[]               @relation("AccountCoaMerge")
+  tenant                   Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accountBalances          AccountBalanceHistory[]
+  bankAccounts             BankAccount[]
+  budgetItems              BudgetItem[]
+  bfExpenseBudgetLines     BfExpenseBudgetLine[]
+  bfRevenueForecastLines   BfRevenueForecastLine[]
+  equityAccounts           EquityAccount[]
+  expenseAccounts          Expense[]               @relation("ExpenseAccount")
+  expenseSources           Expense[]               @relation("ExpenseSourceAccount")
+  recurringExpenseAccounts RecurringExpense[]      @relation("RecurringExpenseAccount")
+  journalEntryLines        JournalEntryLine[]
+  productsCogs             Product[]               @relation("ProductCogsAccount")
+  productsInventory        Product[]               @relation("ProductInventoryAccount")
+  productsIncome           Product[]               @relation("ProductIncomeAccount")
+  taxTypes                 TaxType[]               @relation("TaxTypeAccount")
+  transactionLines         TransactionLine[]       @relation("TransactionLineAccount")
+  invoiceItems             InvoiceItem[]
+  saleItems                SaleItem[]
+  expenseCategory          ExpenseCategory?        @relation("ExpenseCategoryAccount")
+  paymentAccountsLinked    PaymentAccount[]        @relation("PaymentAccountCoa")
+  assetsGlLinked           Asset[]                 @relation("AssetGlAccount")
+  liabilitiesGlLinked      Liability[]             @relation("LiabilityGlAccount")
+  /// Catch-all / unclassified bucket; surfaced in CoA UI for reclassification (guide).
+  requiresReclassification Boolean                 @default(false)
+  /// Soft retire after migration; row kept for audit (guide: do not delete).
+  retiredAt                DateTime?
+  /// Target canonical GL code string at migration time (audit).
+  migratedToAccountCode    String?
+  /// When false, block new postings to this account (retired / merged sources).
+  acceptsNewTransactions   Boolean                 @default(true)
+  /// Default chart list hides rows with false (migrated sources, etc.).
+  visibleInChart           Boolean                 @default(true)
+  coaMigrationLogsAsSource CoaMigrationLog[]       @relation("CoaMigrationOriginalAccount")
+
+  @@unique([tenantId, accountCode])
+  @@index([tenantId])
+  @@index([accountType])
+  @@index([isActive])
+  @@index([parentAccountId])
+  @@index([accountCode])
+  @@index([mergedIntoAccountId])
+}
+
+model AccountBalance {
+  id        String   @id @default(cuid())
+  tenantId  String
+  account   String
+  balance   Float    @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, account])
+}
+
+model AccountingPeriod {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  periodType   String // Monthly | Yearly
+  startDate    DateTime
+  endDate      DateTime
+  status       String    @default("open") // open | closed
+  closedAt     DateTime?
+  closedById   String?
+  reopenedAt   DateTime?
+  reopenedById String?
+  reopenReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  closedBy   User?  @relation("AccountingPeriodClosedBy", fields: [closedById], references: [id])
+  reopenedBy User?  @relation("AccountingPeriodReopenedBy", fields: [reopenedById], references: [id])
+
+  @@unique([tenantId, periodType, startDate])
+  @@index([tenantId])
+  @@index([startDate, endDate])
+  @@index([status])
+}
+
+model ReversalAudit {
+  id String @id
+
+  @@map("ReversalAudit")
+  @@ignore
+}
+
+model AccountBalanceHistory {
+  id             String   @id @default(cuid())
+  accountId      String
+  periodDate     DateTime
+  openingBalance Float    @default(0)
+  totalDebits    Float    @default(0)
+  totalCredits   Float    @default(0)
+  closingBalance Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, periodDate])
+  @@index([accountId])
+  @@index([periodDate])
+}
+
+model EquityAccount {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  accountName         String
+  accountType         String
+  openingBalance      Float    @default(0)
+  currentBalance      Float    @default(0)
+  coaAccountId        String?
+  ownerShareholder    String?
+  ownershipPercentage Float?
+  isActive            Boolean  @default(true)
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  chartAccount        Account? @relation(fields: [coaAccountId], references: [id])
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, accountType])
+}
+

@@ -1,5 +1,8 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+import { useI18n } from '@/components/i18n/I18nProvider';
+
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -17,6 +20,7 @@ const inputCls =
   'rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)]';
 
 export default function SystemMraEisConfigurationPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ environment: '', status: '', tenantId: '' });
   const [error, setError] = useState('');
@@ -30,7 +34,7 @@ export default function SystemMraEisConfigurationPage() {
       if (filters.environment) qs.set('environment', filters.environment);
       if (filters.status) qs.set('status', filters.status);
       if (filters.tenantId) qs.set('tenantId', filters.tenantId);
-      const res = await fetch(`/api/admin/mra-eis/configuration?${qs.toString()}`);
+      const res = await adminFetch(`/api/admin/mra-eis/configuration?${qs.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || 'Failed to load');
       setRows(json.data || []);
@@ -95,8 +99,8 @@ export default function SystemMraEisConfigurationPage() {
             Configuration
           </>
         }
-        title="MRA EIS configuration"
-        description="Cross-tenant configuration freshness. No raw credential or sensitive response content."
+        title={t('admin-pages.mraEis.configuration.title')}
+        description={t('admin-pages.mraEis.configuration.description')}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">

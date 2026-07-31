@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   assertPeriodOpen: vi.fn(),
   generateReferenceNumber: vi.fn(),
   resolveOrEnsureInventoryGlAccount: vi.fn(),
+  postStockAdjustmentAccounting: vi.fn(),
 }));
 
 vi.mock('../lib/accountingEngine/postGlEntry.js', () => ({
@@ -21,6 +22,10 @@ vi.mock('../lib/journalService.js', () => ({
 
 vi.mock('../lib/inventoryGlAccount.js', () => ({
   resolveOrEnsureInventoryGlAccount: mocks.resolveOrEnsureInventoryGlAccount,
+}));
+
+vi.mock('../lib/accountingV2/adapters/stockAdjustmentAdapter.js', () => ({
+  postStockAdjustmentAccounting: mocks.postStockAdjustmentAccounting,
 }));
 
 import { createInventoryWriteOffJournalEntry } from '../lib/inventoryWriteOffJournal.js';
@@ -62,6 +67,17 @@ describe('createInventoryWriteOffJournalEntry', () => {
       reference: 'TXN-2026-0042',
       lines: [],
     });
+    mocks.postStockAdjustmentAccounting.mockImplementation(async ({ amount, description, sourceId }) => ({
+      mode: 'NEW_ENGINE',
+      authority: 'V2',
+      result: {
+        id: 'v2-je-1',
+        reference: 'HREP-MOCK',
+        amount,
+        description,
+        sourceId,
+      },
+    }));
   });
 
   it('returns null without posting when amount is zero or negative', async () => {
@@ -78,10 +94,11 @@ describe('createInventoryWriteOffJournalEntry', () => {
       })
     ).resolves.toBeNull();
 
+    expect(mocks.postStockAdjustmentAccounting).not.toHaveBeenCalled();
     expect(mocks.postGlEntry).not.toHaveBeenCalled();
   });
 
-  it('posts balanced debit-loss / credit-inventory lines through postGlEntry', async () => {
+  it('routes write-offs through the V2 stock-adjustment adapter', async () => {
     const tx = makeTx();
 
     const result = await createInventoryWriteOffJournalEntry({
@@ -94,38 +111,37 @@ describe('createInventoryWriteOffJournalEntry', () => {
       tx,
     });
 
-    expect(mocks.assertPeriodOpen).toHaveBeenCalledWith('t1', expect.any(Date), tx);
-    expect(mocks.generateReferenceNumber).toHaveBeenCalledWith(tx, 't1', expect.any(Date));
-    expect(mocks.resolveOrEnsureInventoryGlAccount).toHaveBeenCalledWith('t1', tx);
-    expect(mocks.postGlEntry).toHaveBeenCalledTimes(1);
+    expect(mocks.postStockAdjustmentAccounting).toHaveBeenCalledTimes(1);
+    expect(mocks.postStockAdjustmentAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: tx,
+        tenantId: 't1',
+        userId: 'u1',
+        amount: 125.5,
+        description: 'Expired batch write-off',
+        sourceType: 'InventoryExpiryWriteOff',
+        sourceId: 'batch-99',
+      })
+    );
+    expect(mocks.postGlEntry).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ id: 'v2-je-1', sourceId: 'batch-99' });
+  });
 
-    const call = mocks.postGlEntry.mock.calls[0][0];
-    expect(call).toMatchObject({
+  it('legacy __skipCutover path still attempts postGlEntry for unit isolation', async () => {
+    const tx = makeTx();
+
+    await createInventoryWriteOffJournalEntry({
       tenantId: 't1',
       userId: 'u1',
-      description: 'Expired batch write-off',
-      reference: 'TXN-2026-0042',
-      sourceType: 'InventoryExpiryWriteOff',
-      sourceId: 'batch-99',
+      amount: 50,
+      description: 'Legacy path',
+      sourceBatchId: 'batch-legacy',
       tx,
+      __skipCutover: true,
     });
-    expect(call.lines).toEqual([
-      {
-        lineNumber: 1,
-        accountId: 'loss-acc-id',
-        debitAmount: 125.5,
-        creditAmount: 0,
-        description: 'Expired batch write-off',
-      },
-      {
-        lineNumber: 2,
-        accountId: 'inv-acc-id',
-        debitAmount: 0,
-        creditAmount: 125.5,
-        description: 'Expired batch write-off',
-      },
-    ]);
-    expect(result).toEqual({ id: 'gl-tx-1', reference: 'TXN-2026-0042', lines: [] });
+
+    expect(mocks.postStockAdjustmentAccounting).not.toHaveBeenCalled();
+    expect(mocks.postGlEntry).toHaveBeenCalledTimes(1);
   });
 
   it('returns existing posted transaction without calling postGlEntry (idempotency)', async () => {
@@ -143,6 +159,7 @@ describe('createInventoryWriteOffJournalEntry', () => {
       description: 'Duplicate write-off',
       sourceBatchId: 'batch-dup',
       tx,
+      __skipCutover: true,
     });
 
     expect(result).toBe(existing);

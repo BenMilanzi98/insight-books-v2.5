@@ -1,0 +1,12 @@
+{
+  "title": "Reports",
+  "generate": "Generate report",
+  "export": "Export",
+  "filters": "Filters",
+  "financial": {
+    "balanceSheet": "Balance Sheet",
+    "profitAndLoss": "Profit and Loss",
+    "cashFlow": "Cash Flow",
+    "trialBalance": "Trial Balance"
+  }
+}

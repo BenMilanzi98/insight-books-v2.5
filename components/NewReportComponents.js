@@ -468,7 +468,7 @@ export const PosDailyReport = ({
           <div className="rounded-2xl border border-slate-200 p-4 bg-gradient-to-r from-slate-50 to-emerald-50/50 border-l-4 border-l-emerald-500">
             <p className="text-sm font-medium text-slate-800">Stock impact</p>
             <p className="text-sm text-slate-600 mt-1">Total qty out today: <strong>{itemsSold}</strong> · Products affected: <strong>{productsAffected}</strong></p>
-            <a href="/reports?report=stock-movement" className="text-sm text-emerald-600 hover:underline mt-2 inline-block font-medium">View inventory movement</a>
+            <a href="/reports-v2?type=STOCK_MOVEMENTS" className="text-sm text-emerald-600 hover:underline mt-2 inline-block font-medium">View stock movements</a>
           </div>
           {/* Cashier breakdown */}
           {cashierBreakdown.length > 0 && (

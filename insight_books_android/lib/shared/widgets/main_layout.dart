@@ -377,6 +377,8 @@ const _iconColors = {
   'invoicing': Color(0xFFA855F7),     // violet
   'quotations': Color(0xFF14B8A6),    // teal
   'expenses': Color(0xFFF43F5E),      // rose
+  'stock': Color(0xFF0EA5E9),         // sky blue
+  'purchases': Color(0xFFEF4444),     // red
   'business': Color(0xFF10B981),     // emerald
   'account': Color(0xFFF59E0B),      // amber
   'profile': Color(0xFF38BDF8),     // sky
@@ -475,6 +477,23 @@ class AppDrawer extends ConsumerWidget {
                       icon: Icons.receipt_rounded,
                       iconKey: 'expenses',
                       route: '/expenses',
+                      currentRoute: currentRoute,
+                    ),
+                  if (satisfiesPermission(perms, 'stock.view'))
+                    _NavItem(
+                      title: 'Stock',
+                      icon: Icons.inventory_2_rounded,
+                      iconKey: 'stock',
+                      route: '/stock',
+                      currentRoute: currentRoute,
+                    ),
+                  if (satisfiesPermission(perms, 'purchases.view') ||
+                      satisfiesPermission(perms, 'suppliers.view'))
+                    _NavItem(
+                      title: 'Purchase & Supplier Management',
+                      icon: Icons.shopping_cart_rounded,
+                      iconKey: 'purchases',
+                      route: '/purchases',
                       currentRoute: currentRoute,
                     ),
                   const SizedBox(height: 8),

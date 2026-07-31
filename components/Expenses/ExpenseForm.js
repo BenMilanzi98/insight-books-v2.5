@@ -5,7 +5,13 @@ import { Save, AlertCircle, Loader, ChevronDown, Plus, X } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
 import SupplierExpenseSelect from '@/components/purchases/SupplierExpenseSelect';
+import AddTransferFundsPanel from '@/components/payments/AddTransferFundsPanel';
 import { percentOfMoney } from '@/lib/money';
+import {
+  checkPaymentAccountFunds,
+  formatPaymentAccountOptionLabel,
+  getCashOutflowRequired,
+} from '@/lib/paymentAccountFunds';
 
 // Expense Form Component used for both creating and editing expenses
 const ExpenseForm = ({
@@ -13,9 +19,9 @@ const ExpenseForm = ({
   onSubmit,
   onCancel,
   isLoading = false,
-  categories = []
+  categories = [],
 }) => {
-  // Form state
+  // Form state — posted expenses are Approved by default (no approval workflow UI)
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -34,6 +40,11 @@ const ExpenseForm = ({
   // Validation state
   const [errors, setErrors] = useState({});
   const [formTouched, setFormTouched] = useState(false);
+  const [postingPreview, setPostingPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [fundsCheck, setFundsCheck] = useState(null); // null | { ok:false, ... }
+  const [showFundPanel, setShowFundPanel] = useState(false);
 
   // Tax types state and default for outflow (expenses/purchases) - auto-populated from settings
   const [taxTypes, setTaxTypes] = useState([]);
@@ -51,7 +62,11 @@ const ExpenseForm = ({
   const [availableCategories, setAvailableCategories] = useState([]);
 
   // Load payment accounts dynamically
-  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+  const {
+    paymentAccounts,
+    isLoading: isLoadingPaymentAccounts,
+    refresh: refreshPaymentAccounts,
+  } = usePaymentAccounts();
 
   // Load expense categories from active, postable Chart of Accounts expense accounts.
   const loadCategories = async () => {
@@ -149,11 +164,20 @@ const ExpenseForm = ({
         supplierId: expense.supplierId || '',
         paymentMethod: expense.paymentMethod || '',
         notes: expense.notes || '',
-        status: 'Approved',
+        status: expense.status || 'Approved',
         paymentStatus: expense.paymentStatus || 'Fully paid',
         paidAmount: expense.paidAmount || '',
         paymentReference: expense.paymentReference || ''
       });
+      setPostingPreview(null);
+      setPreviewError('');
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        status: 'Approved',
+      }));
+      setPostingPreview(null);
+      setPreviewError('');
     }
   }, [expense]);
 
@@ -329,34 +353,113 @@ const ExpenseForm = ({
       }
       // Payment reference is now optional - no validation required
     }
+
+    // Insufficient source-of-funds balance
+    if (formData.paymentStatus !== 'Pending' && formData.paymentMethod) {
+      const required = getCashOutflowRequired({
+        paymentStatus: formData.paymentStatus,
+        amount: formData.amount,
+        paidAmount: formData.paidAmount,
+      });
+      const check = checkPaymentAccountFunds({
+        paymentAccounts,
+        paymentAccountId: formData.paymentMethod,
+        requiredAmount: required,
+      });
+      if (!check.ok) {
+        newErrors.paymentMethod = `Insufficient funds. Available MWK ${Number(check.available).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, required MWK ${Number(check.required).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
+        setFundsCheck(check);
+        setShowFundPanel(true);
+      } else {
+        setFundsCheck(null);
+      }
+    } else {
+      setFundsCheck(null);
+      setShowFundPanel(false);
+    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
+  const buildSubmission = () => {
+    const selectedAccount = availableCategories.find(acc => acc.id === formData.expenseAccountId);
+    const taxAmountNum = formData.taxAmount !== '' && !isNaN(parseFloat(formData.taxAmount)) ? parseFloat(formData.taxAmount) : 0;
+    const taxRateNum = formData.taxRate !== '' && !isNaN(parseFloat(formData.taxRate)) ? parseFloat(formData.taxRate) : 0;
+    const submission = {
+      ...formData,
+      // New expenses post as Approved; edits keep existing approval status (no UI to change it)
+      status: expense ? (expense.status || 'Approved') : 'Approved',
+      amount: parseFloat(formData.amount),
+      taxAmount: taxAmountNum,
+      taxRate: taxRateNum,
+      taxTypeId: selectedTaxTypeId || null,
+      category: selectedAccount?.name || expense?.category || '',
+      expenseAccountId: formData.expenseAccountId,
+      paymentMethod: formData.paymentStatus === 'Pending' ? null : formData.paymentMethod,
+      paidAmount: formData.paymentStatus === 'Partially' ? parseFloat(formData.paidAmount) : null,
+      paymentReference: formData.paymentStatus === 'Partially' ? (formData.paymentReference || null) : null
+    };
+    return submission;
+  };
+
+  const loadPostingPreview = async () => {
+    if (!formData.expenseAccountId || formData.amount === '' || Number(formData.amount) <= 0) {
+      setPostingPreview(null);
+      setPreviewError('');
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError('');
+    try {
+      const res = await fetch('/api/expenses/preview-posting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: Number(formData.amount) || 0,
+          taxAmount: formData.taxAmount === '' ? 0 : Number(formData.taxAmount) || 0,
+          expenseAccountId: formData.expenseAccountId || null,
+          paymentMethod: formData.paymentStatus === 'Pending' ? null : formData.paymentMethod,
+          paymentStatus: formData.paymentStatus,
+          supplierId: formData.supplierId || null,
+          date: formData.date,
+          description: formData.description,
+          category: availableCategories.find((a) => a.id === formData.expenseAccountId)?.name || '',
+          status: 'Approved',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to load posting preview');
+      setPostingPreview(data.preview || data);
+    } catch (err) {
+      setPostingPreview(null);
+      setPreviewError(err.message || 'Failed to load posting preview');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      loadPostingPreview();
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    formData.amount,
+    formData.taxAmount,
+    formData.expenseAccountId,
+    formData.paymentMethod,
+    formData.paymentStatus,
+    formData.supplierId,
+  ]);
+
   const handleSubmit = (e) => {
-    e.preventDefault();
-    
+    if (e?.preventDefault) e.preventDefault();
+
     if (validateForm()) {
-      // Format data for submission
-      const selectedAccount = availableCategories.find(acc => acc.id === formData.expenseAccountId);
-      const taxAmountNum = formData.taxAmount !== '' && !isNaN(parseFloat(formData.taxAmount)) ? parseFloat(formData.taxAmount) : 0;
-      const taxRateNum = formData.taxRate !== '' && !isNaN(parseFloat(formData.taxRate)) ? parseFloat(formData.taxRate) : 0;
-      const submission = {
-        ...formData,
-        amount: parseFloat(formData.amount),
-        taxAmount: taxAmountNum,
-        taxRate: taxRateNum,
-        taxTypeId: selectedTaxTypeId || null,
-        category: selectedAccount?.name || expense?.category || '',
-        expenseAccountId: formData.expenseAccountId,
-        paymentMethod: formData.paymentStatus === 'Pending' ? null : formData.paymentMethod,
-        paidAmount: formData.paymentStatus === 'Partially' ? parseFloat(formData.paidAmount) : null,
-        paymentReference: formData.paymentStatus === 'Partially' ? (formData.paymentReference || null) : null
-      };
-      
-      onSubmit(submission);
+      onSubmit(buildSubmission());
     }
   };
 
@@ -546,7 +649,7 @@ const ExpenseForm = ({
                       />
                       <input
                         type="number"
-                        placeholder="Rate % (e.g. 16.5)"
+                        placeholder="Rate % (e.g. 17.5)"
                         value={newTax.taxRate}
                         onChange={(e) => setNewTax(prev => ({ ...prev, taxRate: e.target.value }))}
                         className="w-full p-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -660,22 +763,26 @@ const ExpenseForm = ({
 
           {/* Source of Funds - Only show when not Pending */}
           {formData.paymentStatus !== 'Pending' && (
-            <div className="mb-4">
+            <div className="mb-4 col-span-1 sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Source of Funds
               </label>
               <select
                 name="paymentMethod"
                 value={formData.paymentMethod}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e);
+                  setShowFundPanel(false);
+                  setFundsCheck(null);
+                }}
                 className="w-full p-2 border border-gray-300 rounded-md"
                 required
                 disabled={isLoadingPaymentAccounts}
               >
                 <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
-                {paymentAccounts.map(account => (
+                {paymentAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                    {formatPaymentAccountOptionLabel(account)}
                   </option>
                 ))}
               </select>
@@ -684,6 +791,25 @@ const ExpenseForm = ({
                     <AlertCircle className="h-4 w-4 mr-1" />
                     {errors.paymentMethod}
                   </p>
+              )}
+              {showFundPanel && fundsCheck && !fundsCheck.ok && (
+                <AddTransferFundsPanel
+                  destinationAccountId={formData.paymentMethod}
+                  destinationAccountName={
+                    paymentAccounts.find((a) => a.id === formData.paymentMethod)?.name || ''
+                  }
+                  shortfall={fundsCheck.shortfall}
+                  requiredAmount={fundsCheck.required}
+                  availableAmount={fundsCheck.available}
+                  paymentAccounts={paymentAccounts}
+                  onCancel={() => setShowFundPanel(false)}
+                  onSuccess={async () => {
+                    setShowFundPanel(false);
+                    setFundsCheck(null);
+                    setErrors((prev) => ({ ...prev, paymentMethod: null }));
+                    await refreshPaymentAccounts();
+                  }}
+                />
               )}
             </div>
           )}
@@ -773,10 +899,86 @@ const ExpenseForm = ({
               placeholder="Additional details or notes about this expense"
             ></textarea>
           </div>
+
+          {/* GL posting preview */}
+          <div className="col-span-2 rounded-md border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium text-gray-800">Posting preview</h4>
+              {previewLoading ? (
+                <span className="text-xs text-gray-500 flex items-center">
+                  <Loader className="w-3.5 h-3.5 mr-1 animate-spin" />
+                  Updating…
+                </span>
+              ) : null}
+            </div>
+            {previewError ? (
+              <p className="text-sm text-amber-700">{previewError}</p>
+            ) : null}
+            {!previewError && postingPreview?.lines?.length ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-gray-200">
+                      <th className="py-1 pr-2 font-medium">Account</th>
+                      <th className="py-1 pr-2 font-medium text-right">Debit</th>
+                      <th className="py-1 font-medium text-right">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {postingPreview.lines.map((line, idx) => (
+                      <tr key={idx} className="border-b border-gray-100 last:border-0">
+                        <td className="py-1.5 pr-2 text-gray-800">
+                          {line.accountCode || line.accountName || line.accountId || '—'}
+                          {line.description ? (
+                            <span className="block text-gray-500 truncate max-w-[220px]">{line.description}</span>
+                          ) : null}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-gray-900">
+                          {line.debit != null && Number(line.debit) > 0
+                            ? Number(line.debit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : '—'}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums text-gray-900">
+                          {line.credit != null && Number(line.credit) > 0
+                            ? Number(line.credit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(postingPreview.totalDebit != null || postingPreview.totals) && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Totals — Debit:{' '}
+                    {Number(postingPreview.totalDebit ?? postingPreview.totals?.totalDebit ?? 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    · Credit:{' '}
+                    {Number(postingPreview.totalCredit ?? postingPreview.totals?.totalCredit ?? 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                )}
+              </div>
+            ) : !previewError && !previewLoading ? (
+              <p className="text-xs text-gray-500">
+                Select an expense category and amount to preview the journal entry.
+              </p>
+            ) : null}
+            {Array.isArray(postingPreview?.warnings) && postingPreview.warnings.length > 0 ? (
+              <ul className="mt-2 text-xs text-amber-700 list-disc pl-4">
+                {postingPreview.warnings.map((w, i) => (
+                  <li key={i}>{typeof w === 'string' ? w : w.message || JSON.stringify(w)}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </div>
 
-        {/* Form Actions */}
-        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+        {/* Form Actions — sticky within modal scroller */}
+        <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end space-x-3 border-t border-gray-200 bg-white px-6 py-4">
           <button
             type="button"
             onClick={onCancel}

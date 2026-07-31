@@ -6,6 +6,7 @@ import { generateFullPermissions } from '@/lib/permissionsMap';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import { sendOTPEmail } from '@/lib/email';
+import { MALAWI_STANDARD_VAT_RATE } from '@/lib/malawiTaxCatalog';
 
 import 'dotenv/config';
 
@@ -109,7 +110,7 @@ export async function POST(request) {
           tenantId: tenant.id,
           currencyCode: 'MWK', // Malawian Kwacha based on the pricing in the UI
           taxEnabled: true,
-          defaultTaxRate: 0,
+          defaultTaxRate: MALAWI_STANDARD_VAT_RATE,
           invoicePrefix: 'INV',
           enabledModules: ['invoicing', 'clients', 'expenses', 'inventory', 'hr']
         }

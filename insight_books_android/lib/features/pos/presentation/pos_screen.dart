@@ -14,6 +14,7 @@ import 'package:insightbooks_android/features/pos/presentation/widgets/barcode_s
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
+import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
 import 'package:insightbooks_android/features/pos/presentation/sale_receipt_print.dart';
 
 double _saleTotalAmount(Map<String, dynamic> sale) {
@@ -1548,7 +1549,13 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
     final sale = _full ?? widget.preview;
     final saleId = (sale['id'] ?? '').toString();
     final saleNo = (sale['saleNumber'] ?? '').toString().trim();
-    final paperWidthMm = await chooseReceiptPaperWidthMm(context);
+    final preferred = normalizeReceiptPaperWidthMm(
+      ref.read(accountProvider).settings?.receiptPaperWidthMm,
+    );
+    final paperWidthMm = await chooseReceiptPaperWidthMm(
+      context,
+      preferredWidthMm: preferred,
+    );
     if (paperWidthMm == null) return;
     if (!mounted) return;
     await openSaleReceiptThermalPrint(

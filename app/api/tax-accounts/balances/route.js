@@ -12,7 +12,7 @@ import { getMalawiTaxCatalogEntry } from '@/lib/malawiTaxCatalog.js';
  * 
  * Tax data storage:
  * - Sales: SaleItemTax links to TaxType (reliable)
- * - Invoices: Tax-Invoice transactions per TaxType (via autoPostTaxEntry)
+ * - Invoices: tax included on V2 invoice/sale journal postings (taxAmount on adapters)
  * - Purchase Orders: PurchaseOrderItem.taxTypeId links to TaxType (reliable)
  * - Expenses: Expense.taxTypeId links to TaxType (new), fallback via rate matching
  */
@@ -171,7 +171,7 @@ export async function GET(request) {
       }
 
       // ========== TAX COLLECTED FROM INVOICES ==========
-      // Invoice tax is tracked via Tax-Invoice transactions (posted by autoPostTaxEntry).
+      // Invoice tax is posted with V2 invoice/sale adapters (taxAmount on the journal).
       // These transactions are linked to the correct tax account per tax type.
       // We collect invoice IDs that have Tax-Invoice postings so we can fall back for unposted ones.
       const invoicesAccountedFor = new Set();

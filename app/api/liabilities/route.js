@@ -285,28 +285,47 @@ export async function POST(request) {
       try {
         const cashAccount = await resolveOperatingCashGlAccount(tenantId, prisma);
         if (cashAccount?.id) {
-          await postGlEntry({
+          const loanLines = [
+            {
+              lineNumber: 1,
+              accountId: cashAccount.id,
+              debitAmount: principalAmount,
+              creditAmount: 0,
+              description: `Proceeds — ${body.name}`,
+            },
+            {
+              lineNumber: 2,
+              accountId: body.glAccountId,
+              debitAmount: 0,
+              creditAmount: principalAmount,
+              description: `Liability — ${body.name}`,
+            },
+          ];
+          const loanDate = new Date(body.startDate || new Date());
+          const loanDesc = `Liability recorded — ${body.name}`;
+          const { postLoanReceivedAccounting } = await import(
+            '@/lib/accountingV2/adapters/remainingAdapters.js'
+          );
+          await postLoanReceivedAccounting({
+            db: prisma,
             tenantId,
             userId: user.id,
-            entryDate: new Date(body.startDate || new Date()),
-            description: `Liability recorded — ${body.name}`,
-            reference: `LIAB-OPEN-${liability.id.slice(-8).toUpperCase()}`,
-            sourceType: 'liability_opening',
-            sourceId: liability.id,
-            lines: [
-              {
-                accountId: cashAccount.id,
-                debitAmount: principalAmount,
-                creditAmount: 0,
-                description: `Proceeds — ${body.name}`,
-              },
-              {
-                accountId: body.glAccountId,
-                debitAmount: 0,
-                creditAmount: principalAmount,
-                description: `Liability — ${body.name}`,
-              },
-            ],
+            liabilityId: liability.id,
+            amount: principalAmount,
+            date: loanDate,
+            description: loanDesc,
+            lines: loanLines,
+            legacyPost: () =>
+              postGlEntry({
+                tenantId,
+                userId: user.id,
+                entryDate: loanDate,
+                description: loanDesc,
+                reference: `LIAB-OPEN-${liability.id.slice(-8).toUpperCase()}`,
+                sourceType: 'Liability',
+                sourceId: liability.id,
+                lines: loanLines,
+              }),
           });
         }
       } catch (glErr) {

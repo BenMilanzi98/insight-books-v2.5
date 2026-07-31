@@ -1,0 +1,6 @@
+# Cache Policy
+
+No JWT/raw response caching. Derived health may be recomputed; invalidate after activate/stale/block.
+
+---
+*Phase 8 implementation. No Sale submission. No fiscal number/QR. No Journal/Stock/local-tax mutations. Snapshots immutable. Activation atomic. Offline remains disabled.*

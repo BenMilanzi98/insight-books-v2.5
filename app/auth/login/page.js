@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, AlertCircle, CheckCircle } from "lucide-react";
 import { clearUserCache } from "@/lib/permissions";
+import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 // Component that safely uses search params
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const requestedRedirect = searchParams.get('redirect');
   const signupSuccess = searchParams.get('signup') === 'success';
   
@@ -23,8 +26,14 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(
-    signupSuccess ? "Account created successfully! Please login." : ""
+    signupSuccess ? "" : ""
   );
+
+  useEffect(() => {
+    if (signupSuccess) {
+      setSuccessMessage(t('authentication.accountCreated'));
+    }
+  }, [signupSuccess, t]);
 
   useEffect(() => {
     // Clear success message after 5 seconds
@@ -160,26 +169,29 @@ function LoginForm() {
             </div>
 
             <div className="rounded-3xl border border-white/70 bg-white/95 p-4 shadow-2xl shadow-blue-950/50 backdrop-blur-xl sm:p-6 lg:p-7">
+              <div className="mb-4 flex justify-end">
+                <LanguageSwitcher />
+              </div>
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Welcome back</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">{t('authentication.welcomeBack')}</p>
                   <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                    Login to your account
+                    {t('authentication.login')}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Enter your credentials to continue.
+                    {t('authentication.signInToContinue')}
                   </p>
                 </div>
                 <Link href="/auth/signup" className="rounded-full border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
-                  Create Account
+                  {t('authentication.createAccount')}
                 </Link>
               </div>
 
               <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1">
                 <div className="grid grid-cols-2 text-center text-sm font-semibold">
-                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">Login</span>
+                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">{t('authentication.login')}</span>
                   <Link href="/auth/signup" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
-                    Create Account
+                    {t('authentication.createAccount')}
                   </Link>
                 </div>
               </div>
@@ -245,7 +257,7 @@ function LoginForm() {
 
                 <div>
                   <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700">
-                    Email Address
+                    {t('authentication.email')}
                   </label>
                   <div className="relative">
                     <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -264,10 +276,10 @@ function LoginForm() {
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
-                      Password
+                      {t('authentication.password')}
                     </label>
                     <Link href="/auth/forgot-password" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
-                      Forgot password?
+                      {t('authentication.forgotPassword')}
                     </Link>
                   </div>
                   <div className="relative">
@@ -285,7 +297,7 @@ function LoginForm() {
                       type="button"
                       className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                       onClick={togglePasswordVisibility}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? t('accessibility.hidePassword') : t('accessibility.showPassword')}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -301,7 +313,7 @@ function LoginForm() {
                       checked={rememberMe}
                       onChange={() => setRememberMe(!rememberMe)}
                     />
-                    Remember me
+                    {t('authentication.rememberMe')}
                   </label>
                 </div>
 
@@ -310,7 +322,7 @@ function LoginForm() {
                   className="group flex w-full items-center justify-center rounded-xl bg-blue-600 p-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-950/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
                   disabled={isLoading}
                 >
-                  {isLoading ? "Logging in..." : "Login"}
+                  {isLoading ? t('common.loading.pleaseWait') : t('authentication.login')}
                 </button>
               </form>
 

@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { updateAccountBalance } from '@/lib/core';
-import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
-import { generateReferenceNumber } from '@/lib/journalService';
-import { getStandardAccounts } from '@/lib/transactionJournalHelpers';
-import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
-import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { createInvoiceRefundJournalEntry } from '@/lib/invoiceRefundJournal';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 
 export async function POST(request) {
@@ -210,92 +205,28 @@ export async function POST(request) {
         remainingRefundAmount -= refundFromThisPayment;
       }
 
-      // Get standard accounts for journal entries
-      const accounts = await getStandardAccounts(user.tenantId, tx);
-      if (!accounts.accountsReceivable) {
-        throw new Error('Accounts Receivable account not found. Please set up your chart of accounts.');
-      }
-
-      // Create journal entries for refund
-      // For each payment method, create transaction lines
+      // GL via postGlEntry + Stage 3B cutover (no direct Transaction bypass)
       const refundDate = new Date();
-      const refundReference = await generateReferenceNumber(tx, user.tenantId, refundDate);
-      
-      const transactionLines = [];
-      let lineNumber = 1;
-
-      // Debit: Accounts Receivable (to restore AR that was reduced by payment)
-      transactionLines.push({
-        lineNumber: lineNumber++,
-        accountId: accounts.accountsReceivable.id,
-        debitAmount: refundAmountNum,
-        creditAmount: 0,
-        description: `Accounts Receivable restored for refund of Invoice ${invoice.invoiceNumber}`,
+      const refundTransaction = await createInvoiceRefundJournalEntry({
+        tenantId: user.tenantId,
+        userId: user.id,
+        refundId: refund.id,
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        refundAmount: refundAmountNum,
+        refundReason: refundReason.trim(),
+        paymentRefundMap,
+        refundDate,
+        tx,
       });
 
-      // Credit: Cash/Bank accounts (one line per payment method)
-      let totalCredit = 0;
-      for (const [paymentMethod, amount] of paymentRefundMap.entries()) {
-        const paymentAccount = await getPaymentAccount(user.tenantId, paymentMethod, tx);
-        if (!paymentAccount) {
-          throw new Error(`Payment account not found for method: ${paymentMethod}`);
-        }
-
-        transactionLines.push({
-          lineNumber: lineNumber++,
-          accountId: paymentAccount.id,
-          debitAmount: 0,
-          creditAmount: amount,
-          description: `Refund via ${paymentMethod} for Invoice ${invoice.invoiceNumber}`,
+      const glId = refundTransaction?.id || refundTransaction?.journalEntryId;
+      if (glId) {
+        await tx.invoiceRefund.update({
+          where: { id: refund.id },
+          data: { transactionId: glId },
         });
-        totalCredit += amount;
       }
-
-      // Validate transaction balance
-      const totalDebit = transactionLines.reduce((sum, line) => addMoney(sum, line.debitAmount), 0);
-      const totalCreditCalculated = transactionLines.reduce((sum, line) => addMoney(sum, line.creditAmount), 0);
-      
-      if (Math.abs(totalDebit - totalCreditCalculated) > 0.01) {
-        throw new Error(`Transaction does not balance. Debits: ${totalDebit}, Credits: ${totalCreditCalculated}`);
-      }
-
-      await assertPeriodOpen(user.tenantId, refundDate, tx);
-      // Create the refund transaction
-      const refundTransaction = await tx.transaction.create({
-        data: {
-          tenantId: user.tenantId,
-          date: refundDate,
-          reference: refundReference,
-          description: `Refund for Invoice ${invoice.invoiceNumber} - ${refundReason.trim()}`,
-          entryType: 'Refund',
-          status: 'posted',
-          sourceType: 'InvoiceRefund',
-          sourceId: refund.id,
-          createdById: user.id,
-          postedById: user.id,
-          postedDate: new Date(),
-          lines: {
-            create: transactionLines,
-          },
-        },
-        include: { lines: true },
-      });
-
-      // Update account balances
-      for (const line of refundTransaction.lines) {
-        await updateAccountBalanceOnTransaction(
-          line.accountId,
-          line.debitAmount,
-          line.creditAmount,
-          tx
-        );
-      }
-
-      // Store transaction ID in refund record
-      await tx.invoiceRefund.update({
-        where: { id: refund.id },
-        data: { transactionId: refundTransaction.id }
-      });
 
       // Reverse tax postings for refunded invoice
       try {

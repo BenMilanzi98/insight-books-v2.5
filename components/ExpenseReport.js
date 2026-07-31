@@ -5,6 +5,7 @@ import { extractReportReconciliationMeta } from '@/components/ReportReconciliati
 import { formatCurrency } from '@/lib/currencyUtils';
 import { formatPeriodRange } from '@/lib/dateUtils';
 import { BarChart, PieChart, ChevronDown, ChevronUp } from 'lucide-react';
+import ReportAccountTable from '@/components/reports/ReportAccountTable';
 
 /**
  * Component for Expense Report
@@ -249,6 +250,14 @@ export const ExpenseReport = ({
               )}
             </div>
           </div>
+
+          {data.accountLines?.length > 0 && (
+            <ReportAccountTable
+              lines={data.accountLines}
+              title="Expense & COGS Accounts — General Ledger Detail"
+              showOpeningClosing
+            />
+          )}
         </>
       )}
     </FinancialReport>

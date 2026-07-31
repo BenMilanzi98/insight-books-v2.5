@@ -1,0 +1,3767 @@
+﻿# Review package — Phase 13 Task 4
+
+diff --git a/lib/admin/crm/reminders.js b/lib/admin/crm/reminders.js
+new file mode 100644
+index 0000000..41ab210
+--- /dev/null
++++ b/lib/admin/crm/reminders.js
+@@ -0,0 +1,408 @@
++/**
++ * CRM Reminders ΓÇö Phase 13 Wave 4.
++ * Dedupe: ruleKey + activityId + recipient + occurrence + channel.
++ * Delivery Γëá Activity complete. Reminder Γëá Sales contact / billing subscription reminder.
++ */
++
++import {
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_REMINDER_CHANNEL,
++  CRM_REMINDER_CHANNELS,
++  CRM_REMINDER_STATUS,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++const CHANNEL_SET = new Set(CRM_REMINDER_CHANNELS);
++
++export function hasCrmReminderModel(prisma) {
++  return typeof prisma?.crmReminder?.create === 'function';
++}
++
++/**
++ * Stable dedupe identity for Reminder occurrences.
++ * @param {{
++ *   ruleKey: string,
++ *   activityId: string,
++ *   recipientAdminId: string,
++ *   occurrenceKey: string,
++ *   channel: string,
++ * }} parts
++ */
++export function buildReminderDedupeKey(parts = {}) {
++  const ruleKey = String(parts.ruleKey || '').trim().toUpperCase();
++  const activityId = String(parts.activityId || '').trim();
++  const recipientAdminId = String(parts.recipientAdminId || '').trim();
++  const occurrenceKey = String(parts.occurrenceKey || '').trim();
++  const channel = String(parts.channel || CRM_REMINDER_CHANNEL.IN_APP)
++    .trim()
++    .toUpperCase();
++  return [ruleKey, activityId, recipientAdminId, occurrenceKey, channel].join('|');
++}
++
++function serializeReminder(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    dedupeKey: row.dedupeKey,
++    ruleKey: row.ruleKey,
++    activityId: row.activityId || null,
++    recipientAdminId: row.recipientAdminId || null,
++    channel: row.channel,
++    occurrenceKey: row.occurrenceKey,
++    status: row.status,
++    dueAt: row.dueAt ? new Date(row.dueAt).toISOString() : null,
++    snoozeUntil: row.snoozeUntil ? new Date(row.snoozeUntil).toISOString() : null,
++    deliveredAt: row.deliveredAt ? new Date(row.deliveredAt).toISOString() : null,
++    activityCompletedByDelivery: false,
++    createdByAdminId: row.createdByAdminId || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   ruleKey: string,
++ *   activityId: string,
++ *   recipientAdminId: string,
++ *   occurrenceKey: string,
++ *   channel?: string,
++ *   dueAt: Date|string,
++ *   now?: Date,
++ * }} args
++ */
++export async function scheduleReminder(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_reminder_schedule_forbidden' };
++  }
++
++  if (!hasCrmReminderModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_reminder_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const ruleKey = args.ruleKey != null ? String(args.ruleKey).trim().toUpperCase() : '';
++  const activityId = args.activityId ? String(args.activityId).trim() : '';
++  const recipientAdminId = args.recipientAdminId
++    ? String(args.recipientAdminId).trim()
++    : args.admin?.id
++      ? String(args.admin.id)
++      : '';
++  const occurrenceKey =
++    args.occurrenceKey != null ? String(args.occurrenceKey).trim() : '';
++  const channel = String(args.channel || CRM_REMINDER_CHANNEL.IN_APP)
++    .trim()
++    .toUpperCase();
++
++  if (!ruleKey) return { ok: false, error: 'ruleKey_required' };
++  if (!activityId) return { ok: false, error: 'activityId_required' };
++  if (!recipientAdminId) return { ok: false, error: 'recipientAdminId_required' };
++  if (!occurrenceKey) return { ok: false, error: 'occurrenceKey_required' };
++  if (!CHANNEL_SET.has(channel)) {
++    return { ok: false, error: 'invalid_channel', allowed: CRM_REMINDER_CHANNELS };
++  }
++  if (!args.dueAt) return { ok: false, error: 'dueAt_required' };
++
++  const dueAt = new Date(args.dueAt);
++  if (Number.isNaN(dueAt.getTime())) return { ok: false, error: 'invalid_dueAt' };
++
++  const dedupeKey = buildReminderDedupeKey({
++    ruleKey,
++    activityId,
++    recipientAdminId,
++    occurrenceKey,
++    channel,
++  });
++
++  try {
++    const existing = await prisma.crmReminder.findUnique({ where: { dedupeKey } });
++    if (existing) {
++      return {
++        ok: true,
++        reminder: serializeReminder(existing),
++        dedupe: true,
++        meta: {
++          activityCompletedByDelivery: false,
++          inventDeliveryForbidden: true,
++        },
++      };
++    }
++  } catch {
++    // fall through to create
++  }
++
++  const now = args.now || new Date();
++  const row = await prisma.crmReminder.create({
++    data: {
++      dedupeKey,
++      ruleKey,
++      activityId,
++      recipientAdminId,
++      channel,
++      occurrenceKey,
++      status: CRM_REMINDER_STATUS.SCHEDULED,
++      dueAt,
++      createdByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    reminder: serializeReminder(row),
++    dedupe: false,
++    meta: {
++      activityCompletedByDelivery: false,
++      inventDeliveryForbidden: true,
++    },
++  };
++}
++
++/**
++ * Queue due SCHEDULED/SNOOZED reminders (status ΓåÆ QUEUED). Does not deliver or complete Activities.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, now?: Date, limit?: number }} args
++ */
++export async function queueDueReminders(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_reminder_queue_forbidden', items: [] };
++  }
++
++  if (!hasCrmReminderModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_reminder_model_unavailable', status: 'UNAVAILABLE' },
++    };
++  }
++
++  const now = args.now || new Date();
++  const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
++  let rows = [];
++  try {
++    rows = await prisma.crmReminder.findMany({
++      where: {
++        status: { in: [CRM_REMINDER_STATUS.SCHEDULED, CRM_REMINDER_STATUS.SNOOZED] },
++        dueAt: { lte: now },
++      },
++      take: limit,
++      orderBy: { dueAt: 'asc' },
++    });
++  } catch {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'reminder_query_failed', status: 'UNAVAILABLE' },
++    };
++  }
++
++  const queued = [];
++  for (const row of rows) {
++    if (
++      row.status === CRM_REMINDER_STATUS.SNOOZED &&
++      row.snoozeUntil &&
++      new Date(row.snoozeUntil) > now
++    ) {
++      continue;
++    }
++    try {
++      const updated = await prisma.crmReminder.update({
++        where: { id: row.id },
++        data: { status: CRM_REMINDER_STATUS.QUEUED, updatedAt: now },
++      });
++      queued.push(serializeReminder(updated));
++    } catch {
++      // skip row
++    }
++  }
++
++  return {
++    ok: true,
++    items: queued,
++    meta: {
++      count: queued.length,
++      activityCompletedByDelivery: false,
++      inventDeliveryForbidden: true,
++    },
++  };
++}
++
++/**
++ * Mark reminder delivered. Never transitions linked Activity to COMPLETED.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, reminderId: string, now?: Date }} args
++ */
++export async function markReminderDelivered(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_reminder_deliver_forbidden' };
++  }
++
++  if (!hasCrmReminderModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_reminder_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const reminderId = args.reminderId ? String(args.reminderId).trim() : '';
++  if (!reminderId) return { ok: false, error: 'reminderId_required' };
++
++  let row = null;
++  try {
++    row = await prisma.crmReminder.findUnique({ where: { id: reminderId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'reminder_not_found' };
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmReminder.update({
++    where: { id: reminderId },
++    data: {
++      status: CRM_REMINDER_STATUS.DELIVERED,
++      deliveredAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    reminder: serializeReminder(updated),
++    meta: {
++      activityCompletedByDelivery: false,
++      activityStatusUnchanged: true,
++      inventDeliveryForbidden: true,
++    },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, reminderId: string, snoozeUntil: Date|string, now?: Date }} args
++ */
++export async function snoozeReminder(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_reminder_snooze_forbidden' };
++  }
++
++  if (!hasCrmReminderModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_reminder_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const reminderId = args.reminderId ? String(args.reminderId).trim() : '';
++  if (!reminderId) return { ok: false, error: 'reminderId_required' };
++  if (!args.snoozeUntil) return { ok: false, error: 'snoozeUntil_required' };
++
++  const snoozeUntil = new Date(args.snoozeUntil);
++  if (Number.isNaN(snoozeUntil.getTime())) return { ok: false, error: 'invalid_snoozeUntil' };
++
++  let row = null;
++  try {
++    row = await prisma.crmReminder.findUnique({ where: { id: reminderId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'reminder_not_found' };
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmReminder.update({
++    where: { id: reminderId },
++    data: {
++      status: CRM_REMINDER_STATUS.SNOOZED,
++      snoozeUntil,
++      dueAt: snoozeUntil,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    reminder: serializeReminder(updated),
++    meta: { activityCompletedByDelivery: false },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   activityId?: string,
++ *   recipientAdminId?: string,
++ *   status?: string,
++ *   limit?: number|string,
++ * }} args
++ */
++export async function listReminders(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !access.canViewActivities &&
++    !access.canViewLeads &&
++    !access.canViewOpportunities
++  ) {
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_reminder_list_forbidden',
++      items: [],
++    };
++  }
++
++  if (!hasCrmReminderModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: { unavailable: true, reason: 'crm_reminder_model_unavailable', status: 'UNAVAILABLE' },
++    };
++  }
++
++  const where = {};
++  if (args.activityId) where.activityId = String(args.activityId).trim();
++  if (args.recipientAdminId) where.recipientAdminId = String(args.recipientAdminId).trim();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmReminder.findMany({
++      where,
++      orderBy: { dueAt: 'asc' },
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeReminder),
++    meta: {
++      count: (rows || []).length,
++      activityCompletedByDelivery: false,
++      inventDeliveryForbidden: true,
++    },
++  };
++}
++
++export { serializeReminder };
+diff --git "a/lib\\admin\\crm\\automation\\catalogue.js" "b/lib\\admin\\crm\\automation\\catalogue.js"
+new file mode 100644
+index 0000000..8a933d4
+--- /dev/null
++++ "b/lib\\admin\\crm\\automation\\catalogue.js"
+@@ -0,0 +1,30 @@
++/**
++ * CRM automation catalogue ΓÇö Phase 13 Wave 4 foundations.
++ * Small approved trigger set only. No full sequences. No arbitrary code.
++ */
++
++export {
++  CRM_AUTOMATION_TRIGGER,
++  CRM_AUTOMATION_TRIGGERS,
++  CRM_AUTOMATION_RULE_STATUS,
++  CRM_AUTOMATION_RULE_STATUSES,
++  CRM_AUTOMATION_EXECUTION_STATUS,
++  CRM_AUTOMATION_EXECUTION_STATUSES,
++} from '../catalogue.js';
++
++export const CRM_AUTOMATION_DEFINITION_VERSION = 'crm-automation-v1-2026-07-30';
++
++/** Approved action kinds only ΓÇö never eval / scripts. */
++export const CRM_AUTOMATION_ACTION = Object.freeze({
++  CREATE_FIRST_CONTACT_TASK: 'CREATE_FIRST_CONTACT_TASK',
++  CREATE_CHECKLIST_TASK: 'CREATE_CHECKLIST_TASK',
++  EMIT_NO_NEXT_ACTION_WARNING: 'EMIT_NO_NEXT_ACTION_WARNING',
++});
++
++export const CRM_AUTOMATION_ACTIONS = Object.freeze(Object.values(CRM_AUTOMATION_ACTION));
++
++export const APPROVED_TRIGGER_ACTIONS = Object.freeze({
++  LEAD_ASSIGNED: [CRM_AUTOMATION_ACTION.CREATE_FIRST_CONTACT_TASK],
++  OPPORTUNITY_STAGE_ENTRY: [CRM_AUTOMATION_ACTION.CREATE_CHECKLIST_TASK],
++  NO_NEXT_ACTION_WARNING: [CRM_AUTOMATION_ACTION.EMIT_NO_NEXT_ACTION_WARNING],
++});
+diff --git "a/lib\\admin\\crm\\automation\\execute.js" "b/lib\\admin\\crm\\automation\\execute.js"
+new file mode 100644
+index 0000000..40c5a17
+--- /dev/null
++++ "b/lib\\admin\\crm\\automation\\execute.js"
+@@ -0,0 +1,288 @@
++/**
++ * CRM automation idempotent execution ΓÇö Phase 13 Wave 4 foundations.
++ * Only APPROVED rules; small trigger set; no sequences / arbitrary code.
++ */
++
++import {
++  CRM_AUTOMATION_EXECUTION_STATUS,
++  CRM_AUTOMATION_RULE_STATUS,
++  CRM_AUTOMATION_TRIGGER,
++  CRM_SUBJECT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { createTask } from '../tasks.js';
++import {
++  CRM_AUTOMATION_ACTION,
++  CRM_AUTOMATION_DEFINITION_VERSION,
++} from './catalogue.js';
++import { hasCrmAutomationRuleModel } from './rules.js';
++
++export function hasCrmAutomationExecutionModel(prisma) {
++  return typeof prisma?.crmAutomationExecution?.create === 'function';
++}
++
++function buildIdempotencyKey({ ruleId, trigger, subjectType, subjectId, occurrenceKey }) {
++  return [
++    String(ruleId || ''),
++    String(trigger || ''),
++    String(subjectType || ''),
++    String(subjectId || ''),
++    String(occurrenceKey || 'default'),
++  ].join('|');
++}
++
++function serializeExecution(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    ruleId: row.ruleId,
++    idempotencyKey: row.idempotencyKey,
++    trigger: row.trigger,
++    action: row.action,
++    subjectType: row.subjectType || null,
++    subjectId: row.subjectId || null,
++    status: row.status,
++    resultJson: row.resultJson ?? null,
++    executedByAdminId: row.executedByAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++  };
++}
++
++async function runApprovedAction(prisma, args) {
++  const { rule, subjectType, subjectId, admin, now } = args;
++  const action = rule.action;
++
++  if (action === CRM_AUTOMATION_ACTION.CREATE_FIRST_CONTACT_TASK) {
++    if (subjectType !== CRM_SUBJECT_TYPE.LEAD) {
++      return { ok: false, error: 'lead_subject_required_for_first_contact' };
++    }
++    const title =
++      (rule.configJson && rule.configJson.taskTitle) ||
++      'First contact ΓÇö follow up after Lead assignment';
++    const taskResult = await createTask(prisma, {
++      admin,
++      subjectType: CRM_SUBJECT_TYPE.LEAD,
++      subjectId,
++      title: String(title),
++      dueAt: rule.configJson?.dueAt || null,
++      allocateTaskNumber: true,
++      now,
++    });
++    if (!taskResult.ok) return taskResult;
++    return {
++      ok: true,
++      result: { taskId: taskResult.task?.id || null, task: taskResult.task },
++    };
++  }
++
++  if (action === CRM_AUTOMATION_ACTION.CREATE_CHECKLIST_TASK) {
++    if (subjectType !== CRM_SUBJECT_TYPE.OPPORTUNITY) {
++      return { ok: false, error: 'opportunity_subject_required_for_checklist' };
++    }
++    const stageCode = rule.configJson?.stageCode || args.stageCode || null;
++    const title =
++      (rule.configJson && rule.configJson.taskTitle) ||
++      `Stage checklist${stageCode ? ` ΓÇö ${stageCode}` : ''}`;
++    const taskResult = await createTask(prisma, {
++      admin,
++      subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
++      subjectId,
++      title: String(title),
++      dueAt: rule.configJson?.dueAt || null,
++      allocateTaskNumber: true,
++      now,
++    });
++    if (!taskResult.ok) return taskResult;
++    return {
++      ok: true,
++      result: {
++        taskId: taskResult.task?.id || null,
++        task: taskResult.task,
++        stageCode,
++      },
++    };
++  }
++
++  if (action === CRM_AUTOMATION_ACTION.EMIT_NO_NEXT_ACTION_WARNING) {
++    return {
++      ok: true,
++      result: {
++        warning: 'NO_NEXT_ACTION',
++        subjectType,
++        subjectId,
++        fabricatedNextAction: false,
++        message:
++          'No next action found ΓÇö warning only; no fabricated Task/Follow-Up created',
++      },
++    };
++  }
++
++  return { ok: false, error: 'action_not_implemented_in_approved_set' };
++}
++
++/**
++ * Execute an APPROVED automation rule idempotently.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   ruleId: string,
++ *   subjectType: string,
++ *   subjectId: string,
++ *   occurrenceKey?: string,
++ *   stageCode?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function executeAutomationRule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_automation_execute_forbidden' };
++  }
++
++  if (!hasCrmAutomationRuleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_automation_rule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const ruleId = args.ruleId ? String(args.ruleId).trim() : '';
++  const subjectType = String(args.subjectType || '').trim().toUpperCase();
++  const subjectId = args.subjectId ? String(args.subjectId).trim() : '';
++  if (!ruleId) return { ok: false, error: 'ruleId_required' };
++  if (!subjectType || !subjectId) {
++    return { ok: false, error: 'subjectType_and_subjectId_required' };
++  }
++
++  let rule = null;
++  try {
++    rule = await prisma.crmAutomationRule.findUnique({ where: { id: ruleId } });
++  } catch {
++    rule = null;
++  }
++  if (!rule) return { ok: false, notFound: true, error: 'rule_not_found' };
++
++  if (rule.status !== CRM_AUTOMATION_RULE_STATUS.APPROVED) {
++    return { ok: false, error: 'rule_not_approved', status: rule.status };
++  }
++
++  const occurrenceKey =
++    args.occurrenceKey != null
++      ? String(args.occurrenceKey).trim()
++      : args.stageCode
++        ? String(args.stageCode).trim().toUpperCase()
++        : 'default';
++
++  const idempotencyKey = buildIdempotencyKey({
++    ruleId: rule.id,
++    trigger: rule.trigger,
++    subjectType,
++    subjectId,
++    occurrenceKey,
++  });
++
++  if (hasCrmAutomationExecutionModel(prisma)) {
++    try {
++      const prior = await prisma.crmAutomationExecution.findUnique({
++        where: { idempotencyKey },
++      });
++      if (prior) {
++        return {
++          ok: true,
++          execution: serializeExecution(prior),
++          idempotent: true,
++          status: CRM_AUTOMATION_EXECUTION_STATUS.IDEMPOTENT_REPLAY,
++          meta: {
++            definitionVersion: CRM_AUTOMATION_DEFINITION_VERSION,
++            sequencesForbidden: true,
++          },
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  const now = args.now || new Date();
++  const actionResult = await runApprovedAction(prisma, {
++    rule,
++    subjectType,
++    subjectId,
++    admin: args.admin,
++    now,
++    stageCode: args.stageCode,
++  });
++
++  const execStatus = actionResult.ok
++    ? CRM_AUTOMATION_EXECUTION_STATUS.SUCCESS
++    : CRM_AUTOMATION_EXECUTION_STATUS.FAILED;
++
++  let execution = null;
++  if (hasCrmAutomationExecutionModel(prisma)) {
++    try {
++      execution = await prisma.crmAutomationExecution.create({
++        data: {
++          ruleId: rule.id,
++          idempotencyKey,
++          trigger: rule.trigger,
++          action: rule.action,
++          subjectType,
++          subjectId,
++          status: execStatus,
++          resultJson: actionResult.ok
++            ? actionResult.result || null
++            : { error: actionResult.error || 'failed' },
++          executedByAdminId: args.admin?.id || null,
++          at: now,
++        },
++      });
++    } catch (e) {
++      // Unique race ΓåÆ treat as idempotent replay
++      if (e?.code === 'P2002' || String(e?.message || '').includes('Unique')) {
++        try {
++          const prior = await prisma.crmAutomationExecution.findUnique({
++            where: { idempotencyKey },
++          });
++          if (prior) {
++            return {
++              ok: true,
++              execution: serializeExecution(prior),
++              idempotent: true,
++              status: CRM_AUTOMATION_EXECUTION_STATUS.IDEMPOTENT_REPLAY,
++            };
++          }
++        } catch {
++          // fall through
++        }
++      }
++    }
++  }
++
++  if (!actionResult.ok) {
++    return {
++      ok: false,
++      error: actionResult.error || 'execution_failed',
++      execution: serializeExecution(execution),
++      forbidden: actionResult.forbidden,
++    };
++  }
++
++  return {
++    ok: true,
++    execution: serializeExecution(execution),
++    result: actionResult.result,
++    idempotent: false,
++    status: CRM_AUTOMATION_EXECUTION_STATUS.SUCCESS,
++    meta: {
++      definitionVersion: CRM_AUTOMATION_DEFINITION_VERSION,
++      sequencesForbidden: true,
++      arbitraryCodeForbidden: true,
++      trigger: rule.trigger,
++      approvedTriggerSet: Object.values(CRM_AUTOMATION_TRIGGER),
++    },
++  };
++}
++
++export { buildIdempotencyKey, serializeExecution };
+diff --git "a/lib\\admin\\crm\\automation\\index.js" "b/lib\\admin\\crm\\automation\\index.js"
+new file mode 100644
+index 0000000..352be60
+--- /dev/null
++++ "b/lib\\admin\\crm\\automation\\index.js"
+@@ -0,0 +1,36 @@
++/**
++ * CRM automation foundations ΓÇö Phase 13 Wave 4.
++ */
++
++export {
++  CRM_AUTOMATION_TRIGGER,
++  CRM_AUTOMATION_TRIGGERS,
++  CRM_AUTOMATION_RULE_STATUS,
++  CRM_AUTOMATION_RULE_STATUSES,
++  CRM_AUTOMATION_EXECUTION_STATUS,
++  CRM_AUTOMATION_EXECUTION_STATUSES,
++  CRM_AUTOMATION_ACTION,
++  CRM_AUTOMATION_ACTIONS,
++  CRM_AUTOMATION_DEFINITION_VERSION,
++  APPROVED_TRIGGER_ACTIONS,
++} from './catalogue.js';
++// Note: main crm/index.js re-exports trigger/status constants from catalogue.js
++// to avoid duplicate named exports; ACTION / DEFINITION_VERSION come from here.
++
++export {
++  hasCrmAutomationRuleModel,
++  hasCrmAutomationApprovalModel,
++  createAutomationRule,
++  requestAutomationApproval,
++  approveAutomationRule,
++  listAutomationRules,
++  serializeRule,
++  isApprovedPair,
++} from './rules.js';
++
++export {
++  hasCrmAutomationExecutionModel,
++  executeAutomationRule,
++  buildIdempotencyKey,
++  serializeExecution,
++} from './execute.js';
+diff --git "a/lib\\admin\\crm\\automation\\rules.js" "b/lib\\admin\\crm\\automation\\rules.js"
+new file mode 100644
+index 0000000..f1f1c3e
+--- /dev/null
++++ "b/lib\\admin\\crm\\automation\\rules.js"
+@@ -0,0 +1,330 @@
++/**
++ * CRM automation rule model + SoD approval ΓÇö Phase 13 Wave 4.
++ * Requester Γëá approver. Small approved trigger set only.
++ */
++
++import {
++  CRM_AUTOMATION_RULE_STATUS,
++  CRM_AUTOMATION_TRIGGERS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import {
++  APPROVED_TRIGGER_ACTIONS,
++  CRM_AUTOMATION_ACTION,
++  CRM_AUTOMATION_ACTIONS,
++  CRM_AUTOMATION_DEFINITION_VERSION,
++} from './catalogue.js';
++
++const TRIGGER_SET = new Set(CRM_AUTOMATION_TRIGGERS);
++const ACTION_SET = new Set(CRM_AUTOMATION_ACTIONS);
++
++export function hasCrmAutomationRuleModel(prisma) {
++  return typeof prisma?.crmAutomationRule?.create === 'function';
++}
++
++export function hasCrmAutomationApprovalModel(prisma) {
++  return typeof prisma?.crmAutomationApproval?.create === 'function';
++}
++
++function serializeRule(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    name: row.name || null,
++    trigger: row.trigger,
++    action: row.action,
++    status: row.status,
++    configJson: row.configJson ?? null,
++    requestedByAdminId: row.requestedByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    definitionVersion: CRM_AUTOMATION_DEFINITION_VERSION,
++  };
++}
++
++function isApprovedPair(trigger, action) {
++  const allowed = APPROVED_TRIGGER_ACTIONS[trigger] || [];
++  return allowed.includes(action);
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   code: string,
++ *   name?: string,
++ *   trigger: string,
++ *   action: string,
++ *   configJson?: object|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function createAutomationRule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_automation_rule_forbidden' };
++  }
++
++  if (!hasCrmAutomationRuleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_automation_rule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const code = args.code ? String(args.code).trim().toUpperCase() : '';
++  if (!code || !/^[A-Z][A-Z0-9_]{1,63}$/.test(code)) {
++    return { ok: false, error: 'invalid_rule_code' };
++  }
++
++  const trigger = String(args.trigger || '').trim().toUpperCase();
++  const action = String(args.action || '').trim().toUpperCase();
++  if (!TRIGGER_SET.has(trigger)) {
++    return { ok: false, error: 'invalid_trigger', allowed: CRM_AUTOMATION_TRIGGERS };
++  }
++  if (!ACTION_SET.has(action)) {
++    return { ok: false, error: 'invalid_action', allowed: CRM_AUTOMATION_ACTIONS };
++  }
++  if (!isApprovedPair(trigger, action)) {
++    return {
++      ok: false,
++      error: 'trigger_action_not_in_approved_set',
++      allowedForTrigger: APPROVED_TRIGGER_ACTIONS[trigger] || [],
++    };
++  }
++
++  const now = args.now || new Date();
++  const row = await prisma.crmAutomationRule.create({
++    data: {
++      code,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      trigger,
++      action,
++      status: CRM_AUTOMATION_RULE_STATUS.DRAFT,
++      configJson: args.configJson ?? null,
++      requestedByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    rule: serializeRule(row),
++    meta: {
++      sodRequired: true,
++      sequencesForbidden: true,
++      arbitraryCodeForbidden: true,
++      definitionVersion: CRM_AUTOMATION_DEFINITION_VERSION,
++    },
++  };
++}
++
++/**
++ * Request approval (DRAFT ΓåÆ PENDING_APPROVAL).
++ */
++export async function requestAutomationApproval(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_automation_request_forbidden' };
++  }
++
++  if (!hasCrmAutomationRuleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_automation_rule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const ruleId = args.ruleId ? String(args.ruleId).trim() : '';
++  if (!ruleId) return { ok: false, error: 'ruleId_required' };
++
++  let row = null;
++  try {
++    row = await prisma.crmAutomationRule.findUnique({ where: { id: ruleId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'rule_not_found' };
++
++  if (
++    row.status !== CRM_AUTOMATION_RULE_STATUS.DRAFT &&
++    row.status !== CRM_AUTOMATION_RULE_STATUS.REJECTED
++  ) {
++    return { ok: false, error: 'rule_not_requestable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmAutomationRule.update({
++    where: { id: ruleId },
++    data: {
++      status: CRM_AUTOMATION_RULE_STATUS.PENDING_APPROVAL,
++      requestedByAdminId: args.admin?.id || row.requestedByAdminId,
++      updatedAt: now,
++    },
++  });
++
++  if (hasCrmAutomationApprovalModel(prisma)) {
++    try {
++      await prisma.crmAutomationApproval.create({
++        data: {
++          ruleId,
++          action: 'REQUEST',
++          actorAdminId: args.admin?.id || null,
++          at: now,
++        },
++      });
++    } catch {
++      // audit best-effort
++    }
++  }
++
++  return { ok: true, rule: serializeRule(updated), meta: { sodRequired: true } };
++}
++
++/**
++ * Approve rule ΓÇö SoD: approver Γëá requester.
++ */
++export async function approveAutomationRule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canApproveMerge && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_automation_approve_forbidden' };
++  }
++
++  if (!hasCrmAutomationRuleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_automation_rule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const ruleId = args.ruleId ? String(args.ruleId).trim() : '';
++  if (!ruleId) return { ok: false, error: 'ruleId_required' };
++
++  let row = null;
++  try {
++    row = await prisma.crmAutomationRule.findUnique({ where: { id: ruleId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'rule_not_found' };
++
++  if (row.status !== CRM_AUTOMATION_RULE_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'rule_not_pending_approval', status: row.status };
++  }
++
++  const approverId = args.admin?.id ? String(args.admin.id) : '';
++  const requesterId = row.requestedByAdminId ? String(row.requestedByAdminId) : '';
++  if (!approverId) return { ok: false, error: 'approver_required' };
++  if (requesterId && approverId === requesterId) {
++    return {
++      ok: false,
++      error: 'automation_self_approval_blocked',
++      reason: 'sod_requester_must_differ_from_approver',
++    };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmAutomationRule.update({
++    where: { id: ruleId },
++    data: {
++      status: CRM_AUTOMATION_RULE_STATUS.APPROVED,
++      approvedByAdminId: approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  if (hasCrmAutomationApprovalModel(prisma)) {
++    try {
++      await prisma.crmAutomationApproval.create({
++        data: {
++          ruleId,
++          action: 'APPROVE',
++          actorAdminId: approverId,
++          at: now,
++        },
++      });
++    } catch {
++      // audit best-effort
++    }
++  }
++
++  return {
++    ok: true,
++    rule: serializeRule(updated),
++    meta: { sodEnforced: true, selfApprovalBlocked: true },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, status?: string, limit?: number|string }} args
++ */
++export async function listAutomationRules(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !access.canViewActivities &&
++    !access.canViewLeads &&
++    !access.canViewOpportunities
++  ) {
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_automation_list_forbidden',
++      items: [],
++    };
++  }
++
++  if (!hasCrmAutomationRuleModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: {
++        unavailable: true,
++        reason: 'crm_automation_rule_model_unavailable',
++        status: 'UNAVAILABLE',
++      },
++    };
++  }
++
++  const where = {};
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmAutomationRule.findMany({
++      where,
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeRule),
++    meta: {
++      count: (rows || []).length,
++      approvedTriggers: CRM_AUTOMATION_TRIGGERS,
++      sequencesForbidden: true,
++      definitionVersion: CRM_AUTOMATION_DEFINITION_VERSION,
++    },
++  };
++}
++
++export { serializeRule, isApprovedPair, CRM_AUTOMATION_ACTION };
+diff --git a/lib/admin/crm/activities/reports.js b/lib/admin/crm/activities/reports.js
+new file mode 100644
+index 0000000..9f4307b
+--- /dev/null
++++ b/lib/admin/crm/activities/reports.js
+@@ -0,0 +1,256 @@
++/**
++ * Activity reporting centre ΓÇö Phase 13 Wave 4.
++ * Honesty-gated: metric gate fail ΓåÆ never fabricated zeroes (EMPTY/UNAVAILABLE).
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import {
++  CRM_ACTIVITY_REPORT_STATUS,
++  CRM_ACTIVITY_STATUS,
++  CRM_ACTIVITY_TYPE,
++  CRM_RELIABILITY_STATUS,
++} from '../catalogue.js';
++import { hasCrmActivityModel } from './model.js';
++
++export const CRM_ACTIVITY_REPORT_VERSION = 'crm-activity-report-v1-2026-07-30';
++
++async function safeCount(fn) {
++  try {
++    const value = await fn();
++    if (typeof value !== 'number' || Number.isNaN(value)) {
++      return { ok: false, value: null };
++    }
++    return { ok: true, value };
++  } catch {
++    return { ok: false, value: null };
++  }
++}
++
++/**
++ * Reliability gate for Activity metrics ΓÇö fail closed to null KPIs.
++ *
++ * @param {{
++ *   modelAvailable: boolean,
++ *   queryOk: boolean,
++ *   permissionOk: boolean,
++ * }} gate
++ */
++export function applyActivityReportHonesty(gate = {}) {
++  if (gate.permissionOk === false) {
++    return {
++      kpiSafe: false,
++      status: CRM_ACTIVITY_REPORT_STATUS.UNAVAILABLE,
++      reliability: CRM_RELIABILITY_STATUS.PERMISSION_RESTRICTED,
++      inventZeroesForbidden: true,
++      falseZeroes: false,
++    };
++  }
++  if (gate.modelAvailable === false) {
++    return {
++      kpiSafe: false,
++      status: CRM_ACTIVITY_REPORT_STATUS.UNAVAILABLE,
++      reliability: CRM_RELIABILITY_STATUS.NOT_INSTRUMENTED,
++      inventZeroesForbidden: true,
++      falseZeroes: false,
++    };
++  }
++  if (gate.queryOk === false) {
++    return {
++      kpiSafe: false,
++      status: CRM_ACTIVITY_REPORT_STATUS.UNAVAILABLE,
++      reliability: CRM_RELIABILITY_STATUS.RECONCILIATION_FAILED,
++      inventZeroesForbidden: true,
++      falseZeroes: false,
++    };
++  }
++  return {
++    kpiSafe: true,
++    inventZeroesForbidden: true,
++    falseZeroes: false,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, type?: string|null }} args
++ */
++export async function getActivityReport(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !access.canViewActivities &&
++    !access.canViewLeads &&
++    !access.canViewOpportunities &&
++    !access.canExport
++  ) {
++    const honesty = applyActivityReportHonesty({ permissionOk: false });
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_activity_report_forbidden',
++      status: honesty.status,
++      report: null,
++      honesty,
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    };
++  }
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'leads');
++  if (!scope.canView) {
++    const honesty = applyActivityReportHonesty({ permissionOk: false });
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_scope_denied',
++      status: honesty.status,
++      report: null,
++      honesty,
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    };
++  }
++
++  if (!hasCrmActivityModel(prisma)) {
++    const honesty = applyActivityReportHonesty({ modelAvailable: false });
++    return {
++      ok: true,
++      status: honesty.status,
++      reason: 'crm_activity_model_unavailable',
++      report: null,
++      honesty,
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    };
++  }
++
++  const typeFilter = args.type
++    ? String(args.type).trim().toUpperCase()
++    : null;
++
++  const baseWhere = typeFilter ? { type: typeFilter } : {};
++
++  const openCount = await safeCount(() =>
++    prisma.crmActivity.count({
++      where: { ...baseWhere, status: CRM_ACTIVITY_STATUS.OPEN },
++    })
++  );
++  const completedCount = await safeCount(() =>
++    prisma.crmActivity.count({
++      where: { ...baseWhere, status: CRM_ACTIVITY_STATUS.COMPLETED },
++    })
++  );
++  const totalCount = await safeCount(() =>
++    prisma.crmActivity.count({ where: baseWhere })
++  );
++
++  const queryOk = openCount.ok && completedCount.ok && totalCount.ok;
++  if (!queryOk) {
++    const honesty = applyActivityReportHonesty({
++      modelAvailable: true,
++      queryOk: false,
++      permissionOk: true,
++    });
++    return {
++      ok: true,
++      status: honesty.status,
++      reason: 'activity_metric_gate_failed',
++      report: null,
++      honesty,
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    };
++  }
++
++  if (totalCount.value === 0) {
++    return {
++      ok: true,
++      status: CRM_ACTIVITY_REPORT_STATUS.EMPTY,
++      report: {
++        openCount: null,
++        completedCount: null,
++        totalCount: null,
++        byType: null,
++        plannedVsCompleted: null,
++      },
++      honesty: {
++        inventZeroesForbidden: true,
++        falseZeroes: false,
++        emptyEnvelope: true,
++        kpiSafe: false,
++      },
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++      meta: {
++        type: typeFilter,
++        scopeMode: scope.mode,
++        scopeStub: scope.stub === true,
++      },
++    };
++  }
++
++  const typeCodes = [
++    CRM_ACTIVITY_TYPE.TASK,
++    CRM_ACTIVITY_TYPE.FOLLOW_UP,
++    CRM_ACTIVITY_TYPE.CALL,
++    CRM_ACTIVITY_TYPE.EMAIL,
++    CRM_ACTIVITY_TYPE.MEETING,
++    CRM_ACTIVITY_TYPE.NOTE,
++  ];
++  const byType = Object.create(null);
++  let byTypeOk = true;
++  for (const code of typeCodes) {
++    if (typeFilter && typeFilter !== code) {
++      byType[code] = null;
++      continue;
++    }
++    const c = await safeCount(() =>
++      prisma.crmActivity.count({ where: { type: code } })
++    );
++    if (!c.ok) {
++      byTypeOk = false;
++      break;
++    }
++    byType[code] = c.value;
++  }
++
++  if (!byTypeOk) {
++    const honesty = applyActivityReportHonesty({
++      modelAvailable: true,
++      queryOk: false,
++      permissionOk: true,
++    });
++    return {
++      ok: true,
++      status: honesty.status,
++      reason: 'activity_by_type_gate_failed',
++      report: null,
++      honesty,
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    };
++  }
++
++  return {
++    ok: true,
++    status: CRM_ACTIVITY_REPORT_STATUS.READY,
++    report: {
++      openCount: openCount.value,
++      completedCount: completedCount.value,
++      totalCount: totalCount.value,
++      byType,
++      plannedVsCompleted: {
++        open: openCount.value,
++        completed: completedCount.value,
++        note: 'Planned/open Γëá completed; delivery/reminder never invents completion',
++      },
++    },
++    honesty: {
++      inventZeroesForbidden: true,
++      falseZeroes: false,
++      emptyEnvelope: false,
++      kpiSafe: true,
++      telephonyVolumeInvented: false,
++      externalCalendarSyncInvented: false,
++    },
++    definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    meta: {
++      type: typeFilter,
++      scopeMode: scope.mode,
++      scopeStub: scope.stub === true,
++    },
++  };
++}
+diff --git a/lib/admin/crm/templates.js b/lib/admin/crm/templates.js
+new file mode 100644
+index 0000000..f436ab8
+--- /dev/null
++++ b/lib/admin/crm/templates.js
+@@ -0,0 +1,320 @@
++/**
++ * CRM Activity/Task templates ΓÇö Phase 13 Wave 4.
++ * Versioned codes; ACTIVE rows are not directly editable (create a new version).
++ * No executable expressions / arbitrary code.
++ */
++
++import {
++  CRM_ACTIVITY_TEMPLATE_KIND,
++  CRM_ACTIVITY_TEMPLATE_KINDS,
++  CRM_ACTIVITY_TEMPLATE_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from './catalogue.js';
++import { resolveCrmAccess } from './authz.js';
++
++const KIND_SET = new Set(CRM_ACTIVITY_TEMPLATE_KINDS);
++const FORBIDDEN_EXPR = /\$\{|`|<%|%>|javascript:|<\s*script|eval\s*\(/i;
++
++export function hasCrmActivityTemplateModel(prisma) {
++  return typeof prisma?.crmActivityTemplate?.create === 'function';
++}
++
++function serializeActivityTemplate(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    kind: row.kind,
++    status: row.status,
++    name: row.name || null,
++    titleTemplate: row.titleTemplate || null,
++    bodyTemplate: row.bodyTemplate || null,
++    defaultsJson: row.defaultsJson ?? null,
++    createdByAdminId: row.createdByAdminId || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++function assertSafeTemplateText(text) {
++  const src = text == null ? '' : String(text);
++  if (FORBIDDEN_EXPR.test(src)) {
++    throw new Error('executable_template_expressions_forbidden');
++  }
++  return src;
++}
++
++/**
++ * Create a new template version. To change an ACTIVE template, create a new version
++ * (ACTIVE rows are never updated in place).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {object} args
++ */
++export async function createActivityTemplateVersion(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_activity_template_forbidden' };
++  }
++
++  if (!hasCrmActivityTemplateModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_activity_template_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const code = args.code ? String(args.code).trim().toUpperCase() : '';
++  if (!code || !/^[A-Z][A-Z0-9_]{1,63}$/.test(code)) {
++    return { ok: false, error: 'invalid_template_code' };
++  }
++
++  const kind = String(args.kind || CRM_ACTIVITY_TEMPLATE_KIND.TASK)
++    .trim()
++    .toUpperCase();
++  if (!KIND_SET.has(kind)) {
++    return { ok: false, error: 'invalid_template_kind', allowed: CRM_ACTIVITY_TEMPLATE_KINDS };
++  }
++
++  let titleTemplate;
++  let bodyTemplate;
++  try {
++    titleTemplate = assertSafeTemplateText(args.titleTemplate);
++    bodyTemplate = assertSafeTemplateText(args.bodyTemplate);
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  let version = args.version != null ? Number(args.version) : null;
++  if (version == null || Number.isNaN(version) || version < 1) {
++    try {
++      const latest = await prisma.crmActivityTemplate.findFirst({
++        where: { code },
++        orderBy: { version: 'desc' },
++      });
++      version = latest ? latest.version + 1 : 1;
++    } catch {
++      version = 1;
++    }
++  }
++
++  const status = String(args.status || CRM_ACTIVITY_TEMPLATE_STATUS.DRAFT)
++    .trim()
++    .toUpperCase();
++
++  if (status === CRM_ACTIVITY_TEMPLATE_STATUS.ACTIVE) {
++    try {
++      await prisma.crmActivityTemplate.updateMany({
++        where: { code, status: CRM_ACTIVITY_TEMPLATE_STATUS.ACTIVE },
++        data: { status: CRM_ACTIVITY_TEMPLATE_STATUS.RETIRED, updatedAt: now },
++      });
++    } catch {
++      // best-effort retire prior ACTIVE
++    }
++  }
++
++  const row = await prisma.crmActivityTemplate.create({
++    data: {
++      code,
++      version,
++      kind,
++      status,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      titleTemplate,
++      bodyTemplate,
++      defaultsJson: args.defaultsJson ?? null,
++      createdByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    template: serializeActivityTemplate(row),
++    meta: { activeDirectlyEditable: false, inventExecutionForbidden: true },
++  };
++}
++
++/**
++ * ACTIVE templates cannot be patched ΓÇö callers must create a new version.
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, templateId: string, patch: object }} args
++ */
++export async function updateActivityTemplate(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_activity_template_forbidden' };
++  }
++
++  if (!hasCrmActivityTemplateModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_activity_template_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const templateId = args.templateId ? String(args.templateId).trim() : '';
++  if (!templateId) return { ok: false, error: 'templateId_required' };
++
++  let row = null;
++  try {
++    row = await prisma.crmActivityTemplate.findUnique({ where: { id: templateId } });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'template_not_found' };
++
++  if (row.status === CRM_ACTIVITY_TEMPLATE_STATUS.ACTIVE) {
++    return {
++      ok: false,
++      error: 'active_template_not_directly_editable',
++      reason: 'create_new_version_required',
++      template: serializeActivityTemplate(row),
++    };
++  }
++
++  const patch = args.patch || {};
++  const data = { updatedAt: args.now || new Date() };
++  if (patch.name !== undefined) {
++    data.name = patch.name != null ? String(patch.name).trim().slice(0, 200) : null;
++  }
++  if (patch.titleTemplate !== undefined) {
++    try {
++      data.titleTemplate = assertSafeTemplateText(patch.titleTemplate);
++    } catch {
++      return { ok: false, error: 'executable_template_expressions_forbidden' };
++    }
++  }
++  if (patch.bodyTemplate !== undefined) {
++    try {
++      data.bodyTemplate = assertSafeTemplateText(patch.bodyTemplate);
++    } catch {
++      return { ok: false, error: 'executable_template_expressions_forbidden' };
++    }
++  }
++  if (patch.status !== undefined) {
++    data.status = String(patch.status).trim().toUpperCase();
++  }
++
++  const updated = await prisma.crmActivityTemplate.update({
++    where: { id: templateId },
++    data,
++  });
++
++  return {
++    ok: true,
++    template: serializeActivityTemplate(updated),
++    meta: { activeDirectlyEditable: false },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, code: string }} args
++ */
++export async function getActiveActivityTemplate(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !access.canViewActivities &&
++    !access.canViewLeads &&
++    !access.canViewOpportunities
++  ) {
++    return { ok: false, forbidden: true, reason: 'crm_activity_template_view_forbidden' };
++  }
++
++  if (!hasCrmActivityTemplateModel(prisma)) {
++    return {
++      ok: true,
++      template: null,
++      status: 'UNAVAILABLE',
++      reason: 'crm_activity_template_model_unavailable',
++    };
++  }
++
++  const code = args.code ? String(args.code).trim().toUpperCase() : '';
++  if (!code) return { ok: false, error: 'code_required' };
++
++  let row = null;
++  try {
++    row = await prisma.crmActivityTemplate.findFirst({
++      where: { code, status: CRM_ACTIVITY_TEMPLATE_STATUS.ACTIVE },
++      orderBy: { version: 'desc' },
++    });
++  } catch {
++    row = null;
++  }
++
++  return {
++    ok: true,
++    template: serializeActivityTemplate(row),
++    meta: { activeDirectlyEditable: false },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, code?: string, kind?: string, limit?: number|string }} args
++ */
++export async function listActivityTemplates(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !access.canViewActivities &&
++    !access.canViewLeads &&
++    !access.canViewOpportunities
++  ) {
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_activity_template_list_forbidden',
++      items: [],
++    };
++  }
++
++  if (!hasCrmActivityTemplateModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: {
++        unavailable: true,
++        reason: 'crm_activity_template_model_unavailable',
++        status: 'UNAVAILABLE',
++      },
++    };
++  }
++
++  const where = {};
++  if (args.code) where.code = String(args.code).trim().toUpperCase();
++  if (args.kind) where.kind = String(args.kind).trim().toUpperCase();
++
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number(args.limit) || CRM_LIST_DEFAULT_LIMIT)
++  );
++
++  let rows = [];
++  try {
++    rows = await prisma.crmActivityTemplate.findMany({
++      where,
++      orderBy: [{ code: 'asc' }, { version: 'desc' }],
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeActivityTemplate),
++    meta: { count: (rows || []).length, activeDirectlyEditable: false },
++  };
++}
++
++export { serializeActivityTemplate };
+diff --git a/scripts/sql/crm-activity-phase13-wave4.sql b/scripts/sql/crm-activity-phase13-wave4.sql
+new file mode 100644
+index 0000000..c6b07d7
+--- /dev/null
++++ b/scripts/sql/crm-activity-phase13-wave4.sql
+@@ -0,0 +1,131 @@
++-- Phase 13 Wave 4 ΓÇö Reminders + Activity templates + automation + Activity report schedules (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Reminder delivery Γëá Activity complete; automation SoD; no full sequences.
++-- Never alias billing subscription reminders or CS playbook automation.
++
++CREATE TABLE IF NOT EXISTS "CrmReminder" (
++  "id" TEXT PRIMARY KEY,
++  "dedupeKey" TEXT NOT NULL,
++  "ruleKey" TEXT NOT NULL,
++  "activityId" TEXT,
++  "recipientAdminId" TEXT,
++  "channel" TEXT NOT NULL DEFAULT 'IN_APP',
++  "occurrenceKey" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
++  "dueAt" TIMESTAMP(3) NOT NULL,
++  "snoozeUntil" TIMESTAMP(3),
++  "deliveredAt" TIMESTAMP(3),
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmReminder_dedupeKey_key" ON "CrmReminder"("dedupeKey");
++CREATE INDEX IF NOT EXISTS "CrmReminder_activityId_status_idx" ON "CrmReminder"("activityId", "status");
++CREATE INDEX IF NOT EXISTS "CrmReminder_recipient_status_due_idx"
++  ON "CrmReminder"("recipientAdminId", "status", "dueAt");
++CREATE INDEX IF NOT EXISTS "CrmReminder_status_dueAt_idx" ON "CrmReminder"("status", "dueAt");
++CREATE INDEX IF NOT EXISTS "CrmReminder_rule_occurrence_idx" ON "CrmReminder"("ruleKey", "occurrenceKey");
++
++CREATE TABLE IF NOT EXISTS "CrmActivityTemplate" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "kind" TEXT NOT NULL DEFAULT 'TASK',
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "titleTemplate" TEXT,
++  "bodyTemplate" TEXT,
++  "defaultsJson" JSONB,
++  "createdByAdminId" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmActivityTemplate_code_version_key"
++  ON "CrmActivityTemplate"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmActivityTemplate_code_status_idx" ON "CrmActivityTemplate"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmActivityTemplate_kind_status_idx" ON "CrmActivityTemplate"("kind", "status");
++CREATE INDEX IF NOT EXISTS "CrmActivityTemplate_createdByAdminId_idx" ON "CrmActivityTemplate"("createdByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmAutomationRule" (
++  "id" TEXT PRIMARY KEY,
++  "code" TEXT NOT NULL,
++  "name" TEXT,
++  "trigger" TEXT NOT NULL,
++  "action" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "configJson" JSONB,
++  "requestedByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmAutomationRule_code_key" ON "CrmAutomationRule"("code");
++CREATE INDEX IF NOT EXISTS "CrmAutomationRule_status_trigger_idx" ON "CrmAutomationRule"("status", "trigger");
++CREATE INDEX IF NOT EXISTS "CrmAutomationRule_requestedByAdminId_idx" ON "CrmAutomationRule"("requestedByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmAutomationRule_approvedByAdminId_idx" ON "CrmAutomationRule"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmAutomationApproval" (
++  "id" TEXT PRIMARY KEY,
++  "ruleId" TEXT NOT NULL,
++  "action" TEXT NOT NULL,
++  "actorAdminId" TEXT,
++  "note" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmAutomationApproval_ruleId_at_idx" ON "CrmAutomationApproval"("ruleId", "at");
++CREATE INDEX IF NOT EXISTS "CrmAutomationApproval_actorAdminId_idx" ON "CrmAutomationApproval"("actorAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmAutomationExecution" (
++  "id" TEXT PRIMARY KEY,
++  "ruleId" TEXT NOT NULL,
++  "idempotencyKey" TEXT NOT NULL,
++  "trigger" TEXT NOT NULL,
++  "action" TEXT NOT NULL,
++  "subjectType" TEXT,
++  "subjectId" TEXT,
++  "status" TEXT NOT NULL,
++  "resultJson" JSONB,
++  "executedByAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmAutomationExecution_idempotencyKey_key"
++  ON "CrmAutomationExecution"("idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmAutomationExecution_ruleId_at_idx" ON "CrmAutomationExecution"("ruleId", "at");
++CREATE INDEX IF NOT EXISTS "CrmAutomationExecution_subject_idx"
++  ON "CrmAutomationExecution"("subjectType", "subjectId");
++CREATE INDEX IF NOT EXISTS "CrmAutomationExecution_status_at_idx" ON "CrmAutomationExecution"("status", "at");
++CREATE INDEX IF NOT EXISTS "CrmAutomationExecution_executedByAdminId_idx"
++  ON "CrmAutomationExecution"("executedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmActivityReportSchedule" (
++  "id" TEXT PRIMARY KEY,
++  "name" TEXT NOT NULL,
++  "activityType" TEXT,
++  "cronExpression" TEXT,
++  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++  "createdByAdminId" TEXT,
++  "lastRunAt" TIMESTAMP(3),
++  "lastRunStatus" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmActivityReportSchedule_status_createdAt_idx"
++  ON "CrmActivityReportSchedule"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmActivityReportSchedule_createdByAdminId_idx"
++  ON "CrmActivityReportSchedule"("createdByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmActivityReportRun" (
++  "id" TEXT PRIMARY KEY,
++  "scheduleId" TEXT,
++  "status" TEXT NOT NULL,
++  "summaryJson" JSONB,
++  "runByAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmActivityReportRun_scheduleId_at_idx" ON "CrmActivityReportRun"("scheduleId", "at");
++CREATE INDEX IF NOT EXISTS "CrmActivityReportRun_status_at_idx" ON "CrmActivityReportRun"("status", "at");
++CREATE INDEX IF NOT EXISTS "CrmActivityReportRun_runByAdminId_idx" ON "CrmActivityReportRun"("runByAdminId");
+diff --git a/test/systemAdmin.crm.activityWave4.test.js b/test/systemAdmin.crm.activityWave4.test.js
+new file mode 100644
+index 0000000..5e9917c
+--- /dev/null
++++ b/test/systemAdmin.crm.activityWave4.test.js
+@@ -0,0 +1,751 @@
++/**
++ * Phase 13 Wave 4 ΓÇö Reminders + templates + automation foundations + Activity reports.
++ * Reminder delivery Γëá Activity complete; SoD; no false zeroes; no sequences.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  CRM_AUTOMATION_TRIGGER,
++  CRM_AUTOMATION_ACTION,
++  CRM_AUTOMATION_RULE_STATUS,
++  CRM_ACTIVITY_TEMPLATE_STATUS,
++  CRM_ACTIVITY_TEMPLATE_KIND,
++  CRM_REMINDER_CHANNEL,
++  CRM_REMINDER_STATUS,
++  CRM_ACTIVITY_STATUS,
++  CRM_ACTIVITY_TYPE,
++  CRM_SUBJECT_TYPE,
++  WEIGHTED_PIPELINE_UI_ENABLED,
++  buildReminderDedupeKey,
++  scheduleReminder,
++  markReminderDelivered,
++  snoozeReminder,
++  queueDueReminders,
++  createActivityTemplateVersion,
++  updateActivityTemplate,
++  createAutomationRule,
++  requestAutomationApproval,
++  approveAutomationRule,
++  executeAutomationRule,
++  getActivityReport,
++  applyActivityReportHonesty,
++  createActivityReportSchedule,
++  runActivityReportSchedule,
++  listEntityActivityProjections,
++  evaluateActivityDataQuality,
++  getCrmFoundations,
++} from '@/lib/admin/crm';
++
++function makeAdmin(id, crmPerms = {}, role = 'Platform Support') {
++  return {
++    id,
++    role,
++    permissions: {
++      systemAdmin: {
++        crm: {
++          view: true,
++          viewLeads: true,
++          editLeads: true,
++          export: true,
++          runReconciliation: true,
++          mergeLeads: true,
++          activities: { view: true, edit: true },
++          opportunities: { view: true, edit: true },
++          ...crmPerms,
++        },
++      },
++    },
++  };
++}
++
++function superAdmin(id = 'super-1') {
++  return { id, role: 'Super Admin', permissions: {} };
++}
++
++function makePrisma(overrides = {}) {
++  const reminderStore = overrides._reminderStore || [];
++  const templateStore = overrides._templateStore || [];
++  const ruleStore = overrides._ruleStore || [];
++  const approvalStore = overrides._approvalStore || [];
++  const executionStore = overrides._executionStore || [];
++  const activityStore = overrides._activityStore || [];
++  const taskStore = overrides._taskStore || [];
++  const scheduleStore = overrides._scheduleStore || [];
++  const runStore = overrides._runStore || [];
++  const seqStore = overrides._seqStore || [];
++  const statusHistoryStore = overrides._statusHistoryStore || [];
++  const timelineStore = overrides._timelineStore || [];
++
++  const prisma = {
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmReminder: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.dedupeKey) {
++          return reminderStore.find((r) => r.dedupeKey === where.dedupeKey) || null;
++        }
++        if (where.id) return reminderStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...reminderStore];
++        if (where.status?.in) {
++          rows = rows.filter((r) => where.status.in.includes(r.status));
++        } else if (where.status) {
++          rows = rows.filter((r) => r.status === where.status);
++        }
++        if (where.dueAt?.lte) {
++          rows = rows.filter((r) => new Date(r.dueAt) <= new Date(where.dueAt.lte));
++        }
++        if (where.activityId) rows = rows.filter((r) => r.activityId === where.activityId);
++        if (typeof take === 'number') rows = rows.slice(0, take);
++        return rows;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `rem-${reminderStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          snoozeUntil: data.snoozeUntil ?? null,
++          deliveredAt: data.deliveredAt ?? null,
++          ...data,
++        };
++        reminderStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = reminderStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmActivityTemplate: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return templateStore.find((r) => r.id === where.id) || null;
++      }),
++      findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
++        let rows = [...templateStore];
++        if (where.code) rows = rows.filter((r) => r.code === where.code);
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (orderBy?.version === 'desc') {
++          rows.sort((a, b) => b.version - a.version);
++        }
++        return rows[0] || null;
++      }),
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...templateStore];
++        if (where.code) rows = rows.filter((r) => r.code === where.code);
++        if (typeof take === 'number') rows = rows.slice(0, take);
++        return rows;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `tmpl-${templateStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        templateStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = templateStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        let count = 0;
++        for (const row of templateStore) {
++          if (where.code && row.code !== where.code) continue;
++          if (where.status && row.status !== where.status) continue;
++          Object.assign(row, data);
++          count += 1;
++        }
++        return { count };
++      }),
++    },
++    crmAutomationRule: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return ruleStore.find((r) => r.id === where.id) || null;
++      }),
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...ruleStore];
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (typeof take === 'number') rows = rows.slice(0, take);
++        return rows;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `rule-${ruleStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          approvedAt: data.approvedAt ?? null,
++          approvedByAdminId: data.approvedByAdminId ?? null,
++          ...data,
++        };
++        ruleStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = ruleStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmAutomationApproval: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `appr-${approvalStore.length + 1}`, ...data };
++        approvalStore.push(row);
++        return row;
++      }),
++    },
++    crmAutomationExecution: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.idempotencyKey) {
++          return (
++            executionStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null
++          );
++        }
++        return executionStore.find((r) => r.id === where.id) || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        if (executionStore.some((r) => r.idempotencyKey === data.idempotencyKey)) {
++          const err = new Error('Unique constraint');
++          err.code = 'P2002';
++          throw err;
++        }
++        const row = {
++          id: data.id || `exec-${executionStore.length + 1}`,
++          at: data.at || new Date(),
++          ...data,
++        };
++        executionStore.push(row);
++        return row;
++      }),
++    },
++    crmActivity: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `act-${activityStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          completedAt: data.completedAt ?? null,
++          ...data,
++        };
++        activityStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return activityStore.find((r) => r.id === where.id) || null;
++        if (where.idempotencyKey) {
++          return activityStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        if (where.activityNumber) {
++          return activityStore.find((r) => r.activityNumber === where.activityNumber) || null;
++        }
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {}, take } = {}) => {
++        let rows = [...activityStore];
++        if (where.primarySubjectType) {
++          rows = rows.filter((r) => r.primarySubjectType === where.primarySubjectType);
++        }
++        if (where.primarySubjectId) {
++          rows = rows.filter((r) => r.primarySubjectId === where.primarySubjectId);
++        }
++        if (where.type) rows = rows.filter((r) => r.type === where.type);
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (typeof take === 'number') rows = rows.slice(0, take);
++        return rows;
++      }),
++      count: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...activityStore];
++        if (where.type) rows = rows.filter((r) => r.type === where.type);
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.timezone === null) rows = rows.filter((r) => r.timezone == null);
++        if (where.OR) {
++          rows = rows.filter((r) =>
++            where.OR.some((clause) => {
++              if (Object.prototype.hasOwnProperty.call(clause, 'primarySubjectType')) {
++                return r.primarySubjectType == null;
++              }
++              if (Object.prototype.hasOwnProperty.call(clause, 'primarySubjectId')) {
++                return r.primarySubjectId == null;
++              }
++              return false;
++            })
++          );
++        }
++        return rows.length;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = activityStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmActivityStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `ash-${statusHistoryStore.length + 1}`, ...data };
++        statusHistoryStore.push(row);
++        return row;
++      }),
++    },
++    crmTask: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `task-${taskStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          completedAt: data.completedAt ?? null,
++          ...data,
++        };
++        taskStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...taskStore]),
++      count: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...taskStore];
++        if (where.activityId === null) rows = rows.filter((r) => r.activityId == null);
++        return rows.length;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = taskStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmTimelineEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
++        timelineStore.push(row);
++        return row;
++      }),
++    },
++    crmActivityReportSchedule: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `ars-${scheduleStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          lastRunAt: data.lastRunAt ?? null,
++          lastRunStatus: data.lastRunStatus ?? null,
++          ...data,
++        };
++        scheduleStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ take } = {}) => {
++        const rows = [...scheduleStore];
++        return typeof take === 'number' ? rows.slice(0, take) : rows;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return scheduleStore.find((r) => r.id === where.id) || null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = scheduleStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmActivityReportRun: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `arr-${runStore.length + 1}`,
++          at: data.at || new Date(),
++          ...data,
++        };
++        runStore.push(row);
++        return row;
++      }),
++    },
++    _reminderStore: reminderStore,
++    _templateStore: templateStore,
++    _ruleStore: ruleStore,
++    _executionStore: executionStore,
++    _activityStore: activityStore,
++    _taskStore: taskStore,
++    _scheduleStore: scheduleStore,
++    _runStore: runStore,
++  };
++
++  return Object.assign(prisma, overrides);
++}
++
++describe('Phase 13 Wave 4 ΓÇö Reminder dedupe + delivery Γëá complete', () => {
++  it('builds stable dedupe key from rule+activity+recipient+occurrence+channel', () => {
++    const key = buildReminderDedupeKey({
++      ruleKey: 'due_soon',
++      activityId: 'act-1',
++      recipientAdminId: 'admin-1',
++      occurrenceKey: '2026-07-30T10:00:00.000Z',
++      channel: CRM_REMINDER_CHANNEL.IN_APP,
++    });
++    expect(key).toBe('DUE_SOON|act-1|admin-1|2026-07-30T10:00:00.000Z|IN_APP');
++  });
++
++  it('dedupes scheduleReminder on identical identity', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('a1');
++    const args = {
++      admin,
++      ruleKey: 'DUE_SOON',
++      activityId: 'act-1',
++      recipientAdminId: 'a1',
++      occurrenceKey: 'occ-1',
++      channel: CRM_REMINDER_CHANNEL.IN_APP,
++      dueAt: new Date('2026-07-30T12:00:00.000Z'),
++    };
++    const first = await scheduleReminder(prisma, args);
++    const second = await scheduleReminder(prisma, args);
++    expect(first.ok).toBe(true);
++    expect(first.dedupe).toBe(false);
++    expect(second.ok).toBe(true);
++    expect(second.dedupe).toBe(true);
++    expect(second.reminder.id).toBe(first.reminder.id);
++    expect(prisma._reminderStore).toHaveLength(1);
++  });
++
++  it('markReminderDelivered never claims Activity completion', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('a1');
++    const scheduled = await scheduleReminder(prisma, {
++      admin,
++      ruleKey: 'DUE_SOON',
++      activityId: 'act-keep-open',
++      recipientAdminId: 'a1',
++      occurrenceKey: 'occ-d',
++      dueAt: new Date('2026-07-29T00:00:00.000Z'),
++    });
++    prisma._activityStore.push({
++      id: 'act-keep-open',
++      status: CRM_ACTIVITY_STATUS.OPEN,
++      type: CRM_ACTIVITY_TYPE.TASK,
++    });
++
++    const delivered = await markReminderDelivered(prisma, {
++      admin,
++      reminderId: scheduled.reminder.id,
++    });
++    expect(delivered.ok).toBe(true);
++    expect(delivered.reminder.status).toBe(CRM_REMINDER_STATUS.DELIVERED);
++    expect(delivered.meta.activityCompletedByDelivery).toBe(false);
++    expect(delivered.meta.activityStatusUnchanged).toBe(true);
++    expect(prisma._activityStore[0].status).toBe(CRM_ACTIVITY_STATUS.OPEN);
++  });
++
++  it('snooze + queueDueReminders move due rows to QUEUED without completing Activity', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('a1');
++    const now = new Date('2026-07-30T12:00:00.000Z');
++    const scheduled = await scheduleReminder(prisma, {
++      admin,
++      ruleKey: 'DUE_SOON',
++      activityId: 'act-q',
++      recipientAdminId: 'a1',
++      occurrenceKey: 'occ-q',
++      dueAt: new Date('2026-07-30T11:00:00.000Z'),
++      now,
++    });
++    const snoozed = await snoozeReminder(prisma, {
++      admin,
++      reminderId: scheduled.reminder.id,
++      snoozeUntil: new Date('2026-07-30T11:30:00.000Z'),
++      now,
++    });
++    expect(snoozed.reminder.status).toBe(CRM_REMINDER_STATUS.SNOOZED);
++
++    const queued = await queueDueReminders(prisma, { admin, now });
++    expect(queued.ok).toBe(true);
++    expect(queued.items[0].status).toBe(CRM_REMINDER_STATUS.QUEUED);
++    expect(queued.meta.activityCompletedByDelivery).toBe(false);
++  });
++});
++
++describe('Phase 13 Wave 4 ΓÇö Activity templates versioned; ACTIVE not editable', () => {
++  it('creates versions and blocks direct ACTIVE edit', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('a1');
++    const created = await createActivityTemplateVersion(prisma, {
++      admin,
++      code: 'FIRST_CONTACT',
++      kind: CRM_ACTIVITY_TEMPLATE_KIND.TASK,
++      titleTemplate: 'Call {{contactName}}',
++      status: CRM_ACTIVITY_TEMPLATE_STATUS.ACTIVE,
++    });
++    expect(created.ok).toBe(true);
++    expect(created.template.activeDirectlyEditable).toBe(false);
++
++    const blocked = await updateActivityTemplate(prisma, {
++      admin,
++      templateId: created.template.id,
++      patch: { titleTemplate: 'Changed' },
++    });
++    expect(blocked.ok).toBe(false);
++    expect(blocked.error).toBe('active_template_not_directly_editable');
++
++    const v2 = await createActivityTemplateVersion(prisma, {
++      admin,
++      code: 'FIRST_CONTACT',
++      kind: CRM_ACTIVITY_TEMPLATE_KIND.TASK,
++      titleTemplate: 'Call again',
++      status: CRM_ACTIVITY_TEMPLATE_STATUS.ACTIVE,
++    });
++    expect(v2.ok).toBe(true);
++    expect(v2.template.version).toBe(2);
++  });
++
++  it('rejects executable template expressions', async () => {
++    const prisma = makePrisma();
++    const bad = await createActivityTemplateVersion(prisma, {
++      admin: makeAdmin('a1'),
++      code: 'BAD',
++      titleTemplate: '${process.env.SECRET}',
++    });
++    expect(bad.ok).toBe(false);
++    expect(bad.error).toBe('executable_template_expressions_forbidden');
++  });
++});
++
++describe('Phase 13 Wave 4 ΓÇö Automation SoD + idempotency + small trigger set', () => {
++  it('rejects unapproved trigger/action pairs', async () => {
++    const prisma = makePrisma();
++    const result = await createAutomationRule(prisma, {
++      admin: makeAdmin('a1'),
++      code: 'SEQ_FORBIDDEN',
++      trigger: CRM_AUTOMATION_TRIGGER.LEAD_ASSIGNED,
++      action: 'RUN_ARBITRARY_SCRIPT',
++    });
++    expect(result.ok).toBe(false);
++    expect(['invalid_action', 'trigger_action_not_in_approved_set']).toContain(result.error);
++  });
++
++  it('blocks self-approval (SoD)', async () => {
++    const prisma = makePrisma();
++    const requester = makeAdmin('req-1');
++    const created = await createAutomationRule(prisma, {
++      admin: requester,
++      code: 'LEAD_FIRST_CONTACT',
++      trigger: CRM_AUTOMATION_TRIGGER.LEAD_ASSIGNED,
++      action: CRM_AUTOMATION_ACTION.CREATE_FIRST_CONTACT_TASK,
++    });
++    expect(created.ok).toBe(true);
++    await requestAutomationApproval(prisma, {
++      admin: requester,
++      ruleId: created.rule.id,
++    });
++    const self = await approveAutomationRule(prisma, {
++      admin: requester,
++      ruleId: created.rule.id,
++    });
++    expect(self.ok).toBe(false);
++    expect(self.error).toBe('automation_self_approval_blocked');
++
++    const approver = makeAdmin('appr-1');
++    const approved = await approveAutomationRule(prisma, {
++      admin: approver,
++      ruleId: created.rule.id,
++    });
++    expect(approved.ok).toBe(true);
++    expect(approved.rule.status).toBe(CRM_AUTOMATION_RULE_STATUS.APPROVED);
++  });
++
++  it('executes Lead assigned ΓåÆ first-contact Task idempotently', async () => {
++    const prisma = makePrisma();
++    const requester = makeAdmin('req-2');
++    const approver = makeAdmin('appr-2');
++    const created = await createAutomationRule(prisma, {
++      admin: requester,
++      code: 'LEAD_FC',
++      trigger: CRM_AUTOMATION_TRIGGER.LEAD_ASSIGNED,
++      action: CRM_AUTOMATION_ACTION.CREATE_FIRST_CONTACT_TASK,
++    });
++    await requestAutomationApproval(prisma, { admin: requester, ruleId: created.rule.id });
++    await approveAutomationRule(prisma, { admin: approver, ruleId: created.rule.id });
++
++    const first = await executeAutomationRule(prisma, {
++      admin: approver,
++      ruleId: created.rule.id,
++      subjectType: CRM_SUBJECT_TYPE.LEAD,
++      subjectId: 'lead-100',
++      occurrenceKey: 'assign-1',
++    });
++    expect(first.ok).toBe(true);
++    expect(first.idempotent).toBe(false);
++    expect(first.result.taskId).toBeTruthy();
++    expect(prisma._taskStore).toHaveLength(1);
++
++    const second = await executeAutomationRule(prisma, {
++      admin: approver,
++      ruleId: created.rule.id,
++      subjectType: CRM_SUBJECT_TYPE.LEAD,
++      subjectId: 'lead-100',
++      occurrenceKey: 'assign-1',
++    });
++    expect(second.ok).toBe(true);
++    expect(second.idempotent).toBe(true);
++    expect(prisma._taskStore).toHaveLength(1);
++  });
++});
++
++describe('Phase 13 Wave 4 ΓÇö Activity reports honesty-gated + schedules audited', () => {
++  it('returns EMPTY envelope with null KPIs when no activities', async () => {
++    const prisma = makePrisma();
++    const report = await getActivityReport(prisma, { admin: makeAdmin('a1') });
++    expect(report.ok).toBe(true);
++    expect(report.status).toBe('EMPTY');
++    expect(report.report.openCount).toBeNull();
++    expect(report.report.totalCount).toBeNull();
++    expect(report.honesty.inventZeroesForbidden).toBe(true);
++    expect(report.honesty.falseZeroes).toBe(false);
++  });
++
++  it('applyActivityReportHonesty never invents zeroes on gate failure', () => {
++    const honesty = applyActivityReportHonesty({
++      modelAvailable: true,
++      queryOk: false,
++      permissionOk: true,
++    });
++    expect(honesty.kpiSafe).toBe(false);
++    expect(honesty.status).toBe('UNAVAILABLE');
++    expect(honesty.falseZeroes).toBe(false);
++  });
++
++  it('READY report counts when activities exist; weighted remains dark', async () => {
++    const prisma = makePrisma({
++      _activityStore: [
++        {
++          id: 'a1',
++          type: CRM_ACTIVITY_TYPE.TASK,
++          status: CRM_ACTIVITY_STATUS.OPEN,
++          primarySubjectType: 'LEAD',
++          primarySubjectId: 'l1',
++        },
++        {
++          id: 'a2',
++          type: CRM_ACTIVITY_TYPE.CALL,
++          status: CRM_ACTIVITY_STATUS.COMPLETED,
++          primarySubjectType: 'LEAD',
++          primarySubjectId: 'l1',
++        },
++      ],
++    });
++    const report = await getActivityReport(prisma, { admin: makeAdmin('a1') });
++    expect(report.status).toBe('READY');
++    expect(report.report.totalCount).toBe(2);
++    expect(report.report.openCount).toBe(1);
++    expect(report.report.completedCount).toBe(1);
++    expect(WEIGHTED_PIPELINE_UI_ENABLED).toBe(false);
++  });
++
++  it('creates and runs audited activity report schedule', async () => {
++    const prisma = makePrisma({
++      _activityStore: [
++        {
++          id: 'a1',
++          type: CRM_ACTIVITY_TYPE.TASK,
++          status: CRM_ACTIVITY_STATUS.OPEN,
++        },
++      ],
++    });
++    const admin = makeAdmin('a1');
++    const created = await createActivityReportSchedule(prisma, {
++      admin,
++      name: 'Daily activity',
++      cronExpression: '0 8 * * *',
++    });
++    expect(created.ok).toBe(true);
++    expect(created.meta.audited).toBe(true);
++
++    const run = await runActivityReportSchedule(prisma, {
++      admin,
++      scheduleId: created.schedule.id,
++    });
++    expect(run.ok).toBe(true);
++    expect(run.meta.audited).toBe(true);
++    expect(run.run).toBeTruthy();
++    expect(run.report.status).toBe('READY');
++    expect(prisma._runStore).toHaveLength(1);
++  });
++});
++
++describe('Phase 13 Wave 4 ΓÇö Entity projections + foundations READY', () => {
++  it('lists Lead activity projections without duplicating Activity identity', async () => {
++    const prisma = makePrisma({
++      _activityStore: [
++        {
++          id: 'act-lead-1',
++          activityNumber: 'ACT-2026-000001',
++          type: CRM_ACTIVITY_TYPE.TASK,
++          status: CRM_ACTIVITY_STATUS.OPEN,
++          title: 'First contact',
++          primarySubjectType: 'LEAD',
++          primarySubjectId: 'lead-9',
++          ownerAdminId: 'a1',
++          createdAt: new Date(),
++          updatedAt: new Date(),
++        },
++      ],
++    });
++    const result = await listEntityActivityProjections(prisma, {
++      admin: makeAdmin('a1'),
++      subjectType: CRM_SUBJECT_TYPE.LEAD,
++      subjectId: 'lead-9',
++    });
++    expect(result.ok).toBe(true);
++    expect(result.items).toHaveLength(1);
++    expect(result.items[0].projection).toBe(true);
++    expect(result.items[0].duplicateActivityRow).toBe(false);
++    expect(result.meta.oneActivityManyProjections).toBe(true);
++  });
++
++  it('DQ empty envelope does not invent zeroes', async () => {
++    const prisma = makePrisma();
++    const dq = await evaluateActivityDataQuality(prisma, { admin: makeAdmin('a1') });
++    expect(dq.ok).toBe(true);
++    expect(dq.status).toBe('EMPTY');
++    expect(dq.checks.totalActivities).toBeNull();
++    expect(dq.honesty.inventZeroesForbidden).toBe(true);
++  });
++
++  it('ACTIVITY_SPINE foundation is READY; channels stay NOT_AVAILABLE / NOT_CONNECTED', async () => {
++    const result = await getCrmFoundations({}, { admin: makeAdmin('a1') });
++    expect(result.ok).toBe(true);
++    const byKind = Object.fromEntries(result.items.map((i) => [i.kind, i]));
++    expect(byKind.ACTIVITY_SPINE.status).toBe('READY');
++    expect(byKind.REPORTING.status).toBe('READY');
++    expect(byKind.EMAIL_INGEST.status).toBe('NOT_AVAILABLE');
++    expect(byKind.WHATSAPP_INGEST.status).toBe('NOT_AVAILABLE');
++    expect(result.meta.telephony).toBe('NOT_AVAILABLE');
++    expect(result.meta.googleOutlook).toBe('NOT_CONNECTED');
++    expect(result.meta.weightedUiEnabled).toBe(false);
++  });
++});
+diff --git a/docs/admin-intelligence-crm/phase-13/FINAL_PHASE_13_REPORT.md b/docs/admin-intelligence-crm/phase-13/FINAL_PHASE_13_REPORT.md
+new file mode 100644
+index 0000000..5c4328b
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-13/FINAL_PHASE_13_REPORT.md
+@@ -0,0 +1,94 @@
++# Phase 13 Final Report ΓÇö Sales Activity Management
++
++**Decision:** **READY_FOR_PHASE_14_WITH_BLOCKERS**
++
++**Date:** 2026-07-30
++
++**Working tree:** Phase 13 Waves 0ΓÇô4 delivered in-place on branch `v2` (no git commit required for Wave 4 exit). Phases 7ΓÇô12 remain in the same working tree.
++
++Sales Activity ships one canonical **CrmActivity** spine (`ACT-YYYY-######`) under `/insightbooks/crm/activities` with Tasks, Follow-Ups, Calls (manual/planned), Email (SMTP), Meetings, internal Calendar + ICS, Reminders (dedupe; delivery Γëá complete), versioned Activity/Task templates, automation foundations (SoD; small approved triggers; idempotent), and honesty-gated Activity reporting + audited schedules. Telephony, Google/Outlook sync, full sales sequences, Demo/Proposal/Tenant provision, and Email/WhatsApp Lead ingest remain explicit blockers.
++
++## Delivered
++
++| Wave | Focus | Status |
++|------|-------|--------|
++| 0 | Forensic audits + matrices + CONDITIONAL GO | Done |
++| 1 | Canonical Activity + Task/Note migrate; Follow-Up + Next-Action | Done |
++| 2 | Call (manual/planned + telephony NOT_AVAILABLE); Email SMTP + email templates | Done |
++| 3 | Meeting + internal Calendar + conflicts + ICS; Google/Outlook NOT_CONNECTED | Done |
++| 4 | Reminders; templates; automation foundations; reports/schedules; Phase 14 pack | Done |
++
++## Surfaces (Wave 4)
++
++### Libraries
++
++- `lib/admin/crm/reminders.js` ΓÇö schedule / queue / snooze / deliver; dedupe identity; delivery Γëá Activity complete
++- `lib/admin/crm/templates.js` ΓÇö versioned Activity/Task templates; ACTIVE not directly editable
++- `lib/admin/crm/automation/*` ΓÇö rule model, SoD approve (requester Γëá approver), idempotent execution; approved triggers only:
++  - `LEAD_ASSIGNED` ΓåÆ `CREATE_FIRST_CONTACT_TASK`
++  - `OPPORTUNITY_STAGE_ENTRY` ΓåÆ `CREATE_CHECKLIST_TASK`
++  - `NO_NEXT_ACTION_WARNING` ΓåÆ `EMIT_NO_NEXT_ACTION_WARNING`
++- `lib/admin/crm/activities/reports.js` + `reportSchedules.js` ΓÇö Activity reporting centre + audited schedules
++- `lib/admin/crm/activities/dataQuality.js` + `reconciliation.js` ΓÇö DQ / recon foundations (honesty-gated)
++- `lib/admin/crm/activities/entityPanel.js` ΓÇö Lead/Opportunity Activity projections
++- `lib/admin/crm/foundations.js` ΓÇö `ACTIVITY_SPINE` ΓåÆ READY; REPORTING includes Activity plane; Email/WhatsApp stay NOT_AVAILABLE
++
++### Prisma / SQL
++
++- `CrmReminder`, `CrmActivityTemplate`, `CrmAutomationRule`, `CrmAutomationApproval`, `CrmAutomationExecution`
++- `CrmActivityReportSchedule`, `CrmActivityReportRun`
++- Fallback: `scripts/sql/crm-activity-phase13-wave4.sql`
++
++### APIs
++
++- `/api/admin/crm/reminders` ΓÇö schedule / queue / deliver / snooze / list
++- `/api/admin/crm/templates` ΓÇö create version / update (non-ACTIVE) / list / active
++- `/api/admin/crm/automation/rules` ΓÇö create / request-approval / approve / execute / list
++- `/api/admin/crm/activity-reports` ΓÇö report / data-quality / reconciliation
++- `/api/admin/crm/activity-report-schedules` ΓÇö create / list / run
++
++### UI
++
++- Thin stubs: `/insightbooks/crm/reminders`, `/templates`, `/rules`, `/activity-reports`
++- Lead + Opportunity detail panels list Activity projections (thin)
++- Weighted Pipeline UI remains dark (Phase 16 ΓÇö untouched)
++
++## Hard rules preserved
++
++- Activity Γëá Audit Event Γëá Analytics Event; Task Γëá CsTask; Call Γëá live telephony
++- Reminder delivery Γëá Activity complete; Reminder Γëá Sales contact Γëá billing subscription reminder
++- Planned Γëá completed; RSVP Γëá attendance; SMTP accept Γëá delivered
++- Automation: SoD (no self-approval); idempotent; no full sequences; no arbitrary code
++- Metric/report gate fail ΓåÆ never fabricated zeroes (EMPTY/UNAVAILABLE)
++- Telephony NOT_AVAILABLE; Google/Outlook NOT_CONNECTED; tracking pixels off
++- Closed Won / Activity never provisions Tenant / Subscription / Invoice
++- SupportSlaCalendar / analytics-pipeline / POS sales never alias Sales Activity
++
++## Verification
++
++```bash
++npx vitest run \
++  test/systemAdmin.crm.activityWave4.test.js \
++  test/systemAdmin.crm.activityWave3.test.js \
++  test/systemAdmin.crm.activityWave2.test.js \
++  test/systemAdmin.crm.activityWave1.test.js
++```
++
++**Result (2026-07-30):** Test Files 4 passed (4) ┬╖ Tests 41 passed (41) ΓÇö Wave 4 (16) + Waves 1ΓÇô3 activity suites.
++
++## Known blockers for Phase 14
++
++1. **Telephony / Call recording** ΓÇö `NOT_AVAILABLE` (typed contracts only)
++2. **Google / Outlook calendar sync** ΓÇö `NOT_CONNECTED` (ICS export only)
++3. **Email / WhatsApp ΓåÆ Lead ingest** ΓÇö still `NOT_AVAILABLE`
++4. **Owner / team / territory list scope filtering** ΓÇö `resolveCrmScope` still `mode: 'all'` stub
++5. **Prisma generate / db push on Windows** ΓÇö schema + SQL ready; apply when EPERM clears
++6. **Demo management** ΓÇö deferred to Phase 14 (explicitly out of Phase 13)
++7. **Proposal create / Tenant provision from readiness** ΓÇö handoff payloads only; no create/execute
++8. **Full sales sequences / AI communications** ΓÇö forbidden; foundations only
++9. **Weighted Pipeline UI / reports** ΓÇö deferred to Phase 16 (`WEIGHTED_PIPELINE_UI_ENABLED = false`)
++10. **Rich UI hubs** ΓÇö many Activity surfaces remain thin stubs; APIs are live
++
++## Exit readiness
++
++**READY_FOR_PHASE_14_WITH_BLOCKERS** ΓÇö Phase 13 Waves 1ΓÇô4 deliver an honest Activity plane including Reminders, templates, automation foundations, and Activity reporting; external providers, Demo, ingest, scope filtering, and provisioning remain explicit carry blockers.
+diff --git a/docs/admin-intelligence-crm/phase-13/PHASE_14_INPUTS.md b/docs/admin-intelligence-crm/phase-13/PHASE_14_INPUTS.md
+new file mode 100644
+index 0000000..157b8c7
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-13/PHASE_14_INPUTS.md
+@@ -0,0 +1,65 @@
++# Phase 14 Inputs ΓÇö from Sales Activity Phase 13
++
++**Source exit:** `READY_FOR_PHASE_14_WITH_BLOCKERS` (see `FINAL_PHASE_13_REPORT.md`)  
++**Date:** 2026-07-30
++
++## What Phase 14 may consume
++
++| Input | Location / contract | Notes |
++|-------|---------------------|-------|
++| CrmActivity spine | `lib/admin/crm/activities/*` | `ACT-YYYY-######`; one Activity; many projections |
++| Task / Follow-Up / Next-Action | `tasks.js`, `followUps.js`, `nextAction.js` | Due Γëá complete; consent-blocked never auto-run |
++| Call (manual/planned) | `lib/admin/crm/calls/*` | Telephony `NOT_AVAILABLE` |
++| Email Activity (SMTP) | `lib/admin/crm/emails/*` | Accept Γëá delivered; no fabricated opens/replies |
++| Meeting + Calendar + ICS | `meetings/*`, `calendar/*` | RSVP Γëá attendance; Google/Outlook `NOT_CONNECTED` |
++| Reminders | `lib/admin/crm/reminders.js` | Dedupe key; delivery Γëá Activity complete |
++| Activity/Task templates | `lib/admin/crm/templates.js` | Versioned; ACTIVE not directly editable |
++| Automation foundations | `lib/admin/crm/automation/*` | SoD; idempotent; small approved trigger set |
++| Activity reports + schedules | `activities/reports.js`, `reportSchedules.js` | EMPTY/UNAVAILABLE on gate fail |
++| Activity DQ / recon | `activities/dataQuality.js`, `reconciliation.js` | Honesty-gated |
++| Entity Activity panels | Lead/Opportunity detail + `listEntityActivityProjections` | Thin projections |
++| Foundations | `ACTIVITY_SPINE` READY; Email/WhatsApp ingest NOT_AVAILABLE | |
++| Pipeline / Opportunity (P12) | Pipelines, stages, close, readiness handoffs | Closed Won Γëá provision |
++
++## What Phase 14 must not assume
++
++- Live telephony or Call recording is available
++- Google/Outlook calendar sync is connected
++- Email/WhatsApp inbound Lead volume exists
++- Full sales sequences or AI communications are enabled
++- Weighted Pipeline UI/report totals are enabled (Phase 16)
++- Closed Won / Activity already provisions Tenant / Subscription / Invoice
++- Owner/team/territory scope filtering is fully implemented (`resolveCrmScope` stub)
++- Reminder delivery completed the linked Activity
++- Demo management was delivered in Phase 13
++
++## Suggested Phase 14 scope seeds
++
++1. **Demo management** (first-class; never alias Meeting-as-Demo without explicit Demo entity)
++2. Proposal create from proposal-readiness handoff (if Phase 14 owns proposals)
++3. Conversion / Tenant create transaction from conversion-readiness (human-gated)
++4. Harden owner/team/territory Activity + Opportunity scope filtering
++5. Optional: deepen calendar provider contracts without fabricating sync
++6. Keep weighted UI dark unless Phase 16 is pulled forward intentionally
++
++## Carry gaps (from Phase 13 + earlier)
++
++- Telephony + recording ΓåÆ later / provider wave
++- Google/Outlook sync ΓåÆ later / provider wave
++- Email/WhatsApp Lead ingest ΓåÆ later
++- Scope filtering stub ΓåÆ harden in ops waves
++- Demo management ΓåÆ Phase 14 core candidate
++- Proposal/Tenant provision ΓåÆ human-gated transactions
++- Full sequences / AI comms ΓåÆ out of foundation scope
++- Weighted Pipeline UI ΓåÆ Phase 16
++- Prisma EPERM on Windows generate/push ΓåÆ SQL fallback available
++
++## Honesty gates to preserve
++
++- Empty Activity/Pipeline report Γëá invent zeroes
++- Reminder delivery Γëá Activity complete
++- Automation self-approval blocked; executions idempotent
++- RSVP Γëá attendance; SMTP accept Γëá delivered
++- No fabricated telephony CONNECTED / external calendar Events
++- Closed Won Γëá provision
++- Score / probability remain explainable ΓÇö not ML certainty / not Revenue
+diff --git a/docs/admin-intelligence-crm/phase-13/PHASE_14_READINESS_CHECKLIST.md b/docs/admin-intelligence-crm/phase-13/PHASE_14_READINESS_CHECKLIST.md
+new file mode 100644
+index 0000000..44426d2
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-13/PHASE_14_READINESS_CHECKLIST.md
+@@ -0,0 +1,44 @@
++# Phase 14 Readiness Checklist ΓÇö from Phase 13
++
++**Exit decision:** `READY_FOR_PHASE_14_WITH_BLOCKERS`  
++**Date:** 2026-07-30
++
++## Must be true before Phase 14 consumes Activity plane
++
++- [x] Canonical CrmActivity parent with numbering (`ACT-YYYY-######`)
++- [x] Task / Follow-Up / Note under Activity (CsTask never aliased)
++- [x] Call manual/planned path; telephony typed `NOT_AVAILABLE`
++- [x] Email Activity SMTP path; accept Γëá delivered; no fabricated opens/replies/pixels
++- [x] Meeting + internal Calendar + ICS; RSVP Γëá attendance; Google/Outlook `NOT_CONNECTED`
++- [x] Reminder dedupe (rule+activity+recipient+occurrence+channel); delivery Γëá Activity complete
++- [x] Versioned Activity/Task templates; ACTIVE not directly editable
++- [x] Automation foundations: SoD approve, idempotent execute, small approved trigger set only
++- [x] Activity reports honesty-gated; schedules create/list/run audited
++- [x] DQ + Activity recon foundations never invent zeroes on gate failure
++- [x] Lead/Opportunity Activity projection panels (thin OK)
++- [x] Foundations: `ACTIVITY_SPINE` READY; Email/WhatsApp ingest NOT_AVAILABLE; weighted UI dark
++- [x] Wave 4 + prior activity Vitest suites green (WORKING_TREE)
++- [x] `FINAL_PHASE_13_REPORT.md` + `PHASE_14_INPUTS.md` written
++
++## Explicit carry blockers (document in Phase 14 scope)
++
++- [ ] Telephony / Call recording (NOT_AVAILABLE)
++- [ ] Google / Outlook calendar sync (NOT_CONNECTED)
++- [ ] Email / WhatsApp Lead ingest
++- [ ] Owner/team/territory scope filtering beyond stub
++- [ ] Demo management (deferred to Phase 14)
++- [ ] Proposal create / Tenant conversion transaction (handoffs only today)
++- [ ] Full sales sequences / AI communications (forbidden in foundations)
++- [ ] Weighted Pipeline UI/reports (Phase 16)
++- [ ] Windows Prisma EPERM (SQL fallback available)
++- [ ] Rich Activity UI hubs beyond thin stubs
++
++## Do not start Phase 14 work that assumes
++
++- Live dialer or recording is available
++- External calendar sync already works
++- Reminder delivery completed Activities
++- Automation sequences run without SoD
++- Closed Won / Activity already created billing objects
++- Demo was shipped as a Meeting subtype in Phase 13
++- Silent multi-currency or fabricated Activity volume KPIs
+diff --git a/docs/admin-intelligence-crm/phase-13/FINAL_READINESS_DECISION.md b/docs/admin-intelligence-crm/phase-13/FINAL_READINESS_DECISION.md
+new file mode 100644
+index 0000000..4e00b49
+--- /dev/null
++++ b/docs/admin-intelligence-crm/phase-13/FINAL_READINESS_DECISION.md
+@@ -0,0 +1,32 @@
++# Final Readiness Decision ΓÇö Exit Phase 13 / Enter Phase 14
++
++**Decision:** **READY_FOR_PHASE_14_WITH_BLOCKERS**
++
++**Date:** 2026-07-30
++
++## Rationale
++
++Phase 13 Waves 0ΓÇô4 delivered a canonical Sales Activity plane: CrmActivity parent + typed children (Task, Follow-Up, Call, Email, Meeting), internal Calendar + ICS, Reminders with dedupe, versioned templates, automation foundations (SoD + idempotent + small approved triggers), and honesty-gated Activity reporting with audited schedules. Foundations mark `ACTIVITY_SPINE` READY. Vitest Waves 1ΓÇô4 are green on the working tree.
++
++External providers (telephony, Google/Outlook), Email/WhatsApp Lead ingest, Demo management, Proposal/Tenant provision transactions, full sequences, scope filtering beyond stub, and Weighted Pipeline UI remain explicit carry blockers ΓÇö documented for Phase 14 (and Phase 16 for weighted UI).
++
++## Conditions for Phase 14 consumers
++
++1. Activity Γëá Audit Event Γëá Analytics Event; Task Γëá CsTask; Reminder Γëá Sales contact Γëá billing reminder.
++2. Reminder delivery never completes Activity; automation self-approval blocked; executions idempotent.
++3. Metric/report gate fail ΓåÆ EMPTY/UNAVAILABLE ΓÇö never fabricated zeroes.
++4. Telephony stays NOT_AVAILABLE until a typed provider wave; Google/Outlook stay NOT_CONNECTED until sync ships.
++5. Demo management is a Phase 14 concern ΓÇö do not treat Meeting as Demo without an explicit Demo entity.
++6. Closed Won / Activity never provision Tenant / Subscription / Invoice without a human-gated transaction.
++7. Weighted Pipeline UI remains dark until Phase 16.
++8. SupportSlaCalendar / analytics-pipeline / POS sales must never authorize Sales Activity.
++
++## Wave 0 ΓåÆ Wave 4 completion
++
++- [x] Wave 0 forensic pack + CONDITIONAL GO (enter Wave 1)
++- [x] Waves 1ΓÇô3 Activity / Call / Email / Meeting / Calendar
++- [x] Wave 4 Reminders + templates + automation + reports + Phase 14 pack
++- [x] Exit decision recorded ΓÇö **READY_FOR_PHASE_14_WITH_BLOCKERS**
++
++**Next:** Phase 14 may consume Activity + Pipeline handoffs per `PHASE_14_INPUTS.md` and `PHASE_14_READINESS_CHECKLIST.md`.  
++**Stop:** Do not invent telephony CONNECTED, external calendar sync, Demo-as-Meeting, or false Activity KPI zeroes.
+diff --git "a/lib\\admin\\crm\\activities\\reportSchedules.js" "b/lib\\admin\\crm\\activities\\reportSchedules.js"
+new file mode 100644
+index 0000000..9d737c9
+--- /dev/null
++++ "b/lib\\admin\\crm\\activities\\reportSchedules.js"
+@@ -0,0 +1,256 @@
++/**
++ * Scheduled Activity reports ΓÇö Phase 13 Wave 4.
++ * Create / list / run with audit. Never invent KPI zeroes.
++ */
++
++import { resolveCrmAccess } from '../authz.js';
++import { CRM_ACTIVITY_REPORT_SCHEDULE_STATUS } from '../catalogue.js';
++import { getActivityReport, CRM_ACTIVITY_REPORT_VERSION } from './reports.js';
++
++export function hasCrmActivityReportScheduleModel(prisma) {
++  return typeof prisma?.crmActivityReportSchedule?.create === 'function';
++}
++
++export function hasCrmActivityReportRunModel(prisma) {
++  return typeof prisma?.crmActivityReportRun?.create === 'function';
++}
++
++function serializeSchedule(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    name: row.name || null,
++    activityType: row.activityType || null,
++    cronExpression: row.cronExpression || null,
++    status: row.status,
++    createdByAdminId: row.createdByAdminId || null,
++    lastRunAt: row.lastRunAt ? new Date(row.lastRunAt).toISOString() : null,
++    lastRunStatus: row.lastRunStatus || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++function serializeRun(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    scheduleId: row.scheduleId || null,
++    status: row.status,
++    summaryJson: row.summaryJson ?? null,
++    runByAdminId: row.runByAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   name: string,
++ *   activityType?: string|null,
++ *   cronExpression?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function createActivityReportSchedule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canExport && !access.canEditActivities && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_activity_report_schedule_forbidden' };
++  }
++
++  if (!hasCrmActivityReportScheduleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_activity_report_schedule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const name = args.name != null ? String(args.name).trim() : '';
++  if (!name) return { ok: false, error: 'name_required' };
++
++  const now = args.now || new Date();
++  const row = await prisma.crmActivityReportSchedule.create({
++    data: {
++      name,
++      activityType:
++        args.activityType != null && String(args.activityType).trim()
++          ? String(args.activityType).trim().toUpperCase()
++          : null,
++      cronExpression:
++        args.cronExpression != null ? String(args.cronExpression).trim() : null,
++      status: CRM_ACTIVITY_REPORT_SCHEDULE_STATUS.ACTIVE,
++      createdByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    schedule: serializeSchedule(row),
++    meta: {
++      audited: true,
++      inventZeroesForbidden: true,
++      definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, limit?: number|string }} args
++ */
++export async function listActivityReportSchedules(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !access.canViewActivities &&
++    !access.canExport &&
++    !access.canViewLeads
++  ) {
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_activity_report_schedule_list_forbidden',
++      items: [],
++    };
++  }
++
++  if (!hasCrmActivityReportScheduleModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: {
++        unavailable: true,
++        reason: 'crm_activity_report_schedule_model_unavailable',
++        status: 'UNAVAILABLE',
++      },
++    };
++  }
++
++  const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
++  let rows = [];
++  try {
++    rows = await prisma.crmActivityReportSchedule.findMany({
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeSchedule),
++    meta: { count: (rows || []).length, inventZeroesForbidden: true },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, scheduleId: string, now?: Date }} args
++ */
++export async function runActivityReportSchedule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canExport && !access.canViewActivities && !access.isSuperAdmin) {
++    return { ok: false, forbidden: true, reason: 'crm_activity_report_schedule_run_forbidden' };
++  }
++
++  const scheduleId = args.scheduleId ? String(args.scheduleId).trim() : '';
++  if (!scheduleId) return { ok: false, error: 'scheduleId_required' };
++
++  if (!hasCrmActivityReportScheduleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_activity_report_schedule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  let schedule = null;
++  try {
++    schedule = await prisma.crmActivityReportSchedule.findUnique({
++      where: { id: scheduleId },
++    });
++  } catch {
++    schedule = null;
++  }
++  if (!schedule) return { ok: false, notFound: true, error: 'schedule_not_found' };
++
++  const now = args.now || new Date();
++  const reportResult = await getActivityReport(prisma, {
++    admin: args.admin,
++    type: schedule.activityType || null,
++  });
++
++  const runStatus =
++    reportResult.ok === false
++      ? 'FAILED'
++      : reportResult.status === 'UNAVAILABLE'
++        ? 'UNAVAILABLE'
++        : reportResult.status === 'EMPTY'
++          ? 'EMPTY'
++          : 'OK';
++
++  const summaryJson = {
++    reportStatus: reportResult.status || null,
++    honesty: reportResult.honesty || null,
++    definitionVersion: CRM_ACTIVITY_REPORT_VERSION,
++    inventZeroesForbidden: true,
++    activityType: schedule.activityType || null,
++    report:
++      reportResult.report && reportResult.status === 'READY'
++        ? {
++            openCount: reportResult.report.openCount,
++            completedCount: reportResult.report.completedCount,
++            totalCount: reportResult.report.totalCount,
++            byType: reportResult.report.byType,
++          }
++        : null,
++  };
++
++  let run = null;
++  if (hasCrmActivityReportRunModel(prisma)) {
++    try {
++      run = await prisma.crmActivityReportRun.create({
++        data: {
++          scheduleId: schedule.id,
++          status: runStatus,
++          summaryJson,
++          runByAdminId: args.admin?.id || null,
++          at: now,
++        },
++      });
++    } catch {
++      run = null;
++    }
++  }
++
++  try {
++    await prisma.crmActivityReportSchedule.update({
++      where: { id: schedule.id },
++      data: {
++        lastRunAt: now,
++        lastRunStatus: runStatus,
++        updatedAt: now,
++      },
++    });
++  } catch {
++    // best-effort
++  }
++
++  return {
++    ok: true,
++    schedule: serializeSchedule({
++      ...schedule,
++      lastRunAt: now,
++      lastRunStatus: runStatus,
++    }),
++    run: serializeRun(run),
++    report: reportResult,
++    meta: { audited: Boolean(run), inventZeroesForbidden: true },
++  };
++}
++
++export { serializeSchedule, serializeRun };
+diff --git "a/lib\\admin\\crm\\emails\\templates.js" "b/lib\\admin\\crm\\emails\\templates.js"
+new file mode 100644
+index 0000000..fbcbbc6
+--- /dev/null
++++ "b/lib\\admin\\crm\\emails\\templates.js"
+@@ -0,0 +1,140 @@
++/**
++ * CRM email template foundations ΓÇö Phase 13 Wave 2.
++ * Versioned codes; allowlisted {{var}} substitution only ΓÇö no eval / executable expressions.
++ */
++
++import {
++  CRM_EMAIL_TEMPLATE_ALLOWED_VARS,
++  CRM_EMAIL_TEMPLATE_STATUS,
++} from './catalogue.js';
++import {
++  hasCrmEmailTemplateModel,
++  serializeEmailTemplate,
++} from './model.js';
++import { resolveCrmAccess } from '../authz.js';
++
++const ALLOWED = new Set(CRM_EMAIL_TEMPLATE_ALLOWED_VARS);
++const FORBIDDEN_EXPR = /\$\{|`|<%|%>|javascript:|<\s*script/i;
++
++/**
++ * Safe substitution: {{contactName}} only for allowlisted keys.
++ * Unknown tokens left as-is; no executable expressions.
++ *
++ * @param {string} template
++ * @param {Record<string, string|number|null|undefined>} vars
++ * @returns {string}
++ */
++export function renderEmailTemplateSafe(template, vars = {}) {
++  const src = template == null ? '' : String(template);
++  if (FORBIDDEN_EXPR.test(src)) {
++    throw new Error('executable_template_expressions_forbidden');
++  }
++  return src.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (match, key) => {
++    if (!ALLOWED.has(key)) return match;
++    const val = vars[key];
++    if (val == null) return '';
++    return String(val);
++  });
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {object} args
++ */
++export async function createEmailTemplateVersion(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditActivities && !access.canEditLeads) {
++    return { ok: false, forbidden: true, reason: 'crm_email_template_forbidden' };
++  }
++
++  if (!hasCrmEmailTemplateModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_email_template_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const code = args.code ? String(args.code).trim().toUpperCase() : '';
++  if (!code || !/^[A-Z][A-Z0-9_]{1,63}$/.test(code)) {
++    return { ok: false, error: 'invalid_template_code' };
++  }
++
++  const subjectTemplate = args.subjectTemplate != null ? String(args.subjectTemplate) : '';
++  const bodyHtmlTemplate = args.bodyHtmlTemplate != null ? String(args.bodyHtmlTemplate) : '';
++  const bodyTextTemplate = args.bodyTextTemplate != null ? String(args.bodyTextTemplate) : '';
++
++  try {
++    renderEmailTemplateSafe(subjectTemplate, {});
++    renderEmailTemplateSafe(bodyHtmlTemplate, {});
++    renderEmailTemplateSafe(bodyTextTemplate, {});
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  let version = args.version != null ? Number(args.version) : null;
++  if (version == null || Number.isNaN(version) || version < 1) {
++    try {
++      const latest = await prisma.crmEmailTemplate.findFirst({
++        where: { code },
++        orderBy: { version: 'desc' },
++      });
++      version = latest ? latest.version + 1 : 1;
++    } catch {
++      version = 1;
++    }
++  }
++
++  const status = String(args.status || CRM_EMAIL_TEMPLATE_STATUS.DRAFT)
++    .trim()
++    .toUpperCase();
++
++  const row = await prisma.crmEmailTemplate.create({
++    data: {
++      code,
++      version,
++      status,
++      name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++      subjectTemplate,
++      bodyHtmlTemplate,
++      bodyTextTemplate,
++      createdByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    template: serializeEmailTemplate(row),
++    executableExpressions: false,
++  };
++}
++
++/**
++ * Resolve ACTIVE template by code (highest version) or explicit version.
++ */
++export async function getActiveEmailTemplate(prisma, args = {}) {
++  if (!hasCrmEmailTemplateModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_email_template_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++  const code = args.code ? String(args.code).trim().toUpperCase() : '';
++  if (!code) return { ok: false, error: 'template_code_required' };
++
++  const where = { code, status: CRM_EMAIL_TEMPLATE_STATUS.ACTIVE };
++  if (args.version != null) where.version = Number(args.version);
++
++  const row = await prisma.crmEmailTemplate.findFirst({
++    where,
++    orderBy: { version: 'desc' },
++  });
++  if (!row) return { ok: false, error: 'template_not_found', notFound: true };
++  return { ok: true, template: serializeEmailTemplate(row) };
++}
++
++export { CRM_EMAIL_TEMPLATE_ALLOWED_VARS };
+diff --git "a/lib\\admin\\crm\\opportunities\\reports.js" "b/lib\\admin\\crm\\opportunities\\reports.js"
+new file mode 100644
+index 0000000..9da4551
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\reports.js"
+@@ -0,0 +1,206 @@
++/**
++ * Pipeline reporting centre ΓÇö Phase 12 Wave 4.
++ * Stage counts, open pipeline by currency (currency-separated; no silent FX),
++ * win/loss counts. Never false zeroes ΓÇö empty ΓåÆ UNAVAILABLE / empty envelope.
++ * Weighted totals must not surface as enabled UI (flag OFF until Phase 16).
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import {
++  CRM_PIPELINE_CODES,
++  CRM_PIPELINE_STAGES_ORDERED,
++  CRM_PIPELINE_TERMINAL_STAGES,
++  CRM_OPPORTUNITY_STATUS,
++} from '../pipeline/catalogue.js';
++import {
++  WEIGHTED_PIPELINE_UI_ENABLED,
++  summarizeAmountsByCurrency,
++  computeIndicativeWeightedAmount,
++} from './commercial.js';
++import { hasCrmOpportunityModel } from './model.js';
++
++export const CRM_PIPELINE_REPORT_VERSION = 'crm-pipeline-report-v1-2026-07-30';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   pipelineCode?: string|null,
++ * }} args
++ */
++export async function getPipelineReport(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewPipeline && !access.canViewOpportunities && !access.canExport) {
++    return { ok: false, forbidden: true, reason: 'crm_pipeline_report_forbidden' };
++  }
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  if (!hasCrmOpportunityModel(prisma)) {
++    return {
++      ok: true,
++      status: 'UNAVAILABLE',
++      reason: 'crm_opportunity_model_unavailable',
++      report: null,
++      honesty: {
++        inventZeroesForbidden: true,
++        falseZeroes: false,
++        weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++        isRevenue: false,
++      },
++      definitionVersion: CRM_PIPELINE_REPORT_VERSION,
++    };
++  }
++
++  const pipelineFilter = args.pipelineCode
++    ? String(args.pipelineCode).trim().toUpperCase()
++    : null;
++  if (pipelineFilter && !CRM_PIPELINE_CODES.includes(pipelineFilter)) {
++    return { ok: false, error: 'invalid_pipeline_code', allowed: CRM_PIPELINE_CODES };
++  }
++
++  let rows = [];
++  try {
++    const where = {};
++    if (pipelineFilter) where.pipelineCode = pipelineFilter;
++    where.status = { not: CRM_OPPORTUNITY_STATUS.MERGED };
++    rows = await prisma.crmOpportunity.findMany({ where, take: 5000 });
++  } catch {
++    return {
++      ok: true,
++      status: 'UNAVAILABLE',
++      reason: 'opportunity_query_failed',
++      report: null,
++      honesty: {
++        inventZeroesForbidden: true,
++        falseZeroes: false,
++        weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++        isRevenue: false,
++      },
++      definitionVersion: CRM_PIPELINE_REPORT_VERSION,
++    };
++  }
++
++  if (!rows || rows.length === 0) {
++    return {
++      ok: true,
++      status: 'EMPTY',
++      report: {
++        stageCounts: null,
++        openPipelineByCurrency: null,
++        winCount: null,
++        lossCount: null,
++        openCount: null,
++        totalCount: null,
++        weightedTotals: null,
++      },
++      honesty: {
++        inventZeroesForbidden: true,
++        falseZeroes: false,
++        emptyEnvelope: true,
++        weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++        isRevenue: false,
++        fxConverted: false,
++      },
++      definitionVersion: CRM_PIPELINE_REPORT_VERSION,
++      meta: {
++        pipelineCode: pipelineFilter,
++        scopeMode: scope.mode,
++        scopeStub: scope.stub === true,
++      },
++    };
++  }
++
++  const stageCounts = Object.create(null);
++  for (const code of CRM_PIPELINE_STAGES_ORDERED) {
++    stageCounts[code] = 0;
++  }
++
++  let winCount = 0;
++  let lossCount = 0;
++  let openCount = 0;
++  const openLines = [];
++
++  for (const row of rows) {
++    const stage = String(row.stageCode || '').toUpperCase();
++    if (stageCounts[stage] != null) stageCounts[stage] += 1;
++    else stageCounts[stage] = 1;
++
++    const status = String(row.status || '').toUpperCase();
++    if (status === CRM_OPPORTUNITY_STATUS.WON) winCount += 1;
++    else if (status === CRM_OPPORTUNITY_STATUS.LOST) lossCount += 1;
++    else if (status === CRM_OPPORTUNITY_STATUS.OPEN) {
++      openCount += 1;
++      if (
++        row.amount != null &&
++        row.currency &&
++        !CRM_PIPELINE_TERMINAL_STAGES.includes(stage)
++      ) {
++        openLines.push({ amount: row.amount, currency: row.currency });
++      }
++    }
++  }
++
++  const openPipelineByCurrency = summarizeAmountsByCurrency(openLines);
++
++  // Weighted calc may exist; never expose as enabled UI/report totals.
++  let weightedTotals = null;
++  if (WEIGHTED_PIPELINE_UI_ENABLED === true) {
++    const weightedLines = [];
++    for (const row of rows) {
++      if (String(row.status || '').toUpperCase() !== CRM_OPPORTUNITY_STATUS.OPEN) continue;
++      const w = computeIndicativeWeightedAmount({
++        amount: row.amount,
++        probability: row.probability,
++        currency: row.currency,
++      });
++      if (w.ok) {
++        weightedLines.push({
++          amount: w.indicativeWeightedAmount,
++          currency: w.currency,
++        });
++      }
++    }
++    weightedTotals = summarizeAmountsByCurrency(weightedLines);
++  } else {
++    weightedTotals = {
++      status: 'NOT_AVAILABLE',
++      reason: 'weighted_pipeline_ui_disabled_until_phase_16',
++      weightedUiEnabled: false,
++      byCurrency: null,
++    };
++  }
++
++  return {
++    ok: true,
++    status: 'READY',
++    report: {
++      stageCounts,
++      openPipelineByCurrency,
++      winCount,
++      lossCount,
++      openCount,
++      totalCount: rows.length,
++      weightedTotals,
++    },
++    honesty: {
++      inventZeroesForbidden: true,
++      falseZeroes: false,
++      emptyEnvelope: false,
++      weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++      isRevenue: false,
++      fxConverted: false,
++      phase6RevenueForbidden: true,
++    },
++    definitionVersion: CRM_PIPELINE_REPORT_VERSION,
++    meta: {
++      pipelineCode: pipelineFilter,
++      scopeMode: scope.mode,
++      scopeStub: scope.stub === true,
++      catalogueCodes: CRM_PIPELINE_CODES,
++    },
++  };
++}
+diff --git "a/lib\\admin\\crm\\opportunities\\reportSchedules.js" "b/lib\\admin\\crm\\opportunities\\reportSchedules.js"
+new file mode 100644
+index 0000000..348741f
+--- /dev/null
++++ "b/lib\\admin\\crm\\opportunities\\reportSchedules.js"
+@@ -0,0 +1,276 @@
++/**
++ * Scheduled Pipeline reports ΓÇö Phase 12 Wave 4.
++ * Create / list / run (stub-capable) with audit. Never invent KPI zeroes.
++ */
++
++import { resolveCrmAccess } from '../authz.js';
++import { CRM_PIPELINE_CODES } from '../pipeline/catalogue.js';
++import { WEIGHTED_PIPELINE_UI_ENABLED } from './commercial.js';
++import { getPipelineReport, CRM_PIPELINE_REPORT_VERSION } from './reports.js';
++
++export const CRM_PIPELINE_REPORT_SCHEDULE_STATUS = Object.freeze({
++  ACTIVE: 'ACTIVE',
++  PAUSED: 'PAUSED',
++  DISABLED: 'DISABLED',
++});
++
++export function hasCrmPipelineReportScheduleModel(prisma) {
++  return typeof prisma?.crmPipelineReportSchedule?.create === 'function';
++}
++
++export function hasCrmPipelineReportRunModel(prisma) {
++  return typeof prisma?.crmPipelineReportRun?.create === 'function';
++}
++
++function serializeSchedule(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    name: row.name || null,
++    pipelineCode: row.pipelineCode || null,
++    cronExpression: row.cronExpression || null,
++    status: row.status,
++    createdByAdminId: row.createdByAdminId || null,
++    lastRunAt: row.lastRunAt ? new Date(row.lastRunAt).toISOString() : null,
++    lastRunStatus: row.lastRunStatus || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++function serializeRun(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    scheduleId: row.scheduleId || null,
++    status: row.status,
++    summaryJson: row.summaryJson ?? null,
++    runByAdminId: row.runByAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   name: string,
++ *   pipelineCode?: string|null,
++ *   cronExpression?: string|null,
++ *   now?: Date,
++ * }} args
++ */
++export async function createPipelineReportSchedule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canExport && !access.canManagePipelineDefinitions) {
++    return { ok: false, forbidden: true, reason: 'crm_report_schedule_forbidden' };
++  }
++
++  if (!hasCrmPipelineReportScheduleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_pipeline_report_schedule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const name = args.name != null ? String(args.name).trim() : '';
++  if (!name) return { ok: false, error: 'name_required' };
++
++  let pipelineCode = null;
++  if (args.pipelineCode != null && String(args.pipelineCode).trim()) {
++    pipelineCode = String(args.pipelineCode).trim().toUpperCase();
++    if (!CRM_PIPELINE_CODES.includes(pipelineCode)) {
++      return { ok: false, error: 'invalid_pipeline_code', allowed: CRM_PIPELINE_CODES };
++    }
++  }
++
++  const now = args.now || new Date();
++  const row = await prisma.crmPipelineReportSchedule.create({
++    data: {
++      name,
++      pipelineCode,
++      cronExpression:
++        args.cronExpression != null ? String(args.cronExpression).trim() : null,
++      status: CRM_PIPELINE_REPORT_SCHEDULE_STATUS.ACTIVE,
++      createdByAdminId: args.admin?.id || null,
++      createdAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    schedule: serializeSchedule(row),
++    meta: {
++      audited: true,
++      weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++      definitionVersion: CRM_PIPELINE_REPORT_VERSION,
++    },
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, limit?: number|string }} args
++ */
++export async function listPipelineReportSchedules(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewPipeline && !access.canExport) {
++    return {
++      ok: false,
++      forbidden: true,
++      reason: 'crm_report_schedule_list_forbidden',
++      items: [],
++    };
++  }
++
++  if (!hasCrmPipelineReportScheduleModel(prisma)) {
++    return {
++      ok: true,
++      items: [],
++      meta: {
++        unavailable: true,
++        reason: 'crm_pipeline_report_schedule_model_unavailable',
++        status: 'UNAVAILABLE',
++      },
++    };
++  }
++
++  const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
++  let rows = [];
++  try {
++    rows = await prisma.crmPipelineReportSchedule.findMany({
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeSchedule),
++    meta: {
++      count: (rows || []).length,
++      limit,
++      weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++    },
++  };
++}
++
++/**
++ * Run a scheduled Pipeline report (immediate execution + audit row).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, scheduleId: string, now?: Date }} args
++ */
++export async function runPipelineReportSchedule(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canExport && !access.canViewPipeline) {
++    return { ok: false, forbidden: true, reason: 'crm_report_schedule_run_forbidden' };
++  }
++
++  const scheduleId = args.scheduleId ? String(args.scheduleId).trim() : '';
++  if (!scheduleId) return { ok: false, error: 'scheduleId_required' };
++
++  if (!hasCrmPipelineReportScheduleModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_pipeline_report_schedule_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  let schedule = null;
++  try {
++    schedule = await prisma.crmPipelineReportSchedule.findUnique({
++      where: { id: scheduleId },
++    });
++  } catch {
++    schedule = null;
++  }
++  if (!schedule) return { ok: false, notFound: true, error: 'schedule_not_found' };
++
++  const now = args.now || new Date();
++  const reportResult = await getPipelineReport(prisma, {
++    admin: args.admin,
++    pipelineCode: schedule.pipelineCode || null,
++  });
++
++  const runStatus =
++    reportResult.ok === false
++      ? 'FAILED'
++      : reportResult.status === 'UNAVAILABLE'
++        ? 'UNAVAILABLE'
++        : reportResult.status === 'EMPTY'
++          ? 'EMPTY'
++          : 'OK';
++
++  const summaryJson = {
++    reportStatus: reportResult.status || null,
++    honesty: reportResult.honesty || null,
++    definitionVersion: CRM_PIPELINE_REPORT_VERSION,
++    weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++    inventZeroesForbidden: true,
++    pipelineCode: schedule.pipelineCode || null,
++    // Store counts only when present ΓÇö never invent zeroes from empty
++    report:
++      reportResult.report && reportResult.status === 'READY'
++        ? {
++            winCount: reportResult.report.winCount,
++            lossCount: reportResult.report.lossCount,
++            openCount: reportResult.report.openCount,
++            totalCount: reportResult.report.totalCount,
++            openPipelineByCurrency: reportResult.report.openPipelineByCurrency,
++          }
++        : null,
++  };
++
++  let run = null;
++  if (hasCrmPipelineReportRunModel(prisma)) {
++    try {
++      run = await prisma.crmPipelineReportRun.create({
++        data: {
++          scheduleId: schedule.id,
++          status: runStatus,
++          summaryJson,
++          runByAdminId: args.admin?.id || null,
++          at: now,
++        },
++      });
++    } catch {
++      run = null;
++    }
++  }
++
++  try {
++    await prisma.crmPipelineReportSchedule.update({
++      where: { id: schedule.id },
++      data: {
++        lastRunAt: now,
++        lastRunStatus: runStatus,
++        updatedAt: now,
++      },
++    });
++  } catch {
++    // schedule update best-effort
++  }
++
++  return {
++    ok: true,
++    schedule: serializeSchedule({
++      ...schedule,
++      lastRunAt: now,
++      lastRunStatus: runStatus,
++    }),
++    run: serializeRun(run),
++    report: reportResult,
++    meta: {
++      audited: Boolean(run),
++      weightedUiEnabled: WEIGHTED_PIPELINE_UI_ENABLED,
++    },
++  };
++}
++
++export { serializeSchedule, serializeRun };

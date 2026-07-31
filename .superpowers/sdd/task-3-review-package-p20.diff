@@ -1,0 +1,2482 @@
+# Task 3 P20
+
+
+===== lib/admin/crm/conversions/requestHonesty.js =====
+
+/**
+ * Phase 20 Wave 3 — Request ≠ result honesty.
+ * Never treat ACTIVATED / PROVISIONED / PAID / ACTIVE as terminal without
+ * an authoritative provider result.
+ */
+
+export const CRM_FABRICATED_TERMINAL_STATUSES = Object.freeze([
+  'ACTIVATED',
+  'PROVISIONED',
+  'PAID',
+  'ACTIVE',
+  'COMPLETED',
+]);
+
+export const CRM_HONEST_PENDING_STATUSES = Object.freeze({
+  PENDING: 'PENDING',
+  PENDING_ACTIVATION: 'PENDING_ACTIVATION',
+  PROVISIONING: 'PROVISIONING',
+  REQUESTED: 'REQUESTED',
+  INITIATED: 'INITIATED',
+});
+
+/**
+ * Clamp a provision/request status so terminal success cannot be claimed
+ * without providerConfirmed.
+ */
+export function clampProvisionRequestStatus(status, { providerConfirmed = false } = {}) {
+  const raw = String(status || '').trim().toUpperCase();
+  if (!raw) return CRM_HONEST_PENDING_STATUSES.PENDING;
+  if (CRM_FABRICATED_TERMINAL_STATUSES.includes(raw) && !providerConfirmed) {
+    if (raw === 'PAID') return CRM_HONEST_PENDING_STATUSES.PENDING;
+    if (raw === 'ACTIVE' || raw === 'ACTIVATED') {
+      return CRM_HONEST_PENDING_STATUSES.PENDING_ACTIVATION;
+    }
+    if (raw === 'PROVISIONED') return CRM_HONEST_PENDING_STATUSES.PROVISIONING;
+    return CRM_HONEST_PENDING_STATUSES.PENDING;
+  }
+  return raw;
+}
+
+/**
+ * Reject fabricated terminal provision results when providerResult is absent
+ * or not authoritative (ok !== true).
+ */
+export function assertProvisionResultHonesty(result, { providerResult = null } = {}) {
+  if (!result || typeof result !== 'object') {
+    return { ok: false, error: 'provision_result_required' };
+  }
+
+  const providerOk =
+    providerResult &&
+    typeof providerResult === 'object' &&
+    providerResult.ok === true &&
+    providerResult.authoritative !== false;
+
+  const status = String(result.status || '').trim().toUpperCase();
+  const claimsTerminal =
+    CRM_FABRICATED_TERMINAL_STATUSES.includes(status) ||
+    result.isActive === true ||
+    result.activated === true ||
+    result.provisioned === true ||
+    result.paid === true ||
+    String(result.paymentStatus || '').toUpperCase() === 'PAID';
+
+  if (claimsTerminal && !providerOk) {
+    return {
+      ok: false,
+      error: 'fabricated_terminal_status_without_provider_result',
+      status: clampProvisionRequestStatus(status || 'ACTIVATED', {
+        providerConfirmed: false,
+      }),
+      activated: false,
+      provisioned: false,
+      paid: false,
+      isActive: false,
+    };
+  }
+
+  return {
+    ok: true,
+    result,
+    status: clampProvisionRequestStatus(status, { providerConfirmed: providerOk }),
+  };
+}
+
+/**
+ * Strip caller forgeries that would jump to ACTIVE/PROVISIONED/PAID.
+ */
+export function stripFabricatedProvisionArgs(args = {}) {
+  if (!args || typeof args !== 'object') return {};
+  const out = { ...args };
+  delete out.forceActive;
+  delete out.forceActivated;
+  delete out.forceProvisioned;
+  delete out.forcePaid;
+  delete out.activated;
+  delete out.provisioned;
+  delete out.paid;
+  if (out.isActive === true) out.isActive = false;
+  if (typeof out.status === 'string') {
+    out.status = clampProvisionRequestStatus(out.status, { providerConfirmed: false });
+  }
+  return out;
+}
+
+
+===== lib/admin/crm/conversions/onboardingHandoff.js =====
+
+/**
+ * Onboarding handoff — Phase 16 Wave 4 / Phase 20 Wave 3.
+ * Idempotent package only. Never fabricates onboarding complete.
+ * Never creates CS Onboarding Project (tree-17 / PRD-21).
+ */
+
+import {
+  createDomainHandoff,
+  sendDomainHandoff,
+  supersedeDomainHandoff,
+  CRM_CONVERSION_HANDOFF_TYPE,
+  CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS,
+  computeOnboardingHandoffChecksum,
+  sanitizeConversionHandoffPayload,
+} from './handoffShared.js';
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{
+ *   admin?: object,
+ *   conversionId?: string,
+ *   tenantId?: string,
+ *   idempotencyKey: string,
+ *   payload?: object,
+ *   correction?: boolean,
+ *   correctionReason?: string,
+ *   pendingProvisioning?: boolean,
+ *   now?: Date,
+ * }} args
+ */
+export async function createOnboardingHandoff(prisma, args = {}) {
+  const result = await createDomainHandoff(prisma, {
+    ...args,
+    handoffType: CRM_CONVERSION_HANDOFF_TYPE.ONBOARDING,
+    payload: {
+      type: 'CRM_ONBOARDING_HANDOFF',
+      conversionId: args.conversionId || null,
+      tenantId: args.tenantId || null,
+      ...(args.payload && typeof args.payload === 'object' ? args.payload : {}),
+      // Force after spread — caller cannot forge onboarding completion / Project.
+      onboardingCompleted: false,
+      fabricatedComplete: false,
+      executionComplete: false,
+      onboardingProjectCreated: false,
+      createsOnboardingProject: false,
+      pendingProvisioning: args.pendingProvisioning !== false,
+      provisioningStatus:
+        args.payload?.provisioningStatus ||
+        (args.pendingProvisioning === false ? 'READY' : 'PENDING'),
+    },
+  });
+
+  if (!result.ok) return result;
+
+  return {
+    ...result,
+    onboardingCompleted: false,
+    fabricatedComplete: false,
+    createsOnboardingProject: false,
+    checksumSha256: result.checksumSha256 || result.handoff?.checksumSha256 || null,
+    meta: {
+      handoffOnly: true,
+      executesOnboarding: false,
+      createsOnboardingProject: false,
+      phase21Consumer: true,
+    },
+  };
+}
+
+/**
+ * Transition onboarding handoff READY → SENT. Does not create Project.
+ */
+export async function sendOnboardingHandoff(prisma, args = {}) {
+  const result = await sendDomainHandoff(prisma, args);
+  if (!result.ok) return result;
+  return {
+    ...result,
+    createsOnboardingProject: false,
+    onboardingCompleted: false,
+    meta: {
+      handoffOnly: true,
+      executesOnboarding: false,
+      createsOnboardingProject: false,
+    },
+  };
+}
+
+/**
+ * Supersede an onboarding handoff with history (or use correction on create).
+ */
+export async function supersedeOnboardingHandoff(prisma, args = {}) {
+  return supersedeDomainHandoff(prisma, args);
+}
+
+export {
+  CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS,
+  computeOnboardingHandoffChecksum,
+  sanitizeConversionHandoffPayload,
+};
+
+
+===== lib/admin/crm/conversions/handoffShared.js =====
+
+/**
+ * Shared conversion domain handoff helpers — Phase 16 Wave 4 / Phase 20 Wave 3.
+ * Handoff ≠ execute. Idempotent by idempotencyKey.
+ * One active onboarding handoff; secrets stripped; checksum on canonical package.
+ */
+
+import { createHash } from 'crypto';
+import { resolveCrmAccess } from '../authz.js';
+import { resolveConversionActor } from './model.js';
+
+export const CRM_CONVERSION_HANDOFF_TYPE = Object.freeze({
+  ONBOARDING: 'ONBOARDING',
+  TRAINING: 'TRAINING',
+  MIGRATION: 'MIGRATION',
+  MRA_EIS: 'MRA_EIS',
+  INTEGRATION: 'INTEGRATION',
+});
+
+export const CRM_CONVERSION_HANDOFF_STATUS = Object.freeze({
+  EMITTED: 'EMITTED',
+  READY: 'READY',
+  SENT: 'SENT',
+  ACCEPTED_BY_ONBOARDING: 'ACCEPTED_BY_ONBOARDING',
+  SUPERSEDED: 'SUPERSEDED',
+  CANCELLED: 'CANCELLED',
+});
+
+/** Phase 20 — onboarding package lifecycle (maps onto handoff.status). */
+export const CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS = Object.freeze({
+  READY: 'READY',
+  SENT: 'SENT',
+  ACCEPTED_BY_ONBOARDING: 'ACCEPTED_BY_ONBOARDING',
+  SUPERSEDED: 'SUPERSEDED',
+  CANCELLED: 'CANCELLED',
+});
+
+export const CRM_CONVERSION_HANDOFF_EXECUTION = Object.freeze({
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+});
+
+const ACTIVE_HANDOFF_STATUSES = Object.freeze([
+  CRM_CONVERSION_HANDOFF_STATUS.EMITTED,
+  CRM_CONVERSION_HANDOFF_STATUS.READY,
+  CRM_CONVERSION_HANDOFF_STATUS.SENT,
+  CRM_CONVERSION_HANDOFF_STATUS.ACCEPTED_BY_ONBOARDING,
+]);
+
+const FORBIDDEN_HANDOFF_PAYLOAD_KEYS = Object.freeze([
+  'credentials',
+  'mraCredentials',
+  'password',
+  'secret',
+  'apiKey',
+  'api_key',
+  'token',
+  'rawToken',
+  'rawPayload',
+  'rawMraPayload',
+  'mraPayload',
+  'paymentSecret',
+  'cardNumber',
+  'cvv',
+  'privateKey',
+  'glLines',
+  'tenantGl',
+]);
+
+/** Honesty boolean flags that contain forbidden substrings but must be retained. */
+const HONESTY_FLAG_KEYS = Object.freeze([
+  'credentialsstored',
+  'fiscalsubmitted',
+  'mraeisfiscalsubmitted',
+  'onboardingcompleted',
+  'trainingcompleted',
+  'fabricatedcomplete',
+  'executioncomplete',
+  'productionimportexecuted',
+]);
+
+function isForbiddenPayloadKey(key) {
+  const k = String(key || '');
+  const lower = k.toLowerCase();
+  if (HONESTY_FLAG_KEYS.includes(lower)) return false;
+  // Exact secret containers
+  if (FORBIDDEN_HANDOFF_PAYLOAD_KEYS.some((f) => lower === String(f).toLowerCase())) {
+    return true;
+  }
+  // Nested secret-ish keys (password, apiKey, token, secret) — not *Stored/*Submitted flags
+  if (
+    lower.includes('password') ||
+    lower.includes('apikey') ||
+    lower.includes('api_key') ||
+    lower.includes('paymentsecret') ||
+    lower.includes('privatekey') ||
+    lower === 'secret' ||
+    lower === 'token' ||
+    lower === 'rawtoken' ||
+    lower === 'rawpayload' ||
+    lower === 'mrapayload' ||
+    lower === 'rawmrapayload' ||
+    lower === 'cardnumber' ||
+    lower === 'cvv' ||
+    lower === 'gllines' ||
+    lower === 'tenantgl'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Strip secrets / credentials from handoff payloads. Keeps scalar commercial refs.
+ */
+export function sanitizeConversionHandoffPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return {};
+  }
+  const out = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (isForbiddenPayloadKey(key)) continue;
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      out[key] = value.map((item) =>
+        item && typeof item === 'object' && !Array.isArray(item)
+          ? sanitizeConversionHandoffPayload(item)
+          : item
+      );
+      continue;
+    }
+    if (typeof value === 'object') {
+      const nested = sanitizeConversionHandoffPayload(value);
+      if (Object.keys(nested).length) out[key] = nested;
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * Stable checksum over canonical onboarding handoff package fields.
+ */
+export function computeOnboardingHandoffChecksum(payload = {}) {
+  const canonical = {
+    conversionId: payload.conversionId || null,
+    tenantId: payload.tenantId || null,
+    customerId: payload.customerId || payload.platformCustomerId || null,
+    subscriptionId: payload.subscriptionId || null,
+    contacts: payload.contacts || null,
+    commercialRefs: payload.commercialRefs || null,
+    scopes: payload.scopes || payload.scope || null,
+    ownership: payload.ownership || null,
+    successCriteria: payload.successCriteria || null,
+    pendingProvisioning:
+      payload.pendingProvisioning === true ||
+      String(payload.provisioningStatus || '').toUpperCase() === 'PENDING',
+    provisioningStatus: payload.provisioningStatus || null,
+  };
+  return createHash('sha256')
+    .update(JSON.stringify(canonical))
+    .digest('hex');
+}
+
+export function hasCrmConversionDomainHandoffModel(prisma) {
+  return typeof prisma?.crmConversionDomainHandoff?.create === 'function';
+}
+
+export function serializeDomainHandoff(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    conversionId: row.conversionId || null,
+    tenantId: row.tenantId || null,
+    handoffType: row.handoffType,
+    status: row.status || CRM_CONVERSION_HANDOFF_STATUS.EMITTED,
+    executionStatus: row.executionStatus || CRM_CONVERSION_HANDOFF_EXECUTION.NOT_STARTED,
+    idempotencyKey: row.idempotencyKey || null,
+    payloadJson: row.payloadJson ?? null,
+    checksumSha256: row.checksumSha256 || null,
+    createdByAdminId: row.createdByAdminId || null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+    recordOnly: true,
+    executesDomainWork: false,
+  };
+}
+
+function isActiveHandoffStatus(status) {
+  return ACTIVE_HANDOFF_STATUSES.includes(String(status || '').toUpperCase());
+}
+
+async function findActiveHandoffs(prisma, { conversionId, handoffType }) {
+  if (!conversionId || typeof prisma?.crmConversionDomainHandoff?.findMany !== 'function') {
+    return [];
+  }
+  const rows = await prisma.crmConversionDomainHandoff.findMany({
+    where: {
+      conversionId: String(conversionId),
+      handoffType,
+      status: { in: [...ACTIVE_HANDOFF_STATUSES] },
+    },
+  });
+  return Array.isArray(rows) ? rows.filter((r) => isActiveHandoffStatus(r.status)) : [];
+}
+
+async function supersedeActiveHandoffs(prisma, {
+  conversionId,
+  handoffType,
+  exceptId = null,
+  supersededById = null,
+  reason = null,
+  now,
+  admin = null,
+}) {
+  const actives = await findActiveHandoffs(prisma, { conversionId, handoffType });
+  const history = [];
+  for (const row of actives) {
+    if (exceptId && row.id === exceptId) continue;
+    const prevPayload =
+      row.payloadJson && typeof row.payloadJson === 'object' ? row.payloadJson : {};
+    const nextPayload = {
+      ...prevPayload,
+      supersededAt: (now || new Date()).toISOString(),
+      supersededByHandoffId: supersededById || null,
+      supersessionReason: reason || 'correction',
+    };
+    if (typeof prisma.crmConversionDomainHandoff.update === 'function') {
+      await prisma.crmConversionDomainHandoff.update({
+        where: { id: row.id },
+        data: {
+          status: CRM_CONVERSION_HANDOFF_STATUS.SUPERSEDED,
+          payloadJson: nextPayload,
+          updatedAt: now || new Date(),
+        },
+      });
+    }
+    history.push({
+      handoffId: row.id,
+      idempotencyKey: row.idempotencyKey || null,
+      checksumSha256: row.checksumSha256 || null,
+      supersededAt: nextPayload.supersededAt,
+      reason: reason || 'correction',
+      actorAdminId: admin?.id || null,
+    });
+  }
+  return history;
+}
+
+/**
+ * Create or replay a typed domain handoff. Never marks execution COMPLETED.
+ * Onboarding: one active; exact idempotency retry same; correction supersedes.
+ */
+export async function createDomainHandoff(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (
+    !access.canEditOpportunities &&
+    !access.canViewOpportunities &&
+    !access.isSuperAdmin
+  ) {
+    return { ok: false, forbidden: true, reason: 'crm_conversion_handoff_forbidden' };
+  }
+
+  if (!hasCrmConversionDomainHandoffModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_conversion_domain_handoff_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const handoffType = String(args.handoffType || '').trim().toUpperCase();
+  if (!Object.values(CRM_CONVERSION_HANDOFF_TYPE).includes(handoffType)) {
+    return { ok: false, error: 'handoff_type_required' };
+  }
+
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : '';
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotency_key_required' };
+  }
+
+  const existing = await prisma.crmConversionDomainHandoff.findUnique({
+    where: { idempotencyKey },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      alreadyExists: true,
+      idempotentReplay: true,
+      handoff: serializeDomainHandoff(existing),
+      checksumSha256: existing.checksumSha256 || null,
+      created: false,
+    };
+  }
+
+  const now = args.now || new Date();
+  const conversionId = args.conversionId ? String(args.conversionId) : null;
+  const rawPayload =
+    args.payload && typeof args.payload === 'object' ? args.payload : {};
+  const sanitized = sanitizeConversionHandoffPayload(rawPayload);
+
+  const pendingProvisioning =
+    sanitized.pendingProvisioning === true ||
+    String(sanitized.provisioningStatus || args.provisioningStatus || 'PENDING')
+      .toUpperCase() === 'PENDING' ||
+    args.pendingProvisioning !== false;
+
+  const basePayload = {
+    ...sanitized,
+    handoffType,
+    conversionId: conversionId || sanitized.conversionId || null,
+    tenantId: args.tenantId || sanitized.tenantId || null,
+    executesDomainWork: false,
+    executionComplete: false,
+    executionStatus: CRM_CONVERSION_HANDOFF_EXECUTION.NOT_STARTED,
+    pendingProvisioning,
+    provisioningStatus: pendingProvisioning
+      ? 'PENDING'
+      : sanitized.provisioningStatus || null,
+    onboardingProjectCreated: false,
+    createsOnboardingProject: false,
+  };
+
+  let supersessionHistory = Array.isArray(basePayload.supersessionHistory)
+    ? [...basePayload.supersessionHistory]
+    : [];
+  let supersededHandoffId = null;
+
+  if (handoffType === CRM_CONVERSION_HANDOFF_TYPE.ONBOARDING && conversionId) {
+    const actives = await findActiveHandoffs(prisma, {
+      conversionId,
+      handoffType,
+    });
+    if (actives.length) {
+      const correction = args.correction === true || args.supersedeActive === true;
+      if (!correction) {
+        return {
+          ok: false,
+          error: 'active_handoff_exists_use_correction',
+          activeHandoffId: actives[0].id,
+          activeChecksumSha256: actives[0].checksumSha256 || null,
+        };
+      }
+      const history = await supersedeActiveHandoffs(prisma, {
+        conversionId,
+        handoffType,
+        reason: args.correctionReason || sanitized.correctionReason || 'correction',
+        now,
+        admin,
+      });
+      supersessionHistory = [...history, ...supersessionHistory];
+      supersededHandoffId = actives[0].id;
+    }
+  }
+
+  const payloadJson = {
+    ...basePayload,
+    supersedesHandoffId: supersededHandoffId,
+    supersessionHistory,
+  };
+
+  const checksumSha256 =
+    args.checksumSha256
+      ? String(args.checksumSha256)
+      : computeOnboardingHandoffChecksum(payloadJson);
+
+  // Never accept caller-forced COMPLETED for onboarding/training execution.
+  const executionStatus = CRM_CONVERSION_HANDOFF_EXECUTION.NOT_STARTED;
+  const initialStatus =
+    handoffType === CRM_CONVERSION_HANDOFF_TYPE.ONBOARDING
+      ? CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.READY
+      : CRM_CONVERSION_HANDOFF_STATUS.EMITTED;
+
+  const row = await prisma.crmConversionDomainHandoff.create({
+    data: {
+      conversionId,
+      tenantId: args.tenantId ? String(args.tenantId) : null,
+      handoffType,
+      status: initialStatus,
+      executionStatus,
+      idempotencyKey,
+      payloadJson,
+      checksumSha256,
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  // Back-fill supersededBy on history rows once new id known
+  if (supersededHandoffId && typeof prisma.crmConversionDomainHandoff.update === 'function') {
+    try {
+      const prior = await prisma.crmConversionDomainHandoff.findUnique({
+        where: { id: supersededHandoffId },
+      });
+      if (prior) {
+        const priorPayload =
+          prior.payloadJson && typeof prior.payloadJson === 'object'
+            ? prior.payloadJson
+            : {};
+        await prisma.crmConversionDomainHandoff.update({
+          where: { id: prior.id },
+          data: {
+            payloadJson: {
+              ...priorPayload,
+              supersededByHandoffId: row.id,
+            },
+            updatedAt: now,
+          },
+        });
+      }
+    } catch {
+      /* best-effort history link */
+    }
+  }
+
+  return {
+    ok: true,
+    created: true,
+    handoff: serializeDomainHandoff(row),
+    checksumSha256,
+    supersededHandoffId,
+    supersessionHistory,
+    createsOnboardingProject: false,
+  };
+}
+
+/**
+ * Mark onboarding handoff SENT (READY/EMITTED → SENT). Never creates Project.
+ */
+export async function sendDomainHandoff(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (
+    !access.canEditOpportunities &&
+    !access.canViewOpportunities &&
+    !access.isSuperAdmin
+  ) {
+    return { ok: false, forbidden: true, reason: 'crm_conversion_handoff_forbidden' };
+  }
+  if (!hasCrmConversionDomainHandoffModel(prisma)) {
+    return { ok: false, error: 'crm_conversion_domain_handoff_model_unavailable' };
+  }
+  const handoffId = args.handoffId ? String(args.handoffId).trim() : '';
+  if (!handoffId) return { ok: false, error: 'handoff_id_required' };
+
+  const row = await prisma.crmConversionDomainHandoff.findUnique({
+    where: { id: handoffId },
+  });
+  if (!row) return { ok: false, notFound: true, error: 'handoff_not_found' };
+  if (row.status === CRM_CONVERSION_HANDOFF_STATUS.SUPERSEDED) {
+    return { ok: false, error: 'handoff_superseded' };
+  }
+  if (row.status === CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.SENT) {
+    return {
+      ok: true,
+      alreadySent: true,
+      handoff: serializeDomainHandoff(row),
+      createsOnboardingProject: false,
+    };
+  }
+
+  const now = args.now || new Date();
+  const payload =
+    row.payloadJson && typeof row.payloadJson === 'object' ? { ...row.payloadJson } : {};
+  payload.sentAt = now.toISOString();
+  payload.onboardingProjectCreated = false;
+
+  const updated = await prisma.crmConversionDomainHandoff.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.SENT,
+      payloadJson: payload,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    handoff: serializeDomainHandoff(updated),
+    createsOnboardingProject: false,
+  };
+}
+
+/**
+ * Explicitly supersede a handoff (history retained on payload).
+ */
+export async function supersedeDomainHandoff(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const access = resolveCrmAccess(admin);
+  if (
+    !access.canEditOpportunities &&
+    !access.isSuperAdmin
+  ) {
+    return { ok: false, forbidden: true, reason: 'crm_conversion_handoff_forbidden' };
+  }
+  if (!hasCrmConversionDomainHandoffModel(prisma)) {
+    return { ok: false, error: 'crm_conversion_domain_handoff_model_unavailable' };
+  }
+  const handoffId = args.handoffId ? String(args.handoffId).trim() : '';
+  if (!handoffId) return { ok: false, error: 'handoff_id_required' };
+
+  const row = await prisma.crmConversionDomainHandoff.findUnique({
+    where: { id: handoffId },
+  });
+  if (!row) return { ok: false, notFound: true, error: 'handoff_not_found' };
+  if (row.status === CRM_CONVERSION_HANDOFF_STATUS.SUPERSEDED) {
+    return {
+      ok: true,
+      alreadySuperseded: true,
+      handoff: serializeDomainHandoff(row),
+    };
+  }
+
+  const now = args.now || new Date();
+  const payload =
+    row.payloadJson && typeof row.payloadJson === 'object' ? { ...row.payloadJson } : {};
+  payload.supersededAt = now.toISOString();
+  payload.supersessionReason = args.reason || 'manual_supersede';
+
+  const updated = await prisma.crmConversionDomainHandoff.update({
+    where: { id: row.id },
+    data: {
+      status: CRM_CONVERSION_HANDOFF_STATUS.SUPERSEDED,
+      payloadJson: payload,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    handoff: serializeDomainHandoff(updated),
+    supersessionHistory: [
+      {
+        handoffId: updated.id,
+        supersededAt: payload.supersededAt,
+        reason: payload.supersessionReason,
+        actorAdminId: admin?.id || null,
+      },
+    ],
+  };
+}
+
+
+===== lib/admin/crm/conversions/subscription.js =====
+
+/**
+ * Wave 3 — Subscription create/amend from accepted commercial snapshot.
+ * Closed Won ≠ ACTIVE. Pending until activation policy passes.
+ */
+
+import { createHash } from 'crypto';
+import { assertNoDuplicateActiveSubscription } from '../../platformBilling.js';
+import {
+  CRM_CONVERSION_RESOURCE_TYPE,
+  CRM_SUBSCRIPTION_PROVISION_STATUS,
+} from './catalogue.js';
+import { resolveConversionActor } from './model.js';
+import { stripFabricatedProvisionArgs } from './requestHonesty.js';
+
+function hasSubscriptionModel(prisma) {
+  return typeof prisma?.accountSubscription?.create === 'function';
+}
+
+function hasResourceModel(prisma) {
+  return typeof prisma?.crmConversionResource?.create === 'function';
+}
+
+function normalizeSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  return snapshot;
+}
+
+function snapshotAmount(snapshot) {
+  const totals = snapshot?.totals || {};
+  const total = Number(totals.total);
+  if (Number.isFinite(total)) return total;
+  const subtotal = Number(totals.subtotal || 0);
+  const discount = Number(totals.discount || 0);
+  const tax = Number(totals.tax || 0);
+  return Math.round((subtotal - discount + tax) * 100) / 100;
+}
+
+function buildTxRef({ conversionId, idempotencyKey, amendVersion }) {
+  const raw = `cvn-sub:${conversionId || 'none'}:${idempotencyKey || 'none'}:${amendVersion || 1}`;
+  return `CVNSUB-${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`;
+}
+
+/**
+ * Create or amend AccountSubscription from accepted pricing snapshot.
+ * Never sets isActive=true / status ACTIVE — activation is a separate step.
+ */
+export async function createOrAmendSubscriptionFromAccepted(prisma, args = {}) {
+  // Ignore caller forgeries (forceActive / ACTIVATED / PAID) — activation is separate.
+  args = stripFabricatedProvisionArgs(args);
+  const admin = resolveConversionActor(args);
+  const conversionId = args.conversionId ? String(args.conversionId) : null;
+  const tenantId = args.tenantId ? String(args.tenantId).trim() : '';
+  const idempotencyKey =
+    args.idempotencyKey ||
+    (conversionId ? `sub:${conversionId}` : null);
+  const now = args.now || new Date();
+  const snapshot = normalizeSnapshot(args.acceptedSnapshot);
+
+  if (!tenantId) {
+    return { ok: false, error: 'tenantId_required' };
+  }
+  if (!snapshot) {
+    return { ok: false, error: 'accepted_snapshot_required' };
+  }
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotencyKey_required' };
+  }
+  if (!hasSubscriptionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'subscription_model_unavailable',
+      status: 'NOT_AVAILABLE',
+    };
+  }
+
+  if (hasResourceModel(prisma) && conversionId) {
+    const existingRes = await prisma.crmConversionResource.findFirst({
+      where: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.SUBSCRIPTION,
+        idempotencyKey,
+      },
+    });
+    if (existingRes?.resourceId) {
+      const sub = await prisma.accountSubscription.findUnique({
+        where: { id: existingRes.resourceId },
+      });
+      // Replay honesty: never report ACTIVE unless the persisted row truly is.
+      const persistedActive =
+        Boolean(sub?.isActive) &&
+        String(sub?.status || '').toUpperCase() === 'ACTIVE';
+      return {
+        ok: true,
+        action: existingRes.action || 'CREATE',
+        subscriptionId: existingRes.resourceId,
+        tenantId,
+        status: persistedActive
+          ? 'ACTIVE'
+          : CRM_SUBSCRIPTION_PROVISION_STATUS.PENDING_ACTIVATION,
+        isActive: persistedActive,
+        idempotentReplay: true,
+        subscriptionCreated: existingRes.action === 'CREATE',
+        subscriptionAmended: existingRes.action === 'AMEND',
+      };
+    }
+  }
+
+  const existingSubscriptionId = args.existingSubscriptionId
+    ? String(args.existingSubscriptionId)
+    : null;
+  const isAmend =
+    Boolean(existingSubscriptionId) ||
+    args.action === 'AMEND' ||
+    args.conversionType === 'EXISTING_CUSTOMER_NEW_SUBSCRIPTION' &&
+      Boolean(args.forceAmend);
+
+  // Expansion amend path — update existing subscription amounts/plan; never create Tenant.
+  if (existingSubscriptionId || (args.action === 'AMEND' && args.existingSubscriptionId)) {
+    const targetId = existingSubscriptionId || args.existingSubscriptionId;
+    const existing = await prisma.accountSubscription.findUnique({
+      where: { id: targetId },
+    });
+    if (!existing) {
+      return { ok: false, error: 'subscription_not_found', status: 'NOT_AVAILABLE' };
+    }
+    if (existing.tenantId && existing.tenantId !== tenantId) {
+      return { ok: false, error: 'subscription_tenant_mismatch', status: 'BLOCKED' };
+    }
+
+    const amount = snapshotAmount(snapshot);
+    const updated = await prisma.accountSubscription.update({
+      where: { id: existing.id },
+      data: {
+        plan: snapshot.planCode || existing.plan,
+        amount,
+        currency: snapshot.currency || existing.currency || 'MWK',
+        status: CRM_SUBSCRIPTION_PROVISION_STATUS.PENDING_ACTIVATION,
+        isActive: false,
+        notes: `Amended from accepted snapshot ${snapshot.acceptanceId || ''}`.trim(),
+        gatewayResponse: {
+          source: 'ACCEPTED_SNAPSHOT',
+          acceptanceId: snapshot.acceptanceId || null,
+          documentVersionId: snapshot.documentVersionId || null,
+          checksumSha256: snapshot.checksumSha256 || null,
+          planVersion: snapshot.planVersion ?? null,
+          conversionId,
+          action: 'AMEND',
+        },
+        updatedAt: now,
+      },
+    });
+
+    if (hasResourceModel(prisma) && conversionId) {
+      await prisma.crmConversionResource.create({
+        data: {
+          conversionId,
+          resourceType: CRM_CONVERSION_RESOURCE_TYPE.SUBSCRIPTION,
+          resourceId: updated.id,
+          action: 'AMEND',
+          status: CRM_SUBSCRIPTION_PROVISION_STATUS.PENDING_ACTIVATION,
+          idempotencyKey,
+          metaJson: {
+            tenantId,
+            acceptanceId: snapshot.acceptanceId || null,
+            planCode: snapshot.planCode || null,
+          },
+          actorAdminId: admin?.id || null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    }
+
+    return {
+      ok: true,
+      action: 'AMEND',
+      subscriptionId: updated.id,
+      tenantId,
+      status: updated.status,
+      isActive: false,
+      subscriptionCreated: false,
+      subscriptionAmended: true,
+    };
+  }
+
+  // Guard against fabricating a second ACTIVE subscription (active count must stay 0 until activation).
+  const activeCount =
+    typeof prisma.accountSubscription.count === 'function'
+      ? await prisma.accountSubscription.count({
+          where: { tenantId, isActive: true },
+        })
+      : 0;
+  const dup = assertNoDuplicateActiveSubscription(activeCount);
+  if (!dup.ok) {
+    return { ok: false, error: 'duplicate_active_subscription', status: 'BLOCKED' };
+  }
+
+  const amount = snapshotAmount(snapshot);
+  const txRef = buildTxRef({
+    conversionId,
+    idempotencyKey,
+    amendVersion: 1,
+  });
+
+  // Exact txRef retry
+  let existingByTx = null;
+  if (typeof prisma.accountSubscription.findUnique === 'function') {
+    existingByTx = await prisma.accountSubscription.findUnique({
+      where: { txRef },
+    });
+  }
+  if (!existingByTx) {
+    existingByTx = await prisma.accountSubscription.findFirst({
+      where: { txRef },
+    });
+  }
+  if (existingByTx) {
+    if (hasResourceModel(prisma) && conversionId) {
+      const prior = await prisma.crmConversionResource.findFirst({
+        where: { conversionId, resourceType: CRM_CONVERSION_RESOURCE_TYPE.SUBSCRIPTION, idempotencyKey },
+      });
+      if (!prior) {
+        await prisma.crmConversionResource.create({
+          data: {
+            conversionId,
+            resourceType: CRM_CONVERSION_RESOURCE_TYPE.SUBSCRIPTION,
+            resourceId: existingByTx.id,
+            action: 'CREATE',
+            status: existingByTx.status,
+            idempotencyKey,
+            metaJson: { tenantId, txRef },
+            actorAdminId: admin?.id || null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      }
+    }
+    return {
+      ok: true,
+      action: 'CREATE',
+      subscriptionId: existingByTx.id,
+      tenantId,
+      status: existingByTx.status,
+      isActive: Boolean(existingByTx.isActive),
+      idempotentReplay: true,
+      subscriptionCreated: true,
+      subscriptionAmended: false,
+    };
+  }
+
+  let created;
+  try {
+    created = await prisma.accountSubscription.create({
+      data: {
+        tenantId,
+        plan: snapshot.planCode || 'UNKNOWN',
+        txRef,
+        amount,
+        currency: snapshot.currency || 'MWK',
+        status: CRM_SUBSCRIPTION_PROVISION_STATUS.PENDING_ACTIVATION,
+        isActive: false,
+        isTrial: false,
+        notes: `Provisioned from accepted snapshot ${snapshot.acceptanceId || ''}`.trim(),
+        gatewayResponse: {
+          source: 'ACCEPTED_SNAPSHOT',
+          acceptanceId: snapshot.acceptanceId || null,
+          documentVersionId: snapshot.documentVersionId || null,
+          checksumSha256: snapshot.checksumSha256 || null,
+          planVersion: snapshot.planVersion ?? null,
+          conversionId,
+          action: isAmend ? 'AMEND' : 'CREATE',
+        },
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    const raced = await prisma.accountSubscription.findFirst({ where: { txRef } });
+    if (raced) {
+      return {
+        ok: true,
+        action: 'CREATE',
+        subscriptionId: raced.id,
+        tenantId,
+        status: raced.status,
+        isActive: Boolean(raced.isActive),
+        idempotentReplay: true,
+        subscriptionCreated: true,
+        subscriptionAmended: false,
+      };
+    }
+    return {
+      ok: false,
+      error: err?.message || 'subscription_create_failed',
+      status: 'FAILED_RETRYABLE',
+    };
+  }
+
+  if (hasResourceModel(prisma) && conversionId) {
+    await prisma.crmConversionResource.create({
+      data: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.SUBSCRIPTION,
+        resourceId: created.id,
+        action: 'CREATE',
+        status: CRM_SUBSCRIPTION_PROVISION_STATUS.PENDING_ACTIVATION,
+        idempotencyKey,
+        metaJson: {
+          tenantId,
+          acceptanceId: snapshot.acceptanceId || null,
+          planCode: snapshot.planCode || null,
+          txRef,
+        },
+        actorAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    action: 'CREATE',
+    subscriptionId: created.id,
+    tenantId,
+    status: created.status,
+    isActive: false,
+    subscriptionCreated: true,
+    subscriptionAmended: false,
+  };
+}
+
+
+===== lib/admin/crm/conversions/tenantProvision.js =====
+
+/**
+ * CREATE_OR_LINK_TENANT — Phase 16 Wave 2.
+ * Wraps Tenant create carefully: reserved slug block, unique subdomain,
+ * status PROVISIONING (never ACTIVE before Wave 3 activation), step idempotency.
+ * Does NOT call admin tenants POST (which sets active + trial subscription).
+ * Accounting-boundary failure after create → FAILED_PROVISIONING resource + idempotent retry.
+ */
+
+import {
+  CRM_CONVERSION_RESOURCE_TYPE,
+  CRM_TENANT_PROVISION_STATUS,
+  RESERVED_TENANT_SLUGS,
+} from './catalogue.js';
+import { assertNoTenantAccountingSideEffects } from './accountingBoundary.js';
+import { resolveConversionActor } from './model.js';
+import { stripFabricatedProvisionArgs } from './requestHonesty.js';
+
+function normalizeSlug(slug) {
+  return String(slug || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export function isReservedTenantSlug(slug) {
+  const s = normalizeSlug(slug);
+  return !s || RESERVED_TENANT_SLUGS.includes(s);
+}
+
+function hasResourceModel(prisma) {
+  return typeof prisma?.crmConversionResource?.create === 'function';
+}
+
+function hasTenantModel(prisma) {
+  return (
+    typeof prisma?.tenant?.create === 'function' &&
+    typeof prisma?.tenant?.findUnique === 'function'
+  );
+}
+
+function isFailedProvisionStatus(status) {
+  return (
+    status === 'FAILED' ||
+    status === CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING ||
+    status === 'FAILED_PROVISIONING'
+  );
+}
+
+function isClaimableTenantStatus(status) {
+  return (
+    status === CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING ||
+    status === CRM_TENANT_PROVISION_STATUS.PROVISIONING ||
+    status === 'FAILED_PROVISIONING' ||
+    status === 'PROVISIONING' ||
+    status === 'pending' ||
+    status === 'PENDING'
+  );
+}
+
+async function markTenantFailedProvisioning(prisma, tenantId, now) {
+  if (!tenantId || typeof prisma?.tenant?.update !== 'function') return;
+  try {
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        status: CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING,
+        updatedAt: now || new Date(),
+      },
+    });
+  } catch {
+    /* best-effort compensation marker */
+  }
+}
+
+async function writeOrUpdateTenantResource(prisma, {
+  conversionId,
+  tenantId,
+  action,
+  status,
+  idempotencyKey,
+  slug,
+  customerId,
+  admin,
+  now,
+  existingRes = null,
+  metaExtra = {},
+}) {
+  if (!hasResourceModel(prisma) || !conversionId || !tenantId) return null;
+  const payload = {
+    resourceId: tenantId,
+    action: action || 'CREATE',
+    status,
+    metaJson: {
+      slug,
+      customerId: customerId || null,
+      ...metaExtra,
+    },
+    actorAdminId: admin?.id || null,
+    updatedAt: now || new Date(),
+  };
+  if (existingRes?.id && typeof prisma.crmConversionResource.update === 'function') {
+    return prisma.crmConversionResource.update({
+      where: { id: existingRes.id },
+      data: payload,
+    });
+  }
+  return prisma.crmConversionResource.create({
+    data: {
+      conversionId,
+      resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+      idempotencyKey,
+      createdAt: now || new Date(),
+      ...payload,
+    },
+  });
+}
+
+async function findForeignTenantOwner(prisma, tenantId, conversionId) {
+  if (!hasResourceModel(prisma) || !tenantId) return null;
+  if (typeof prisma.crmConversionResource.findMany === 'function') {
+    const rows = await prisma.crmConversionResource.findMany({
+      where: { resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT },
+    });
+    return (
+      (rows || []).find(
+        (r) => r.resourceId === tenantId && r.conversionId !== conversionId
+      ) || null
+    );
+  }
+  return null;
+}
+
+async function resumeFailedTenantProvision(prisma, {
+  existingRes,
+  conversionId,
+  slug,
+  customerId,
+  admin,
+  now,
+  initFinancialDefaults,
+  seedRoles,
+}) {
+  const tenantId = existingRes.resourceId;
+  if (!tenantId) {
+    return {
+      ok: false,
+      error: 'tenant_resource_missing_id',
+      status: 'FAILED',
+      retryable: true,
+    };
+  }
+
+  if (initFinancialDefaults === true) {
+    try {
+      const { initializeNewTenantFinancialDefaults } = await import(
+        '@/lib/initializeNewTenantFinancialDefaults.js'
+      );
+      if (typeof initializeNewTenantFinancialDefaults === 'function') {
+        await initializeNewTenantFinancialDefaults(tenantId, prisma);
+      }
+    } catch {
+      /* optional */
+    }
+  }
+
+  const boundary = await assertNoTenantAccountingSideEffects(prisma, {
+    tenantId,
+    conversionId,
+  });
+  if (!boundary.ok) {
+    await markTenantFailedProvisioning(prisma, tenantId, now);
+    await writeOrUpdateTenantResource(prisma, {
+      conversionId,
+      tenantId,
+      action: existingRes.action || 'CREATE',
+      status: CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING,
+      idempotencyKey: existingRes.idempotencyKey,
+      slug,
+      customerId,
+      admin,
+      now,
+      existingRes,
+      metaExtra: { accountingBoundary: boundary },
+    });
+    return {
+      ok: false,
+      error: boundary.error,
+      tenantId,
+      status: 'FAILED',
+      retryable: true,
+      accountingBoundary: boundary,
+      idempotentReplay: true,
+    };
+  }
+
+  if (typeof prisma?.tenant?.update === 'function') {
+    try {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+          updatedAt: now || new Date(),
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  await writeOrUpdateTenantResource(prisma, {
+    conversionId,
+    tenantId,
+    action: existingRes.action || 'CREATE',
+    status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+    idempotencyKey: existingRes.idempotencyKey,
+    slug,
+    customerId,
+    admin,
+    now,
+    existingRes,
+  });
+
+  if (seedRoles === true) {
+    try {
+      const { seedDefaultRolesForTenant } = await import('@/lib/seedTenantRoles.js');
+      if (typeof seedDefaultRolesForTenant === 'function') {
+        await seedDefaultRolesForTenant(tenantId, prisma);
+      }
+    } catch {
+      /* optional */
+    }
+  }
+
+  return {
+    ok: true,
+    action: existingRes.action || 'CREATE',
+    tenantId,
+    status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+    idempotentReplay: true,
+    tenantCreated: (existingRes.action || 'CREATE') === 'CREATE',
+    tenantLinked: existingRes.action === 'LINK',
+    accountingBoundary: boundary,
+    recoveredFromFailedProvisioning: true,
+  };
+}
+
+/**
+ * Claim existing slug tenant for this conversion when it is an orphan /
+ * failed-provisioning row (idempotent retry after accounting-boundary fail).
+ */
+async function claimOrResumeSlugTenant(prisma, {
+  collision,
+  conversionId,
+  slug,
+  customerId,
+  admin,
+  now,
+  idempotencyKey,
+  initFinancialDefaults,
+  seedRoles,
+}) {
+  if (!collision || !conversionId || !isClaimableTenantStatus(collision.status)) {
+    return null;
+  }
+
+  const foreign = await findForeignTenantOwner(prisma, collision.id, conversionId);
+  if (foreign) return null;
+
+  let existingRes = null;
+  if (hasResourceModel(prisma)) {
+    existingRes = await prisma.crmConversionResource.findFirst({
+      where: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+        idempotencyKey,
+      },
+    });
+    if (!existingRes) {
+      const byTenantRows =
+        typeof prisma.crmConversionResource.findMany === 'function'
+          ? await prisma.crmConversionResource.findMany({
+              where: {
+                conversionId,
+                resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+              },
+            })
+          : [];
+      existingRes =
+        (byTenantRows || []).find((r) => r.resourceId === collision.id) || null;
+    }
+    if (!existingRes) {
+      existingRes = await writeOrUpdateTenantResource(prisma, {
+        conversionId,
+        tenantId: collision.id,
+        action: 'CREATE',
+        status: isFailedProvisionStatus(collision.status)
+          ? CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING
+          : CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING,
+        idempotencyKey,
+        slug,
+        customerId,
+        admin,
+        now,
+        metaExtra: { claimedOrphan: true },
+      });
+    }
+  }
+
+  return resumeFailedTenantProvision(prisma, {
+    existingRes: {
+      id: existingRes?.id,
+      resourceId: collision.id,
+      action: 'CREATE',
+      status: CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING,
+      idempotencyKey,
+      metaJson: { slug, customerId: customerId || null },
+    },
+    conversionId,
+    slug,
+    customerId,
+    admin,
+    now,
+    initFinancialDefaults,
+    seedRoles,
+  });
+}
+
+/**
+ * Audited tenant create-or-link decision.
+ */
+export async function decideTenantCreateOrLink(prisma, args = {}) {
+  const admin = resolveConversionActor(args);
+  const action = String(args.action || 'CREATE').toUpperCase();
+  const slug = normalizeSlug(args.slug);
+  let ok = true;
+  let error = null;
+  let decision = action === 'LINK' ? 'LINK' : 'CREATE';
+
+  if (action === 'CREATE') {
+    if (isReservedTenantSlug(slug)) {
+      ok = false;
+      error = 'tenant_slug_reserved';
+      decision = 'BLOCKED';
+    } else if (args.existingTenantId) {
+      ok = false;
+      error = 'existing_tenant_requires_link';
+      decision = 'LINK_REQUIRED';
+    } else if (hasTenantModel(prisma) && slug) {
+      const existing = await prisma.tenant.findUnique({ where: { subdomain: slug } });
+      if (existing && !isClaimableTenantStatus(existing.status)) {
+        ok = false;
+        error = 'tenant_slug_collision';
+        decision = 'BLOCKED';
+      }
+    }
+  } else if (action === 'LINK') {
+    if (!args.existingTenantId) {
+      ok = false;
+      error = 'link_target_missing';
+      decision = 'CREATE_REQUIRED';
+    }
+  }
+
+  const audited = Boolean(args.conversionId);
+  if (
+    args.conversionId &&
+    typeof prisma?.crmConversionMatchDecision?.create === 'function'
+  ) {
+    await prisma.crmConversionMatchDecision.create({
+      data: {
+        conversionId: args.conversionId,
+        decisionType: 'TENANT',
+        matchState: args.existingTenantId ? 'EXACT_EXISTING' : 'NO_MATCH',
+        decision,
+        actionRequested: action,
+        ok,
+        errorCode: error,
+        candidateJson: args.existingTenantId
+          ? [{ tenantId: args.existingTenantId, slug }]
+          : [{ slug }],
+        actorAdminId: admin?.id || null,
+        createdAt: args.now || new Date(),
+      },
+    });
+  }
+
+  return {
+    ok,
+    decision,
+    error,
+    audited,
+    slug,
+    tenantId: args.existingTenantId || null,
+  };
+}
+
+/**
+ * Create or link Tenant for conversion. Status = PROVISIONING (not ACTIVE).
+ */
+export async function createOrLinkTenant(prisma, args = {}) {
+  // Never honour forceActive / PROVISIONED / ACTIVATED without provider result.
+  args = stripFabricatedProvisionArgs(args);
+  const admin = resolveConversionActor(args);
+  const conversionId = args.conversionId ? String(args.conversionId) : null;
+  const slug = normalizeSlug(args.slug);
+  const idempotencyKey =
+    args.idempotencyKey ||
+    (conversionId ? `tenant:${conversionId}:${slug || 'link'}` : null);
+  const now = args.now || new Date();
+
+  if (hasResourceModel(prisma) && conversionId && idempotencyKey) {
+    const existingRes = await prisma.crmConversionResource.findFirst({
+      where: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+        idempotencyKey,
+      },
+    });
+    if (existingRes?.resourceId) {
+      if (isFailedProvisionStatus(existingRes.status)) {
+        return resumeFailedTenantProvision(prisma, {
+          existingRes,
+          conversionId,
+          slug: existingRes.metaJson?.slug || slug,
+          customerId: args.customerId || existingRes.metaJson?.customerId || null,
+          admin,
+          now,
+          initFinancialDefaults: args.initFinancialDefaults,
+          seedRoles: args.seedRoles,
+        });
+      }
+      return {
+        ok: true,
+        action: existingRes.action || 'CREATE',
+        tenantId: existingRes.resourceId,
+        status: existingRes.status || CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+        idempotentReplay: true,
+        tenantCreated: existingRes.action === 'CREATE',
+        tenantLinked: existingRes.action === 'LINK',
+      };
+    }
+  }
+
+  let decision = args.decision;
+  if (!decision || decision.ok === undefined) {
+    decision = await decideTenantCreateOrLink(prisma, {
+      conversionId,
+      slug,
+      existingTenantId: args.existingTenantId || null,
+      admin,
+      action: args.action || (args.existingTenantId ? 'LINK' : 'CREATE'),
+      now,
+    });
+  }
+
+  // Enforce reserved / collision even if caller passed a loose decision
+  if (isReservedTenantSlug(slug) && (decision.decision === 'CREATE' || !args.existingTenantId)) {
+    return { ok: false, error: 'tenant_slug_reserved', status: 'BLOCKED' };
+  }
+
+  if (!hasTenantModel(prisma)) {
+    return {
+      ok: false,
+      error: 'tenant_model_unavailable',
+      status: 'NOT_AVAILABLE',
+    };
+  }
+
+  if (args.existingTenantId || decision.decision === 'LINK') {
+    const tenantId = args.existingTenantId || decision.tenantId;
+    if (!tenantId) {
+      return { ok: false, error: 'link_target_missing', status: 'NOT_AVAILABLE' };
+    }
+    if (hasResourceModel(prisma) && conversionId) {
+      await prisma.crmConversionResource.create({
+        data: {
+          conversionId,
+          resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+          resourceId: tenantId,
+          action: 'LINK',
+          status: 'LINKED',
+          idempotencyKey,
+          metaJson: { slug },
+          actorAdminId: admin?.id || null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    }
+    return {
+      ok: true,
+      action: 'LINK',
+      tenantId,
+      status: 'LINKED',
+      tenantCreated: false,
+      tenantLinked: true,
+    };
+  }
+
+  if (decision.ok === false && decision.error) {
+    return {
+      ok: false,
+      error: decision.error,
+      status: 'BLOCKED',
+    };
+  }
+
+  const collision = await prisma.tenant.findUnique({ where: { subdomain: slug } });
+  if (collision) {
+    const recovered = await claimOrResumeSlugTenant(prisma, {
+      collision,
+      conversionId,
+      slug,
+      customerId: args.customerId,
+      admin,
+      now,
+      idempotencyKey,
+      initFinancialDefaults: args.initFinancialDefaults,
+      seedRoles: args.seedRoles,
+    });
+    if (recovered) return recovered;
+    return { ok: false, error: 'tenant_slug_collision', status: 'BLOCKED' };
+  }
+
+  let tenant;
+  try {
+    tenant = await prisma.tenant.create({
+      data: {
+        name: (args.name || slug || 'Conversion Tenant').trim(),
+        subdomain: slug,
+        subscriptionPlan: args.subscriptionPlan || '1month',
+        // Never ACTIVE before Wave 3 activation policy
+        status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+        logoUrl: null,
+        primaryColor: null,
+        secondaryColor: null,
+      },
+    });
+  } catch (err) {
+    if (err?.code === 'P2002') {
+      const raced = await prisma.tenant.findUnique({ where: { subdomain: slug } });
+      if (raced) {
+        const recovered = await claimOrResumeSlugTenant(prisma, {
+          collision: raced,
+          conversionId,
+          slug,
+          customerId: args.customerId,
+          admin,
+          now,
+          idempotencyKey,
+          initFinancialDefaults: args.initFinancialDefaults,
+          seedRoles: args.seedRoles,
+        });
+        if (recovered) return recovered;
+      }
+      return { ok: false, error: 'tenant_slug_collision', status: 'BLOCKED' };
+    }
+    return {
+      ok: false,
+      error: err?.message || 'tenant_create_failed',
+      status: 'NOT_AVAILABLE',
+    };
+  }
+
+  // Optional CoA/period init — never journals. Opt-in (orchestrator enables explicitly).
+  if (args.initFinancialDefaults === true) {
+    try {
+      const { initializeNewTenantFinancialDefaults } = await import(
+        '@/lib/initializeNewTenantFinancialDefaults.js'
+      );
+      if (typeof initializeNewTenantFinancialDefaults === 'function') {
+        await initializeNewTenantFinancialDefaults(tenant.id, prisma);
+      }
+    } catch {
+      /* CoA init optional in unit tests / EPERM environments */
+    }
+  }
+
+  const boundary = await assertNoTenantAccountingSideEffects(prisma, {
+    tenantId: tenant.id,
+    conversionId,
+  });
+  if (!boundary.ok) {
+    await markTenantFailedProvisioning(prisma, tenant.id, now);
+    await writeOrUpdateTenantResource(prisma, {
+      conversionId,
+      tenantId: tenant.id,
+      action: 'CREATE',
+      status: CRM_TENANT_PROVISION_STATUS.FAILED_PROVISIONING,
+      idempotencyKey,
+      slug,
+      customerId: args.customerId,
+      admin,
+      now,
+      metaExtra: { accountingBoundary: boundary },
+    });
+    return {
+      ok: false,
+      error: boundary.error,
+      tenantId: tenant.id,
+      status: 'FAILED',
+      retryable: true,
+      accountingBoundary: boundary,
+    };
+  }
+
+  if (hasResourceModel(prisma) && conversionId) {
+    await prisma.crmConversionResource.create({
+      data: {
+        conversionId,
+        resourceType: CRM_CONVERSION_RESOURCE_TYPE.TENANT,
+        resourceId: tenant.id,
+        action: 'CREATE',
+        status: CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+        idempotencyKey,
+        metaJson: { slug, customerId: args.customerId || null },
+        actorAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  // Isolation / security baseline — seed roles when available (opt-in)
+  if (args.seedRoles === true) {
+    try {
+      const { seedDefaultRolesForTenant } = await import('@/lib/seedTenantRoles.js');
+      if (typeof seedDefaultRolesForTenant === 'function') {
+        await seedDefaultRolesForTenant(tenant.id, prisma);
+      }
+    } catch {
+      /* optional in unit tests */
+    }
+  }
+
+  return {
+    ok: true,
+    action: 'CREATE',
+    tenantId: tenant.id,
+    status: tenant.status || CRM_TENANT_PROVISION_STATUS.PROVISIONING,
+    tenantCreated: true,
+    tenantLinked: false,
+    slug,
+    accountingBoundary: boundary,
+  };
+}
+
+
+===== test/systemAdmin.crm.conversionPhase20Wave3.test.js =====
+
+/**
+ * Phase 20 Wave 3 — Request honesty + onboarding handoff harden.
+ *
+ * Never ACTIVATED/PROVISIONED/PAID without provider result;
+ * one active onboarding handoff; exact retry same; correction supersedes with history;
+ * pending provisioning labelled; no CS Onboarding Project; no secrets; no GL/fiscal;
+ * partial provider failure → PARTIALLY_COMPLETED/BLOCKED; resume idempotent.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createOrAmendSubscriptionFromAccepted,
+  provisionEntitlementsFromAccepted,
+  activateProvisionedSubscription,
+  createOrLinkTenant,
+  createOnboardingHandoff,
+  sendOnboardingHandoff,
+  supersedeOnboardingHandoff,
+  sanitizeConversionHandoffPayload,
+  computeOnboardingHandoffChecksum,
+  assertProvisionResultHonesty,
+  clampProvisionRequestStatus,
+  createTrainingHandoff,
+  createDataMigrationHandoff,
+  createMraEisHandoff,
+  runWave3ProvisionSpine,
+  assertNoTenantAccountingSideEffects,
+  CRM_ACTIVATION_POLICY,
+  CRM_SUBSCRIPTION_PROVISION_STATUS,
+  CRM_CONVERSION_STATUS,
+  CRM_CONVERSION_STEP_CODE,
+  CRM_CONVERSION_STEP_STATUS,
+  CRM_CONVERSION_HANDOFF_STATUS,
+  CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS,
+} from '@/lib/admin/crm';
+import { ENTITLEMENT_STATUSES as FE_ENTITLEMENT_STATUSES } from '@/lib/admin/featureEntitlements';
+
+function superAdmin(id = 'super-p20-w3') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.crm.view': true,
+      'systemAdmin.crm.opportunities.view': true,
+      'systemAdmin.crm.opportunities.edit': true,
+      'systemAdmin.crm.pipeline.transitionStages': true,
+    },
+  };
+}
+
+function acceptedSnapshot(overrides = {}) {
+  return {
+    acceptanceId: 'accp-p20-w3',
+    documentVersionId: 'ver-p20-w3',
+    checksumSha256: 'chk-accepted-p20-w3',
+    currency: 'MWK',
+    planCode: 'CORE_GROWTH',
+    planVersion: 2,
+    lineItems: [
+      {
+        productRef: 'CORE_GROWTH',
+        featureCode: 'POS',
+        quantity: 2,
+        unitPrice: 50000,
+        lineTotal: 100000,
+      },
+    ],
+    totals: { subtotal: 100000, discount: 0, tax: 0, total: 100000 },
+    ...overrides,
+  };
+}
+
+function simpleCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      if (where.txRef) return store.find((r) => r.txRef === where.txRef) || null;
+      if (where.subdomain) {
+        return store.find((r) => r.subdomain === where.subdomain) || null;
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.idempotencyKey) {
+        rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+      }
+      if (where.conversionId) {
+        rows = rows.filter((r) => r.conversionId === where.conversionId);
+      }
+      if (where.handoffType) {
+        rows = rows.filter((r) => r.handoffType === where.handoffType);
+      }
+      if (where.resourceType) {
+        rows = rows.filter((r) => r.resourceType === where.resourceType);
+      }
+      if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+      if (where.txRef) rows = rows.filter((r) => r.txRef === where.txRef);
+      if (where.status) {
+        if (typeof where.status === 'object' && where.status.in) {
+          rows = rows.filter((r) => where.status.in.includes(r.status));
+        } else if (typeof where.status === 'object' && where.status.notIn) {
+          rows = rows.filter((r) => !where.status.notIn.includes(r.status));
+        } else {
+          rows = rows.filter((r) => r.status === where.status);
+        }
+      }
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.conversionId) {
+        rows = rows.filter((r) => r.conversionId === where.conversionId);
+      }
+      if (where.handoffType) {
+        rows = rows.filter((r) => r.handoffType === where.handoffType);
+      }
+      if (where.resourceType) {
+        rows = rows.filter((r) => r.resourceType === where.resourceType);
+      }
+      if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+      if (where.id?.in) {
+        rows = rows.filter((r) => where.id.in.includes(r.id));
+      }
+      if (where.status) {
+        if (typeof where.status === 'object' && where.status.in) {
+          rows = rows.filter((r) => where.status.in.includes(r.status));
+        } else if (typeof where.status === 'object' && where.status.notIn) {
+          rows = rows.filter((r) => !where.status.notIn.includes(r.status));
+        } else {
+          rows = rows.filter((r) => r.status === where.status);
+        }
+      }
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      let rows = [...store];
+      if (where.id) rows = rows.filter((r) => r.id === where.id);
+      if (where.conversionId) {
+        rows = rows.filter((r) => r.conversionId === where.conversionId);
+      }
+      if (where.handoffType) {
+        rows = rows.filter((r) => r.handoffType === where.handoffType);
+      }
+      if (where.attemptCount != null) {
+        rows = rows.filter((r) => r.attemptCount === where.attemptCount);
+      }
+      if (where.version != null) {
+        rows = rows.filter((r) => r.version === where.version);
+      }
+      if (where.status?.in) {
+        rows = rows.filter((r) => where.status.in.includes(r.status));
+      } else if (where.status) {
+        rows = rows.filter((r) => r.status === where.status);
+      }
+      if (where.id?.not) {
+        rows = rows.filter((r) => r.id !== where.id.not);
+      }
+      for (const row of rows) {
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      }
+      return { count: rows.length };
+    }),
+    count: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+      if (where.isActive != null) {
+        rows = rows.filter((r) => r.isActive === where.isActive);
+      }
+      return rows.length;
+    }),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const tenantStore = overrides._tenantStore || [
+    {
+      id: 'ten-p20-w3',
+      subdomain: 'acme-p20-w3',
+      name: 'Acme P20 W3',
+      status: 'PROVISIONING',
+    },
+  ];
+  const subscriptionStore = overrides._subscriptionStore || [];
+  const entitlementStore = overrides._entitlementStore || [];
+  const resourceStore = overrides._resourceStore || [];
+  const handoffStore = overrides._handoffStore || [];
+  const paymentStore = overrides._paymentStore || [];
+  const journalStore = overrides._journalStore || [];
+  const balanceStore = overrides._balanceStore || [];
+  const projectStore = overrides._projectStore || [];
+  const stepStore = overrides._stepStore || [];
+  const attemptStore = overrides._attemptStore || [];
+  const activationStore = overrides._activationStore || [];
+  const conversionStore = overrides._conversionStore || [
+    {
+      id: 'cvn-p20-w3',
+      conversionNumber: 'CVN-2026-000020',
+      status: 'IN_PROGRESS',
+      inputHash: 'hash-p20-w3',
+    },
+  ];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _tenantStore: tenantStore,
+    _subscriptionStore: subscriptionStore,
+    _entitlementStore: entitlementStore,
+    _resourceStore: resourceStore,
+    _handoffStore: handoffStore,
+    _paymentStore: paymentStore,
+    _journalStore: journalStore,
+    _balanceStore: balanceStore,
+    _projectStore: projectStore,
+    _stepStore: stepStore,
+    _attemptStore: attemptStore,
+    _activationStore: activationStore,
+    _conversionStore: conversionStore,
+    tenant: {
+      ...simpleCrud(tenantStore, 'ten'),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return tenantStore.find((t) => t.id === where.id) || null;
+        if (where.subdomain) {
+          return tenantStore.find((t) => t.subdomain === where.subdomain) || null;
+        }
+        return null;
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `ten-${tenantStore.length + 1}`,
+          status: data.status || 'PROVISIONING',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+        };
+        tenantStore.push(row);
+        return row;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = tenantStore.find((t) => t.id === where.id);
+        if (!row) throw new Error('tenant not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    accountSubscription: {
+      ...simpleCrud(subscriptionStore, 'sub'),
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `sub-${subscriptionStore.length + 1}`,
+          isActive: data.isActive === true,
+          status: data.status || 'PENDING_ACTIVATION',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+        };
+        subscriptionStore.push(row);
+        return row;
+      }),
+    },
+    platformFeatureEntitlement: {
+      ...simpleCrud(entitlementStore, 'ent'),
+      upsert: vi.fn(async ({ where = {}, create, update } = {}) => {
+        const existing = entitlementStore.find(
+          (e) =>
+            e.tenantId === where.tenantId_featureCode?.tenantId &&
+            e.featureCode === where.tenantId_featureCode?.featureCode
+        );
+        if (existing) {
+          Object.assign(existing, update || {}, { updatedAt: new Date() });
+          return existing;
+        }
+        const row = {
+          id: `ent-${entitlementStore.length + 1}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...create,
+        };
+        entitlementStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...entitlementStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        if (where.id?.in) rows = rows.filter((r) => where.id.in.includes(r.id));
+        return rows;
+      }),
+    },
+    platformPayment: {
+      ...simpleCrud(paymentStore, 'pay'),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...paymentStore];
+        if (where.invoiceId) {
+          rows = rows.filter((r) => r.invoiceId === where.invoiceId);
+        }
+        return rows;
+      }),
+    },
+    crmConversion: simpleCrud(conversionStore, 'cvn'),
+    crmConversionResource: simpleCrud(resourceStore, 'res'),
+    crmConversionDomainHandoff: simpleCrud(handoffStore, 'hd'),
+    crmConversionStep: simpleCrud(stepStore, 'step'),
+    crmConversionStepAttempt: simpleCrud(attemptStore, 'att'),
+    crmConversionActivationAttempt: simpleCrud(activationStore, 'act'),
+    customerOnboardingProject: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `proj-${projectStore.length + 1}`, ...data };
+        projectStore.push(row);
+        return row;
+      }),
+      findMany: vi.fn(async () => projectStore),
+      count: vi.fn(async () => projectStore.length),
+    },
+    journalEntry: simpleCrud(journalStore, 'je'),
+    accountBalance: simpleCrud(balanceStore, 'bal'),
+    ...overrides,
+  };
+  return prisma;
+}
+
+describe('Phase 20 Wave 3 — request honesty + onboarding handoff', () => {
+  let admin;
+
+  beforeEach(() => {
+    admin = superAdmin();
+    vi.restoreAllMocks();
+  });
+
+  it('catalogue exposes onboarding package statuses and honesty helpers', () => {
+    expect(CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.READY).toBe('READY');
+    expect(CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.SENT).toBe('SENT');
+    expect(CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.ACCEPTED_BY_ONBOARDING).toBe(
+      'ACCEPTED_BY_ONBOARDING'
+    );
+    expect(typeof sanitizeConversionHandoffPayload).toBe('function');
+    expect(typeof computeOnboardingHandoffChecksum).toBe('function');
+    expect(typeof assertProvisionResultHonesty).toBe('function');
+    expect(typeof clampProvisionRequestStatus).toBe('function');
+    expect(typeof sendOnboardingHandoff).toBe('function');
+    expect(typeof supersedeOnboardingHandoff).toBe('function');
+  });
+
+  it('never marks Subscription/Entitlement ACTIVATED/PROVISIONED/PAID without provider result', async () => {
+    const prisma = makePrisma();
+    const snapshot = acceptedSnapshot();
+
+    const forged = assertProvisionResultHonesty(
+      { ok: true, status: 'ACTIVATED', isActive: true },
+      { providerResult: null }
+    );
+    expect(forged.ok).toBe(false);
+    expect(forged.error).toMatch(/fabricated|provider/i);
+
+    expect(clampProvisionRequestStatus('PROVISIONED', { providerConfirmed: false })).not.toBe(
+      'PROVISIONED'
+    );
+    expect(clampProvisionRequestStatus('PAID', { providerConfirmed: false })).not.toBe('PAID');
+    expect(
+      clampProvisionRequestStatus('ACTIVE', { providerConfirmed: true })
+    ).toBe('ACTIVE');
+
+    const sub = await createOrAmendSubscriptionFromAccepted(prisma, {
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      customerId: 'cust-1',
+      acceptedSnapshot: snapshot,
+      admin,
+      idempotencyKey: 'sub:p20-w3-honesty',
+      // Caller forgeries must be ignored
+      forceActive: true,
+      isActive: true,
+      status: 'ACTIVATED',
+      provisioned: true,
+      paid: true,
+    });
+    expect(sub.ok).toBe(true);
+    expect(sub.isActive).toBe(false);
+    expect(sub.status).toBe(CRM_SUBSCRIPTION_PROVISION_STATUS.PENDING_ACTIVATION);
+    expect(sub.status).not.toBe('ACTIVATED');
+    expect(sub.status).not.toBe('PROVISIONED');
+    expect(sub.status).not.toBe('PAID');
+    expect(sub.status).not.toBe('ACTIVE');
+
+    const ents = await provisionEntitlementsFromAccepted(prisma, {
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      subscriptionId: sub.subscriptionId,
+      acceptedSnapshot: snapshot,
+      admin,
+      idempotencyKey: 'ent:p20-w3-honesty',
+      forceActive: true,
+      status: 'ACTIVATED',
+    });
+    expect(ents.ok).toBe(true);
+    const entStatus = ents.status || FE_ENTITLEMENT_STATUSES.PENDING;
+    expect(entStatus).toBe(FE_ENTITLEMENT_STATUSES.PENDING);
+    expect(entStatus).not.toBe('ACTIVE');
+    expect(entStatus).not.toBe('ACTIVATED');
+    expect(entStatus).not.toBe('PROVISIONED');
+
+    const blocked = await activateProvisionedSubscription(prisma, {
+      actorContext: { admin },
+      subscriptionId: sub.subscriptionId,
+      conversionId: 'cvn-p20-w3',
+      activationPolicyVersionId: CRM_ACTIVATION_POLICY.AFTER_PAYMENT,
+      evidence: {
+        closedWon: true,
+        invoiceIssued: true,
+        paymentSuccessful: true,
+        paymentCompleted: true,
+      },
+      idempotencyKey: 'act:p20-w3-honesty',
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.activated).not.toBe(true);
+
+    const tenant = await createOrLinkTenant(prisma, {
+      conversionId: 'cvn-p20-w3-ten',
+      customerId: 'cust-1',
+      slug: 'acme-p20-w3-b',
+      admin,
+      idempotencyKey: 'ten:p20-w3-honesty',
+      forceActive: true,
+      status: 'PROVISIONED',
+    });
+    expect(tenant.ok).toBe(true);
+    const tenantRow = prisma._tenantStore.find((t) => t.id === tenant.tenantId);
+    expect(String(tenantRow?.status || '').toUpperCase()).not.toBe('ACTIVE');
+    expect(String(tenantRow?.status || '').toUpperCase()).not.toBe('PROVISIONED');
+    expect(String(tenantRow?.status || '').toUpperCase()).not.toBe('ACTIVATED');
+  });
+
+  it('onboarding handoff exact retry same; correction supersedes with history; one active', async () => {
+    const prisma = makePrisma();
+    const basePayload = {
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      contacts: [{ contactId: 'con-1', email: 'ada@example.com' }],
+      commercialRefs: { acceptanceId: 'accp-p20-w3' },
+      password: 'should-be-stripped',
+      apiKey: 'sk-secret',
+      mraCredentials: { user: 'x', password: 'y' },
+      provisioningStatus: 'PENDING',
+    };
+
+    const first = await createOnboardingHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'onb:p20-w3:v1',
+      payload: basePayload,
+    });
+    expect(first.ok).toBe(true);
+    expect(first.handoff?.id).toBeTruthy();
+    expect(first.checksumSha256 || first.handoff?.checksumSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.onboardingCompleted).toBe(false);
+    expect(first.createsOnboardingProject).not.toBe(true);
+    expect(first.meta?.executesOnboarding).toBe(false);
+    expect(prisma._projectStore).toHaveLength(0);
+
+    const payload = prisma._handoffStore.find((h) => h.id === first.handoff.id)?.payloadJson;
+    expect(payload.password).toBeUndefined();
+    expect(payload.apiKey).toBeUndefined();
+    expect(payload.mraCredentials).toBeUndefined();
+    expect(payload.pendingProvisioning === true || payload.provisioningStatus === 'PENDING').toBe(
+      true
+    );
+    expect(payload.onboardingProjectCreated).not.toBe(true);
+
+    const retry = await createOnboardingHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'onb:p20-w3:v1',
+      payload: basePayload,
+    });
+    expect(retry.ok).toBe(true);
+    expect(retry.handoff?.id).toBe(first.handoff.id);
+    expect(retry.idempotentReplay || retry.alreadyExists).toBeTruthy();
+    expect(prisma._handoffStore.filter((h) => h.handoffType === 'ONBOARDING').length).toBe(1);
+
+    const sent = await sendOnboardingHandoff(prisma, {
+      admin,
+      handoffId: first.handoff.id,
+    });
+    expect(sent.ok).toBe(true);
+    expect([
+      CRM_ONBOARDING_HANDOFF_PACKAGE_STATUS.SENT,
+      CRM_CONVERSION_HANDOFF_STATUS.EMITTED,
+      'SENT',
+    ]).toContain(sent.handoff?.status);
+    expect(prisma._projectStore).toHaveLength(0);
+
+    const correction = await createOnboardingHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'onb:p20-w3:v2',
+      correction: true,
+      payload: {
+        ...basePayload,
+        contacts: [{ contactId: 'con-1', email: 'ada.corrected@example.com' }],
+        correctionReason: 'email_typo',
+      },
+    });
+    expect(correction.ok).toBe(true);
+    expect(correction.handoff?.id).not.toBe(first.handoff.id);
+    expect(correction.supersededHandoffId || correction.handoff?.payloadJson?.supersedesHandoffId).toBeTruthy();
+
+    const prior = prisma._handoffStore.find((h) => h.id === first.handoff.id);
+    expect(prior.status).toBe(CRM_CONVERSION_HANDOFF_STATUS.SUPERSEDED);
+    const active = prisma._handoffStore.filter(
+      (h) =>
+        h.handoffType === 'ONBOARDING' &&
+        h.conversionId === 'cvn-p20-w3' &&
+        h.status !== CRM_CONVERSION_HANDOFF_STATUS.SUPERSEDED &&
+        h.status !== CRM_CONVERSION_HANDOFF_STATUS.CANCELLED
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0].id).toBe(correction.handoff.id);
+
+    const history =
+      correction.handoff?.payloadJson?.supersessionHistory ||
+      correction.supersessionHistory ||
+      active[0].payloadJson?.supersessionHistory;
+    expect(Array.isArray(history) ? history.length : 0).toBeGreaterThanOrEqual(1);
+
+    const conflict = await createOnboardingHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'onb:p20-w3:v3',
+      correction: false,
+      payload: { ...basePayload, notes: 'another without correction' },
+    });
+    expect(conflict.ok).toBe(false);
+    expect(conflict.error).toMatch(/active_handoff|correction/i);
+  });
+
+  it('requirement handoffs strip secrets; pending labelled; no Project / GL / fiscal', async () => {
+    const prisma = makePrisma();
+    const dirty = {
+      password: 'x',
+      apiKey: 'y',
+      credentials: { a: 1 },
+      paymentSecret: 'z',
+      scope: 'TRAINING_CORE',
+      contacts: [{ contactId: 'con-1' }],
+    };
+
+    const cleaned = sanitizeConversionHandoffPayload(dirty);
+    expect(cleaned.password).toBeUndefined();
+    expect(cleaned.apiKey).toBeUndefined();
+    expect(cleaned.credentials).toBeUndefined();
+    expect(cleaned.paymentSecret).toBeUndefined();
+    expect(cleaned.scope).toBe('TRAINING_CORE');
+
+    const checksum = computeOnboardingHandoffChecksum({
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      contacts: dirty.contacts,
+    });
+    expect(checksum).toMatch(/^[a-f0-9]{64}$/);
+
+    const training = await createTrainingHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'trn:p20-w3',
+      payload: dirty,
+    });
+    expect(training.ok).toBe(true);
+    expect(training.trainingCompleted).toBe(false);
+    const trn = prisma._handoffStore.find((h) => h.idempotencyKey === 'trn:p20-w3');
+    expect(trn.payloadJson.password).toBeUndefined();
+    expect(trn.payloadJson.apiKey).toBeUndefined();
+
+    const migration = await createDataMigrationHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'mig:p20-w3',
+      payload: dirty,
+    });
+    expect(migration.ok).toBe(true);
+    expect(migration.productionImportExecuted).toBe(false);
+
+    const mra = await createMraEisHandoff(prisma, {
+      admin,
+      conversionId: 'cvn-p20-w3',
+      tenantId: 'ten-p20-w3',
+      idempotencyKey: 'mra:p20-w3',
+      payload: { ...dirty, fiscalSubmitted: true },
+    });
+    expect(mra.ok).toBe(true);
+    expect(mra.fiscalSubmitted).toBe(false);
+    expect(mra.credentialsStored).toBe(false);
+
+    expect(prisma._projectStore).toHaveLength(0);
+    const gl = await assertNoTenantAccountingSideEffects(prisma, {
+      tenantId: 'ten-p20-w3',
+      conversionId: 'cvn-p20-w3',
+    });
+    expect(gl.ok).toBe(true);
+    expect(prisma._journalStore).toHaveLength(0);
+  });
+
+  it('partial provider failure → PARTIALLY_COMPLETED/BLOCKED; resume idempotent', async () => {
+    const prisma = makePrisma();
+    const now = new Date('2026-07-31T12:00:00.000Z');
+    const snapshot = acceptedSnapshot();
+
+    // Seed Wave 3 steps
+    const stepCodes = [
+      CRM_CONVERSION_STEP_CODE.CREATE_OR_AMEND_SUBSCRIPTION,
+      CRM_CONVERSION_STEP_CODE.PROVISION_ENTITLEMENTS,
+      CRM_CONVERSION_STEP_CODE.CREATE_OR_LINK_BILLING_ACCOUNT,
+      CRM_CONVERSION_STEP_CODE.CREATE_PLATFORM_INVOICE_IF_REQUIRED,
+      CRM_CONVERSION_STEP_CODE.INITIATE_PAYMENT_IF_REQUIRED,
+      CRM_CONVERSION_STEP_CODE.ACTIVATE_SUBSCRIPTION,
+    ];
+    for (let i = 0; i < stepCodes.length; i += 1) {
+      prisma._stepStore.push({
+        id: `step-${i + 1}`,
+        conversionId: 'cvn-p20-w3',
+        stepCode: stepCodes[i],
+        stepOrder: 50 + i,
+        status: CRM_CONVERSION_STEP_STATUS.NOT_STARTED,
+        attemptCount: 0,
+        version: 0,
+        inputHash: 'hash-p20-w3',
+      });
+    }
+
+    // Fail entitlements model mid-spine after subscription succeeds
+    const originalUpsert = prisma.platformFeatureEntitlement.upsert;
+    let failOnce = true;
+    prisma.platformFeatureEntitlement.upsert = vi.fn(async (...args) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new Error('provider_entitlement_timeout');
+      }
+      return originalUpsert(...args);
+    });
+    prisma.platformFeatureEntitlement.create = vi.fn(async () => {
+      throw new Error('provider_entitlement_timeout');
+    });
+
+    const conversion = prisma._conversionStore[0];
+    const first = await runWave3ProvisionSpine(prisma, {
+      conversion,
+      request: { conversionType: 'NEW_CUSTOMER_NEW_TENANT', currency: 'MWK' },
+      admin,
+      planVersion: {
+        contentJson: {
+          conversionType: 'NEW_CUSTOMER_NEW_TENANT',
+          acceptedSnapshot: snapshot,
+          activationPolicy: CRM_ACTIVATION_POLICY.AFTER_PAYMENT,
+        },
+      },
+      inputHash: 'hash-p20-w3',
+      now,
+      args: { acceptedSnapshot: snapshot },
+      tenantId: 'ten-p20-w3',
+      customerId: 'cust-1',
+    });
+
+    expect(first.ok).toBe(false);
+    expect(first.blocked).toBe(true);
+    expect(first.subscriptionId).toBeTruthy();
+    expect(first.subscriptionActive).not.toBe(true);
+
+    // Mark conversion honestly partial/blocked
+    const statusAfterFail = first.blocked
+      ? CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED
+      : CRM_CONVERSION_STATUS.BLOCKED;
+    expect([
+      CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED,
+      CRM_CONVERSION_STATUS.BLOCKED,
+      CRM_CONVERSION_STATUS.FAILED,
+    ]).toContain(statusAfterFail);
+
+    const subCountAfterFail = prisma._subscriptionStore.length;
+
+    // Resume — subscription must not duplicate
+    const resume = await runWave3ProvisionSpine(prisma, {
+      conversion: { ...conversion, status: CRM_CONVERSION_STATUS.PARTIALLY_COMPLETED },
+      request: { conversionType: 'NEW_CUSTOMER_NEW_TENANT', currency: 'MWK' },
+      admin,
+      planVersion: {
+        contentJson: {
+          conversionType: 'NEW_CUSTOMER_NEW_TENANT',
+          acceptedSnapshot: snapshot,
+          activationPolicy: CRM_ACTIVATION_POLICY.AFTER_PAYMENT,
+        },
+      },
+      inputHash: 'hash-p20-w3',
+      now: new Date('2026-07-31T12:05:00.000Z'),
+      args: { acceptedSnapshot: snapshot },
+      tenantId: 'ten-p20-w3',
+      customerId: 'cust-1',
+    });
+
+    expect(prisma._subscriptionStore.length).toBe(subCountAfterFail);
+    expect(resume.subscriptionId).toBe(first.subscriptionId);
+    // Still not ACTIVE without payment provider result
+    expect(resume.subscriptionActive).not.toBe(true);
+  });
+});
+

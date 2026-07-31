@@ -1,8 +1,56 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { calculateSubscriptionExpiry } from '@/lib/subscriptionConfig';
+import {
+  PLAN_CATEGORY,
+  categoryForPlanCode,
+  planCodesInCategory,
+} from '@/lib/admin/mraEisPlans';
+import { ensurePaychanguPlatformLedger } from '@/lib/admin/paychanguPlatformLedger';
+import { requestEntitlementPendingFromSubscription } from '@/lib/mraEis/application/entitlementService';
 
 const appUrl = () => process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+async function recordPlatformLedgerIdempotent({
+  tenantId,
+  subscriptionId,
+  periodStart,
+  periodEnd,
+  amount,
+  currency,
+  planCode,
+  gatewayReference,
+  method,
+}) {
+  if (!tenantId || !subscriptionId || !gatewayReference) return null;
+  try {
+    const result = await ensurePaychanguPlatformLedger(prisma, {
+      tenantId,
+      subscriptionId,
+      periodStart,
+      periodEnd,
+      amount,
+      currency,
+      planCode,
+      gatewayReference,
+      method,
+    });
+    if (!result.ok) {
+      console.warn('[PayChangu Callback] Platform ledger skipped:', result.error);
+      return null;
+    }
+    console.log('[PayChangu Callback] Platform ledger:', {
+      invoiceId: result.invoice?.id,
+      paymentId: result.payment?.id,
+      createdInvoice: result.createdInvoice,
+      createdPayment: result.createdPayment,
+    });
+    return result;
+  } catch (e) {
+    console.warn('[PayChangu Callback] Platform ledger write skipped:', e?.message || e);
+    return null;
+  }
+}
 
 export async function GET(request) {
   try {
@@ -127,24 +175,45 @@ export async function GET(request) {
         data: { isActive: true },
       });
 
+      if (branchSub.tenantId) {
+        await recordPlatformLedgerIdempotent({
+          tenantId: branchSub.tenantId,
+          subscriptionId: branchSub.id,
+          periodStart: completedAt,
+          periodEnd: expiresAt,
+          amount: paidAmount,
+          currency: paidCurrency || 'MWK',
+          planCode: plan,
+          gatewayReference: tx_ref,
+          method: payment.authorization?.channel || 'PayChangu',
+        });
+      }
+
       console.log('[PayChangu Callback] Branch subscription activated:', branchSub.id);
       return NextResponse.redirect(`${appUrl()}/dashboard?subscription=branch`);
     }
 
     // --- Tenant (account) subscription activation ---
     const plan = tenantSub.plan || '1month';
+    const category = categoryForPlanCode(plan);
+    const familyCodes = planCodesInCategory(category);
     const expiresAt = calculateSubscriptionExpiry(plan, completedAt);
 
-    // Deactivate other active subscriptions for this tenant
+    // Coexistence: only deactivate other actives in the same product family
     if (tenantSub.tenantId) {
       await prisma.accountSubscription.updateMany({
-        where: { tenantId: tenantSub.tenantId, isActive: true, id: { not: tenantSub.id } },
+        where: {
+          tenantId: tenantSub.tenantId,
+          isActive: true,
+          id: { not: tenantSub.id },
+          plan: { in: familyCodes },
+        },
         data: { isActive: false, status: 'Expired' },
       });
     }
 
     // Activate the subscription
-    await prisma.accountSubscription.update({
+    const activatedSub = await prisma.accountSubscription.update({
       where: { id: tenantSub.id },
       data: {
         status: 'Completed',
@@ -157,24 +226,77 @@ export async function GET(request) {
         currency: paidCurrency || 'MWK',
         paymentMethod: payment.authorization?.channel || 'PayChangu',
         gatewayResponse: data,
-        notes: `Paid via PayChangu — ${plan} plan, expires ${expiresAt.toISOString().split('T')[0]}`,
+        notes: `Paid via PayChangu — ${plan} plan (${category}), expires ${expiresAt.toISOString().split('T')[0]}`,
       },
     });
 
-    // Also update the tenant's subscriptionPlan field
     try {
-      await prisma.tenant.update({
-        where: { id: tenantSub.tenantId },
-        data: { subscriptionPlan: plan, status: 'active' },
-      });
-    } catch (tenantUpdateErr) {
-      console.warn('[PayChangu Callback] Could not update tenant plan:', tenantUpdateErr.message);
+      const { emitSubscriptionStarted } = await import('@/lib/admin/analytics/emit');
+      await emitSubscriptionStarted(prisma, { subscription: activatedSub, renewed: false });
+    } catch (e) {
+      console.warn('[PayChangu Callback] analytics subscription emit skipped:', e?.message || e);
+    }
+
+    await recordPlatformLedgerIdempotent({
+      tenantId: tenantSub.tenantId,
+      subscriptionId: tenantSub.id,
+      periodStart: completedAt,
+      periodEnd: expiresAt,
+      amount: paidAmount,
+      currency: paidCurrency || 'MWK',
+      planCode: plan,
+      gatewayReference: tx_ref,
+      method: payment.authorization?.channel || 'PayChangu',
+    });
+
+    // Core plan denormalized field only — do not overwrite with EIS SKU
+    if (category === PLAN_CATEGORY.CORE) {
+      try {
+        await prisma.tenant.update({
+          where: { id: tenantSub.tenantId },
+          data: { subscriptionPlan: plan, status: 'active' },
+        });
+      } catch (tenantUpdateErr) {
+        console.warn('[PayChangu Callback] Could not update tenant plan:', tenantUpdateErr.message);
+      }
+    } else {
+      try {
+        await prisma.tenant.update({
+          where: { id: tenantSub.tenantId },
+          data: { status: 'active' },
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
+
+    // Subscription-first: paid EIS opens entitlement review (not operational grant)
+    if (category === PLAN_CATEGORY.MRA_EIS && tenantSub.tenantId) {
+      try {
+        const pending = await requestEntitlementPendingFromSubscription({
+          tenantId: tenantSub.tenantId,
+          subscriptionId: tenantSub.id,
+          planCode: plan,
+          requestId: `paychangu:${tx_ref}`,
+        });
+        console.log('[PayChangu Callback] Entitlement pending result:', {
+          ok: pending?.ok,
+          idempotent: pending?.idempotent,
+          status: pending?.entitlement?.status,
+        });
+      } catch (entErr) {
+        console.warn(
+          '[PayChangu Callback] Entitlement pending request failed:',
+          entErr?.message || entErr
+        );
+      }
     }
 
     console.log('[PayChangu Callback] Tenant subscription activated:', {
       id: tenantSub.id,
       tenantId: tenantSub.tenantId,
       plan,
+      category,
       expiresAt: expiresAt.toISOString(),
     });
 

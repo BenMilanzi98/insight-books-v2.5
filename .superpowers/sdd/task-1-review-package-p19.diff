@@ -1,0 +1,2344 @@
+# Task 1 P19 review
+
+
+===== lib/admin/customerSuccess/adoption/trainingConsume.js =====
+
+/**
+ * Consume Phase 18 Training Program COMPLETED → CustomerAdoptionRequest.
+ * COMPLETED_WITH_GAPS / IN_PROGRESS / partial → no Request.
+ */
+
+import {
+  ADOPTION_REQUEST_SOURCE,
+  getAdoptionDomainContract,
+} from './catalogue.js';
+import {
+  canManageAdoption,
+  hasCustomerAdoptionRequestModel,
+  hasCustomerTrainingProgramModel,
+  resolveAdoptionActor,
+} from './model.js';
+import { createAdoptionRequest } from './requests.js';
+
+const ELIGIBLE_PROGRAM_STATUS = 'COMPLETED';
+
+/**
+ * Auto-create ADR Request only when Training Program aggregate is COMPLETED.
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ actorContext?: object, admin?: object, programId: string, idempotencyKey: string, now?: Date }} args
+ */
+export async function consumeTrainingCompletionForAdoption(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'adoption_training_consume_forbidden',
+    };
+  }
+  if (!hasCustomerAdoptionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+  if (!hasCustomerTrainingProgramModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_training_program_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const programId = args.programId ? String(args.programId).trim() : '';
+  if (!programId) {
+    return { ok: false, error: 'program_id_required' };
+  }
+
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : `adr-from-trn:${programId}`;
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotency_key_required' };
+  }
+
+  const program = await prisma.customerTrainingProgram.findUnique({
+    where: { id: programId },
+  });
+  if (!program) {
+    return { ok: false, notFound: true, error: 'training_program_not_found' };
+  }
+
+  const status = String(program.status || '')
+    .trim()
+    .toUpperCase();
+
+  if (status !== ELIGIBLE_PROGRAM_STATUS) {
+    return {
+      ok: false,
+      error:
+        status === 'COMPLETED_WITH_GAPS'
+          ? 'training_program_COMPLETED_WITH_GAPS_not_eligible_for_auto_adoption_request'
+          : status === 'IN_PROGRESS'
+            ? 'training_program_IN_PROGRESS_not_eligible_for_auto_adoption_request'
+            : `training_program_aggregate_not_COMPLETED: ${status || 'UNKNOWN'}`,
+      programStatus: status,
+      programId: program.id,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const created = await createAdoptionRequest(prisma, {
+    ...args,
+    admin,
+    actorContext: args.actorContext || { admin },
+    source: ADOPTION_REQUEST_SOURCE.PHASE_18_TRAINING_COMPLETED,
+    trainingProgramId: program.id,
+    onboardingProjectId: program.onboardingProjectId || null,
+    customerId: args.customerId || program.customerId || null,
+    tenantId: args.tenantId || program.tenantId || null,
+    subscriptionId: args.subscriptionId || program.subscriptionId || null,
+    payloadJson: {
+      type: 'ADOPTION_FROM_TRAINING_COMPLETED',
+      trainingProgramId: program.id,
+      trainingProgramNumber: program.programNumber || null,
+      trainingProgramStatus: status,
+      conversionId: program.conversionId || null,
+      handoffId: program.handoffId || null,
+      fabricatedTrainingCompleted: false,
+    },
+    idempotencyKey,
+  });
+
+  if (!created.ok) return created;
+
+  return {
+    ...created,
+    programId: program.id,
+    programStatus: status,
+    trainingCompleted: true,
+    fabricatedTrainingCompleted: false,
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/requests.js =====
+
+/**
+ * Customer Adoption Requests (ADR-YYYY-######) — Phase 19 Wave 1.
+ */
+
+import { createHash } from 'crypto';
+import {
+  ADOPTION_REQUEST_SOURCE,
+  ADOPTION_REQUEST_STATUS,
+  getAdoptionDomainContract,
+} from './catalogue.js';
+import { allocateAdoptionRequestNumber } from './numbering.js';
+import {
+  canManageAdoption,
+  canViewAdoption,
+  hasCustomerAdoptionRequestModel,
+  resolveAdoptionActor,
+  serializeAdoptionRequest,
+} from './model.js';
+import { transitionAdoptionRequestStatus } from './status.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+function hashRequestInput(payload) {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+export function requestMissingPins(row) {
+  const missing = [];
+  if (!row?.customerId) missing.push('customerId');
+  if (!row?.tenantId) missing.push('tenantId');
+  return missing;
+}
+
+async function loadRequest(prisma, requestId) {
+  const id = requestId ? String(requestId).trim() : '';
+  if (!id || !hasCustomerAdoptionRequestModel(prisma)) return null;
+  try {
+    if (/^ADR-\d{4}-\d{6}$/.test(id)) {
+      return await prisma.customerAdoptionRequest.findUnique({
+        where: { requestNumber: id },
+      });
+    }
+    return await prisma.customerAdoptionRequest.findUnique({ where: { id } });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create Adoption Request (manual / internal). Prefer consumeTrainingCompletionForAdoption for auto.
+ */
+export async function createAdoptionRequest(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'adoption_request_create_forbidden',
+    };
+  }
+  if (!hasCustomerAdoptionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+
+  const inputPayload = {
+    source: args.source || null,
+    trainingProgramId: args.trainingProgramId || null,
+    onboardingHandoverId: args.onboardingHandoverId || null,
+    customerId: args.customerId || null,
+    tenantId: args.tenantId || null,
+    subscriptionId: args.subscriptionId || null,
+  };
+  const inputHash = hashRequestInput(inputPayload);
+
+  if (idempotencyKey) {
+    try {
+      const existing = await prisma.customerAdoptionRequest.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        if (existing.inputHash && existing.inputHash !== inputHash) {
+          return {
+            ok: false,
+            error: 'idempotency_conflict',
+            existingInputHash: existing.inputHash,
+            attemptedInputHash: inputHash,
+          };
+        }
+        return {
+          ok: true,
+          request: serializeAdoptionRequest(existing),
+          alreadyExists: true,
+          idempotentReplay: true,
+          trainingCompleted: false,
+          domain: getAdoptionDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  if (args.trainingProgramId) {
+    try {
+      const byProgram = await prisma.customerAdoptionRequest.findFirst({
+        where: {
+          trainingProgramId: String(args.trainingProgramId),
+          source: ADOPTION_REQUEST_SOURCE.PHASE_18_TRAINING_COMPLETED,
+        },
+      });
+      if (byProgram) {
+        return {
+          ok: true,
+          request: serializeAdoptionRequest(byProgram),
+          alreadyExists: true,
+          idempotentReplay: true,
+          trainingCompleted: false,
+          domain: getAdoptionDomainContract(),
+        };
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  const allocated = await allocateAdoptionRequestNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'adoption_request_number_allocation_failed',
+    };
+  }
+
+  let row;
+  try {
+    row = await prisma.customerAdoptionRequest.create({
+      data: {
+        requestNumber: allocated.number,
+        status: args.status || ADOPTION_REQUEST_STATUS.NEW,
+        source: args.source || ADOPTION_REQUEST_SOURCE.CUSTOMER_SUCCESS_MANUAL,
+        trainingProgramId: args.trainingProgramId
+          ? String(args.trainingProgramId).trim()
+          : null,
+        onboardingProjectId: args.onboardingProjectId
+          ? String(args.onboardingProjectId).trim()
+          : null,
+        onboardingHandoverId: args.onboardingHandoverId
+          ? String(args.onboardingHandoverId).trim()
+          : null,
+        customerId: args.customerId ? String(args.customerId).trim() : null,
+        tenantId: args.tenantId ? String(args.tenantId).trim() : null,
+        subscriptionId: args.subscriptionId
+          ? String(args.subscriptionId).trim()
+          : null,
+        targetRolesJson: args.targetRolesJson ?? args.targetRoles ?? null,
+        payloadJson: args.payloadJson ?? args.payload ?? null,
+        ownerAdminId: args.ownerAdminId || admin?.id || null,
+        createdByAdminId: admin?.id || null,
+        inputHash,
+        idempotencyKey,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    if (idempotencyKey) {
+      try {
+        const raced = await prisma.customerAdoptionRequest.findUnique({
+          where: { idempotencyKey },
+        });
+        if (raced) {
+          if (raced.inputHash && raced.inputHash !== inputHash) {
+            return {
+              ok: false,
+              error: 'idempotency_conflict',
+              existingInputHash: raced.inputHash,
+              attemptedInputHash: inputHash,
+            };
+          }
+          return {
+            ok: true,
+            request: serializeAdoptionRequest(raced),
+            alreadyExists: true,
+            idempotentReplay: true,
+            trainingCompleted: false,
+            domain: getAdoptionDomainContract(),
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return { ok: false, error: err?.message || 'adoption_request_create_failed' };
+  }
+
+  return {
+    ok: true,
+    request: serializeAdoptionRequest(row),
+    trainingCompleted: false,
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+export async function createManualAdoptionRequest(prisma, args = {}) {
+  return createAdoptionRequest(prisma, {
+    ...args,
+    source: args.source || ADOPTION_REQUEST_SOURCE.CUSTOMER_SUCCESS_MANUAL,
+  });
+}
+
+export async function validateAdoptionRequest(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, reason: 'adoption_request_validate_forbidden' };
+  }
+
+  const row = await loadRequest(prisma, args.adoptionRequestId || args.requestId);
+  if (!row) {
+    return { ok: false, notFound: true, error: 'adoption_request_not_found' };
+  }
+
+  const missing = requestMissingPins(row);
+  if (missing.length) {
+    return {
+      ok: false,
+      error: `missing_required_pins: ${missing.join(',')}`,
+      missing,
+      request: serializeAdoptionRequest(row),
+    };
+  }
+
+  if (
+    row.status === ADOPTION_REQUEST_STATUS.READY ||
+    row.status === ADOPTION_REQUEST_STATUS.ACCEPTED ||
+    row.status === ADOPTION_REQUEST_STATUS.CONVERTED_TO_PLAN
+  ) {
+    return {
+      ok: true,
+      request: serializeAdoptionRequest(row),
+      alreadyValid: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  return transitionAdoptionRequestStatus(prisma, {
+    ...args,
+    admin,
+    adoptionRequestId: row.id,
+    toStatus: ADOPTION_REQUEST_STATUS.READY,
+    reason: args.reason || 'validated_pins',
+  });
+}
+
+export async function acceptAdoptionRequest(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, reason: 'adoption_request_accept_forbidden' };
+  }
+
+  const row = await loadRequest(prisma, args.adoptionRequestId || args.requestId);
+  if (!row) {
+    return { ok: false, notFound: true, error: 'adoption_request_not_found' };
+  }
+
+  const missing = requestMissingPins(row);
+  if (missing.length) {
+    return {
+      ok: false,
+      error: `missing_required_pins: ${missing.join(',')}`,
+      missing,
+    };
+  }
+
+  if (row.status === ADOPTION_REQUEST_STATUS.ACCEPTED) {
+    return {
+      ok: true,
+      request: serializeAdoptionRequest(row),
+      alreadyAccepted: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  if (row.status !== ADOPTION_REQUEST_STATUS.READY) {
+    if (
+      row.status === ADOPTION_REQUEST_STATUS.NEW ||
+      row.status === ADOPTION_REQUEST_STATUS.VALIDATING ||
+      row.status === ADOPTION_REQUEST_STATUS.INFORMATION_REQUIRED
+    ) {
+      const validated = await validateAdoptionRequest(prisma, {
+        ...args,
+        admin,
+        adoptionRequestId: row.id,
+      });
+      if (!validated.ok) return validated;
+    } else {
+      return {
+        ok: false,
+        error: `invalid_status_for_accept: ${row.status}`,
+      };
+    }
+  }
+
+  return transitionAdoptionRequestStatus(prisma, {
+    ...args,
+    admin,
+    adoptionRequestId: row.id,
+    toStatus: ADOPTION_REQUEST_STATUS.ACCEPTED,
+    reason: args.reason || 'accepted',
+  });
+}
+
+export async function rejectAdoptionRequest(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, reason: 'adoption_request_reject_forbidden' };
+  }
+
+  const row = await loadRequest(prisma, args.adoptionRequestId || args.requestId);
+  if (!row) {
+    return { ok: false, notFound: true, error: 'adoption_request_not_found' };
+  }
+
+  return transitionAdoptionRequestStatus(prisma, {
+    ...args,
+    admin,
+    adoptionRequestId: row.id,
+    toStatus: ADOPTION_REQUEST_STATUS.REJECTED,
+    reason: args.reason || 'rejected',
+  });
+}
+
+export async function listAdoptionRequests(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin) && !canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      error: 'adoption_list_forbidden',
+      requests: [],
+    };
+  }
+  if (!hasCustomerAdoptionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_request_model_unavailable',
+      status: 'UNAVAILABLE',
+      requests: [],
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    if (scopeResult.forbidden) {
+      return {
+        ok: false,
+        forbidden: true,
+        error: 'adoption_list_forbidden',
+        requests: [],
+      };
+    }
+    return {
+      ok: true,
+      requests: [],
+      reason: scopeResult.reason,
+      meta: { portfolioScoped: true, failClosed: true },
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const where = { ...tenantWhereFromScope(scopeResult.tenantScope) };
+  const rows = await prisma.customerAdoptionRequest.findMany({ where });
+  return {
+    ok: true,
+    requests: rows.map(serializeAdoptionRequest),
+    meta: {
+      portfolioScoped: scopeResult.portfolioScoped,
+      failClosed: scopeResult.portfolioScoped,
+    },
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+export { loadRequest as loadAdoptionRequest };
+
+
+===== lib/admin/customerSuccess/adoption/plans.js =====
+
+/**
+ * Customer Adoption Plans (ADP-YYYY-######) — Phase 19 Wave 1.
+ * Requires pinned ACTIVE planTemplateVersionId. No milestones / value yet.
+ */
+
+import { createHash } from 'crypto';
+import {
+  ADOPTION_PLAN_STATUS,
+  ADOPTION_REQUEST_STATUS,
+  ADOPTION_TEMPLATE_STATUS,
+  WAVE1_DEFAULT_PLAN_TEMPLATE_CODE,
+  getAdoptionDomainContract,
+} from './catalogue.js';
+import { allocateAdoptionPlanNumber } from './numbering.js';
+import {
+  canManageAdoption,
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  hasCustomerAdoptionPlanTemplateModel,
+  hasCustomerAdoptionPlanTemplateVersionModel,
+  resolveAdoptionActor,
+  serializeAdoptionPlan,
+  serializeAdoptionPlanTemplateVersion,
+} from './model.js';
+import { requestMissingPins } from './requests.js';
+import { transitionAdoptionRequestStatus } from './status.js';
+import {
+  resolveAdoptionListScope,
+  tenantWhereFromScope,
+} from './listScope.js';
+
+function hashPlanInput(payload) {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function resolveOwnerPins(ownerAssignments = {}, admin = null) {
+  const assignments =
+    ownerAssignments && typeof ownerAssignments === 'object' ? ownerAssignments : {};
+  const csOwnerAdminId =
+    (assignments.csOwnerAdminId && String(assignments.csOwnerAdminId)) ||
+    (assignments.csOwnerId && String(assignments.csOwnerId)) ||
+    (admin?.id ? String(admin.id) : null);
+  const ownerAdminId =
+    (assignments.ownerAdminId && String(assignments.ownerAdminId)) ||
+    csOwnerAdminId ||
+    (admin?.id ? String(admin.id) : null);
+  return { csOwnerAdminId, ownerAdminId };
+}
+
+async function ensureRequestConvertedToPlan(prisma, args = {}) {
+  const { admin, request, plan, now, actorContext } = args;
+  if (!request || !plan) return;
+  if (request.status === ADOPTION_REQUEST_STATUS.CONVERTED_TO_PLAN) {
+    if (!request.planId && plan.id) {
+      await prisma.customerAdoptionRequest.update({
+        where: { id: request.id },
+        data: { planId: plan.id, updatedAt: now || new Date() },
+      });
+    }
+    return;
+  }
+  if (request.status !== ADOPTION_REQUEST_STATUS.ACCEPTED) return;
+
+  await transitionAdoptionRequestStatus(prisma, {
+    admin,
+    actorContext,
+    adoptionRequestId: request.id,
+    toStatus: ADOPTION_REQUEST_STATUS.CONVERTED_TO_PLAN,
+    planId: plan.id,
+    reason: 'converted_to_plan',
+    now: now || new Date(),
+  });
+}
+
+/**
+ * Ensure seeded ACTIVE default plan template version exists (idempotent).
+ */
+export async function ensureWave1DefaultPlanTemplateVersion(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'adoption_template_seed_forbidden',
+    };
+  }
+  if (!hasCustomerAdoptionPlanTemplateVersionModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_plan_template_version_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const existing = await prisma.customerAdoptionPlanTemplateVersion.findFirst({
+    where: {
+      templateCode: WAVE1_DEFAULT_PLAN_TEMPLATE_CODE,
+      status: ADOPTION_TEMPLATE_STATUS.ACTIVE,
+    },
+  });
+  if (existing) {
+    return {
+      ok: true,
+      templateVersion: serializeAdoptionPlanTemplateVersion(existing),
+      alreadyExists: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const now = args.now || new Date();
+  let templateId = null;
+
+  if (hasCustomerAdoptionPlanTemplateModel(prisma)) {
+    let template = await prisma.customerAdoptionPlanTemplate.findFirst({
+      where: { templateCode: WAVE1_DEFAULT_PLAN_TEMPLATE_CODE },
+    });
+    if (!template) {
+      template = await prisma.customerAdoptionPlanTemplate.create({
+        data: {
+          templateCode: WAVE1_DEFAULT_PLAN_TEMPLATE_CODE,
+          name: 'Customer Adoption Default (Wave 1)',
+          status: ADOPTION_TEMPLATE_STATUS.ACTIVE,
+          createdByAdminId: admin?.id || null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    }
+    templateId = template.id;
+  }
+
+  const row = await prisma.customerAdoptionPlanTemplateVersion.create({
+    data: {
+      templateId,
+      templateCode: WAVE1_DEFAULT_PLAN_TEMPLATE_CODE,
+      versionNumber: 1,
+      status: ADOPTION_TEMPLATE_STATUS.ACTIVE,
+      immutable: true,
+      contentJson: {
+        wave: 1,
+        milestonesDeferred: true,
+        valueOutcomesDeferred: true,
+      },
+      createdByAdminId: admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    templateVersion: serializeAdoptionPlanTemplateVersion(row),
+    created: true,
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+/**
+ * Create Adoption Plan from accepted Request. One Request → at most one Plan.
+ */
+export async function createCustomerAdoptionPlan(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'adoption_plan_create_forbidden',
+    };
+  }
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_plan_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const adoptionRequestId = args.adoptionRequestId || args.requestId
+    ? String(args.adoptionRequestId || args.requestId).trim()
+    : '';
+  if (!adoptionRequestId) {
+    return { ok: false, error: 'adoption_request_id_required' };
+  }
+
+  const planTemplateVersionId =
+    args.planTemplateVersionId || args.templateVersionId || null;
+  if (!planTemplateVersionId) {
+    return { ok: false, error: 'plan_template_version_id_required' };
+  }
+
+  if (hasCustomerAdoptionPlanTemplateVersionModel(prisma)) {
+    const tmpl = await prisma.customerAdoptionPlanTemplateVersion.findUnique({
+      where: { id: String(planTemplateVersionId) },
+    });
+    if (!tmpl) {
+      return { ok: false, error: 'plan_template_version_not_found' };
+    }
+    if (String(tmpl.status).toUpperCase() !== 'ACTIVE') {
+      return { ok: false, error: 'plan_template_version_not_active' };
+    }
+  }
+
+  const request = await prisma.customerAdoptionRequest.findUnique({
+    where: { id: adoptionRequestId },
+  });
+  if (!request) {
+    return { ok: false, notFound: true, error: 'adoption_request_not_found' };
+  }
+
+  const missing = requestMissingPins(request);
+  if (missing.length) {
+    return {
+      ok: false,
+      error: `missing_required_pins: ${missing.join(',')}`,
+      missing,
+    };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+  if (!idempotencyKey) {
+    return { ok: false, error: 'idempotency_key_required' };
+  }
+
+  const ownerAssignments = args.ownerAssignments || {};
+  const { csOwnerAdminId, ownerAdminId } = resolveOwnerPins(ownerAssignments, admin);
+  const inputPayload = {
+    adoptionRequestId,
+    planTemplateVersionId: String(planTemplateVersionId),
+    ownerAssignments,
+  };
+  const inputHash = hashPlanInput(inputPayload);
+
+  const existingByKey = await prisma.customerAdoptionPlan.findUnique({
+    where: { idempotencyKey },
+  });
+  if (existingByKey) {
+    if (existingByKey.inputHash && existingByKey.inputHash !== inputHash) {
+      return {
+        ok: false,
+        error: 'idempotency_conflict',
+        existingInputHash: existingByKey.inputHash,
+        attemptedInputHash: inputHash,
+      };
+    }
+    await ensureRequestConvertedToPlan(prisma, {
+      admin,
+      actorContext: args.actorContext,
+      request,
+      plan: existingByKey,
+      now,
+    });
+    return {
+      ok: true,
+      plan: serializeAdoptionPlan(existingByKey),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const existingByRequest = await prisma.customerAdoptionPlan.findFirst({
+    where: { adoptionRequestId },
+  });
+  if (existingByRequest) {
+    await ensureRequestConvertedToPlan(prisma, {
+      admin,
+      actorContext: args.actorContext,
+      request,
+      plan: existingByRequest,
+      now,
+    });
+    return {
+      ok: true,
+      plan: serializeAdoptionPlan(existingByRequest),
+      alreadyExists: true,
+      idempotentReplay: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  if (
+    request.status !== ADOPTION_REQUEST_STATUS.ACCEPTED &&
+    request.status !== ADOPTION_REQUEST_STATUS.CONVERTED_TO_PLAN
+  ) {
+    return {
+      ok: false,
+      error: `invalid_status_for_plan_create: ${request.status}`,
+    };
+  }
+
+  const allocated = await allocateAdoptionPlanNumber(prisma, { now });
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.error || 'adoption_plan_number_allocation_failed',
+    };
+  }
+
+  let row;
+  try {
+    row = await prisma.customerAdoptionPlan.create({
+      data: {
+        planNumber: allocated.number,
+        status: ADOPTION_PLAN_STATUS.DRAFT,
+        adoptionRequestId,
+        trainingProgramId: request.trainingProgramId || null,
+        onboardingProjectId: request.onboardingProjectId || null,
+        onboardingHandoverId: request.onboardingHandoverId || null,
+        customerId: request.customerId,
+        tenantId: request.tenantId,
+        subscriptionId: request.subscriptionId,
+        planTemplateVersionId: String(planTemplateVersionId),
+        successPlanId: args.successPlanId || null,
+        ownerAssignmentsJson: ownerAssignments,
+        csOwnerAdminId,
+        ownerAdminId,
+        inputHash,
+        idempotencyKey,
+        createdByAdminId: admin?.id || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  } catch (err) {
+    try {
+      let raced = await prisma.customerAdoptionPlan.findUnique({
+        where: { idempotencyKey },
+      });
+      if (!raced) {
+        raced = await prisma.customerAdoptionPlan.findFirst({
+          where: { adoptionRequestId },
+        });
+      }
+      if (raced) {
+        if (
+          raced.idempotencyKey === idempotencyKey &&
+          raced.inputHash &&
+          raced.inputHash !== inputHash
+        ) {
+          return {
+            ok: false,
+            error: 'idempotency_conflict',
+            existingInputHash: raced.inputHash,
+            attemptedInputHash: inputHash,
+          };
+        }
+        await ensureRequestConvertedToPlan(prisma, {
+          admin,
+          actorContext: args.actorContext,
+          request,
+          plan: raced,
+          now,
+        });
+        return {
+          ok: true,
+          plan: serializeAdoptionPlan(raced),
+          alreadyExists: true,
+          idempotentReplay: true,
+          domain: getAdoptionDomainContract(),
+        };
+      }
+    } catch {
+      // fall through
+    }
+    return { ok: false, error: err?.message || 'adoption_plan_create_failed' };
+  }
+
+  await ensureRequestConvertedToPlan(prisma, {
+    admin,
+    actorContext: args.actorContext,
+    request,
+    plan: row,
+    now,
+  });
+
+  return {
+    ok: true,
+    plan: serializeAdoptionPlan(row),
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+export async function listAdoptionPlans(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin) && !canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      error: 'adoption_list_forbidden',
+      plans: [],
+    };
+  }
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_plan_model_unavailable',
+      status: 'UNAVAILABLE',
+      plans: [],
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    if (scopeResult.forbidden) {
+      return {
+        ok: false,
+        forbidden: true,
+        error: 'adoption_list_forbidden',
+        plans: [],
+      };
+    }
+    return {
+      ok: true,
+      plans: [],
+      reason: scopeResult.reason,
+      meta: { portfolioScoped: true, failClosed: true },
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const where = { ...tenantWhereFromScope(scopeResult.tenantScope) };
+  const rows = await prisma.customerAdoptionPlan.findMany({ where });
+  return {
+    ok: true,
+    plans: rows.map(serializeAdoptionPlan),
+    meta: {
+      portfolioScoped: scopeResult.portfolioScoped,
+      failClosed: scopeResult.portfolioScoped,
+    },
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/status.js =====
+
+/**
+ * Adoption Request / Plan status transitions — Phase 19 Wave 1.
+ * Invalid transitions throw. COMPLETED / HANDED_TO_RENEWALS require Wave 2+ evaluation.
+ */
+
+import {
+  ADOPTION_REQUEST_STATUS,
+  ADOPTION_PLAN_STATUS,
+  ADOPTION_COMPLETION_POLICY_REQUIRED,
+  getAdoptionDomainContract,
+} from './catalogue.js';
+import {
+  canManageAdoption,
+  hasCustomerAdoptionRequestStatusHistoryModel,
+  hasCustomerAdoptionPlanStatusHistoryModel,
+  resolveAdoptionActor,
+  serializeAdoptionRequest,
+  serializeAdoptionPlan,
+} from './model.js';
+import {
+  loadAdoptionPlanForActor,
+  loadAdoptionRequestForActor,
+} from './planAccess.js';
+
+const REQUEST_TRANSITIONS = Object.freeze({
+  [ADOPTION_REQUEST_STATUS.NEW]: [
+    ADOPTION_REQUEST_STATUS.VALIDATING,
+    ADOPTION_REQUEST_STATUS.INFORMATION_REQUIRED,
+    ADOPTION_REQUEST_STATUS.READY,
+    ADOPTION_REQUEST_STATUS.REJECTED,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+    ADOPTION_REQUEST_STATUS.CUSTOMER_DEFERRED,
+  ],
+  [ADOPTION_REQUEST_STATUS.VALIDATING]: [
+    ADOPTION_REQUEST_STATUS.INFORMATION_REQUIRED,
+    ADOPTION_REQUEST_STATUS.DUPLICATE_REVIEW_REQUIRED,
+    ADOPTION_REQUEST_STATUS.READY,
+    ADOPTION_REQUEST_STATUS.REJECTED,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+  ],
+  [ADOPTION_REQUEST_STATUS.INFORMATION_REQUIRED]: [
+    ADOPTION_REQUEST_STATUS.VALIDATING,
+    ADOPTION_REQUEST_STATUS.READY,
+    ADOPTION_REQUEST_STATUS.REJECTED,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+    ADOPTION_REQUEST_STATUS.CUSTOMER_DEFERRED,
+  ],
+  [ADOPTION_REQUEST_STATUS.DUPLICATE_REVIEW_REQUIRED]: [
+    ADOPTION_REQUEST_STATUS.VALIDATING,
+    ADOPTION_REQUEST_STATUS.READY,
+    ADOPTION_REQUEST_STATUS.REJECTED,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+    ADOPTION_REQUEST_STATUS.SUPERSEDED,
+  ],
+  [ADOPTION_REQUEST_STATUS.READY]: [
+    ADOPTION_REQUEST_STATUS.ACCEPTED,
+    ADOPTION_REQUEST_STATUS.REJECTED,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+    ADOPTION_REQUEST_STATUS.CUSTOMER_DEFERRED,
+    ADOPTION_REQUEST_STATUS.INFORMATION_REQUIRED,
+  ],
+  [ADOPTION_REQUEST_STATUS.ACCEPTED]: [
+    ADOPTION_REQUEST_STATUS.CONVERTED_TO_PLAN,
+    ADOPTION_REQUEST_STATUS.REJECTED,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+    ADOPTION_REQUEST_STATUS.CUSTOMER_DEFERRED,
+  ],
+  [ADOPTION_REQUEST_STATUS.CONVERTED_TO_PLAN]: [ADOPTION_REQUEST_STATUS.ARCHIVED],
+  [ADOPTION_REQUEST_STATUS.REJECTED]: [ADOPTION_REQUEST_STATUS.ARCHIVED],
+  [ADOPTION_REQUEST_STATUS.CANCELLED]: [ADOPTION_REQUEST_STATUS.ARCHIVED],
+  [ADOPTION_REQUEST_STATUS.CUSTOMER_DEFERRED]: [
+    ADOPTION_REQUEST_STATUS.READY,
+    ADOPTION_REQUEST_STATUS.CANCELLED,
+    ADOPTION_REQUEST_STATUS.ARCHIVED,
+  ],
+  [ADOPTION_REQUEST_STATUS.SUPERSEDED]: [ADOPTION_REQUEST_STATUS.ARCHIVED],
+  [ADOPTION_REQUEST_STATUS.ARCHIVED]: [],
+});
+
+const PLAN_TRANSITIONS = Object.freeze({
+  [ADOPTION_PLAN_STATUS.DRAFT]: [
+    ADOPTION_PLAN_STATUS.ACTIVE,
+    ADOPTION_PLAN_STATUS.CANCELLED,
+  ],
+  [ADOPTION_PLAN_STATUS.ACTIVE]: [
+    ADOPTION_PLAN_STATUS.ON_TRACK,
+    ADOPTION_PLAN_STATUS.AT_RISK,
+    ADOPTION_PLAN_STATUS.VALUE_REVIEW,
+    ADOPTION_PLAN_STATUS.CHURN_RISK,
+    ADOPTION_PLAN_STATUS.CANCELLED,
+  ],
+  [ADOPTION_PLAN_STATUS.ON_TRACK]: [
+    ADOPTION_PLAN_STATUS.AT_RISK,
+    ADOPTION_PLAN_STATUS.VALUE_REVIEW,
+    ADOPTION_PLAN_STATUS.CHURN_RISK,
+    ADOPTION_PLAN_STATUS.CANCELLED,
+  ],
+  [ADOPTION_PLAN_STATUS.AT_RISK]: [
+    ADOPTION_PLAN_STATUS.ON_TRACK,
+    ADOPTION_PLAN_STATUS.VALUE_REVIEW,
+    ADOPTION_PLAN_STATUS.CHURN_RISK,
+    ADOPTION_PLAN_STATUS.CANCELLED,
+  ],
+  [ADOPTION_PLAN_STATUS.VALUE_REVIEW]: [
+    ADOPTION_PLAN_STATUS.COMPLETED,
+    ADOPTION_PLAN_STATUS.HANDED_TO_RENEWALS,
+    ADOPTION_PLAN_STATUS.ON_TRACK,
+    ADOPTION_PLAN_STATUS.AT_RISK,
+    ADOPTION_PLAN_STATUS.CHURN_RISK,
+    ADOPTION_PLAN_STATUS.CANCELLED,
+  ],
+  [ADOPTION_PLAN_STATUS.CHURN_RISK]: [
+    ADOPTION_PLAN_STATUS.AT_RISK,
+    ADOPTION_PLAN_STATUS.VALUE_REVIEW,
+    ADOPTION_PLAN_STATUS.CANCELLED,
+    ADOPTION_PLAN_STATUS.HANDED_TO_RENEWALS,
+  ],
+  [ADOPTION_PLAN_STATUS.COMPLETED]: [ADOPTION_PLAN_STATUS.ARCHIVED],
+  [ADOPTION_PLAN_STATUS.HANDED_TO_RENEWALS]: [ADOPTION_PLAN_STATUS.ARCHIVED],
+  [ADOPTION_PLAN_STATUS.CANCELLED]: [ADOPTION_PLAN_STATUS.ARCHIVED],
+  [ADOPTION_PLAN_STATUS.ARCHIVED]: [],
+});
+
+const COMPLETION_GATED = new Set([
+  ADOPTION_PLAN_STATUS.COMPLETED,
+  ADOPTION_PLAN_STATUS.HANDED_TO_RENEWALS,
+]);
+
+export function canTransitionAdoptionRequestStatus(from, to) {
+  const allowed = REQUEST_TRANSITIONS[from] || [];
+  return allowed.includes(to);
+}
+
+export function canTransitionAdoptionPlanStatus(from, to) {
+  const allowed = PLAN_TRANSITIONS[from] || [];
+  return allowed.includes(to);
+}
+
+export function assertCanTransitionAdoptionRequestStatus(from, to) {
+  if (from === to) return;
+  if (!canTransitionAdoptionRequestStatus(from, to)) {
+    throw new Error(`invalid_status_transition: ${from} → ${to}`);
+  }
+}
+
+export function assertCanTransitionAdoptionPlanStatus(from, to) {
+  if (from === to) return;
+  if (!canTransitionAdoptionPlanStatus(from, to)) {
+    throw new Error(`invalid_status_transition: ${from} → ${to}`);
+  }
+}
+
+function hasAuditedCompletionWaiver(args = {}) {
+  const waiver =
+    args.auditedCompletionWaiver === true ||
+    args.completionWaiver === true ||
+    String(args.waiverType || '')
+      .trim()
+      .toUpperCase() === 'AUDITED_COMPLETION_WAIVER';
+  const reason = args.waiverReason || args.reason;
+  return Boolean(waiver && reason && String(reason).trim());
+}
+
+/**
+ * Wave 1 stub — completion evaluation lands in Wave 2/3.
+ * Always returns unavailable unless an audited waiver is provided by caller.
+ */
+export async function evaluateAdoptionPlanCompletion(_prisma, args = {}) {
+  if (hasAuditedCompletionWaiver(args)) {
+    return {
+      ok: true,
+      status: 'WAIVED',
+      waived: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+  return {
+    ok: false,
+    error: ADOPTION_COMPLETION_POLICY_REQUIRED,
+    status: 'UNAVAILABLE',
+    message:
+      'Adoption plan completion evaluation is not available until Wave 2/3 milestone/value hooks exist',
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+export async function transitionAdoptionRequestStatus(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, reason: 'adoption_request_status_forbidden' };
+  }
+
+  const requestId = args.adoptionRequestId || args.requestId;
+  const access = await loadAdoptionRequestForActor(prisma, {
+    ...args,
+    requestId,
+    adoptionRequestId: requestId,
+  });
+  if (!access.ok) return access;
+  const row = access.requestRow || access.request;
+
+  const toStatus = String(args.toStatus || '')
+    .trim()
+    .toUpperCase();
+  if (row.status === toStatus) {
+    return {
+      ok: true,
+      request: serializeAdoptionRequest(row),
+      alreadyInStatus: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  assertCanTransitionAdoptionRequestStatus(row.status, toStatus);
+
+  const now = args.now || new Date();
+  const updated = await prisma.customerAdoptionRequest.update({
+    where: { id: row.id },
+    data: {
+      status: toStatus,
+      updatedAt: now,
+      ...(args.planId ? { planId: args.planId } : {}),
+    },
+  });
+
+  if (hasCustomerAdoptionRequestStatusHistoryModel(prisma)) {
+    await prisma.customerAdoptionRequestStatusHistory.create({
+      data: {
+        requestId: row.id,
+        fromStatus: row.status,
+        toStatus,
+        reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    request: serializeAdoptionRequest(updated),
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+export async function transitionAdoptionPlanStatus(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, reason: 'adoption_plan_status_forbidden' };
+  }
+
+  const planId = args.adoptionPlanId || args.planId;
+  const access = await loadAdoptionPlanForActor(prisma, {
+    ...args,
+    planId,
+    adoptionPlanId: planId,
+  });
+  if (!access.ok) return access;
+  const row = access.planRow || access.plan;
+
+  const toStatus = String(args.toStatus || '')
+    .trim()
+    .toUpperCase();
+  if (row.status === toStatus) {
+    return {
+      ok: true,
+      plan: serializeAdoptionPlan(row),
+      alreadyInStatus: true,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  assertCanTransitionAdoptionPlanStatus(row.status, toStatus);
+
+  if (COMPLETION_GATED.has(toStatus)) {
+    const evaluation = await evaluateAdoptionPlanCompletion(prisma, {
+      ...args,
+      planId: row.id,
+      adoptionPlanId: row.id,
+    });
+    if (!evaluation.ok) {
+      return {
+        ok: false,
+        error: evaluation.error || ADOPTION_COMPLETION_POLICY_REQUIRED,
+        status: evaluation.status || 'UNAVAILABLE',
+        evaluation,
+      };
+    }
+  }
+
+  const now = args.now || new Date();
+  const updated = await prisma.customerAdoptionPlan.update({
+    where: { id: row.id },
+    data: { status: toStatus, updatedAt: now },
+  });
+
+  if (hasCustomerAdoptionPlanStatusHistoryModel(prisma)) {
+    await prisma.customerAdoptionPlanStatusHistory.create({
+      data: {
+        planId: row.id,
+        fromStatus: row.status,
+        toStatus,
+        reason: args.reason != null ? String(args.reason).trim().slice(0, 1000) : null,
+        changedByAdminId: admin?.id || null,
+        at: now,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    plan: serializeAdoptionPlan(updated),
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+export { ADOPTION_REQUEST_STATUS, ADOPTION_PLAN_STATUS };
+
+
+===== lib/admin/customerSuccess/adoption/listScope.js =====
+
+/**
+ * Shared portfolio / tenant list scope for adoption lists.
+ * Fail closed for non–Super Admin when scope is empty — never unscoped fleet.
+ */
+
+import { resolveCsAccess, resolveCsPortfolioScope } from '../authz.js';
+
+export async function resolveAdoptionListScope(prisma, admin, args = {}) {
+  if (Array.isArray(args.portfolioTenantIds)) {
+    if (args.portfolioTenantIds.length === 0) {
+      return { ok: false, reason: 'portfolio_scope_empty' };
+    }
+    return {
+      ok: true,
+      tenantScope: args.portfolioTenantIds.map(String),
+      portfolioScoped: true,
+      isSuperAdmin: false,
+    };
+  }
+
+  const access = resolveCsAccess(admin);
+  if (!access.canView && !access.canManageCases && !access.isSuperAdmin) {
+    return { ok: false, reason: 'adoption_scope_forbidden', forbidden: true };
+  }
+
+  const scope = await resolveCsPortfolioScope(prisma, admin, { now: args.now });
+
+  if (access.isSuperAdmin && scope.mode === 'all' && scope.isSuperAdmin) {
+    return {
+      ok: true,
+      tenantScope: null,
+      portfolioScoped: false,
+      isSuperAdmin: true,
+    };
+  }
+
+  const ids = Array.isArray(scope.tenantIds) ? scope.tenantIds.map(String) : [];
+  if (!ids.length) {
+    return { ok: false, reason: 'portfolio_scope_required' };
+  }
+
+  return {
+    ok: true,
+    tenantScope: ids,
+    portfolioScoped: true,
+    isSuperAdmin: Boolean(access.isSuperAdmin),
+  };
+}
+
+export function tenantWhereFromScope(tenantScope) {
+  if (tenantScope == null) return {};
+  return { tenantId: { in: tenantScope } };
+}
+
+
+===== lib/admin/customerSuccess/adoption/planAccess.js =====
+
+/**
+ * Adoption Plan / Request load + Cross-Tenant isolation — Phase 19 Wave 1.
+ */
+
+import {
+  canManageAdoption,
+  canViewAdoption,
+  hasCustomerAdoptionPlanModel,
+  hasCustomerAdoptionRequestModel,
+  resolveAdoptionActor,
+  serializeAdoptionPlan,
+  serializeAdoptionRequest,
+} from './model.js';
+import { resolveAdoptionListScope } from './listScope.js';
+
+export function resolveActorTenantId(args = {}) {
+  if (args.tenantId != null && String(args.tenantId).trim()) {
+    return String(args.tenantId).trim();
+  }
+  const ctx = args.actorContext || {};
+  if (ctx.tenantId != null && String(ctx.tenantId).trim()) {
+    return String(ctx.tenantId).trim();
+  }
+  const admin = resolveAdoptionActor(args);
+  if (admin?.tenantId != null && String(admin.tenantId).trim()) {
+    return String(admin.tenantId).trim();
+  }
+  return null;
+}
+
+export async function loadAdoptionPlanForActor(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin) && !canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, error: 'adoption_access_forbidden' };
+  }
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_plan_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const planId = args.planId || args.adoptionPlanId
+    ? String(args.planId || args.adoptionPlanId).trim()
+    : '';
+  if (!planId) {
+    return { ok: false, error: 'planId_required' };
+  }
+
+  const plan = await prisma.customerAdoptionPlan.findUnique({
+    where: { id: planId },
+  });
+  if (!plan) {
+    return { ok: false, notFound: true, error: 'adoption_plan_not_found' };
+  }
+
+  const actorTenantId = resolveActorTenantId(args);
+  if (
+    actorTenantId &&
+    plan.tenantId &&
+    String(plan.tenantId).trim() !== actorTenantId
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      error: 'cross_tenant_denied',
+      lockedTenantId: plan.tenantId,
+      requestedTenantId: actorTenantId,
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    if (scopeResult.forbidden) {
+      return { ok: false, forbidden: true, error: 'adoption_access_forbidden' };
+    }
+    return {
+      ok: false,
+      forbidden: true,
+      notFound: true,
+      error: 'adoption_plan_out_of_scope',
+      reason: scopeResult.reason,
+    };
+  }
+
+  if (
+    scopeResult.tenantScope &&
+    plan.tenantId &&
+    !scopeResult.tenantScope.includes(String(plan.tenantId))
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      notFound: true,
+      error: 'adoption_plan_out_of_scope',
+      lockedTenantId: plan.tenantId,
+    };
+  }
+
+  return {
+    ok: true,
+    plan: serializeAdoptionPlan(plan),
+    planRow: plan,
+    admin,
+    actorTenantId,
+  };
+}
+
+export async function loadAdoptionRequestForActor(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canViewAdoption(admin) && !canManageAdoption(admin)) {
+    return { ok: false, forbidden: true, error: 'adoption_access_forbidden' };
+  }
+  if (!hasCustomerAdoptionRequestModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_request_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const requestId = args.adoptionRequestId || args.requestId
+    ? String(args.adoptionRequestId || args.requestId).trim()
+    : '';
+  if (!requestId) {
+    return { ok: false, error: 'requestId_required' };
+  }
+
+  const request = await prisma.customerAdoptionRequest.findUnique({
+    where: { id: requestId },
+  });
+  if (!request) {
+    return { ok: false, notFound: true, error: 'adoption_request_not_found' };
+  }
+
+  const actorTenantId = resolveActorTenantId(args);
+  if (
+    actorTenantId &&
+    request.tenantId &&
+    String(request.tenantId).trim() !== actorTenantId
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      error: 'cross_tenant_denied',
+      lockedTenantId: request.tenantId,
+      requestedTenantId: actorTenantId,
+    };
+  }
+
+  const scopeResult = await resolveAdoptionListScope(prisma, admin, args);
+  if (!scopeResult.ok) {
+    if (scopeResult.forbidden) {
+      return { ok: false, forbidden: true, error: 'adoption_access_forbidden' };
+    }
+    return {
+      ok: false,
+      forbidden: true,
+      notFound: true,
+      error: 'adoption_request_out_of_scope',
+      reason: scopeResult.reason,
+    };
+  }
+
+  if (
+    scopeResult.tenantScope &&
+    request.tenantId &&
+    !scopeResult.tenantScope.includes(String(request.tenantId))
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      notFound: true,
+      error: 'adoption_request_out_of_scope',
+      lockedTenantId: request.tenantId,
+    };
+  }
+
+  return {
+    ok: true,
+    request: serializeAdoptionRequest(request),
+    requestRow: request,
+    admin,
+    actorTenantId,
+  };
+}
+
+
+===== lib/admin/customerSuccess/adoption/handoverAttach.js =====
+
+/**
+ * Attach Phase 17 onboarding handover to Adoption Request or Plan.
+ * Attach only — never invents Training Program COMPLETED.
+ */
+
+import { getAdoptionDomainContract } from './catalogue.js';
+import {
+  canManageAdoption,
+  hasCustomerAdoptionPlanModel,
+  hasCustomerAdoptionRequestModel,
+  resolveAdoptionActor,
+  serializeAdoptionPlan,
+  serializeAdoptionRequest,
+} from './model.js';
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ actorContext?: object, admin?: object, handoverId: string, requestId?: string, planId?: string, adoptionRequestId?: string, adoptionPlanId?: string, idempotencyKey: string, now?: Date }} args
+ */
+export async function attachOnboardingHandoverToAdoption(prisma, args = {}) {
+  const admin = resolveAdoptionActor(args);
+  if (!canManageAdoption(admin)) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'adoption_handover_attach_forbidden',
+    };
+  }
+
+  const handoverId = args.handoverId ? String(args.handoverId).trim() : '';
+  if (!handoverId) {
+    return { ok: false, error: 'handover_id_required' };
+  }
+
+  const requestId = args.requestId || args.adoptionRequestId
+    ? String(args.requestId || args.adoptionRequestId).trim()
+    : '';
+  const planId = args.planId || args.adoptionPlanId
+    ? String(args.planId || args.adoptionPlanId).trim()
+    : '';
+
+  if (!requestId && !planId) {
+    return { ok: false, error: 'requestId_or_planId_required' };
+  }
+
+  const now = args.now || new Date();
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : `adr-handover-attach:${handoverId}:${requestId || planId}`;
+
+  if (requestId) {
+    if (!hasCustomerAdoptionRequestModel(prisma)) {
+      return {
+        ok: false,
+        error: 'customer_adoption_request_model_unavailable',
+        status: 'UNAVAILABLE',
+      };
+    }
+    const request = await prisma.customerAdoptionRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) {
+      return { ok: false, notFound: true, error: 'adoption_request_not_found' };
+    }
+
+    if (
+      request.onboardingHandoverId &&
+      String(request.onboardingHandoverId) === handoverId
+    ) {
+      return {
+        ok: true,
+        request: serializeAdoptionRequest(request),
+        handoverId,
+        alreadyAttached: true,
+        idempotentReplay: true,
+        trainingCompleted: false,
+        fabricatedTrainingCompleted: false,
+        domain: getAdoptionDomainContract(),
+      };
+    }
+
+    const updated = await prisma.customerAdoptionRequest.update({
+      where: { id: request.id },
+      data: {
+        onboardingHandoverId: handoverId,
+        payloadJson: {
+          ...(request.payloadJson && typeof request.payloadJson === 'object'
+            ? request.payloadJson
+            : {}),
+          onboardingHandoverId: handoverId,
+          handoverAttachIdempotencyKey: idempotencyKey,
+          fabricatedTrainingCompleted: false,
+        },
+        updatedAt: now,
+      },
+    });
+
+    return {
+      ok: true,
+      request: serializeAdoptionRequest(updated),
+      handoverId,
+      trainingCompleted: false,
+      fabricatedTrainingCompleted: false,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  if (!hasCustomerAdoptionPlanModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_adoption_plan_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const plan = await prisma.customerAdoptionPlan.findUnique({
+    where: { id: planId },
+  });
+  if (!plan) {
+    return { ok: false, notFound: true, error: 'adoption_plan_not_found' };
+  }
+
+  if (plan.onboardingHandoverId && String(plan.onboardingHandoverId) === handoverId) {
+    return {
+      ok: true,
+      plan: serializeAdoptionPlan(plan),
+      handoverId,
+      alreadyAttached: true,
+      idempotentReplay: true,
+      trainingCompleted: false,
+      fabricatedTrainingCompleted: false,
+      domain: getAdoptionDomainContract(),
+    };
+  }
+
+  const updated = await prisma.customerAdoptionPlan.update({
+    where: { id: plan.id },
+    data: {
+      onboardingHandoverId: handoverId,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    plan: serializeAdoptionPlan(updated),
+    handoverId,
+    trainingCompleted: false,
+    fabricatedTrainingCompleted: false,
+    domain: getAdoptionDomainContract(),
+  };
+}
+
+
+===== test/systemAdmin.cs.adoptionWave1.test.js =====
+
+/**
+ * Phase 19 Wave 1 — Customer Adoption Request + Plan spine.
+ * Auto Request ONLY when Training Program aggregate is COMPLETED.
+ * COMPLETED_WITH_GAPS / IN_PROGRESS / partial → no Request.
+ * Handover attach ≠ invent Training COMPLETED. No milestones / Tenant GL.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  ADOPTION_REQUEST_NUMBER_RE,
+  ADOPTION_PLAN_NUMBER_RE,
+  consumeTrainingCompletionForAdoption,
+  createManualAdoptionRequest,
+  validateAdoptionRequest,
+  acceptAdoptionRequest,
+  createCustomerAdoptionPlan,
+  attachOnboardingHandoverToAdoption,
+  transitionAdoptionRequestStatus,
+  transitionAdoptionPlanStatus,
+  listAdoptionRequests,
+  listAdoptionPlans,
+  loadAdoptionPlanForActor,
+  getAdoptionDomainContract,
+  ensureWave1DefaultPlanTemplateVersion,
+} from '@/lib/admin/customerSuccess/adoption';
+
+function superAdmin(id = 'super-adp-1') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+      'systemAdmin.customerSuccess.manageCases': true,
+    },
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const seqStore = overrides._seqStore || [];
+  const requestStore = overrides._requestStore || [];
+  const requestHistoryStore = overrides._requestHistoryStore || [];
+  const planStore = overrides._planStore || [];
+  const planHistoryStore = overrides._planHistoryStore || [];
+  const templateStore = overrides._templateStore || [];
+  const templateVersionStore = overrides._templateVersionStore || [];
+  const trainingProgramStore = overrides._trainingProgramStore || [
+    {
+      id: 'trn-prog-completed',
+      programNumber: 'TRN-2026-000001',
+      status: 'COMPLETED',
+      customerId: 'cust-1',
+      tenantId: 'tenant-1',
+      subscriptionId: 'sub-1',
+      conversionId: 'cvn-1',
+      onboardingProjectId: 'onb-1',
+      handoffId: 'handoff-trn-1',
+      curriculumVersionId: 'currv-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+    {
+      id: 'trn-prog-gaps',
+      programNumber: 'TRN-2026-000002',
+      status: 'COMPLETED_WITH_GAPS',
+      customerId: 'cust-1',
+      tenantId: 'tenant-1',
+      subscriptionId: 'sub-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+    {
+      id: 'trn-prog-progress',
+      programNumber: 'TRN-2026-000003',
+      status: 'IN_PROGRESS',
+      customerId: 'cust-1',
+      tenantId: 'tenant-1',
+      subscriptionId: 'sub-1',
+      createdAt: new Date('2026-07-31T10:00:00Z'),
+      updatedAt: new Date('2026-07-31T10:00:00Z'),
+    },
+  ];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _requestStore: requestStore,
+    _planStore: planStore,
+    _trainingProgramStore: trainingProgramStore,
+    _templateVersionStore: templateVersionStore,
+    crmNumberSeq: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        const key = where.prefix_year || where;
+        return (
+          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
+        );
+      }),
+      create: vi.fn(async ({ data }) => {
+        const row = { ...data, updatedAt: new Date() };
+        seqStore.push(row);
+        return row;
+      }),
+      updateMany: vi.fn(async ({ where, data }) => {
+        const row = seqStore.find(
+          (r) =>
+            r.prefix === where.prefix &&
+            r.year === where.year &&
+            r.lastIssued === where.lastIssued
+        );
+        if (!row) return { count: 0 };
+        row.lastIssued = data.lastIssued;
+        return { count: 1 };
+      }),
+    },
+    customerTrainingProgram: {
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return trainingProgramStore.find((r) => r.id === where.id) || null;
+        if (where.programNumber) {
+          return (
+            trainingProgramStore.find((r) => r.programNumber === where.programNumber) ||
+            null
+          );
+        }
+        return null;
+      }),
+    },
+    customerAdoptionRequest: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `adr-${requestStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        requestStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return requestStore.find((r) => r.id === where.id) || null;
+        if (where.requestNumber) {
+          return requestStore.find((r) => r.requestNumber === where.requestNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return requestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.trainingProgramId) {
+          rows = rows.filter((r) => r.trainingProgramId === where.trainingProgramId);
+        }
+        if (where.source) rows = rows.filter((r) => r.source === where.source);
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...requestStore];
+        if (where.tenantId?.in) {
+          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+        } else if (where.tenantId) {
+          rows = rows.filter((r) => r.tenantId === where.tenantId);
+        }
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = requestStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerAdoptionRequestStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `adrh-${requestHistoryStore.length + 1}`, ...data };
+        requestHistoryStore.push(row);
+        return row;
+      }),
+    },
+    customerAdoptionPlan: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `adp-${planStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        planStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return planStore.find((r) => r.id === where.id) || null;
+        if (where.planNumber) {
+          return planStore.find((r) => r.planNumber === where.planNumber) || null;
+        }
+        if (where.idempotencyKey) {
+          return planStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+        }
+        if (where.adoptionRequestId) {
+          return (
+            planStore.find((r) => r.adoptionRequestId === where.adoptionRequestId) || null
+          );
+        }
+        return null;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...planStore];
+        if (where.adoptionRequestId) {
+          rows = rows.filter((r) => r.adoptionRequestId === where.adoptionRequestId);
+        }
+        return rows[0] || null;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...planStore];
+        if (where.tenantId?.in) {
+          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
+        } else if (where.tenantId) {
+          rows = rows.filter((r) => r.tenantId === where.tenantId);
+        }
+        return rows;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = planStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerAdoptionPlanStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `adph-${planHistoryStore.length + 1}`, ...data };
+        planHistoryStore.push(row);
+        return row;
+      }),
+    },
+    customerAdoptionPlanTemplate: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `adpt-${templateStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        templateStore.push(row);
+        return row;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...templateStore];
+        if (where.templateCode) {
+          rows = rows.filter((r) => r.templateCode === where.templateCode);
+        }
+        return rows[0] || null;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return templateStore.find((r) => r.id === where.id) || null;
+        if (where.templateCode) {
+          return templateStore.find((r) => r.templateCode === where.templateCode) || null;
+        }
+        return null;
+      }),
+    },
+    customerAdoptionPlanTemplateVersion: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `adptv-${templateVersionStore.length + 1}`,
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        templateVersionStore.push(row);
+        return row;
+      }),
+      findFirst: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...templateVersionStore];
+        if (where.templateCode) {
+          rows = rows.filter((r) => r.templateCode === where.templateCode);
+        }
+        if (where.status) rows = rows.filter((r) => r.status === where.status);
+        return rows[0] || null;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return templateVersionStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+    },
+  };
+
+  return prisma;
+}
+
+async function seedAcceptedRequest(prisma, admin, opts = {}) {
+  const consumed = await consumeTrainingCompletionForAdoption(prisma, {
+    actorContext: { admin },
+    programId: opts.programId || 'trn-prog-completed',
+    idempotencyKey: opts.idempotencyKey || 'adr-seed:1',
+  });
+  expect(consumed.ok).toBe(true);
+  await validateAdoptionRequest(prisma, {
+    actorContext: { admin },
+    adoptionRequestId: consumed.request.id,
+  });
+  const accepted = await acceptAdoptionRequest(prisma, {
+    actorContext: { admin },
+    adoptionRequestId: consumed.request.id,
+  });
+  expect(accepted.ok).toBe(true);
+  return { request: accepted.request || consumed.request, consumed };
+}
+
+describe('Phase 19 Wave 1 — Adoption Request + Plan spine', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('Training Program COMPLETED consume creates one ADR- Request', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const result = await consumeTrainingCompletionForAdoption(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-completed',
+      idempotencyKey: 'adr-from-trn:completed-1',
+    });
+    expect(result.ok).toBe(true);
+    expect(result.request.requestNumber).toMatch(ADOPTION_REQUEST_NUMBER_RE);
+    expect(result.request.customerId).toBe('cust-1');
+    expect(result.request.tenantId).toBe('tenant-1');
+    expect(result.request.subscriptionId).toBe('sub-1');
+    expect(result.request.trainingProgramId).toBe('trn-prog-completed');
+    expect(result.request.source).toMatch(/TRAINING_COMPLETED|PHASE_18/i);
+    expect(getAdoptionDomainContract().surface).toContain('adoption');
+    expect(prisma._requestStore.length).toBe(1);
+  });
+
+  it('exact Training COMPLETED retry returns same Request (no duplicate)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const args = {
+      actorContext: { admin },
+      programId: 'trn-prog-completed',
+      idempotencyKey: 'adr-from-trn:retry-1',
+    };
+    const first = await consumeTrainingCompletionForAdoption(prisma, args);
+    expect(first.ok).toBe(true);
+    const second = await consumeTrainingCompletionForAdoption(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.request.id).toBe(first.request.id);
+    expect(prisma._requestStore.length).toBe(1);
+  });
+
+  it('COMPLETED_WITH_GAPS does not create Adoption Request', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const result = await consumeTrainingCompletionForAdoption(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-gaps',
+      idempotencyKey: 'adr-from-trn:gaps-1',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/COMPLETED_WITH_GAPS|not.?eligible|aggregate|COMPLETED/i);
+    expect(prisma._requestStore.length).toBe(0);
+  });
+
+  it('IN_PROGRESS / partial Training does not create Adoption Request', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const result = await consumeTrainingCompletionForAdoption(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-progress',
+      idempotencyKey: 'adr-from-trn:progress-1',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/IN_PROGRESS|not.?eligible|aggregate|COMPLETED/i);
+    expect(prisma._requestStore.length).toBe(0);
+  });
+
+  it('accept → convert creates one ADP- Plan; second convert returns same (one Request → one Plan)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const tmpl = await ensureWave1DefaultPlanTemplateVersion(prisma, {
+      actorContext: { admin },
+    });
+    expect(tmpl.ok).toBe(true);
+
+    const { request } = await seedAcceptedRequest(prisma, admin, {
+      idempotencyKey: 'adr-convert:1',
+    });
+
+    const plan = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-create:1',
+    });
+    expect(plan.ok).toBe(true);
+    expect(plan.plan.planNumber).toMatch(ADOPTION_PLAN_NUMBER_RE);
+    expect(plan.plan.planTemplateVersionId || plan.plan.templateVersionId).toBe(
+      tmpl.templateVersion.id
+    );
+    expect(prisma._requestStore[0].status).toBe('CONVERTED_TO_PLAN');
+
+    const second = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-create:1',
+    });
+    expect(second.ok).toBe(true);
+    expect(
+      second.alreadyExists ||
+        second.idempotentReplay ||
+        second.plan.id === plan.plan.id
+    ).toBe(true);
+    expect(prisma._planStore.length).toBe(1);
+  });
+
+  it('exact plan create retry returns same Plan', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const tmpl = await ensureWave1DefaultPlanTemplateVersion(prisma, {
+      actorContext: { admin },
+    });
+    const { request } = await seedAcceptedRequest(prisma, admin, {
+      idempotencyKey: 'adr-retry-plan:1',
+    });
+    const args = {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-exact:1',
+    };
+    const first = await createCustomerAdoptionPlan(prisma, args);
+    const second = await createCustomerAdoptionPlan(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.plan.id).toBe(first.plan.id);
+    expect(prisma._planStore.length).toBe(1);
+  });
+
+  it('conflicting idempotency payload fails', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const tmpl = await ensureWave1DefaultPlanTemplateVersion(prisma, {
+      actorContext: { admin },
+    });
+    const { request } = await seedAcceptedRequest(prisma, admin, {
+      idempotencyKey: 'adr-conflict:1',
+    });
+
+    const first = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-conflict:1',
+    });
+    expect(first.ok).toBe(true);
+
+    const conflict = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: 'other-admin' },
+      idempotencyKey: 'adp-conflict:1',
+    });
+    expect(conflict.ok).toBe(false);
+    expect(conflict.error).toMatch(/conflict|idempotency/i);
+    expect(prisma._planStore.length).toBe(1);
+  });
+
+  it('invalid request status transition is rejected (throws)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const consumed = await consumeTrainingCompletionForAdoption(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-completed',
+      idempotencyKey: 'adr-bad-status:1',
+    });
+    expect(consumed.ok).toBe(true);
+
+    await expect(
+      transitionAdoptionRequestStatus(prisma, {
+        actorContext: { admin },
+        adoptionRequestId: consumed.request.id,
+        toStatus: 'CONVERTED_TO_PLAN',
+      })
+    ).rejects.toThrow(/invalid_status_transition/i);
+  });
+
+  it('Request without Customer/Tenant fails validation', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const created = await createManualAdoptionRequest(prisma, {
+      actorContext: { admin },
+      customerId: null,
+      tenantId: null,
+      subscriptionId: null,
+      idempotencyKey: 'adr-incomplete:1',
+      allowIncompletePins: true,
+    });
+    expect(created.ok).toBe(true);
+
+    const validated = await validateAdoptionRequest(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: created.request.id,
+    });
+    expect(validated.ok).toBe(false);
+    expect(validated.error).toMatch(/customer|tenant/i);
+  });
+
+  it('planTemplateVersionId pin is required for Plan create', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { request } = await seedAcceptedRequest(prisma, admin, {
+      idempotencyKey: 'adr-no-tmpl:1',
+    });
+
+    const missing = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-no-tmpl:1',
+    });
+    expect(missing.ok).toBe(false);
+    expect(missing.error).toMatch(/template/i);
+    expect(prisma._planStore.length).toBe(0);
+  });
+
+  it('COMPLETED / HANDED_TO_RENEWALS plan status blocked until completion evaluation', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const tmpl = await ensureWave1DefaultPlanTemplateVersion(prisma, {
+      actorContext: { admin },
+    });
+    const { request } = await seedAcceptedRequest(prisma, admin, {
+      idempotencyKey: 'adr-completion-block:1',
+    });
+    const created = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-completion-block:1',
+    });
+    expect(created.ok).toBe(true);
+
+    prisma._planStore[0].status = 'VALUE_REVIEW';
+
+    const blocked = await transitionAdoptionPlanStatus(prisma, {
+      actorContext: { admin },
+      adoptionPlanId: created.plan.id,
+      toStatus: 'COMPLETED',
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/COMPLETION_POLICY_REQUIRED|completion.?policy/i);
+    expect(prisma._planStore[0].status).toBe('VALUE_REVIEW');
+
+    const renewalsBlocked = await transitionAdoptionPlanStatus(prisma, {
+      actorContext: { admin },
+      adoptionPlanId: created.plan.id,
+      toStatus: 'HANDED_TO_RENEWALS',
+    });
+    expect(renewalsBlocked.ok).toBe(false);
+    expect(renewalsBlocked.error).toMatch(
+      /COMPLETION_POLICY_REQUIRED|completion.?policy|handoff.?policy/i
+    );
+  });
+
+  it('onboarding handover attach does not invent Training COMPLETED', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const consumed = await consumeTrainingCompletionForAdoption(prisma, {
+      actorContext: { admin },
+      programId: 'trn-prog-completed',
+      idempotencyKey: 'adr-handover:1',
+    });
+    expect(consumed.ok).toBe(true);
+
+    const attached = await attachOnboardingHandoverToAdoption(prisma, {
+      actorContext: { admin },
+      handoverId: 'handover-onb-1',
+      requestId: consumed.request.id,
+      idempotencyKey: 'adr-handover-attach:1',
+    });
+    expect(attached.ok).toBe(true);
+    expect(attached.request.onboardingHandoverId || attached.handoverId).toBeTruthy();
+    expect(attached.trainingCompleted).not.toBe(true);
+    expect(attached.fabricatedTrainingCompleted).not.toBe(true);
+    expect(prisma._trainingProgramStore.find((p) => p.id === 'trn-prog-gaps').status).toBe(
+      'COMPLETED_WITH_GAPS'
+    );
+  });
+
+  it('portfolio empty list returns [] (fail-closed)', async () => {
+    const prisma = makePrisma();
+    const admin = {
+      id: 'agent-scoped',
+      role: 'Admin',
+      permissions: {
+        'systemAdmin.customerSuccess.read': true,
+        'systemAdmin.customerSuccess.manageCases': true,
+      },
+    };
+    await consumeTrainingCompletionForAdoption(prisma, {
+      actorContext: { admin: superAdmin() },
+      programId: 'trn-prog-completed',
+      idempotencyKey: 'adr-portfolio:1',
+    });
+
+    const listed = await listAdoptionRequests(prisma, {
+      actorContext: { admin },
+      portfolioTenantIds: [],
+    });
+    expect(listed.ok).toBe(true);
+    expect(listed.requests).toEqual([]);
+    expect(listed.meta?.failClosed || listed.reason).toBeTruthy();
+
+    const plans = await listAdoptionPlans(prisma, {
+      actorContext: { admin },
+      portfolioTenantIds: [],
+    });
+    expect(plans.ok).toBe(true);
+    expect(plans.plans).toEqual([]);
+  });
+
+  it('cross-tenant plan load denied', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const tmpl = await ensureWave1DefaultPlanTemplateVersion(prisma, {
+      actorContext: { admin },
+    });
+    const { request } = await seedAcceptedRequest(prisma, admin, {
+      idempotencyKey: 'adr-xtenant:1',
+    });
+    const created = await createCustomerAdoptionPlan(prisma, {
+      actorContext: { admin },
+      adoptionRequestId: request.id,
+      planTemplateVersionId: tmpl.templateVersion.id,
+      ownerAssignments: { csOwnerAdminId: admin.id },
+      idempotencyKey: 'adp-xtenant:1',
+    });
+    expect(created.ok).toBe(true);
+
+    const denied = await loadAdoptionPlanForActor(prisma, {
+      actorContext: { admin, tenantId: 'tenant-other' },
+      planId: created.plan.id,
+      tenantId: 'tenant-other',
+    });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toMatch(/cross.?tenant|denied|isolation|out_of_scope/i);
+  });
+});
+

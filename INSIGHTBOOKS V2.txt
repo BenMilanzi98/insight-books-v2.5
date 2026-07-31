@@ -1,0 +1,633 @@
+
+# INSIGHTBOOKS V2
+
+## Accounting Architecture & Financial Reporting Guide
+
+### Version 1.0
+
+**Prepared For:** Insight Innovations Development Team
+
+**Product:** InsightBooks V2
+
+**Objective:** To build an accounting engine that meets international accounting standards, supports audit requirements, and produces lender-ready financial statements for businesses seeking financing.
+
+---
+
+# 1. Vision
+
+InsightBooks V2 is not simply an accounting application.
+
+It is a **Financial Operating System** that enables businesses to:
+
+* Record every financial transaction accurately.
+* Produce reliable financial statements.
+* Meet audit requirements.
+* Demonstrate financial health to banks and investors.
+* Generate forecasts that assist management in making financial decisions.
+
+The accounting engine must become the foundation upon which every other module operates.
+
+---
+
+# 2. Core Accounting Philosophy
+
+Every financial transaction must pass through the General Ledger.
+
+Modules such as:
+
+* Sales
+* Purchases
+* Inventory
+* Payroll
+* Banking
+* Fixed Assets
+* Loans
+
+do **not** directly affect financial statements.
+
+Instead, they generate journal entries which are posted to the General Ledger.
+
+Financial statements must only read data from the General Ledger.
+
+---
+
+# 3. System Architecture
+
+```
+Sales Module
+        │
+Purchases Module
+        │
+Inventory Module
+        │
+Payroll Module
+        │
+Banking Module
+        │
+        ▼
+ Accounting Posting Engine
+        │
+        ▼
+ Journal Entries
+        │
+        ▼
+ General Ledger
+        │
+        ▼
+ Financial Statements
+```
+
+This architecture ensures consistency and prevents modules from creating inconsistent financial data.
+
+---
+
+# 4. Core Accounting Components
+
+The accounting engine shall consist of the following core modules.
+
+### Chart of Accounts
+
+Maintain all accounting accounts.
+
+Every account shall contain
+
+* Account Code
+* Account Name
+* Parent Account
+* Account Category
+* Account Type
+* Normal Balance
+* Currency
+* Tax Mapping
+* Financial Statement Mapping
+* Status
+
+---
+
+### Journal Entry
+
+Stores every accounting transaction.
+
+Contains
+
+* Date
+* Reference Number
+* Source Module
+* Description
+* Status
+* Approval Status
+* Posting Date
+
+---
+
+### Journal Entry Lines
+
+Each journal entry contains one or more lines.
+
+Each line contains
+
+* Account
+* Debit
+* Credit
+* Cost Centre
+* Branch
+* Project
+* Tax Code
+
+---
+
+### General Ledger
+
+Automatically updated after posting.
+
+Must provide
+
+* Opening Balance
+* Transactions
+* Closing Balance
+
+---
+
+### Fiscal Year
+
+Support multiple accounting years.
+
+Automatically carry forward
+
+* Assets
+* Liabilities
+* Equity
+
+Close Income and Expense accounts into Retained Earnings.
+
+---
+
+### Accounting Period
+
+Support
+
+* Monthly periods
+* Quarterly periods
+* Annual periods
+
+Allow periods to be locked after closing.
+
+---
+
+# 5. Accounting Rules
+
+The following rules are mandatory.
+
+## Rule 1
+
+Every transaction must balance.
+
+```
+Total Debits = Total Credits
+```
+
+The system must reject any transaction that does not balance.
+
+---
+
+## Rule 2
+
+Posted transactions cannot be edited.
+
+Corrections must be made using
+
+* Reversal
+* Adjustment Journal
+
+---
+
+## Rule 3
+
+Every transaction must have an audit trail.
+
+Record
+
+* User
+* Time
+* Previous Value
+* New Value
+* Device
+* IP Address
+
+---
+
+## Rule 4
+
+Financial reports must never calculate directly from Sales or Inventory tables.
+
+Reports must only read from the General Ledger.
+
+---
+
+# 6. Standard Chart of Accounts
+
+The system shall provide default account templates.
+
+## Assets
+
+* Cash
+* Petty Cash
+* Bank Accounts
+* Accounts Receivable
+* Inventory
+* Fixed Assets
+* Land
+* Buildings
+* Motor Vehicles
+* Computers
+* Furniture
+* Accumulated Depreciation
+
+---
+
+## Liabilities
+
+* Accounts Payable
+* VAT Payable
+* PAYE Payable
+* Pension Payable
+* Loans
+* Interest Payable
+
+---
+
+## Equity
+
+* Capital
+* Share Capital
+* Retained Earnings
+* Current Year Profit
+
+---
+
+## Income
+
+* Sales Revenue
+* Service Revenue
+* Rental Income
+* Interest Income
+* Other Income
+
+---
+
+## Expenses
+
+* Salaries
+* Fuel
+* Electricity
+* Water
+* Rent
+* Internet
+* Repairs
+* Marketing
+* Insurance
+* Bank Charges
+* Depreciation
+
+---
+
+# 7. Banking Module
+
+The banking module shall include
+
+## Bank Accounts
+
+Multiple bank accounts
+
+Different currencies
+
+Branch allocation
+
+---
+
+## Bank Reconciliation
+
+Import
+
+* CSV
+* Excel
+
+Automatic matching
+
+Manual matching
+
+Outstanding items
+
+Reconciliation history
+
+---
+
+## Cash Management
+
+Track
+
+* Cash
+* Cheques
+* Transfers
+* Mobile Money
+
+Daily cash position.
+
+---
+
+# 8. Financial Reports
+
+InsightBooks must automatically generate:
+
+## Trial Balance
+
+The first report that confirms accounting integrity.
+
+---
+
+## General Ledger
+
+Every account with complete transaction history.
+
+---
+
+## Income Statement
+
+Monthly
+
+Quarterly
+
+Annual
+
+Department
+
+Branch
+
+Project
+
+---
+
+## Statement of Financial Position
+
+Assets
+
+Liabilities
+
+Equity
+
+---
+
+## Cash Flow Statement
+
+Operating Activities
+
+Investing Activities
+
+Financing Activities
+
+---
+
+## Statement of Changes in Equity
+
+Automatically generated.
+
+---
+
+## Accounts Receivable Aging
+
+Current
+
+30 Days
+
+60 Days
+
+90 Days
+
+120+ Days
+
+---
+
+## Accounts Payable Aging
+
+Supplier balances.
+
+---
+
+## Fixed Asset Register
+
+Asset register
+
+Depreciation schedule
+
+Book value
+
+Disposals
+
+---
+
+## VAT Reports
+
+VAT collected
+
+VAT paid
+
+VAT payable
+
+---
+
+## Payroll Reports
+
+Gross salaries
+
+PAYE
+
+Pension
+
+Net Pay
+
+---
+
+## Budget vs Actual
+
+Department
+
+Branch
+
+Project
+
+Variance analysis.
+
+---
+
+# 9. Bank Loan Readiness Module
+
+This module is designed to help businesses prepare for loan applications by presenting key financial indicators in one place.
+
+The system should provide:
+
+### Financial Ratios
+
+* Current Ratio
+* Quick Ratio
+* Gross Profit Margin
+* Net Profit Margin
+* Debt-to-Equity Ratio
+* Interest Coverage Ratio
+* Debt Service Coverage Ratio (DSCR)
+* Working Capital
+
+### Business Performance Indicators
+
+* Average Monthly Revenue
+* Revenue Growth
+* Net Profit Trend
+* Cash Flow Stability
+* Customer Concentration
+* Expense Trends
+* Inventory Turnover
+* Receivables Collection Period
+
+### Loan Readiness Dashboard
+
+Provide an informational dashboard showing whether records appear complete and financially consistent. It may include:
+
+* Financial statements generated
+* Accounting periods closed
+* Tax reports available
+* Bank reconciliations completed
+* Audit trail completeness
+* Credit ratios within target ranges
+
+The dashboard should clearly state that it is an internal assessment and **not** a guarantee of loan approval.
+
+---
+
+# 10. Forecasting Module
+
+Generate forecasts using historical financial data.
+
+Forecast
+
+* Revenue
+* Expenses
+* Profit
+* Cash Flow
+* Working Capital
+* Loan Repayment Capacity
+* Inventory Demand
+
+---
+
+# 11. Security
+
+Implement Role-Based Access Control (RBAC).
+
+Roles include
+
+* Accountant
+* Cashier
+* Finance Manager
+* Auditor
+* CEO
+* Administrator
+
+Permissions should govern who can:
+
+* Post journals
+* Reverse journals
+* Close periods
+* Reopen periods
+* Approve transactions
+* View financial reports
+
+---
+
+# 12. Audit & Compliance
+
+Every accounting transaction must be:
+
+* Traceable
+* Immutable after posting
+* Linked to source documents
+* Time stamped
+* User stamped
+
+Supporting documents such as invoices, receipts, contracts, and bank statements should be attachable to each transaction.
+
+---
+
+# 13. Core Database Entities
+
+```
+ChartOfAccounts
+
+JournalEntry
+
+JournalEntryLine
+
+GeneralLedger
+
+FiscalYear
+
+AccountingPeriod
+
+Customer
+
+Supplier
+
+Invoice
+
+Payment
+
+Inventory
+
+PurchaseOrder
+
+BankAccount
+
+BankTransaction
+
+Reconciliation
+
+FixedAsset
+
+Loan
+
+Budget
+
+Forecast
+
+CostCentre
+
+Project
+
+Branch
+
+Tax
+
+Approval
+
+AuditTrail
+
+Attachment
+```
+
+---
+
+# 14. Development Principles
+
+The development team shall adhere to the following principles:
+
+1. **The General Ledger is the single source of truth** for all financial reporting.
+2. **Every module posts to the General Ledger through the Accounting Posting Engine.**
+3. **No financial statement shall read directly from operational tables.**
+4. **Every transaction must maintain double-entry accounting integrity.**
+5. **Posted transactions are immutable and corrected only through reversals or adjustments.**
+6. **Every financial figure must be traceable to its originating transaction.**
+7. **The platform must support future compliance with IFRS for SMEs and local regulatory requirements without requiring architectural changes.**
+
+---
+
+## Long-Term Vision
+
+The goal for InsightBooks V2 is not only to help businesses manage their books, but to become the financial record that banks, investors, auditors, and regulators can trust. When a business applies for financing, the reports generated by InsightBooks should demonstrate accurate bookkeeping, sound financial management, and readiness for credit assessment. This vision positions InsightBooks as a true financial operating system for African businesses rather than just another accounting application.

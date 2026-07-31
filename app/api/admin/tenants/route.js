@@ -4,6 +4,8 @@ import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 import prisma from '@/lib/prisma';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
+import { withAdminTenantFilter } from '@/lib/admin/authorization/withAdminTenantFilter';
+import { emitTenantCreated } from '@/lib/admin/analytics/emit';
 
 export async function GET(request) {
   try {
@@ -23,8 +25,11 @@ export async function GET(request) {
       );
     }
 
-    // Fetch all tenants with subscription data (same source of truth as tenant-management)
+    const tenantWhere = await withAdminTenantFilter(prisma, admin, {});
+
+    // Fetch tenants with subscription data (scoped when AdminTenantAccess rows exist)
     const tenantsRaw = await prisma.tenant.findMany({
+      where: tenantWhere,
       select: {
         id: true,
         name: true,
@@ -144,6 +149,8 @@ export async function POST(request) {
       }
       throw error;
     }
+
+    await emitTenantCreated(prisma, { tenant: newTenant, actorId: admin.id });
 
     // Create admin audit log for tenant creation (after real id exists)
     await prisma.adminAuditLog.create({

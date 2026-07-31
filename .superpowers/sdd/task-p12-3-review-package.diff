@@ -1,0 +1,2388 @@
+﻿# Review package — Phase 12 Task 3 (WORKING_TREE)
+
+diff --git a/lib/admin/crm/opportunities/risks.js b/lib/admin/crm/opportunities/risks.js
+new file mode 100644
+index 0000000..a9a6880
+--- /dev/null
++++ b/lib/admin/crm/opportunities/risks.js
+@@ -0,0 +1,334 @@
++/**
++ * Opportunity risk signals ΓÇö Phase 12 Wave 3.
++ * Deterministic, evidence-based; Γëá Support/CS health; no invented scores.
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { hasCrmOpportunityContactRoleModel, hasPrimaryContactRole } from './contacts.js';
++import { hasCrmOpportunityModel, serializeOpportunity } from './model.js';
++import { hasCrmOpportunityProductModel } from './products.js';
++import { hasCrmTaskModel } from '../tasks.js';
++import { CRM_SUBJECT_TYPE, CRM_TASK_STATUS } from '../catalogue.js';
++
++export const CRM_OPPORTUNITY_RISK_SEVERITY = Object.freeze({
++  INFO: 'INFO',
++  WARN: 'WARN',
++  CRITICAL: 'CRITICAL',
++});
++
++export const CRM_OPPORTUNITY_RISK_STATUS = Object.freeze({
++  OPEN: 'OPEN',
++  MITIGATED: 'MITIGATED',
++  ACCEPTED: 'ACCEPTED',
++  CLOSED: 'CLOSED',
++});
++
++export const CRM_OPPORTUNITY_RISK_CODE = Object.freeze({
++  MISSING_PRIMARY_CONTACT: 'MISSING_PRIMARY_CONTACT',
++  MISSING_COMMERCIAL: 'MISSING_COMMERCIAL',
++  MISSING_PRODUCTS: 'MISSING_PRODUCTS',
++  STALE_EXPECTED_CLOSE: 'STALE_EXPECTED_CLOSE',
++  CLOSE_DATE_UNKNOWN: 'CLOSE_DATE_UNKNOWN',
++  MISSING_OWNER: 'MISSING_OWNER',
++  OPEN_OVERDUE_TASKS: 'OPEN_OVERDUE_TASKS',
++});
++
++export function hasCrmOpportunityRiskModel(prisma) {
++  return typeof prisma?.crmOpportunityRisk?.findMany === 'function';
++}
++
++function serializeRisk(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    opportunityId: row.opportunityId,
++    code: row.code,
++    severity: row.severity,
++    status: row.status,
++    detail: row.detail || null,
++    signalSource: row.signalSource || 'DETERMINISTIC',
++    evidenceJson: row.evidenceJson ?? null,
++    createdByAdminId: row.createdByAdminId || null,
++    mitigatedAt: row.mitigatedAt ? new Date(row.mitigatedAt).toISOString() : null,
++    mitigationNote: row.mitigationNote || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    isMl: false,
++    isSupportHealth: false,
++    isCsHealth: false,
++  };
++}
++
++async function loadOpportunity(prisma, opportunityId) {
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id || !hasCrmOpportunityModel(prisma)) return null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    }
++    return await prisma.crmOpportunity.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Pure deterministic signal evaluation (no invent).
++ * @param {object} opportunity
++ * @param {{ hasPrimary?: boolean, productCount?: number, overdueTaskCount?: number, now?: Date }} ctx
++ */
++export function computeOpportunityRiskSignals(opportunity, ctx = {}) {
++  const now = ctx.now || new Date();
++  const signals = [];
++  if (!opportunity) return signals;
++
++  const hasPrimary =
++    ctx.hasPrimary != null
++      ? Boolean(ctx.hasPrimary)
++      : Boolean(opportunity.contactId);
++  if (!hasPrimary) {
++    signals.push({
++      code: CRM_OPPORTUNITY_RISK_CODE.MISSING_PRIMARY_CONTACT,
++      severity: CRM_OPPORTUNITY_RISK_SEVERITY.CRITICAL,
++      detail: 'No PRIMARY contact role / contactId on Opportunity',
++    });
++  }
++
++  if (opportunity.amount == null || !opportunity.currency || !opportunity.amountBasis) {
++    signals.push({
++      code: CRM_OPPORTUNITY_RISK_CODE.MISSING_COMMERCIAL,
++      severity: CRM_OPPORTUNITY_RISK_SEVERITY.WARN,
++      detail: 'Commercial estimate incomplete (amount + currency + amountBasis required)',
++    });
++  }
++
++  const productCount = Number(ctx.productCount ?? 0);
++  if (productCount < 1) {
++    signals.push({
++      code: CRM_OPPORTUNITY_RISK_CODE.MISSING_PRODUCTS,
++      severity: CRM_OPPORTUNITY_RISK_SEVERITY.INFO,
++      detail: 'No product estimate lines',
++    });
++  }
++
++  if (!opportunity.ownerAdminId) {
++    signals.push({
++      code: CRM_OPPORTUNITY_RISK_CODE.MISSING_OWNER,
++      severity: CRM_OPPORTUNITY_RISK_SEVERITY.WARN,
++      detail: 'Opportunity has no ownerAdminId',
++    });
++  }
++
++  if (
++    opportunity.closeDateConfidence &&
++    String(opportunity.closeDateConfidence).toUpperCase() === 'UNKNOWN'
++  ) {
++    signals.push({
++      code: CRM_OPPORTUNITY_RISK_CODE.CLOSE_DATE_UNKNOWN,
++      severity: CRM_OPPORTUNITY_RISK_SEVERITY.WARN,
++      detail: 'Expected close confidence is UNKNOWN (not forecast-eligible)',
++    });
++  }
++
++  if (opportunity.expectedCloseDate) {
++    const close = new Date(opportunity.expectedCloseDate);
++    if (!Number.isNaN(close.getTime()) && close.getTime() < now.getTime()) {
++      const status = String(opportunity.status || '').toUpperCase();
++      if (status === 'OPEN') {
++        signals.push({
++          code: CRM_OPPORTUNITY_RISK_CODE.STALE_EXPECTED_CLOSE,
++          severity: CRM_OPPORTUNITY_RISK_SEVERITY.WARN,
++          detail: 'Expected close date is in the past while Opportunity is OPEN',
++        });
++      }
++    }
++  }
++
++  const overdue = Number(ctx.overdueTaskCount ?? 0);
++  if (overdue > 0) {
++    signals.push({
++      code: CRM_OPPORTUNITY_RISK_CODE.OPEN_OVERDUE_TASKS,
++      severity: CRM_OPPORTUNITY_RISK_SEVERITY.WARN,
++      detail: `${overdue} open overdue Opportunity task(s)`,
++    });
++  }
++
++  return signals.map((s) => ({
++    ...s,
++    signalSource: 'DETERMINISTIC',
++    isMl: false,
++  }));
++}
++
++/**
++ * Evaluate + optionally persist OPEN risk rows (upsert by code).
++ */
++export async function evaluateOpportunityRisks(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  let hasPrimary = Boolean(row.contactId);
++  if (hasCrmOpportunityContactRoleModel(prisma)) {
++    hasPrimary = await hasPrimaryContactRole(prisma, row.id);
++  }
++
++  let productCount = 0;
++  if (hasCrmOpportunityProductModel(prisma)) {
++    try {
++      productCount = await prisma.crmOpportunityProduct.count({
++        where: { opportunityId: row.id },
++      });
++    } catch {
++      productCount = 0;
++    }
++  }
++
++  let overdueTaskCount = 0;
++  const now = args.now || new Date();
++  if (hasCrmTaskModel(prisma)) {
++    try {
++      const openTasks = await prisma.crmTask.findMany({
++        where: {
++          subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
++          subjectId: row.id,
++          status: CRM_TASK_STATUS.TODO,
++        },
++      });
++      overdueTaskCount = (openTasks || []).filter(
++        (t) => t.dueAt && new Date(t.dueAt).getTime() < now.getTime()
++      ).length;
++    } catch {
++      overdueTaskCount = 0;
++    }
++  }
++
++  const signals = computeOpportunityRiskSignals(row, {
++    hasPrimary,
++    productCount,
++    overdueTaskCount,
++    now,
++  });
++
++  const persist = args.persist !== false;
++  const persisted = [];
++  if (persist && hasCrmOpportunityRiskModel(prisma)) {
++    for (const signal of signals) {
++      try {
++        const existing = await prisma.crmOpportunityRisk.findUnique({
++          where: {
++            opportunityId_code: { opportunityId: row.id, code: signal.code },
++          },
++        });
++        if (existing && existing.status !== CRM_OPPORTUNITY_RISK_STATUS.OPEN) {
++          persisted.push(serializeRisk(existing));
++          continue;
++        }
++        if (existing) {
++          const updated = await prisma.crmOpportunityRisk.update({
++            where: { id: existing.id },
++            data: {
++              severity: signal.severity,
++              detail: signal.detail,
++              signalSource: 'DETERMINISTIC',
++              updatedAt: now,
++            },
++          });
++          persisted.push(serializeRisk(updated));
++        } else {
++          const created = await prisma.crmOpportunityRisk.create({
++            data: {
++              opportunityId: row.id,
++              code: signal.code,
++              severity: signal.severity,
++              status: CRM_OPPORTUNITY_RISK_STATUS.OPEN,
++              detail: signal.detail,
++              signalSource: 'DETERMINISTIC',
++              createdByAdminId: args.admin?.id || null,
++              createdAt: now,
++              updatedAt: now,
++            },
++          });
++          persisted.push(serializeRisk(created));
++        }
++      } catch {
++        // model partial / EPERM ΓÇö keep signal-only
++      }
++    }
++  }
++
++  return {
++    ok: true,
++    opportunity: serializeOpportunity(row),
++    signals,
++    risks: persisted.length ? persisted : signals.map((s) => ({
++      id: null,
++      opportunityId: row.id,
++      ...s,
++      status: CRM_OPPORTUNITY_RISK_STATUS.OPEN,
++      createdByAdminId: null,
++      mitigatedAt: null,
++      mitigationNote: null,
++      createdAt: null,
++      updatedAt: null,
++      isSupportHealth: false,
++      isCsHealth: false,
++    })),
++    meta: {
++      deterministic: true,
++      inventForbidden: true,
++      isMl: false,
++      persisted: Boolean(persist && hasCrmOpportunityRiskModel(prisma)),
++    },
++  };
++}
++
++export async function listOpportunityRisks(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden', items: [] };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found', items: [] };
++
++  if (!hasCrmOpportunityRiskModel(prisma)) {
++    const evaluated = await evaluateOpportunityRisks(prisma, {
++      admin: args.admin,
++      opportunityId: row.id,
++      persist: false,
++    });
++    return {
++      ok: true,
++      items: evaluated.risks || [],
++      meta: { unavailable: true, reason: 'crm_opportunity_risk_model_unavailable' },
++    };
++  }
++
++  let rows = [];
++  try {
++    rows = await prisma.crmOpportunityRisk.findMany({
++      where: { opportunityId: row.id },
++      orderBy: { createdAt: 'desc' },
++    });
++  } catch {
++    rows = [];
++  }
++
++  return {
++    ok: true,
++    items: (rows || []).map(serializeRisk),
++    meta: { count: (rows || []).length },
++  };
++}
++
++export { serializeRisk };
+diff --git a/lib/admin/crm/opportunities/tasks.js b/lib/admin/crm/opportunities/tasks.js
+new file mode 100644
+index 0000000..9da0052
+--- /dev/null
++++ b/lib/admin/crm/opportunities/tasks.js
+@@ -0,0 +1,117 @@
++/**
++ * Opportunity-scoped tasks ΓÇö Phase 12 Wave 3.
++ * Uses CrmTask with subjectType OPPORTUNITY. TODO ΓåÆ COMPLETED only.
++ * Does not auto-clone Lead tasks.
++ */
++
++import {
++  CRM_SUBJECT_TYPE,
++  CRM_TASK_STATUS,
++} from '../catalogue.js';
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import {
++  completeTask as completeCrmTask,
++  createTask as createCrmTask,
++  hasCrmTaskModel,
++  listTasks as listCrmTasks,
++} from '../tasks.js';
++import { hasCrmOpportunityModel } from './model.js';
++
++async function loadOpportunity(prisma, opportunityId) {
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id || !hasCrmOpportunityModel(prisma)) return null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    }
++    return await prisma.crmOpportunity.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, opportunityId: string, title: string, dueAt?: Date|string|null, assigneeAdminId?: string|null, now?: Date }} args
++ */
++export async function createOpportunityTask(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_edit_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  if (!hasCrmTaskModel(prisma)) {
++    return { ok: false, error: 'crm_task_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const result = await createCrmTask(prisma, {
++    admin: args.admin,
++    subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
++    subjectId: row.id,
++    title: args.title,
++    dueAt: args.dueAt,
++    assigneeAdminId: args.assigneeAdminId,
++    now: args.now,
++  });
++
++  return {
++    ...result,
++    leadTaskCloned: false,
++    autoClonedFromLead: false,
++  };
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, opportunityId: string, status?: string, limit?: number|string, offset?: number|string }} args
++ */
++export async function listOpportunityTasks(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden', items: [] };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found', items: [] };
++
++  return listCrmTasks(prisma, {
++    admin: args.admin,
++    subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
++    subjectId: row.id,
++    status: args.status,
++    limit: args.limit,
++    offset: args.offset,
++  });
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ admin: object, taskId: string, opportunityId?: string, now?: Date }} args
++ */
++export async function completeOpportunityTask(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_edit_forbidden' };
++  }
++
++  if (args.opportunityId) {
++    const row = await loadOpportunity(prisma, args.opportunityId);
++    if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++  }
++
++  return completeCrmTask(prisma, {
++    admin: args.admin,
++    taskId: args.taskId,
++    now: args.now,
++  });
++}
++
++export { CRM_TASK_STATUS, CRM_SUBJECT_TYPE };
+diff --git a/lib/admin/crm/opportunities/timeline.js b/lib/admin/crm/opportunities/timeline.js
+new file mode 100644
+index 0000000..073fa56
+--- /dev/null
++++ b/lib/admin/crm/opportunities/timeline.js
+@@ -0,0 +1,173 @@
++/**
++ * Opportunity timeline ΓÇö Phase 12 Wave 3.
++ * Paginated merge of stage history + CrmTimelineEvent (OPPORTUNITY).
++ * Never projects Support/CS threads.
++ */
++
++import {
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_SUBJECT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import {
++  appendTimelineEvent,
++  hasCrmTimelineEventModel,
++} from '../timeline.js';
++import {
++  hasCrmOpportunityModel,
++  hasCrmOpportunityStageHistoryModel,
++} from './model.js';
++
++async function loadOpportunity(prisma, opportunityId) {
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id || !hasCrmOpportunityModel(prisma)) return null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    }
++    return await prisma.crmOpportunity.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++function serializeUnifiedEvent(row) {
++  return {
++    id: row.id,
++    source: row.source,
++    eventType: row.eventType,
++    summary: row.summary || null,
++    payload: row.payload ?? null,
++    actorAdminId: row.actorAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++    fromStageCode: row.fromStageCode || null,
++    toStageCode: row.toStageCode || null,
++  };
++}
++
++/**
++ * Append Opportunity timeline event (best-effort).
++ */
++export async function appendOpportunityTimelineEvent(prisma, args = {}) {
++  return appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
++    subjectId: args.opportunityId,
++    eventType: args.eventType,
++    summary: args.summary,
++    payload: args.payload,
++    actorAdminId: args.actorAdminId,
++    at: args.at,
++  });
++}
++
++/**
++ * Paginated Opportunity timeline (stage history + activity events).
++ *
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{
++ *   admin: object,
++ *   opportunityId: string,
++ *   limit?: number|string,
++ *   offset?: number|string,
++ * }} args
++ */
++export async function listOpportunityTimeline(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden', items: [] };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found', items: [] };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied', items: [] };
++  }
++
++  const rawLimit = Number(args.limit);
++  const limit = Math.min(
++    CRM_LIST_MAX_LIMIT,
++    Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : CRM_LIST_DEFAULT_LIMIT)
++  );
++  const rawOffset = Number(args.offset);
++  const offset =
++    Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
++
++  const merged = [];
++
++  if (hasCrmOpportunityStageHistoryModel(prisma)) {
++    try {
++      const hist = await prisma.crmOpportunityStageHistory.findMany({
++        where: { opportunityId: row.id },
++        orderBy: { at: 'desc' },
++        take: CRM_LIST_MAX_LIMIT,
++      });
++      for (const h of hist || []) {
++        merged.push({
++          id: `stage:${h.id}`,
++          source: 'STAGE_HISTORY',
++          eventType: 'STAGE_CHANGE',
++          summary: `Stage ${h.fromStageCode || 'ΓÇö'} ΓåÆ ${h.toStageCode}`,
++          payload: {
++            historyId: h.id,
++            reason: h.reason || null,
++            evidenceReferences: h.evidenceReferences ?? null,
++            idempotencyKey: h.idempotencyKey || null,
++          },
++          actorAdminId: h.changedByAdminId || null,
++          at: h.at,
++          fromStageCode: h.fromStageCode || null,
++          toStageCode: h.toStageCode || null,
++        });
++      }
++    } catch {
++      // ignore
++    }
++  }
++
++  if (hasCrmTimelineEventModel(prisma)) {
++    try {
++      const events = await prisma.crmTimelineEvent.findMany({
++        where: {
++          subjectType: CRM_SUBJECT_TYPE.OPPORTUNITY,
++          subjectId: row.id,
++        },
++        orderBy: { at: 'desc' },
++        take: CRM_LIST_MAX_LIMIT,
++      });
++      for (const e of events || []) {
++        merged.push({
++          id: `timeline:${e.id}`,
++          source: 'TIMELINE',
++          eventType: e.eventType,
++          summary: e.summary || null,
++          payload: e.payload ?? null,
++          actorAdminId: e.actorAdminId || null,
++          at: e.at,
++          fromStageCode: null,
++          toStageCode: null,
++        });
++      }
++    } catch {
++      // ignore
++    }
++  }
++
++  merged.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
++  const page = merged.slice(offset, offset + limit);
++
++  return {
++    ok: true,
++    items: page.map(serializeUnifiedEvent),
++    meta: {
++      count: page.length,
++      limit,
++      offset,
++      totalMerged: merged.length,
++      supportThreadProjected: false,
++      csThreadProjected: false,
++    },
++  };
++}
+diff --git a/lib/admin/crm/opportunities/close.js b/lib/admin/crm/opportunities/close.js
+new file mode 100644
+index 0000000..885ea5a
+--- /dev/null
++++ b/lib/admin/crm/opportunities/close.js
+@@ -0,0 +1,484 @@
++/**
++ * Opportunity win/loss close ΓÇö Phase 12 Wave 3.
++ * CLOSED_WON requires evidence + win reason + decision date.
++ * CLOSED_LOST requires loss reason.
++ * Never provisions Tenant / Subscription / Invoice / Payment.
++ */
++
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
++import {
++  CRM_OPPORTUNITY_STATUS,
++  CRM_PIPELINE_STAGE,
++} from '../pipeline/catalogue.js';
++import { isTerminalStage } from '../pipeline/definitions.js';
++import { transitionOpportunityStage } from '../pipeline/transition.js';
++import { hasCrmOpportunityModel, serializeOpportunity } from './model.js';
++import { appendOpportunityTimelineEvent } from './timeline.js';
++
++export const CRM_CLOSE_APPROVAL_STATUS = Object.freeze({
++  NOT_REQUIRED: 'NOT_REQUIRED',
++  PENDING: 'PENDING',
++  APPROVED: 'APPROVED',
++});
++
++export const CRM_WIN_REASON = Object.freeze({
++  BEST_FIT: 'BEST_FIT',
++  PRICE: 'PRICE',
++  RELATIONSHIP: 'RELATIONSHIP',
++  URGENCY: 'URGENCY',
++  OTHER: 'OTHER',
++});
++
++export const CRM_LOSS_REASON = Object.freeze({
++  NO_BUDGET: 'NO_BUDGET',
++  COMPETITOR: 'COMPETITOR',
++  NO_DECISION: 'NO_DECISION',
++  TIMING: 'TIMING',
++  REQUIREMENTS_MISMATCH: 'REQUIREMENTS_MISMATCH',
++  OTHER: 'OTHER',
++});
++
++/**
++ * Assert no Tenant / Subscription / Invoice / Payment provision occurred.
++ * Always returns ok with provision flags false for Wave 3 close path.
++ */
++export function assertNoProvision(result = {}) {
++  const flags = {
++    tenantCreated: result.tenantCreated === true,
++    subscriptionCreated: result.subscriptionCreated === true,
++    invoiceCreated: result.invoiceCreated === true,
++    paymentCreated: result.paymentCreated === true,
++    provisionExecuted: result.provisionExecuted === true,
++  };
++  const provisioned = Object.values(flags).some(Boolean);
++  return {
++    ok: !provisioned,
++    provisioned,
++    ...flags,
++    assertNoProvision: true,
++  };
++}
++
++async function loadOpportunity(prisma, opportunityId) {
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id || !hasCrmOpportunityModel(prisma)) return null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    }
++    return await prisma.crmOpportunity.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++function normalizeEvidence(evidence) {
++  if (evidence == null) return null;
++  if (Array.isArray(evidence)) {
++    return evidence
++      .map((e) => {
++        if (typeof e === 'string') return { type: 'REFERENCE', value: e };
++        if (e && typeof e === 'object') return e;
++        return null;
++      })
++      .filter(Boolean);
++  }
++  if (typeof evidence === 'string' && evidence.trim()) {
++    return [{ type: 'REFERENCE', value: evidence.trim() }];
++  }
++  if (typeof evidence === 'object') return [evidence];
++  return null;
++}
++
++function hasEvidence(evidence) {
++  const norm = normalizeEvidence(evidence);
++  return Array.isArray(norm) && norm.length > 0;
++}
++
++/**
++ * Close as CLOSED_WON ΓÇö evidence + winReason + decisionDate required.
++ */
++export async function closeOpportunityWon(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canTransitionOpportunityStages && !access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_close_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  if (isTerminalStage(row.stageCode)) {
++    return {
++      ok: false,
++      error: 'ALREADY_TERMINAL',
++      stageCode: row.stageCode,
++      reason: 'opportunity_already_closed',
++    };
++  }
++
++  const winReason = args.winReason != null ? String(args.winReason).trim().toUpperCase() : '';
++  if (!winReason) {
++    return { ok: false, error: 'WIN_REASON_REQUIRED', missingCriteria: ['winReason'] };
++  }
++
++  const decisionDate = args.decisionDate ? new Date(args.decisionDate) : null;
++  if (!decisionDate || Number.isNaN(decisionDate.getTime())) {
++    return { ok: false, error: 'DECISION_DATE_REQUIRED', missingCriteria: ['decisionDate'] };
++  }
++
++  if (!hasEvidence(args.evidence ?? args.evidenceReferences)) {
++    return {
++      ok: false,
++      error: 'CLOSED_WON_EVIDENCE_REQUIRED',
++      missingCriteria: ['evidence'],
++    };
++  }
++
++  const evidence = normalizeEvidence(args.evidence ?? args.evidenceReferences);
++  const now = args.now || new Date();
++  const approvalStatus =
++    args.requireApproval === true
++      ? CRM_CLOSE_APPROVAL_STATUS.PENDING
++      : CRM_CLOSE_APPROVAL_STATUS.NOT_REQUIRED;
++
++  if (approvalStatus === CRM_CLOSE_APPROVAL_STATUS.PENDING && args.approvalGranted !== true) {
++    // Stub: record pending without stage move when approval required and not granted
++    try {
++      await prisma.crmOpportunity.update({
++        where: { id: row.id },
++        data: {
++          winReason,
++          decisionDate,
++          closeEvidence: evidence,
++          closeApprovalStatus: approvalStatus,
++          updatedAt: now,
++        },
++      });
++    } catch {
++      // column may be missing pre-SQL
++    }
++    return {
++      ok: false,
++      error: 'CLOSE_APPROVAL_PENDING',
++      approvalStatus,
++      opportunity: serializeOpportunity({
++        ...row,
++        winReason,
++        decisionDate,
++        closeEvidence: evidence,
++        closeApprovalStatus: approvalStatus,
++      }),
++      tenantCreated: false,
++      subscriptionCreated: false,
++      invoiceCreated: false,
++      paymentCreated: false,
++      provisionExecuted: false,
++    };
++  }
++
++  const transition = await transitionOpportunityStage({
++    prisma,
++    admin: args.admin,
++    opportunityId: row.id,
++    toStageCode: CRM_PIPELINE_STAGE.CLOSED_WON,
++    reason: args.reason || `closed_won:${winReason}`,
++    evidenceReferences: evidence,
++    idempotencyKey: args.idempotencyKey,
++    expectedVersion: args.expectedVersion,
++    now,
++    closeServiceAuthorized: true,
++  });
++
++  if (!transition.ok) {
++    return {
++      ...transition,
++      tenantCreated: false,
++      subscriptionCreated: false,
++      invoiceCreated: false,
++      paymentCreated: false,
++      provisionExecuted: false,
++    };
++  }
++
++  let updated = transition.opportunity;
++  try {
++    const fresh = await prisma.crmOpportunity.update({
++      where: { id: row.id },
++      data: {
++        winReason,
++        lossReason: null,
++        decisionDate,
++        closeEvidence: evidence,
++        closedAt: now,
++        closedByAdminId: args.admin?.id || null,
++        closeApprovalStatus: approvalStatus === CRM_CLOSE_APPROVAL_STATUS.PENDING
++          ? CRM_CLOSE_APPROVAL_STATUS.APPROVED
++          : approvalStatus,
++        status: CRM_OPPORTUNITY_STATUS.WON,
++        updatedAt: now,
++      },
++    });
++    updated = serializeOpportunity(fresh);
++  } catch {
++    updated = serializeOpportunity({
++      ...(transition.opportunity || row),
++      winReason,
++      decisionDate,
++      closeEvidence: evidence,
++      closedAt: now,
++      status: CRM_OPPORTUNITY_STATUS.WON,
++    });
++  }
++
++  await appendOpportunityTimelineEvent(prisma, {
++    opportunityId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.CLOSED_WON,
++    summary: `Closed won: ${winReason}`,
++    payload: {
++      winReason,
++      decisionDate: decisionDate.toISOString(),
++      evidenceCount: evidence.length,
++      tenantCreated: false,
++      subscriptionCreated: false,
++      invoiceCreated: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  const result = {
++    ok: true,
++    opportunity: updated,
++    fromStageCode: transition.fromStageCode,
++    toStageCode: CRM_PIPELINE_STAGE.CLOSED_WON,
++    historyId: transition.historyId,
++    idempotent: Boolean(transition.idempotent),
++    tenantCreated: false,
++    subscriptionCreated: false,
++    invoiceCreated: false,
++    paymentCreated: false,
++    provisionExecuted: false,
++  };
++
++  return { ...result, provisionCheck: assertNoProvision(result) };
++}
++
++/**
++ * Close as CLOSED_LOST ΓÇö lossReason required.
++ */
++export async function closeOpportunityLost(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canTransitionOpportunityStages && !access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_close_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  if (isTerminalStage(row.stageCode)) {
++    return {
++      ok: false,
++      error: 'ALREADY_TERMINAL',
++      stageCode: row.stageCode,
++      reason: 'opportunity_already_closed',
++    };
++  }
++
++  const lossReason = args.lossReason != null ? String(args.lossReason).trim().toUpperCase() : '';
++  if (!lossReason) {
++    return { ok: false, error: 'LOSS_REASON_REQUIRED', missingCriteria: ['lossReason'] };
++  }
++
++  const decisionDate = args.decisionDate ? new Date(args.decisionDate) : new Date();
++  const now = args.now || new Date();
++  const evidence = normalizeEvidence(args.evidence ?? args.evidenceReferences);
++
++  const transition = await transitionOpportunityStage({
++    prisma,
++    admin: args.admin,
++    opportunityId: row.id,
++    toStageCode: CRM_PIPELINE_STAGE.CLOSED_LOST,
++    reason: args.reason || `closed_lost:${lossReason}`,
++    evidenceReferences: evidence || undefined,
++    idempotencyKey: args.idempotencyKey,
++    expectedVersion: args.expectedVersion,
++    now,
++    closeServiceAuthorized: true,
++  });
++
++  if (!transition.ok) {
++    return {
++      ...transition,
++      tenantCreated: false,
++      subscriptionCreated: false,
++      invoiceCreated: false,
++      paymentCreated: false,
++      provisionExecuted: false,
++    };
++  }
++
++  let updated = transition.opportunity;
++  try {
++    const fresh = await prisma.crmOpportunity.update({
++      where: { id: row.id },
++      data: {
++        lossReason,
++        winReason: null,
++        decisionDate: Number.isNaN(decisionDate.getTime()) ? now : decisionDate,
++        closeEvidence: evidence || undefined,
++        closedAt: now,
++        closedByAdminId: args.admin?.id || null,
++        closeApprovalStatus: CRM_CLOSE_APPROVAL_STATUS.NOT_REQUIRED,
++        status: CRM_OPPORTUNITY_STATUS.LOST,
++        updatedAt: now,
++      },
++    });
++    updated = serializeOpportunity(fresh);
++  } catch {
++    updated = serializeOpportunity({
++      ...(transition.opportunity || row),
++      lossReason,
++      closedAt: now,
++      status: CRM_OPPORTUNITY_STATUS.LOST,
++    });
++  }
++
++  await appendOpportunityTimelineEvent(prisma, {
++    opportunityId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.CLOSED_LOST,
++    summary: `Closed lost: ${lossReason}`,
++    payload: { lossReason, tenantCreated: false, subscriptionCreated: false, invoiceCreated: false },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  const result = {
++    ok: true,
++    opportunity: updated,
++    fromStageCode: transition.fromStageCode,
++    toStageCode: CRM_PIPELINE_STAGE.CLOSED_LOST,
++    historyId: transition.historyId,
++    idempotent: Boolean(transition.idempotent),
++    tenantCreated: false,
++    subscriptionCreated: false,
++    invoiceCreated: false,
++    paymentCreated: false,
++    provisionExecuted: false,
++  };
++
++  return { ...result, provisionCheck: assertNoProvision(result) };
++}
++
++/**
++ * Reopen from terminal stage to CUSTOMER_DECISION (or explicit toStageCode open stage).
++ * Requires reason. Does not invent commercial / probability.
++ */
++export async function reopenOpportunity(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canTransitionOpportunityStages && !access.canEditOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_reopen_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  if (!isTerminalStage(row.stageCode)) {
++    return {
++      ok: false,
++      error: 'NOT_TERMINAL',
++      reason: 'reopen_requires_terminal_stage',
++      stageCode: row.stageCode,
++    };
++  }
++
++  const reopenReason = args.reopenReason != null ? String(args.reopenReason).trim() : '';
++  if (!reopenReason) {
++    return { ok: false, error: 'REOPEN_REASON_REQUIRED', missingCriteria: ['reopenReason'] };
++  }
++
++  const toStage =
++    args.toStageCode != null
++      ? String(args.toStageCode).trim().toUpperCase()
++      : CRM_PIPELINE_STAGE.CUSTOMER_DECISION;
++
++  if (isTerminalStage(toStage)) {
++    return { ok: false, error: 'INVALID_REOPEN_TARGET', toStageCode: toStage };
++  }
++
++  const now = args.now || new Date();
++  const nextVersion = (row.version ?? 1) + 1;
++
++  let updated = null;
++  try {
++    updated = await prisma.crmOpportunity.update({
++      where: { id: row.id },
++      data: {
++        stageCode: toStage,
++        status: CRM_OPPORTUNITY_STATUS.OPEN,
++        version: nextVersion,
++        reopenReason,
++        reopenedAt: now,
++        reopenedByAdminId: args.admin?.id || null,
++        closedAt: null,
++        updatedAt: now,
++      },
++    });
++  } catch (err) {
++    return { ok: false, error: 'reopen_update_failed', detail: String(err?.message || err) };
++  }
++
++  if (hasCrmOpportunityModel(prisma) && typeof prisma.crmOpportunityStageHistory?.create === 'function') {
++    try {
++      await prisma.crmOpportunityStageHistory.create({
++        data: {
++          opportunityId: row.id,
++          fromStageCode: row.stageCode,
++          toStageCode: toStage,
++          changedByAdminId: args.admin?.id || null,
++          reason: `reopen:${reopenReason}`,
++          idempotencyKey: args.idempotencyKey || null,
++          at: now,
++        },
++      });
++    } catch {
++      // history optional on conflict
++    }
++  }
++
++  await appendOpportunityTimelineEvent(prisma, {
++    opportunityId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.REOPENED,
++    summary: `Reopened to ${toStage}: ${reopenReason.slice(0, 120)}`,
++    payload: {
++      fromStageCode: row.stageCode,
++      toStageCode: toStage,
++      reopenReason,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    opportunity: serializeOpportunity(updated),
++    fromStageCode: row.stageCode,
++    toStageCode: toStage,
++    tenantCreated: false,
++    subscriptionCreated: false,
++    invoiceCreated: false,
++    paymentCreated: false,
++    provisionExecuted: false,
++    provisionCheck: assertNoProvision({}),
++  };
++}
+diff --git a/lib/admin/crm/opportunities/proposalReadiness.js b/lib/admin/crm/opportunities/proposalReadiness.js
+new file mode 100644
+index 0000000..0fb6446
+--- /dev/null
++++ b/lib/admin/crm/opportunities/proposalReadiness.js
+@@ -0,0 +1,205 @@
++/**
++ * Proposal readiness ΓÇö Phase 12 Wave 3.
++ * Checklist + typed handoff payload. NEVER creates Proposal / Quotation.
++ */
++
++import { CRM_READINESS_STATUS, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { CRM_PIPELINE_STAGE, CRM_PIPELINE_STAGES_ORDERED } from '../pipeline/catalogue.js';
++import { hasCrmOpportunityContactRoleModel, hasPrimaryContactRole } from './contacts.js';
++import { hasCrmOpportunityModel, serializeOpportunity } from './model.js';
++import { hasCrmOpportunityProductModel } from './products.js';
++import { appendOpportunityTimelineEvent } from './timeline.js';
++
++const PROPOSAL_HANDOFF_TYPE = 'CRM_PROPOSAL_HANDOFF';
++const PROPOSAL_HANDOFF_VERSION = 'crm-proposal-readiness-v1-2026-07-30';
++
++const PROPOSAL_ELIGIBLE_STAGES = new Set([
++  CRM_PIPELINE_STAGE.PROPOSAL_READY,
++  CRM_PIPELINE_STAGE.CUSTOMER_DECISION,
++  CRM_PIPELINE_STAGE.CLOSED_WON,
++]);
++
++function item(key, ok, severity, detail, blocker = false) {
++  return {
++    key,
++    ok: Boolean(ok),
++    severity: severity || (ok ? 'INFO' : 'WARN'),
++    detail: detail || null,
++    blocker: Boolean(blocker),
++  };
++}
++
++function deriveStatus(items) {
++  const blockers = items.filter((i) => i.blocker && !i.ok);
++  if (blockers.length > 0) return CRM_READINESS_STATUS.BLOCKED;
++  const failed = items.filter((i) => !i.ok);
++  if (failed.length === 0) return CRM_READINESS_STATUS.READY;
++  const requiredFailed = failed.filter((i) => i.severity !== 'INFO');
++  if (requiredFailed.length === 0) return CRM_READINESS_STATUS.PARTIALLY_READY;
++  const allSoft = requiredFailed.every((i) => i.severity === 'WARN');
++  if (allSoft && requiredFailed.length < items.length) {
++    return CRM_READINESS_STATUS.PARTIALLY_READY;
++  }
++  return CRM_READINESS_STATUS.NOT_READY;
++}
++
++async function loadOpportunity(prisma, opportunityId) {
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id || !hasCrmOpportunityModel(prisma)) return null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    }
++    return await prisma.crmOpportunity.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Evaluate proposal readiness. Never creates Proposal/Quotation.
++ */
++export async function evaluateProposalReadiness(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  const items = [];
++  const stage = String(row.stageCode || '').toUpperCase();
++  const stageIdx = CRM_PIPELINE_STAGES_ORDERED.indexOf(stage);
++  const proposalIdx = CRM_PIPELINE_STAGES_ORDERED.indexOf(CRM_PIPELINE_STAGE.PROPOSAL_READY);
++  const stageOk = PROPOSAL_ELIGIBLE_STAGES.has(stage) || (stageIdx >= 0 && stageIdx >= proposalIdx - 1);
++  items.push(
++    item(
++      'stage_eligible',
++      stageOk,
++      stageOk ? 'INFO' : 'CRITICAL',
++      stageOk
++        ? `Stage ${stage} eligible for proposal readiness`
++        : `Stage ${stage} not yet at/near PROPOSAL_READY`,
++      !stageOk
++    )
++  );
++
++  let hasPrimary = Boolean(row.contactId);
++  if (hasCrmOpportunityContactRoleModel(prisma)) {
++    hasPrimary = await hasPrimaryContactRole(prisma, row.id);
++  }
++  items.push(
++    item(
++      'primary_contact',
++      hasPrimary,
++      hasPrimary ? 'INFO' : 'CRITICAL',
++      hasPrimary ? 'PRIMARY contact present' : 'PRIMARY contact required',
++      !hasPrimary
++    )
++  );
++
++  const commercialOk = row.amount != null && Boolean(row.currency) && Boolean(row.amountBasis);
++  items.push(
++    item(
++      'commercial_estimate',
++      commercialOk,
++      commercialOk ? 'INFO' : 'CRITICAL',
++      commercialOk
++        ? `Commercial ${row.amount} ${row.currency} (${row.amountBasis})`
++        : 'amount + currency + amountBasis required',
++      !commercialOk
++    )
++  );
++
++  let productCount = 0;
++  if (hasCrmOpportunityProductModel(prisma)) {
++    try {
++      productCount = await prisma.crmOpportunityProduct.count({
++        where: { opportunityId: row.id },
++      });
++    } catch {
++      productCount = 0;
++    }
++  }
++  const productsOk = productCount > 0;
++  items.push(
++    item(
++      'products',
++      productsOk,
++      productsOk ? 'INFO' : 'WARN',
++      productsOk ? `${productCount} product line(s)` : 'No product estimate lines',
++      false
++    )
++  );
++
++  const readinessStatus = deriveStatus(items);
++  const idempotencyKey = `proposal-ready:${row.id}:${stage}:${row.version ?? 1}`;
++
++  const handoffPayload = {
++    type: PROPOSAL_HANDOFF_TYPE,
++    version: PROPOSAL_HANDOFF_VERSION,
++    readinessStatus,
++    opportunityId: row.id,
++    opportunityNumber: row.opportunityNumber,
++    leadId: row.leadId || null,
++    accountId: row.accountId || null,
++    contactId: row.contactId || null,
++    stageCode: stage,
++    amount: row.amount != null ? String(row.amount) : null,
++    currency: row.currency || null,
++    amountBasis: row.amountBasis || null,
++    idempotencyKey,
++    /** Honesty ΓÇö Phase 12 never creates these */
++    proposalId: null,
++    proposalCreated: false,
++    quotationId: null,
++    quotationCreated: false,
++    inventProposalForbidden: true,
++  };
++
++  const now = args.now || new Date();
++  await appendOpportunityTimelineEvent(prisma, {
++    opportunityId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.PROPOSAL_READINESS,
++    summary: `Proposal readiness: ${readinessStatus}`,
++    payload: {
++      readinessStatus,
++      checklistKeys: items.map((i) => i.key),
++      proposalCreated: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    readinessStatus,
++    checklist: items,
++    handoffPayload,
++    proposalCreated: false,
++    quotationCreated: false,
++    opportunity: serializeOpportunity(row),
++    meta: {
++      definitionVersion: PROPOSAL_HANDOFF_VERSION,
++      inventProposalForbidden: true,
++    },
++  };
++}
++
++export function assertNoProposalCreate(result) {
++  return (
++    result?.proposalCreated === false &&
++    result?.handoffPayload?.proposalId == null &&
++    result?.handoffPayload?.proposalCreated === false &&
++    result?.handoffPayload?.quotationCreated === false
++  );
++}
++
++export { PROPOSAL_HANDOFF_TYPE, PROPOSAL_HANDOFF_VERSION };
+diff --git a/lib/admin/crm/opportunities/conversionReadiness.js b/lib/admin/crm/opportunities/conversionReadiness.js
+new file mode 100644
+index 0000000..179e9e2
+--- /dev/null
++++ b/lib/admin/crm/opportunities/conversionReadiness.js
+@@ -0,0 +1,220 @@
++/**
++ * Conversion readiness ΓÇö Phase 12 Wave 3.
++ * Checklist + typed handoff payload. NEVER executes Tenant conversion / provision.
++ * Closed Won Γëá Tenant / Subscription / Invoice create.
++ */
++
++import { CRM_READINESS_STATUS, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
++import { resolveCrmAccess, resolveCrmScope } from '../authz.js';
++import { CRM_PIPELINE_STAGE, CRM_OPPORTUNITY_STATUS } from '../pipeline/catalogue.js';
++import { assertNoProvision } from './close.js';
++import { hasCrmOpportunityModel, serializeOpportunity } from './model.js';
++import { appendOpportunityTimelineEvent } from './timeline.js';
++
++const CONVERSION_HANDOFF_TYPE = 'CRM_CONVERSION_HANDOFF';
++const CONVERSION_HANDOFF_VERSION = 'crm-conversion-readiness-v1-2026-07-30';
++
++function item(key, ok, severity, detail, blocker = false) {
++  return {
++    key,
++    ok: Boolean(ok),
++    severity: severity || (ok ? 'INFO' : 'WARN'),
++    detail: detail || null,
++    blocker: Boolean(blocker),
++  };
++}
++
++function deriveStatus(items) {
++  const blockers = items.filter((i) => i.blocker && !i.ok);
++  if (blockers.length > 0) return CRM_READINESS_STATUS.BLOCKED;
++  const failed = items.filter((i) => !i.ok);
++  if (failed.length === 0) return CRM_READINESS_STATUS.READY;
++  const requiredFailed = failed.filter((i) => i.severity !== 'INFO');
++  if (requiredFailed.length === 0) return CRM_READINESS_STATUS.PARTIALLY_READY;
++  const allSoft = requiredFailed.every((i) => i.severity === 'WARN');
++  if (allSoft && requiredFailed.length < items.length) {
++    return CRM_READINESS_STATUS.PARTIALLY_READY;
++  }
++  return CRM_READINESS_STATUS.NOT_READY;
++}
++
++function hasEvidence(evidence) {
++  if (evidence == null) return false;
++  if (Array.isArray(evidence)) return evidence.length > 0;
++  if (typeof evidence === 'string') return evidence.trim().length > 0;
++  if (typeof evidence === 'object') return Object.keys(evidence).length > 0;
++  return false;
++}
++
++async function loadOpportunity(prisma, opportunityId) {
++  const id = opportunityId ? String(opportunityId).trim() : '';
++  if (!id || !hasCrmOpportunityModel(prisma)) return null;
++  try {
++    if (/^OPP-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmOpportunity.findUnique({ where: { opportunityNumber: id } });
++    }
++    return await prisma.crmOpportunity.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Evaluate conversion readiness. Never provisions Tenant/Subscription/Invoice.
++ */
++export async function evaluateConversionReadiness(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!access.canViewOpportunities) {
++    return { ok: false, forbidden: true, reason: 'crm_opportunity_view_forbidden' };
++  }
++
++  const row = await loadOpportunity(prisma, args.opportunityId);
++  if (!row) return { ok: false, notFound: true, error: 'opportunity_not_found' };
++
++  const scope = await resolveCrmScope(prisma, args.admin, 'opportunities');
++  if (!scope.canView) {
++    return { ok: false, forbidden: true, reason: 'crm_scope_denied' };
++  }
++
++  const items = [];
++  const stage = String(row.stageCode || '').toUpperCase();
++  const status = String(row.status || '').toUpperCase();
++  const isWon =
++    stage === CRM_PIPELINE_STAGE.CLOSED_WON || status === CRM_OPPORTUNITY_STATUS.WON;
++
++  items.push(
++    item(
++      'closed_won',
++      isWon,
++      isWon ? 'INFO' : 'CRITICAL',
++      isWon ? 'Opportunity is CLOSED_WON' : `Must be CLOSED_WON (current: ${stage}/${status})`,
++      !isWon
++    )
++  );
++
++  const evidenceOk = hasEvidence(row.closeEvidence);
++  items.push(
++    item(
++      'close_evidence',
++      evidenceOk,
++      evidenceOk ? 'INFO' : 'CRITICAL',
++      evidenceOk ? 'Close evidence present' : 'Closed Won evidence missing',
++      !evidenceOk
++    )
++  );
++
++  const winReasonOk = Boolean(row.winReason);
++  items.push(
++    item(
++      'win_reason',
++      winReasonOk,
++      winReasonOk ? 'INFO' : 'CRITICAL',
++      winReasonOk ? `Win reason: ${row.winReason}` : 'Win reason required',
++      !winReasonOk
++    )
++  );
++
++  const commercialOk = row.amount != null && Boolean(row.currency);
++  items.push(
++    item(
++      'commercial_estimate',
++      commercialOk,
++      commercialOk ? 'INFO' : 'WARN',
++      commercialOk
++        ? `Commercial ${row.amount} ${row.currency}`
++        : 'Commercial estimate incomplete (soft)',
++      false
++    )
++  );
++
++  const accountOk = Boolean(row.accountId);
++  items.push(
++    item(
++      'account_linked',
++      accountOk,
++      accountOk ? 'INFO' : 'WARN',
++      accountOk ? 'Account linked' : 'No accountId on Opportunity',
++      false
++    )
++  );
++
++  const readinessStatus = deriveStatus(items);
++  const idempotencyKey = `conversion-ready:${row.id}:${row.version ?? 1}:${stage}`;
++
++  const handoffPayload = {
++    type: CONVERSION_HANDOFF_TYPE,
++    version: CONVERSION_HANDOFF_VERSION,
++    readinessStatus,
++    opportunityId: row.id,
++    opportunityNumber: row.opportunityNumber,
++    leadId: row.leadId || null,
++    accountId: row.accountId || null,
++    contactId: row.contactId || null,
++    stageCode: stage,
++    status,
++    winReason: row.winReason || null,
++    decisionDate: row.decisionDate
++      ? new Date(row.decisionDate).toISOString()
++      : null,
++    idempotencyKey,
++    /** Honesty ΓÇö never execute conversion in Phase 12 */
++    tenantId: null,
++    tenantCreated: false,
++    subscriptionId: null,
++    subscriptionCreated: false,
++    invoiceId: null,
++    invoiceCreated: false,
++    paymentId: null,
++    paymentCreated: false,
++    conversionExecuted: false,
++    inventConversionForbidden: true,
++  };
++
++  const now = args.now || new Date();
++  await appendOpportunityTimelineEvent(prisma, {
++    opportunityId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.CONVERSION_READINESS,
++    summary: `Conversion readiness: ${readinessStatus}`,
++    payload: {
++      readinessStatus,
++      checklistKeys: items.map((i) => i.key),
++      conversionExecuted: false,
++      tenantCreated: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  const result = {
++    ok: true,
++    readinessStatus,
++    checklist: items,
++    handoffPayload,
++    conversionExecuted: false,
++    tenantCreated: false,
++    subscriptionCreated: false,
++    invoiceCreated: false,
++    paymentCreated: false,
++    opportunity: serializeOpportunity(row),
++    meta: {
++      definitionVersion: CONVERSION_HANDOFF_VERSION,
++      inventConversionForbidden: true,
++      closedWonDoesNotProvision: true,
++    },
++  };
++
++  return { ...result, provisionCheck: assertNoProvision(result) };
++}
++
++export function assertNoConversionExecute(result) {
++  return (
++    result?.conversionExecuted === false &&
++    result?.handoffPayload?.tenantId == null &&
++    result?.handoffPayload?.conversionExecuted === false &&
++    result?.tenantCreated === false &&
++    result?.subscriptionCreated === false &&
++    result?.invoiceCreated === false
++  );
++}
++
++export { CONVERSION_HANDOFF_TYPE, CONVERSION_HANDOFF_VERSION };
+diff --git a/scripts/sql/crm-pipeline-phase12-wave3.sql b/scripts/sql/crm-pipeline-phase12-wave3.sql
+new file mode 100644
+index 0000000..78da1f5
+--- /dev/null
++++ b/scripts/sql/crm-pipeline-phase12-wave3.sql
+@@ -0,0 +1,100 @@
++-- Phase 12 Wave 3 ΓÇö win/loss close fields + Opportunity risks.
++-- Apply when `prisma db push` / migrate hits Windows EPERM on the Prisma engine DLL.
++-- Safe to re-run (IF NOT EXISTS / DO $$ guards).
++--
++-- After apply:
++--   1. Retry `npx prisma generate` when the engine file is unlocked
++--   2. App code uses hasCrmOpportunity*Model guards until client methods exist
++--
++-- Never provisions Tenant / Subscription / Invoice. Weighted UI remains dark (Phase 16).
++
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "winReason" TEXT;
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "lossReason" TEXT;
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "decisionDate" TIMESTAMP(3);
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "closeEvidence" JSONB;
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "closedAt" TIMESTAMP(3);
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "closedByAdminId" TEXT;
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "closeApprovalStatus" TEXT;
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "reopenReason" TEXT;
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "reopenedAt" TIMESTAMP(3);
++ALTER TABLE "CrmOpportunity" ADD COLUMN IF NOT EXISTS "reopenedByAdminId" TEXT;
++
++CREATE INDEX IF NOT EXISTS "CrmOpportunity_closedAt_idx"
++  ON "CrmOpportunity"("closedAt");
++
++CREATE TABLE IF NOT EXISTS "CrmOpportunityRisk" (
++  "id" TEXT PRIMARY KEY,
++  "opportunityId" TEXT NOT NULL,
++  "code" TEXT NOT NULL,
++  "severity" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'OPEN',
++  "detail" TEXT,
++  "signalSource" TEXT NOT NULL DEFAULT 'DETERMINISTIC',
++  "evidenceJson" JSONB,
++  "createdByAdminId" TEXT,
++  "mitigatedAt" TIMESTAMP(3),
++  "mitigationNote" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmOpportunityRisk_opportunityId_code_key"
++  ON "CrmOpportunityRisk"("opportunityId", "code");
++CREATE INDEX IF NOT EXISTS "CrmOpportunityRisk_opportunityId_status_idx"
++  ON "CrmOpportunityRisk"("opportunityId", "status");
++CREATE INDEX IF NOT EXISTS "CrmOpportunityRisk_severity_status_idx"
++  ON "CrmOpportunityRisk"("severity", "status");
++CREATE INDEX IF NOT EXISTS "CrmOpportunityRisk_createdByAdminId_idx"
++  ON "CrmOpportunityRisk"("createdByAdminId");
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunity_closedByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunity"
++      ADD CONSTRAINT "CrmOpportunity_closedByAdminId_fkey"
++      FOREIGN KEY ("closedByAdminId") REFERENCES "Admin"("id")
++      ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION WHEN others THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunity_reopenedByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunity"
++      ADD CONSTRAINT "CrmOpportunity_reopenedByAdminId_fkey"
++      FOREIGN KEY ("reopenedByAdminId") REFERENCES "Admin"("id")
++      ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION WHEN others THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunityRisk_opportunityId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunityRisk"
++      ADD CONSTRAINT "CrmOpportunityRisk_opportunityId_fkey"
++      FOREIGN KEY ("opportunityId") REFERENCES "CrmOpportunity"("id")
++      ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++EXCEPTION WHEN others THEN NULL;
++END $$;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmOpportunityRisk_createdByAdminId_fkey'
++  ) THEN
++    ALTER TABLE "CrmOpportunityRisk"
++      ADD CONSTRAINT "CrmOpportunityRisk_createdByAdminId_fkey"
++      FOREIGN KEY ("createdByAdminId") REFERENCES "Admin"("id")
++      ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++EXCEPTION WHEN others THEN NULL;
++END $$;
+diff --git a/test/systemAdmin.crm.opportunityWave3.test.js b/test/systemAdmin.crm.opportunityWave3.test.js
+new file mode 100644
+index 0000000..09b3af6
+--- /dev/null
++++ b/test/systemAdmin.crm.opportunityWave3.test.js
+@@ -0,0 +1,568 @@
++/**
++ * Phase 12 Wave 3 ΓÇö Board, risks/tasks/timeline, win/loss, proposal/conversion readiness.
++ * Weighted UI remains dark. No Tenant/Subscription/Invoice provision.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  CRM_PIPELINE_STAGE,
++  CRM_OPPORTUNITY_STATUS,
++  WEIGHTED_PIPELINE_UI_ENABLED,
++  BOARD_COLUMN_PAGE_SIZE,
++  getPipelineBoard,
++  transitionOpportunityStage,
++  closeOpportunityWon,
++  closeOpportunityLost,
++  reopenOpportunity,
++  assertNoProvision,
++  evaluateOpportunityRisks,
++  computeOpportunityRiskSignals,
++  createOpportunityTask,
++  listOpportunityTasks,
++  listOpportunityTimeline,
++  evaluateProposalReadiness,
++  assertNoProposalCreate,
++  evaluateConversionReadiness,
++  assertNoConversionExecute,
++  createOpportunityFromHandoff,
++  CRM_AMOUNT_BASIS,
++  setOpportunityCommercial,
++} from '@/lib/admin/crm';
++
++function makeAdmin(perms = {}) {
++  return {
++    id: 'admin-w3-1',
++    role: 'CRM Agent',
++    permissions: {
++      'systemAdmin.crm.view': true,
++      'systemAdmin.crm.viewLeads': true,
++      'systemAdmin.crm.editLeads': true,
++      'systemAdmin.crm.transitionStatus': true,
++      'systemAdmin.crm.pipeline.view': true,
++      'systemAdmin.crm.pipeline.transitionStages': true,
++      'systemAdmin.crm.opportunities.view': true,
++      'systemAdmin.crm.opportunities.create': true,
++      'systemAdmin.crm.opportunities.edit': true,
++      ...perms,
++    },
++  };
++}
++
++function makePrisma(overrides = {}) {
++  const oppStore = overrides._oppStore || [];
++  const historyStore = overrides._historyStore || [];
++  const seqStore = overrides._seqStore || [];
++  const taskStore = overrides._taskStore || [];
++  const timelineStore = overrides._timelineStore || [];
++  const riskStore = overrides._riskStore || [];
++  const productStore = overrides._productStore || [];
++  const roleStore = overrides._roleStore || [];
++  const leadStore = overrides._leadStore || [
++    {
++      id: 'lead-w3-1',
++      leadNumber: 'LEAD-2026-000030',
++      status: 'OPPORTUNITY_READY',
++      accountId: 'acc-w3',
++      contactId: 'con-w3',
++      title: 'Wave 3 lead',
++      source: 'MANUAL',
++      channel: 'ADMIN_MANUAL',
++    },
++  ];
++
++  const prisma = {
++    _oppStore: oppStore,
++    _historyStore: historyStore,
++    _taskStore: taskStore,
++    _timelineStore: timelineStore,
++    _riskStore: riskStore,
++    crmOpportunity: {
++      findMany: vi.fn(async ({ where = {}, take, skip, orderBy } = {}) => {
++        let rows = [...oppStore];
++        if (where?.stageCode) rows = rows.filter((r) => r.stageCode === where.stageCode);
++        if (where?.ownerAdminId) rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
++        if (where?.status) rows = rows.filter((r) => r.status === where.status);
++        if (orderBy?.updatedAt === 'desc') {
++          rows.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
++        }
++        if (orderBy?.createdAt === 'desc') {
++          rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
++        }
++        const start = typeof skip === 'number' ? skip : 0;
++        const limit = typeof take === 'number' ? take : rows.length;
++        return rows.slice(start, start + limit);
++      }),
++      count: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...oppStore];
++        if (where?.stageCode) rows = rows.filter((r) => r.stageCode === where.stageCode);
++        if (where?.ownerAdminId) rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
++        return rows.length;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return oppStore.find((r) => r.id === where.id) || null;
++        if (where.opportunityNumber) {
++          return oppStore.find((r) => r.opportunityNumber === where.opportunityNumber) || null;
++        }
++        if (where.handoffIdempotencyKey) {
++          return (
++            oppStore.find((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...oppStore];
++        if (where?.handoffIdempotencyKey) {
++          rows = rows.filter((r) => r.handoffIdempotencyKey === where.handoffIdempotencyKey);
++        }
++        return rows[0] || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `opp-w3-${oppStore.length + 1}`,
++          version: data.version ?? 1,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        oppStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = oppStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        let rows = oppStore.filter((r) => r.id === where.id);
++        if (where.version != null) rows = rows.filter((r) => r.version === where.version);
++        for (const row of rows) Object.assign(row, data);
++        return { count: rows.length };
++      }),
++      delete: vi.fn(async ({ where }) => {
++        const idx = oppStore.findIndex((r) => r.id === where.id);
++        if (idx < 0) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        const [removed] = oppStore.splice(idx, 1);
++        return removed;
++      }),
++    },
++    crmOpportunityStageHistory: {
++      findMany: vi.fn(async ({ where = {}, orderBy, take } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        if (orderBy?.at === 'desc') {
++          rows.sort((a, b) => new Date(b.at) - new Date(a.at));
++        }
++        if (typeof take === 'number') rows = rows.slice(0, take);
++        return rows;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...historyStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        if (where?.idempotencyKey) {
++          rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
++        }
++        return rows[0] || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `hist-w3-${historyStore.length + 1}`,
++          at: data.at || new Date(),
++          ...data,
++        };
++        historyStore.push(row);
++        return row;
++      }),
++      deleteMany: vi.fn(async ({ where = {} } = {}) => {
++        const before = historyStore.length;
++        const keep = historyStore.filter((r) => {
++          if (where?.opportunityId && r.opportunityId === where.opportunityId) return false;
++          return true;
++        });
++        historyStore.length = 0;
++        historyStore.push(...keep);
++        return { count: before - historyStore.length };
++      }),
++    },
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmLead: {
++      findMany: vi.fn(async () => [...leadStore]),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return leadStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = leadStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmLeadStatusHistory: {
++      create: vi.fn(async ({ data }) => data),
++      findMany: vi.fn(async () => []),
++    },
++    crmTask: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...taskStore];
++        if (where?.subjectType) rows = rows.filter((r) => r.subjectType === where.subjectType);
++        if (where?.subjectId) rows = rows.filter((r) => r.subjectId === where.subjectId);
++        if (where?.status) rows = rows.filter((r) => r.status === where.status);
++        return rows;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        return taskStore.find((r) => r.id === where.id) || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `task-w3-${taskStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        taskStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = taskStore.find((r) => r.id === where.id);
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmTimelineEvent: {
++      findMany: vi.fn(async ({ where = {}, orderBy, take } = {}) => {
++        let rows = [...timelineStore];
++        if (where?.subjectType) rows = rows.filter((r) => r.subjectType === where.subjectType);
++        if (where?.subjectId) rows = rows.filter((r) => r.subjectId === where.subjectId);
++        if (orderBy?.at === 'desc') {
++          rows.sort((a, b) => new Date(b.at) - new Date(a.at));
++        }
++        if (typeof take === 'number') rows = rows.slice(0, take);
++        return rows;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `tl-w3-${timelineStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          ...data,
++        };
++        timelineStore.push(row);
++        return row;
++      }),
++    },
++    crmOpportunityRisk: {
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...riskStore];
++        if (where?.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        return rows;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.opportunityId_code) {
++          return (
++            riskStore.find(
++              (r) =>
++                r.opportunityId === where.opportunityId_code.opportunityId &&
++                r.code === where.opportunityId_code.code
++            ) || null
++          );
++        }
++        return riskStore.find((r) => r.id === where.id) || null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `risk-w3-${riskStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        riskStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = riskStore.find((r) => r.id === where.id);
++        Object.assign(row, data);
++        return row;
++      }),
++    },
++    crmOpportunityProduct: {
++      count: vi.fn(async ({ where = {} } = {}) => {
++        return productStore.filter((r) => r.opportunityId === where.opportunityId).length;
++      }),
++      findMany: vi.fn(async () => productStore),
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `prod-${productStore.length + 1}`, ...data };
++        productStore.push(row);
++        return row;
++      }),
++    },
++    crmOpportunityContactRole: {
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          roleStore.find(
++            (r) =>
++              r.opportunityId === where.opportunityId &&
++              (!where.role || r.role === where.role)
++          ) || null
++        );
++      }),
++      findMany: vi.fn(async () => roleStore),
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `role-${roleStore.length + 1}`, ...data };
++        roleStore.push(row);
++        return row;
++      }),
++    },
++    crmOpportunityAmountHistory: {
++      create: vi.fn(async ({ data }) => data),
++    },
++    crmOpportunityProbabilityHistory: {
++      create: vi.fn(async ({ data }) => data),
++    },
++  };
++
++  return prisma;
++}
++
++async function seedOpp(prisma, extra = {}) {
++  const created = await createOpportunityFromHandoff(prisma, {
++    admin: makeAdmin(),
++    handoffPayload: {
++      type: 'CRM_OPPORTUNITY_HANDOFF',
++      readinessStatus: 'READY',
++      leadId: 'lead-w3-1',
++      accountId: 'acc-w3',
++      contactId: 'con-w3',
++      idempotencyKey: extra.idempotencyKey || `w3-${Date.now()}-${Math.random()}`,
++      opportunityId: null,
++      opportunityCreated: false,
++    },
++    title: 'Wave 3 opportunity',
++  });
++  expect(created.ok).toBe(true);
++  if (extra.ownerAdminId) {
++    await prisma.crmOpportunity.update({
++      where: { id: created.opportunity.id },
++      data: { ownerAdminId: extra.ownerAdminId },
++    });
++  }
++  return created.opportunity;
++}
++
++describe('Phase 12 Wave 3 ΓÇö board / close / readiness', () => {
++  it('keeps weighted pipeline UI dark', () => {
++    expect(WEIGHTED_PIPELINE_UI_ENABLED).toBe(false);
++    expect(BOARD_COLUMN_PAGE_SIZE).toBe(25);
++  });
++
++  it('returns bounded board columns with meta truncation flags', async () => {
++    const prisma = makePrisma();
++    await seedOpp(prisma, { idempotencyKey: 'board-1' });
++    const board = await getPipelineBoard(prisma, { admin: makeAdmin() });
++    expect(board.ok).toBe(true);
++    expect(board.columns.length).toBeGreaterThan(5);
++    expect(board.meta.columnLimit).toBe(BOARD_COLUMN_PAGE_SIZE);
++    expect(board.meta.weightedUiEnabled).toBe(false);
++    expect(board.meta.boardDragPersistForbidden).toBe(true);
++    const identified = board.columns.find(
++      (c) => c.stageCode === CRM_PIPELINE_STAGE.OPPORTUNITY_IDENTIFIED
++    );
++    expect(identified.items.length).toBe(1);
++  });
++
++  it('denies board-style terminal stage POST without close service', async () => {
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'deny-term' });
++    const denied = await transitionOpportunityStage({
++      prisma,
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      toStageCode: CRM_PIPELINE_STAGE.CLOSED_WON,
++    });
++    expect(denied.ok).toBe(false);
++    expect(denied.error).toBe('USE_CLOSE_SERVICE');
++    expect(denied.missingCriteria).toContain('evidence');
++  });
++
++  it('requires Closed Won evidence + win reason + decision date; never provisions', async () => {
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'won-1' });
++
++    const missing = await closeOpportunityWon(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      winReason: 'BEST_FIT',
++      decisionDate: '2026-07-30',
++    });
++    expect(missing.ok).toBe(false);
++    expect(missing.error).toBe('CLOSED_WON_EVIDENCE_REQUIRED');
++
++    const won = await closeOpportunityWon(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      winReason: 'BEST_FIT',
++      decisionDate: '2026-07-30',
++      evidence: ['contract:REF-1'],
++    });
++    expect(won.ok).toBe(true);
++    expect(won.opportunity.stageCode).toBe(CRM_PIPELINE_STAGE.CLOSED_WON);
++    expect(won.opportunity.status).toBe(CRM_OPPORTUNITY_STATUS.WON);
++    expect(won.tenantCreated).toBe(false);
++    expect(won.subscriptionCreated).toBe(false);
++    expect(won.invoiceCreated).toBe(false);
++    expect(assertNoProvision(won).ok).toBe(true);
++  });
++
++  it('requires Closed Lost loss reason', async () => {
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'lost-1' });
++    const missing = await closeOpportunityLost(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++    });
++    expect(missing.ok).toBe(false);
++    expect(missing.error).toBe('LOSS_REASON_REQUIRED');
++
++    const lost = await closeOpportunityLost(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      lossReason: 'NO_BUDGET',
++    });
++    expect(lost.ok).toBe(true);
++    expect(lost.opportunity.stageCode).toBe(CRM_PIPELINE_STAGE.CLOSED_LOST);
++    expect(lost.provisionCheck.ok).toBe(true);
++  });
++
++  it('reopens terminal opportunity with reason', async () => {
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'reopen-1' });
++    await closeOpportunityLost(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      lossReason: 'TIMING',
++    });
++    const reopened = await reopenOpportunity(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      reopenReason: 'customer revived',
++    });
++    expect(reopened.ok).toBe(true);
++    expect(reopened.opportunity.stageCode).toBe(CRM_PIPELINE_STAGE.CUSTOMER_DECISION);
++    expect(reopened.opportunity.status).toBe(CRM_OPPORTUNITY_STATUS.OPEN);
++  });
++
++  it('computes deterministic risk signals and Opportunity tasks', async () => {
++    const signals = computeOpportunityRiskSignals({
++      contactId: null,
++      amount: null,
++      currency: null,
++      amountBasis: null,
++      ownerAdminId: null,
++      status: 'OPEN',
++      expectedCloseDate: new Date('2020-01-01'),
++    });
++    expect(signals.some((s) => s.code === 'MISSING_PRIMARY_CONTACT')).toBe(true);
++    expect(signals.some((s) => s.code === 'MISSING_COMMERCIAL')).toBe(true);
++    expect(signals.every((s) => s.isMl === false)).toBe(true);
++
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'risk-1' });
++    const evaluated = await evaluateOpportunityRisks(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      persist: true,
++    });
++    expect(evaluated.ok).toBe(true);
++    expect(evaluated.meta.deterministic).toBe(true);
++
++    const task = await createOpportunityTask(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      title: 'Call economic buyer',
++    });
++    expect(task.ok).toBe(true);
++    expect(task.leadTaskCloned).toBe(false);
++    const listed = await listOpportunityTasks(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++    });
++    expect(listed.items.length).toBe(1);
++
++    const tl = await listOpportunityTimeline(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++    });
++    expect(tl.ok).toBe(true);
++    expect(tl.meta.supportThreadProjected).toBe(false);
++  });
++
++  it('proposal readiness returns handoff only ΓÇö never creates Proposal', async () => {
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'prop-1' });
++    await setOpportunityCommercial(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      amount: 1200,
++      currency: 'MWK',
++      amountBasis: CRM_AMOUNT_BASIS.FIRST_YEAR_TOTAL,
++    });
++    // advance toward proposal-ready-ish: seed PRIMARY via contactId already
++    const result = await evaluateProposalReadiness(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++    });
++    expect(result.ok).toBe(true);
++    expect(result.proposalCreated).toBe(false);
++    expect(result.handoffPayload.proposalId).toBeNull();
++    expect(assertNoProposalCreate(result)).toBe(true);
++  });
++
++  it('conversion readiness never executes Tenant conversion', async () => {
++    const prisma = makePrisma();
++    const opp = await seedOpp(prisma, { idempotencyKey: 'conv-1' });
++    await closeOpportunityWon(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++      winReason: 'BEST_FIT',
++      decisionDate: '2026-07-30',
++      evidence: [{ type: 'EMAIL', value: 'msg-1' }],
++    });
++    const result = await evaluateConversionReadiness(prisma, {
++      admin: makeAdmin(),
++      opportunityId: opp.id,
++    });
++    expect(result.ok).toBe(true);
++    expect(result.conversionExecuted).toBe(false);
++    expect(result.tenantCreated).toBe(false);
++    expect(result.handoffPayload.tenantId).toBeNull();
++    expect(assertNoConversionExecute(result)).toBe(true);
++    expect(assertNoProvision(result).ok).toBe(true);
++  });
++});
+diff --git "a/app\\insightbooks\\crm\\pipeline\\page.js" "b/app\\insightbooks\\crm\\pipeline\\page.js"
+new file mode 100644
+index 0000000..8d4d93b
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\pipeline\\page.js"
+@@ -0,0 +1,5 @@
++import { redirect } from 'next/navigation';
++
++export default function CrmPipelineIndexPage() {
++  redirect('/insightbooks/crm/pipeline/board');
++}
+diff --git "a/app\\insightbooks\\crm\\pipeline\\board\\page.js" "b/app\\insightbooks\\crm\\pipeline\\board\\page.js"
+new file mode 100644
+index 0000000..dc9eb95
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\pipeline\\board\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmPipelineBoardView } from '@/components/admin';
++
++export default function CrmPipelineBoardPage() {
++  return <CrmPipelineBoardView />;
++}
+diff --git "a/app\\insightbooks\\crm\\pipeline\\list\\page.js" "b/app\\insightbooks\\crm\\pipeline\\list\\page.js"
+new file mode 100644
+index 0000000..490a26c
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\pipeline\\list\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmOpportunitiesView } from '@/components/admin';
++
++export default function CrmPipelineListPage() {
++  return <CrmOpportunitiesView />;
++}
+diff --git "a/app\\insightbooks\\crm\\pipeline\\my-pipeline\\page.js" "b/app\\insightbooks\\crm\\pipeline\\my-pipeline\\page.js"
+new file mode 100644
+index 0000000..6fd01ff
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\pipeline\\my-pipeline\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmPipelineBoardView } from '@/components/admin';
++
++export default function CrmMyPipelinePage() {
++  return <CrmPipelineBoardView myPipeline />;
++}
+diff --git "a/app\\insightbooks\\crm\\pipeline\\overview\\page.js" "b/app\\insightbooks\\crm\\pipeline\\overview\\page.js"
+new file mode 100644
+index 0000000..92b6903
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\pipeline\\overview\\page.js"
+@@ -0,0 +1,40 @@
++'use client';
++
++import Link from 'next/link';
++import { useI18n } from '@/components/i18n/I18nProvider';
++import AdminPageContainer from '@/components/admin/AdminPageContainer';
++import AdminPageHeader from '@/components/admin/AdminPageHeader';
++import CrmSectionNav from '@/components/admin/crm/CrmSectionNav';
++
++const linkCls =
++  'inline-flex h-10 items-center rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]';
++
++export default function CrmPipelineOverviewPage() {
++  const { t } = useI18n();
++  return (
++    <AdminPageContainer>
++      <AdminPageHeader
++        title={t('admin-pages.crm.sections.pipeline')}
++        description={t('admin-pages.crm.sectionHints.pipeline')}
++      />
++      <CrmSectionNav />
++      <nav className="mt-4 flex flex-wrap gap-2" aria-label={t('admin-pages.crm.sections.pipeline')}>
++        <Link href="/insightbooks/crm/pipeline/board" className={linkCls}>
++          {t('admin-pages.crm.sections.pipelineBoard')}
++        </Link>
++        <Link href="/insightbooks/crm/pipeline/list" className={linkCls}>
++          {t('admin-pages.crm.pipeline.listView')}
++        </Link>
++        <Link href="/insightbooks/crm/pipeline/my-pipeline" className={linkCls}>
++          {t('admin-pages.crm.sections.myPipeline')}
++        </Link>
++        <Link href="/insightbooks/crm/opportunities" className={linkCls}>
++          {t('admin-pages.crm.sections.opportunities')}
++        </Link>
++      </nav>
++      <p className="mt-4 text-sm text-[var(--admin-text-muted)]">
++        {t('admin-pages.crm.pipeline.weightedDark')}
++      </p>
++    </AdminPageContainer>
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\opportunities\\page.js" "b/app\\insightbooks\\crm\\opportunities\\page.js"
+new file mode 100644
+index 0000000..701906e
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\opportunities\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmOpportunitiesView } from '@/components/admin';
++
++export default function CrmOpportunitiesPage() {
++  return <CrmOpportunitiesView />;
++}
+diff --git "a/app\\insightbooks\\crm\\opportunities\\new\\page.js" "b/app\\insightbooks\\crm\\opportunities\\new\\page.js"
+new file mode 100644
+index 0000000..a76f53b
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\opportunities\\new\\page.js"
+@@ -0,0 +1,7 @@
++'use client';
++
++import { CrmOpportunityNewView } from '@/components/admin';
++
++export default function CrmOpportunityNewPage() {
++  return <CrmOpportunityNewView />;
++}
+diff --git "a/app\\insightbooks\\crm\\opportunities\\[opportunityId]\\page.js" "b/app\\insightbooks\\crm\\opportunities\\[opportunityId]\\page.js"
+new file mode 100644
+index 0000000..c4f48dc
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\opportunities\\[opportunityId]\\page.js"
+@@ -0,0 +1,9 @@
++'use client';
++
++import { use } from 'react';
++import { CrmOpportunityDetailView } from '@/components/admin';
++
++export default function CrmOpportunityDetailPage({ params }) {
++  const resolved = use(params);
++  return <CrmOpportunityDetailView opportunityId={resolved.opportunityId} />;
++}

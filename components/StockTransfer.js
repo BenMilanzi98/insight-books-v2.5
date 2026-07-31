@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/invoiceCalculations";
 
 /**
  * Transfer stock between businesses (tenants) — same list as /switch-tenant via /api/tenant/list.
- * Server resolves default branch per business and runs the transfer.
+ * Branch is an internal implementation detail and is never shown in the UI.
  */
 export const StockTransferModal = ({
   isOpen,
@@ -614,11 +614,11 @@ export const StockTransfersList = ({
                     </div>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 mt-2">
                       <span className="font-medium text-gray-900">
-                        {transfer.fromBranch?.tenant?.name || "Source"}
+                        {transfer.fromBranch?.tenant?.name || transfer.fromTenant?.name || "Source business"}
                       </span>
                       <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
                       <span className="font-medium text-gray-900">
-                        {transfer.toBranch?.tenant?.name || "Destination"}
+                        {transfer.toBranch?.tenant?.name || transfer.toTenant?.name || "Destination business"}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
@@ -677,13 +677,12 @@ export const StockTransfersList = ({
   );
 };
 
-// Stock summary by business (data from /api/stock-by-branch — one row per linked business)
+// Stock summary by business (data from /api/stock-by-business — one row per linked business)
 export const StockPerBusiness = ({
   businesses,
-  branches,
   loading = false,
 }) => {
-  const rows = businesses ?? branches ?? [];
+  const rows = businesses ?? [];
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -752,4 +751,5 @@ export const StockPerBusiness = ({
 };
 
 /** @deprecated Use StockPerBusiness */
+/** @deprecated Use StockPerBusiness — branch UI removed */
 export const StockPerBranch = StockPerBusiness;

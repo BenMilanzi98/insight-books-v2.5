@@ -1,0 +1,204 @@
+﻿# Review package — Phase 16 Task 0 (WORKING_TREE docs-only)
+# Base: 7d9709a
+661	ACTIVATION_POLICY_MATRIX.md
+704	BILLING_MATRIX.md
+994	COMPENSATION_MATRIX.md
+624	CONVERSION_DATA_QUALITY_AUDIT.md
+1246	CONVERSION_DOMAIN_MATRIX.md
+667	CONVERSION_PERFORMANCE_AUDIT.md
+658	CONVERSION_PRIVACY_AUDIT.md
+797	CONVERSION_RELIABILITY_MATRIX.md
+686	CONVERSION_SECURITY_AUDIT.md
+851	CONVERSION_SECURITY_MATRIX.md
+1506	CONVERSION_SOURCE_MATRIX.md
+1568	CONVERSION_STEP_MATRIX.md
+846	CONVERSION_TYPE_MATRIX.md
+746	CURRENT_ACTIVATION_POLICY_AUDIT.md
+706	CURRENT_BRANCH_PROVISIONING_AUDIT.md
+657	CURRENT_BUSINESS_PROVISIONING_AUDIT.md
+1459	CURRENT_CLOSED_WON_WORKFLOW_AUDIT.md
+639	CURRENT_CONTACT_CONVERSION_AUDIT.md
+1760	CURRENT_CONVERSION_ARCHITECTURE_AUDIT.md
+763	CURRENT_CONVERSION_IDEMPOTENCY_AUDIT.md
+534	CURRENT_CONVERSION_RECONCILIATION_AUDIT.md
+637	CURRENT_CONVERSION_RECOVERY_AUDIT.md
+934	CURRENT_CUSTOMER_CREATION_AUDIT.md
+834	CURRENT_CUSTOMER_DUPLICATE_AUDIT.md
+593	CURRENT_CUSTOMER_SUCCESS_ASSIGNMENT_AUDIT.md
+493	CURRENT_DATA_MIGRATION_HANDOFF_AUDIT.md
+738	CURRENT_ENTITLEMENT_PROVISIONING_AUDIT.md
+688	CURRENT_MRA_EIS_HANDOFF_AUDIT.md
+596	CURRENT_ONBOARDING_HANDOFF_AUDIT.md
+765	CURRENT_PAYMENT_INITIATION_AUDIT.md
+708	CURRENT_PLATFORM_BILLING_AUDIT.md
+802	CURRENT_PLATFORM_INVOICE_AUDIT.md
+851	CURRENT_SUBSCRIPTION_PROVISIONING_AUDIT.md
+1260	CURRENT_TENANT_PROVISIONING_AUDIT.md
+438	CURRENT_TRAINING_HANDOFF_AUDIT.md
+876	CURRENT_USER_INVITATION_AUDIT.md
+950	CUSTOMER_MATCH_MATRIX.md
+601	ENTITLEMENT_MATRIX.md
+2641	FINAL_READINESS_DECISION.md
+997	HANDOFF_MATRIX.md
+1540	IMPLEMENTATION_PLAN.md
+3677	PHASE_16_GAP_REGISTER.md
+2530	PHASE_16_SCOPE.md
+5951	PHASE_INPUT_VALIDATION.md
+3959	README.md
+735	SUBSCRIPTION_ACTION_MATRIX.md
+862	TENANT_ACTION_MATRIX.md
+
+## FINAL_READINESS_DECISION.md
+
+# Final Readiness Decision â€” Enter Phase 16 Wave 1
+
+**Decision:** **CONDITIONAL GO**
+
+**Date:** 2026-07-31
+
+## Rationale
+
+Wave 0 forensic pack validates Phase 15 exit `READY_FOR_PHASE_16_WITH_BLOCKERS` and approved Phase 16 design/plan:
+
+- Phase 15 acceptance, Closed-Won readiness, and `createClosedWonConversionHandoff` are **CORRECT_AND_REUSABLE** (payload only; never provisions; never auto-mutates Opportunity).
+- Phase 12 `closeOpportunityWon` is **CORRECT_AND_REUSABLE** for early Closed Won in durable execution (`assertNoProvision`).
+- Conversion orchestrator, `CrmConversion*` models, and `/conversions*` UI/APIs are **NOT_FOUND** â€” expected greenfield for Wave 1.
+- Tenant / Subscription / Platform billing / CS portfolio foundations exist as **FOUNDATION** / **REUSE_WITH_RECONCILIATION** for Waves 2â€“3 wrapping â€” with explicit risks (NON_IDEMPOTENT Tenant create, early `active` status, temporaryPassword invites, payment truth).
+- `WEIGHTED_PIPELINE_UI_ENABLED === false` remains correct until Wave 4 honesty unlock.
+- No true BLOCKED dependency: e-sign NOT_CONFIGURED does not invalidate acceptance evidence; provision gaps are Wave-scoped, not Wave 1 blockers.
+
+## Conditions for Wave 1
+
+1. Consume Phase 15 handoff/readiness/acceptance as conversion inputs â€” handoff â‰  create until human-gated execute.
+2. Implement durable request/plan/dry-run/orchestrator + step rows only in Wave 1; provision Customer/Tenant/Subscription in later waves.
+3. Call Phase 12 close once at durable start; retain Closed Won on downstream failure; no silent reopen.
+4. Dry run = zero operational side effects (no Opp stage change outside execute path; no Customer/Tenant/Subscription/Invoice/invite/handoff creates).
+5. Exact retry returns existing; conflicting idempotency fails visibly.
+6. Never fabricate PAID/ACTIVE; no Tenant GL journals from conversion; no MRA fiscal.
+7. SQL + `hasCrm*Model` guards if Prisma EPERM on Windows.
+8. Commits only when user asks; WORKING_TREE OK.
+
+## Wave / pack completion
+
+- [x] Phase input validation PASS (Wave 0)
+- [x] CURRENT_* + CONVERSION_* audits + matrices
+- [x] Gap register + IMPLEMENTATION_PLAN Waves 1â€“4
+- [x] **CONDITIONAL GO** recorded
+- [ ] Wave 1 application code â€” **stop until user chooses execution mode**
+
+**Next:** User selects Subagent-Driven or Inline execution for Wave 1 (Task 1).
+
+**Stop:** Do not invent Customer/Tenant/Subscription/Invoice from handoff emission; do not auto-Closed-Won from acceptance alone; do not enable weighted Pipeline UI before Wave 4 gates; do not write Wave 1 application code in this Wave 0 pack.
+
+## PHASE_INPUT_VALIDATION.md (80)
+
+# Phase 16 Input Validation
+
+**Validated:** 2026-07-31  
+**Upstream exit:** `READY_FOR_PHASE_16_WITH_BLOCKERS` (Phase 15 `FINAL_PHASE_15_REPORT.md` / `FINAL_READINESS_DECISION.md`)
+
+## Sources checked
+
+| Source | Path | Result |
+|--------|------|--------|
+| Phase 16 inputs | `docs/admin-intelligence-crm/phase-15/PHASE_16_INPUTS.md` | PRESENT â€” acceptance, readiness, handoff payloads, honesty gates listed |
+| Readiness checklist | `docs/admin-intelligence-crm/phase-15/PHASE_16_READINESS_CHECKLIST.md` | PRESENT â€” must-be-true commercial plane checked; provision listed as carry |
+| Final Phase 15 report | `docs/admin-intelligence-crm/phase-15/FINAL_PHASE_15_REPORT.md` | PRESENT â€” exit `READY_FOR_PHASE_16_WITH_BLOCKERS` |
+| Design | `docs/superpowers/specs/2026-07-31-closed-won-conversion-phase-16-design.md` | APPROVED 2026-07-31 â€” Approach 1 + Approach B; early Closed Won |
+| Plan | `docs/superpowers/plans/2026-07-31-closed-won-conversion-phase-16.md` | PRESENT â€” Task 0 = this pack |
+
+## Phase 15 must-be-true (consumed honestly)
+
+| Gate | Evidence class |
+|------|----------------|
+| CrmProposalRequest / CrmCommercialDocument spine | CORRECT_AND_REUSABLE â€” `lib/admin/crm/commercial/*` |
+| Acceptance evidence (version + checksum + authority) | CORRECT_AND_REUSABLE â€” `commercial/acceptance.js` |
+| Closed-Won readiness | CORRECT_AND_REUSABLE â€” `evaluateClosedWonReadiness` â†’ READY/HANDED_OFF; `closedWon: false` |
+| Phase 16 conversion handoff | CORRECT_AND_REUSABLE â€” `createClosedWonConversionHandoff`; rejects provision flags; `customerCreated/tenantCreated/â€¦: false` |
+| Never auto-mutate Opp stage/probability/close date from commercial | CORRECT_AND_REUSABLE boundary |
+| E-sign | NOT_AVAILABLE / NOT_CONFIGURED â€” `signatureBoundary.js`; do not assume signatures |
+| Weighted Pipeline UI | CORRECT_AND_REUSABLE dark flag â€” `WEIGHTED_PIPELINE_UI_ENABLED === false` in `opportunities/commercial.js` |
+| Commercial reports honesty / currency separation | CORRECT_AND_REUSABLE â€” Wave 4 reliability gate |
+| Tenant Quotation | WRONG_DOMAIN â€” never conversion commercial truth |
+
+## Phase 16 reuse plane (pre-Wave-1)
+
+| Asset | Path | Class for Conversion |
+|-------|------|----------------------|
+| Phase 15 Closed-Won handoff | `lib/admin/crm/commercial/phase16Handoff.js` | CORRECT_AND_REUSABLE â€” seed Conversion Request; never invent provision |
+| Phase 15 Closed-Won readiness | `lib/admin/crm/commercial/readiness.js` | CORRECT_AND_REUSABLE |
+| Commercial acceptance | `lib/admin/crm/commercial/acceptance.js` | CORRECT_AND_REUSABLE |
+| Opp conversion readiness | `lib/admin/crm/opportunities/conversionReadiness.js` | CORRECT_AND_REUSABLE / EXTEND â€” soft commercial + handoff checklist |
+| Phase 12 `closeOpportunityWon` | `lib/admin/crm/opportunities/close.js` | CORRECT_AND_REUSABLE â€” early Closed Won step; `assertNoProvision` |
+| Pipeline stage transition | `lib/admin/crm/pipeline/transition.js` | CORRECT_AND_REUSABLE |
+| Admin Tenant create | `app/api/admin/tenants/route.js` | FOUNDATION / REUSE_WITH_RECONCILIATION â€” trial + `status: active` + CoA init; TENANT_DUPLICATION_RISK / ACCOUNTING_SIDE_EFFECT_RISK if unscoped |
+| Financial defaults init | `lib/initializeNewTenantFinancialDefaults.js` | REUSE_WITH_RECONCILIATION â€” CoA/period/payment accounts only; forbid journals/balances from conversion |
+| Subscription helpers | `lib/subscriptionService.js` | FOUNDATION â€” trial/upgrade; not CRM-snapshot driven |
+| Platform billing helpers | `lib/admin/platformBilling.js` | CORRECT_AND_REUSABLE â€” idempotency key helpers |
+| Platform Invoice API | `app/api/admin/platform-billing/invoices/route.js` | FOUNDATION / EXTEND â€” idempotent create; BILLING_DUPLICATION_RISK if mis-keyed |
+| Platform Payment API | `app/api/admin/platform-billing/payments/route.js` | FOUNDATION â€” PAYMENT_TRUTH_RISK if initiationâ†’PAID |
+| Feature entitlements | `lib/admin/featureEntitlements.js`, `lib/admin/productCatalogue/entitlements.js` | FOUNDATION |
+| PlatformPlanVersion | `prisma` `PlatformPlanVersion` | REUSE_WITH_RECONCILIATION â€” plan taxonomy; pricing from accepted snapshot |
+| CS portfolios / ownership | `lib/admin/customers/portfolios.js` | FOUNDATION / EXTEND â€” CS assign |
+| CS expansion handoffs | `lib/admin/customerSuccess/handoffs.js` | FOUNDATION â€” record-only pattern; not Closed-Won onboarding handoff |
+| CsOnboardingRecord / CsTrainingRecord | `prisma` models | FOUNDATION â€” thin rows; NOT_INSTRUMENTED when empty |
+| CRM Lead/Opp duplicates | `lib/admin/crm/duplicates.js`, `opportunities/duplicates.js` | FOUNDATION pattern â€” not Platform Customer match |
+| Admin user create | `app/api/admin/users/create/route.js` | FOUNDATION / PRIVILEGED_USER_RISK â€” may return temporaryPassword; not hash-only invite |
+| CrmConversion / orchestrator | â€” | NOT_FOUND |
+| `/insightbooks/crm/conversions*` UI | â€” | NOT_FOUND |
+| `app/api/admin/crm/conversions/**` | â€” | NOT_FOUND |
+| Conversion dry-run / plan / step durability | â€” | NOT_FOUND |
+| `resolveCrmScope` | `lib/admin/crm/authz.js` | FOUNDATION / CROSS_TENANT_RISK â€” stub `mode: 'all'` |
+
+## Identity / provision blockers?
+
+**None** that block Wave 1 Conversion Request + orchestrator spine + dry-run + early Closed Won lock. Phase 15 handoff/acceptance/readiness and Phase 12 close exist and are honest. Customer/Tenant/Subscription provision is Wave 2â€“3 via existing services with typed UNAVAILABLE where gaps remain. E-sign remains NOT_CONFIGURED and does not block conversion when acceptance authority+checksum present.
+
+## Validation verdict
+
+**PASS** â€” Phase 15 exit is honest; design/plan locked; reuse plane identified (handoff/acceptance/close CORRECT_AND_REUSABLE; conversion orchestrator NOT_FOUND; admin Tenant/Subscription/billing FOUNDATION). Proceed to Wave 0 readiness decision (**CONDITIONAL GO** expected).
+
+## PHASE_16_GAP_REGISTER.md (100)
+
+# Phase 16 Gap Register
+
+**Audited:** 2026-07-31  
+**Inputs:** Phase 15 `PHASE_16_INPUTS.md`, Wave 0 audits, design/plan
+
+| ID | Gap | Severity | Wave | Notes |
+|----|-----|----------|------|-------|
+| G16-01 | No CrmConversionRequest / CVR numbering | BLOCKER | 1 | Greenfield under `lib/admin/crm/conversions/*` |
+| G16-02 | No versioned ConversionPlan + checksum | BLOCKER | 1 | Immutable plan versions + re-approval |
+| G16-03 | No dryRunConversion (zero side effects) | BLOCKER | 1 | Preview record only |
+| G16-04 | No executeClosedWonConversion orchestrator | BLOCKER | 1 | Approach 1 durable saga |
+| G16-05 | No step durability / input hash / resume | BLOCKER | 1 | Exact retry + conflicting fail |
+| G16-06 | Early Closed Won not wired as saga step | BLOCKER | 1 | Reuse Phase 12 `closeOpportunityWon` â€” CORRECT_AND_REUSABLE |
+| G16-07 | Concurrency locks (accepted version / invoice / invite) | HIGH | 1 | Uniqueness + row locks |
+| G16-08 | No conversion hub UI/APIs (thin stubs OK) | HIGH | 1 stubs â†’ 4 | `/conversions*` NOT_FOUND |
+| G16-09 | No Platform Customer match engine | BLOCKER | 2 | EXACT/HIGH/POSSIBLE/CONFLICT; CUSTOMER_DUPLICATION_RISK |
+| G16-10 | No audited create-or-link Customer/Tenant decisions | BLOCKER | 2 | No auto-merge |
+| G16-11 | Admin Tenant create NON_IDEMPOTENT + status active early | HIGH | 2 | Wrap with reserved slug + activation honesty |
+| G16-12 | Business first-class create/link | MEDIUM | 2 | Often SKIPPED_NOT_APPLICABLE |
+| G16-13 | Branch create/link under conversion lock | HIGH | 2 | CROSS_TENANT_RISK if unguarded |
+| G16-14 | Hash-only user invitation (no temp password) | BLOCKER | 2 | PRIVILEGED_USER_RISK on admin create path |
+| G16-15 | Isolation / security baseline assert | HIGH | 2 | |
+| G16-16 | Accounting boundary (no journals/OB/AR) | HIGH | 2â€“3 | REUSE CoA init; FORBIDDEN journals |
+| G16-17 | Snapshot-driven Subscription create/amend | BLOCKER | 3 | Closed Won â‰  ACTIVE |
+| G16-18 | Entitlement qty â‰¤ accepted; no hidden grants | BLOCKER | 3 | |
+| G16-19 | Billing Account/Schedule + Invoice from snapshot | BLOCKER | 3 | Reuse Platform Invoice idempotency |
+| G16-20 | Payment initiation â‰  PAID boundary | BLOCKER | 3 | NOT_CONFIGURED typed when missing |
+| G16-21 | Activation policy engine | BLOCKER | 3 | |
+| G16-22 | Compensation engine (explicit) | HIGH | 1â€“4 | Never delete acceptance / paid |
+| G16-23 | CS assignment step | HIGH | 4 | EXTEND portfolios |
+| G16-24 | Onboarding/training/migration/MRA handoffs | HIGH | 4 | Handoff â‰  execute |
+| G16-25 | Conversion reports / DQ / recon / reliability gate | HIGH | 4 | Never false zero |
+| G16-26 | Weighted Pipeline UI unlock | DEFERRED | 4 | `WEIGHTED_PIPELINE_UI_ENABLED` false today |
+| G16-27 | resolveCrmScope stub | CARRY | Harden | mode:all CROSS_TENANT_RISK |
+| G16-28 | E-sign provider | CARRY | â€” | NOT_CONFIGURED â€” acceptance still valid |
+| G16-29 | Prisma EPERM Windows | CARRY | All | SQL + hasCrm*Model |
+| G16-30 | Rich conversion UI beyond stubs | MEDIUM | 1â€“4 | Thin stubs acceptable early |
+| G16-31 | AI provisioning / auto-merge / fabricate PAID | FORBIDDEN | â€” | Never |
+| G16-32 | Tenant Quotation / Tenant AR as conversion truth | PROCESS | All | WRONG_DOMAIN guards |
+| G16-33 | Telephony / calendar / ingest / Demo cloud | CARRY | Orthogonal | NOT_AVAILABLE / NOT_CONNECTED |
+
+**No TBD blocking Wave 1 after CONDITIONAL GO** â€” Phase 15 handoff/acceptance/readiness and Phase 12 close are CORRECT_AND_REUSABLE; conversion orchestrator is expected NOT_FOUND greenfield; Tenant/Subscription/billing FOUNDATION services exist for Waves 2â€“3 wrapping.

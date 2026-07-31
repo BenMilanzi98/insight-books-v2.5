@@ -333,13 +333,23 @@ export const refundSale = async (saleId, reason, refundMethod = null) => {
  */
 export const printReceipt = async (saleId, options = {}) => {
   try {
-    const paperWidth = Number(options.paperWidth || options.paperWidthMm) === 58 ? 58 : 80;
+    const { normalizeReceiptPaperWidthMm } = await import('@/lib/receiptPaperWidth');
+    const hasExplicitWidth =
+      options.paperWidth !== undefined || options.paperWidthMm !== undefined;
+    const paperWidth = hasExplicitWidth
+      ? normalizeReceiptPaperWidthMm(options.paperWidth ?? options.paperWidthMm)
+      : null;
     const receiptUrl = `/api/sales/${saleId}/receipt`;
-    const receiptUrlWithWidth = `${receiptUrl}?paperWidth=${paperWidth}`;
+    const receiptUrlWithWidth = paperWidth
+      ? `${receiptUrl}?paperWidth=${paperWidth}`
+      : receiptUrl;
 
     if (typeof window !== 'undefined' && typeof window.__INSIGHT_PRINT_RECEIPT_ESC_POS__ === 'function') {
       try {
-        await window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(saleId, { paperWidth });
+        await window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(
+          saleId,
+          paperWidth ? { paperWidth } : {}
+        );
         return true;
       } catch (escErr) {
         console.warn('ESC/POS print bridge failed, using browser tab:', escErr);
@@ -350,7 +360,10 @@ export const printReceipt = async (saleId, options = {}) => {
     const receiptTab = window.open(receiptUrlWithWidth, '_blank');
 
     if (!receiptTab) {
-      const response = await fetch(`${receiptUrl}?format=pdf&paperWidth=${paperWidth}`);
+      const pdfUrl = paperWidth
+        ? `${receiptUrl}?format=pdf&paperWidth=${paperWidth}`
+        : `${receiptUrl}?format=pdf`;
+      const response = await fetch(pdfUrl);
       if (!response.ok) throw new Error(`Error generating receipt: ${response.statusText}`);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -406,6 +419,49 @@ export const exportSales = async (filters = {}, format = 'csv') => {
   }
 };
 
+function buildReceiptExportQuery(filters = {}) {
+  const queryParams = new URLSearchParams();
+  const { preset, dateFrom, dateTo, branchId, countOnly } = filters;
+  if (preset) queryParams.set('preset', preset);
+  if (dateFrom) queryParams.set('dateFrom', dateFrom);
+  if (dateTo) queryParams.set('dateTo', dateTo);
+  if (branchId && branchId !== 'all') queryParams.set('branchId', branchId);
+  if (countOnly) queryParams.set('countOnly', '1');
+  return queryParams.toString();
+}
+
+/** Preview how many receipts would be included in a bulk PDF export. */
+export const countSaleReceiptsExport = async (filters = {}) => {
+  const qs = buildReceiptExportQuery({ ...filters, countOnly: true });
+  const response = await fetch(`/api/sales/receipts/export?${qs}`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to count receipts');
+  }
+  return data;
+};
+
+/** Download all POS receipts in a date range as one multi-page PDF. */
+export const exportSaleReceiptsPdf = async (filters = {}) => {
+  const qs = buildReceiptExportQuery(filters);
+  const response = await fetch(`/api/sales/receipts/export?${qs}`);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Failed to export receipts (${response.status})`);
+  }
+  const blob = await response.blob();
+  const cd = response.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^"]+)"?/i.exec(cd);
+  const filename = match?.[1] || 'pos-receipts.pdf';
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = filename;
+  link.click();
+  window.URL.revokeObjectURL(downloadUrl);
+  return true;
+};
+
 // Fetch products for sale
 export const fetchProductsForSale = async (params = {}) => {
   try {
@@ -417,6 +473,9 @@ export const fetchProductsForSale = async (params = {}) => {
     if (category && category !== 'all') queryParams.append('category', category);
     if (limit) queryParams.append('limit', limit);
     if (page) queryParams.append('page', page);
+    // POS / sales catalog: physical products only (services are invoice-only)
+    queryParams.append('catalog', 'products');
+    queryParams.append('pos', '1');
     
     const queryString = queryParams.toString();
     const url = `/api/stock${queryString ? `?${queryString}` : ''}`;
@@ -444,6 +503,8 @@ export const fetchProductsForSalePage = async (params = {}) => {
     if (category && category !== 'all') queryParams.append('category', category);
     if (limit) queryParams.append('limit', limit);
     if (page) queryParams.append('page', page);
+    queryParams.append('catalog', 'products');
+    queryParams.append('pos', '1');
 
     const url = `/api/stock?${queryParams.toString()}`;
     const response = await fetch(url);
@@ -476,6 +537,7 @@ export const fetchProductsForSaleAll = async (params = {}) => {
       if (branchId) queryParams.append('branchId', branchId);
       if (allBranches) queryParams.append('allBranches', 'true');
       queryParams.append('pos', '1');
+      queryParams.append('catalog', 'products');
       queryParams.append('limit', pageSize);
       queryParams.append('page', String(page));
 
@@ -1087,6 +1149,8 @@ const salesService = {
   // Reporting and export
   getSalesReport,
   exportSales,
+  countSaleReceiptsExport,
+  exportSaleReceiptsPdf,
   getPaymentMethodStats,
   
   // Utility functions

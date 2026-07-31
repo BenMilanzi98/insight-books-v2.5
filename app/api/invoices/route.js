@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
-import { createInvoiceJournalEntry, createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
+import { postInvoiceAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { resolveBranchId } from '@/lib/branchHelpers';
@@ -16,6 +16,7 @@ import {
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
+import { emitSalesInvoicePosted } from '@/lib/admin/productAnalytics/producers';
 import {
   ensureInvoiceItemAccountIdColumn,
   requireInvoiceItemAccountIdColumn,
@@ -213,7 +214,8 @@ export async function GET(request) {
             productId: true,
             discountAmount: true,
             discountRate: true,
-            netAmount: true
+            netAmount: true,
+            itemTaxes: true,
           }
         });
       } catch (itemsError) {
@@ -229,12 +231,16 @@ export async function GET(request) {
       }
     }
     
-    // Group items by invoiceId
+    // Group items by invoiceId (expose taxes aliases for the invoice editor UI)
     const itemsByInvoice = items.reduce((acc, item) => {
       if (!acc[item.invoiceId]) {
         acc[item.invoiceId] = [];
       }
-      acc[item.invoiceId].push(item);
+      acc[item.invoiceId].push({
+        ...item,
+        taxes: item.itemTaxes || [],
+        productTaxes: item.itemTaxes || [],
+      });
       return acc;
     }, {});
     
@@ -537,7 +543,7 @@ export async function POST(request) {
               email: true
             }
           },
-          items: true
+          items: { include: { itemTaxes: true } },
         }
       });
 
@@ -620,96 +626,28 @@ export async function POST(request) {
             console.warn(`⚠️ ${productsWithoutCost.length} products have no cost information:`, productsWithoutCost);
           }
 
-          // Create invoice journal entry (revenue + COGS, without tax — tax posted separately per type)
-          await createInvoiceJournalEntry({
+          // V2 accounting: invoice revenue + tax via adapter; COGS via cost-of-sales adapter
+          await postInvoiceAccounting({
+            db: tx,
             tenantId: user.tenantId,
             userId: user.id,
             invoiceId: newInvoice.id,
-            invoiceNumber,
-            issueDate,
-            totalAmount: calculations.total,
-            items: calculations.processedItems,
-            hasServices: invoiceHasServices,
-            cogsAmount: totalCOGS,
-            taxAmount: 0, // Tax handled separately below
-            taxTypeId: null,
-            tx,
           });
-
-          // Post tax per tax type from item data
-          if (calculations.taxAmount > 0) {
-            const { autoPostTaxEntry } = await import('@/lib/taxCalculationService');
-
-            // Group items by tax type and sum their tax amounts
-            const taxByType = {};
-            for (const item of calculations.processedItems) {
-              const taxTypeId = item.selectedTaxTypeId;
-              if (taxTypeId && Number(item.taxAmount) > 0) {
-                if (!taxByType[taxTypeId]) taxByType[taxTypeId] = { taxTypeId, totalTax: 0 };
-                taxByType[taxTypeId].totalTax = addMoney(taxByType[taxTypeId].totalTax, item.taxAmount);
-              }
-            }
-
-            const perTypeTaxTotal = Object.values(taxByType).reduce((s, t) => addMoney(s, t.totalTax), 0);
-
-            // Post tax for each identified tax type (offset AR, not revenue)
-            for (const { taxTypeId, totalTax } of Object.values(taxByType)) {
-              try {
-                await autoPostTaxEntry({
-                  tenantId: user.tenantId,
-                  userId: user.id,
-                  taxTypeId,
-                  taxAmount: totalTax,
-                  transactionDate: issueDate,
-                  sourceType: 'Invoice',
-                  sourceId: newInvoice.id,
-                  description: `Tax for invoice ${invoiceNumber}`,
-                  tx,
-                });
-              } catch (taxPostErr) {
-                console.warn(`Failed to post tax for type ${taxTypeId} on invoice ${invoiceNumber}:`, taxPostErr?.message);
-              }
-            }
-
-            // Fallback: if no per-item taxTypeId but invoice has tax, use rate-matching
-            const unmatchedTax = subtractMoney(calculations.taxAmount, perTypeTaxTotal);
-            if (unmatchedTax > 0.01) {
-              try {
-                const activeTaxTypes = await tx.taxType.findMany({
-                  where: { tenantId: user.tenantId, status: 'Active' },
-                });
-                const nonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
-                const itemTaxRates = calculations.processedItems
-                  .map(i => Number(i.taxRate || 0))
-                  .filter(r => r > 0);
-                const primaryRate = itemTaxRates.length > 0 ? itemTaxRates[0] : 0;
-                let fallbackTaxTypeId = null;
-                if (primaryRate > 0) {
-                  fallbackTaxTypeId = nonPayeTypes.find(t => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id
-                    || nonPayeTypes[0]?.id || null;
-                } else {
-                  fallbackTaxTypeId = nonPayeTypes[0]?.id || null;
-                }
-                if (fallbackTaxTypeId) {
-                  await autoPostTaxEntry({
-                    tenantId: user.tenantId,
-                    userId: user.id,
-                    taxTypeId: fallbackTaxTypeId,
-                    taxAmount: unmatchedTax,
-                    transactionDate: issueDate,
-                    sourceType: 'Invoice',
-                    sourceId: newInvoice.id,
-                    description: `Tax for invoice ${invoiceNumber} (fallback)`,
-                    tx,
-                  });
-                }
-              } catch (fallbackErr) {
-                console.warn('Could not post fallback tax for invoice:', fallbackErr?.message);
-              }
-            }
+          if (totalCOGS > 0) {
+            await postCostOfSalesAccounting({
+              db: tx,
+              tenantId: user.tenantId,
+              userId: user.id,
+              documentKind: 'Invoice',
+              documentId: newInvoice.id,
+              documentNumber: invoiceNumber,
+              documentDate: issueDate,
+              cogsAmount: totalCOGS,
+              branchId: newInvoice.branchId || null,
+            });
           }
-          
-          console.log(`✅ Journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}, tax: MK ${calculations.taxAmount}`);
+
+          console.log(`✅ V2 journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}, tax: MK ${calculations.taxAmount}`);
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
           throw journalError;
@@ -760,6 +698,25 @@ export async function POST(request) {
       updatedAt: newInvoice.updatedAt
     };
     
+    // Product Analytics (Phase 9): posted invoice meaningful action (fire-and-forget)
+    if (
+      newInvoice.status !== 'Draft' &&
+      String(newInvoice.status).toUpperCase() !== 'PROFORMA'
+    ) {
+      try {
+        await emitSalesInvoicePosted(prisma, {
+          tenantId: user.tenantId,
+          invoiceId: newInvoice.id,
+          actorId: user.id,
+          status: newInvoice.status,
+          occurredAt: newInvoice.createdAt || new Date(),
+          branchId: newInvoice.branchId || null,
+        });
+      } catch (analyticsErr) {
+        console.warn('[productAnalytics] invoice posted emit failed:', analyticsErr?.message);
+      }
+    }
+
     // MRA EIS: auto-submit invoice to MRA for EIS-enabled tenants (fire-and-forget)
     let eisResult = null;
     if (newInvoice.status !== 'Draft') {

@@ -1,14 +1,16 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AdminPageContainer, AdminPageHeader } from '@/components/admin';
 
 export default function SystemPerformancePage() {
+  const { t } = useI18n();
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="System performance"
+        title={t('admin-pages.stubs.systemPerformance.title')}
         description="Standalone performance charts for this route are not maintained separately. Live health and operational signals live on System Health and the main dashboard."
         actions={
           <div className="flex flex-wrap gap-2">

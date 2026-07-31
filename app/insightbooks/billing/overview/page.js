@@ -1,5 +1,7 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CreditCard, FileText, RefreshCw, Wallet } from 'lucide-react';
@@ -10,6 +12,7 @@ import {
   AdminLoadingState,
   AdminErrorState,
 } from '@/components/admin';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 const btnGhost =
   'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]';
@@ -21,6 +24,7 @@ function money(amount, currency = 'MWK') {
 }
 
 export default function AdminBillingOverviewPage() {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,7 +33,7 @@ export default function AdminBillingOverviewPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/platform-billing/overview', {
+      const res = await adminFetch('/api/admin/platform-billing/overview', {
         credentials: 'include',
       });
       const body = await res.json().catch(() => ({}));
@@ -53,8 +57,8 @@ export default function AdminBillingOverviewPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Billing Overview"
-        description="InsightBooks platform SaaS billing — not tenant customer AR revenue."
+        title={t('admin-pages.billing.overview.title')}
+        description={t('admin-pages.billing.overview.description')}
         actions={
           <button type="button" onClick={load} className={btnGhost}>
             <RefreshCw className="h-4 w-4" aria-hidden />
@@ -75,14 +79,22 @@ export default function AdminBillingOverviewPage() {
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <AdminSummaryCard
-              label="Collected this period"
+              label={t('admin-pages.dashboard.paymentsPeriod')}
               value={money(s.paymentsThisPeriod, currency)}
               href="/insightbooks/billing/payments"
               icon={Wallet}
               tone="success"
             />
             <AdminSummaryCard
-              label="Outstanding"
+              label={t('admin-pages.dashboard.mrr')}
+              value={money(s.estimatedMrr ?? data?.saasKpis?.estimatedMrr, currency)}
+              hint={t('admin-pages.dashboard.mrrHint')}
+              href="/insightbooks/billing/subscriptions"
+              icon={CreditCard}
+              tone="success"
+            />
+            <AdminSummaryCard
+              label={t('admin-pages.dashboard.outstanding')}
               value={money(s.outstandingTotal, currency)}
               hint={`${s.outstandingInvoiceCount} invoices`}
               href="/insightbooks/billing/invoices"
@@ -90,15 +102,13 @@ export default function AdminBillingOverviewPage() {
               tone="warning"
             />
             <AdminSummaryCard
-              label="Overdue invoices"
-              value={s.overdueInvoiceCount}
-              href="/insightbooks/billing/invoices"
-              icon={FileText}
-              tone={s.overdueInvoiceCount > 0 ? 'danger' : 'neutral'}
-            />
-            <AdminSummaryCard
-              label="Active subscriptions"
-              value={s.activeSubscriptions}
+              label={t('admin-pages.dashboard.activeSubs')}
+              value={s.activePaidSubscriptions ?? s.activeSubscriptions}
+              hint={
+                s.distinctActivePaidTenants != null
+                  ? `${s.distinctActivePaidTenants} tenants`
+                  : null
+              }
               href="/insightbooks/billing/subscriptions"
               icon={CreditCard}
             />

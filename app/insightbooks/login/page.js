@@ -1,5 +1,7 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useState } from 'react';
 import { AlertCircle, CheckCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
@@ -18,7 +20,7 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/admin/auth/login', {
+      const response = await adminFetch('/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

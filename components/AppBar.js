@@ -4,13 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Bell, User, Search, X } from "lucide-react";
 import { isPosDefaultLandingRole } from "@/lib/tenantRoleAccess";
+import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { translateNavLabel } from "@/lib/i18n/navLabelMap";
 
-const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, adminUser = null }) => {
+const AppBar = ({
+  toggleSidebar,
+  sidebarOpen,
+  isMobile,
+  skipUserFetch = false,
+  adminUser = null,
+  menuButtonRef = null,
+  navId = undefined,
+}) => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const pathname = usePathname();
+  const { t } = useI18n();
   
   // Add state for user data and loading state (only used when !skipUserFetch)
   const [user, setUser] = useState(skipUserFetch && adminUser ? { name: adminUser.name, email: adminUser.email } : null);
@@ -122,13 +134,11 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
       justifyContent: "space-between", 
       alignItems: "center", 
       height: "72px", 
-      padding: "0 24px", 
-      backgroundColor: "#ffffff", 
-      borderBottom: "1px solid #e5e7eb",
-      boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)", 
-      zIndex: 50,
-      backdropFilter: "blur(8px)",
-      WebkitBackdropFilter: "blur(8px)"
+      padding: "0 16px", 
+      backgroundColor: "var(--surface-primary, #ffffff)", 
+      borderBottom: "1px solid var(--border-default, #e5e7eb)",
+      boxShadow: "var(--shadow-card)", 
+      zIndex: "var(--z-sticky, 100)",
     }}>
       <div className="app-bar-left" style={{ 
         display: "flex", 
@@ -139,8 +149,12 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
       }}>
         {isMobile && (
           <button
+            ref={menuButtonRef}
+            type="button"
             onClick={toggleSidebar}
-            aria-label="Toggle menu"
+            aria-label={sidebarOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={Boolean(sidebarOpen)}
+            aria-controls={navId}
             style={{
               background: "none",
               border: "none",
@@ -150,8 +164,10 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
               justifyContent: "center",
               padding: "8px",
               borderRadius: "8px",
-              color: "#4b5563",
-              transition: "all 0.2s ease"
+              color: "var(--text-secondary, #4b5563)",
+              transition: "all 0.2s ease",
+              minWidth: "44px",
+              minHeight: "44px",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = "#f3f4f6";
@@ -162,7 +178,7 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
               e.currentTarget.style.color = "#4b5563";
             }}
           >
-            <Menu size={22} />
+            <Menu size={22} aria-hidden="true" />
           </button>
         )}
 
@@ -237,7 +253,7 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
                 onMouseEnter={(e) => (e.currentTarget.style.color = "#2563eb")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "#3b82f6")}
               >
-                Home
+                {translateNavLabel('Home', t)}
               </Link>
               {pathname !== "/" && !atAppHome && (
                 <>
@@ -255,6 +271,7 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
         alignItems: "center", 
         gap: "16px" 
       }}>
+        <LanguageSwitcher compact />
         {/* Mobile Search Icon */}
         {isMobile && !showSearch && (
           <button
@@ -305,7 +322,7 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
             <div style={{ position: "relative", flex: 1 }}>
               <input 
                 type="text" 
-                placeholder="Search..." 
+                placeholder={t('common.actions.search')} 
                 style={{
                   width: "100%",
                   padding: "10px 16px 10px 40px",
@@ -377,7 +394,7 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
           }}>
             <input 
               type="text" 
-              placeholder="Search anything..." 
+              placeholder={t('common.actions.search')} 
               className="search-input"
               style={{
                 width: "100%",

@@ -99,6 +99,71 @@ export async function POST(request) {
       }
     });
 
+    // Stage 5 — post depreciation GL (was register-only)
+    let glResult = null;
+    if (depreciationAmount > 0.01) {
+      try {
+        const { resolvePurposeAccount } = await import(
+          '@/lib/coaV2/application/accountMappingRegistry.js'
+        );
+        const { createAccountingContext } = await import(
+          '@/lib/accountingV2/domain/accountingContext.js'
+        );
+        const { postDepreciationAccounting } = await import(
+          '@/lib/accountingV2/adapters/remainingAdapters.js'
+        );
+        const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry.js');
+        const ctx = createAccountingContext({
+          businessId: user.tenantId,
+          userId: user.id,
+        });
+        const expenseAcct = await resolvePurposeAccount(ctx, 'DEPRECIATION_EXPENSE');
+        const accumAcct = await resolvePurposeAccount(ctx, 'ACCUMULATED_DEPRECIATION');
+        const amt = Math.round(depreciationAmount * 100) / 100;
+        const lines = [
+          {
+            lineNumber: 1,
+            accountId: expenseAcct.id,
+            debitAmount: amt,
+            creditAmount: 0,
+            description: `Depreciation — ${asset.name}`,
+          },
+          {
+            lineNumber: 2,
+            accountId: accumAcct.id,
+            debitAmount: 0,
+            creditAmount: amt,
+            description: `Accumulated depreciation — ${asset.name}`,
+          },
+        ];
+        const desc = `Depreciation ${asset.name} (${startDate.toISOString().slice(0, 10)}–${endDate.toISOString().slice(0, 10)})`;
+        glResult = (
+          await postDepreciationAccounting({
+            db: prisma,
+            tenantId: user.tenantId,
+            userId: user.id,
+            sourceId: depreciationSchedule.id,
+            amount: amt,
+            date: endDate,
+            description: desc,
+            lines,
+            legacyPost: () =>
+              postGlEntry({
+                tenantId: user.tenantId,
+                userId: user.id,
+                entryDate: endDate,
+                description: desc,
+                sourceType: 'DepreciationSchedule',
+                sourceId: depreciationSchedule.id,
+                lines,
+              }),
+          })
+        ).result;
+      } catch (glErr) {
+        console.error('Depreciation GL posting failed (schedule saved):', glErr?.message || glErr);
+      }
+    }
+
     return NextResponse.json({
       message: 'Depreciation calculated successfully',
       depreciation: {
@@ -108,7 +173,8 @@ export async function POST(request) {
         depreciationAmount: depreciationAmount,
         accumulatedDepreciation: newAccumulatedDepreciation,
         remainingValue: remainingValue,
-        depreciationSchedule: depreciationSchedule
+        depreciationSchedule: depreciationSchedule,
+        journalEntryId: glResult?.journalEntryId || glResult?.id || null,
       },
       asset: updatedAsset
     });

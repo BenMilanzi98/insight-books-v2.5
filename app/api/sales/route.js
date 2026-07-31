@@ -4,8 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
-import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
-import { autoPostTaxEntry } from '@/lib/taxCalculationService';
+import { postPosSaleAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { prismaWhereCoaIncomeAccounts, findCoaIncomeAccountsForTenant } from '@/lib/coaIncomeAccounts';
@@ -23,6 +22,7 @@ import {
   subtractMoney,
   sumMoney,
 } from '@/lib/money';
+import { emitPosTransactionCompleted } from '@/lib/admin/productAnalytics/producers';
 
 function resolveCustomItemOrderPrice(customProductData) {
   if (!customProductData || typeof customProductData !== 'object') return 0;
@@ -1431,38 +1431,43 @@ export async function POST(request) {
               }
             }
 
-            // Create journal entries
-            console.log('🔥 About to create journal entries for sale:', sale.id);
+            // V2 accounting: revenue (+ tax via taxAmount) and COGS via adapters — fail closed
+            console.log('🔥 About to create V2 journal entries for sale:', sale.id);
             console.log('💰 COGS Summary:', {
               totalCOGS,
               itemCount: data.items.length,
               inventoryItems: data.items.filter(item => item.productId && !item.isCustom).length
             });
-            // Create journal entries with error handling
-            let journalEntries;
             try {
-              journalEntries = await createSaleJournalEntries({
+              await postPosSaleAccounting({
+                db: tx,
                 tenantId: user.tenantId,
                 userId: user.id,
                 saleId: sale.id,
                 saleNumber,
                 saleDate: paymentDate,
                 totalAmount: finalTotal,
-                items,
                 paymentMethod: paymentMethodInput,
-                hasServices,
-                cogsAmount: totalCOGS,
-                paymentAccount: paymentDebitLines ? null : paymentCoAAccount,
-                paymentDebitLines: paymentDebitLines || null,
-                standardAccounts: standardAccounts,
-                referenceNumber: referenceNumber,
-                cogsReferenceNumber: cogsReferenceNumber,
+                // Resolve cash CoA from PaymentAccount.id (name strings break leaf linking).
+                paymentAccountId: paymentAllocations?.[0]?.paymentAccountId || null,
+                taxAmount: finalTaxAmount,
                 branchId: branchId || null,
-                tx,
               });
+              if (totalCOGS > 0) {
+                await postCostOfSalesAccounting({
+                  db: tx,
+                  tenantId: user.tenantId,
+                  userId: user.id,
+                  documentKind: 'Sale',
+                  documentId: sale.id,
+                  documentNumber: saleNumber,
+                  documentDate: paymentDate,
+                  cogsAmount: totalCOGS,
+                  branchId: branchId || null,
+                });
+              }
             } catch (journalError) {
-              // Check if transaction is aborted
-              if (journalError.message?.includes('transaction is aborted') || 
+              if (journalError.message?.includes('transaction is aborted') ||
                   journalError.message?.includes('25P02') ||
                   journalError.code === 'P2034') {
                 console.error('❌ Transaction was aborted before journal entry creation. Original error may be above.');
@@ -1472,75 +1477,12 @@ export async function POST(request) {
                   `Journal entry error: ${journalError.message}`
                 );
               }
-              // Re-throw other errors
               throw journalError;
             }
-            console.log('✅ Journal entries created successfully:', journalEntries.length);
-
-            // Auto-post taxes from SaleItemTax records
-            try {
-              const saleItemTaxes = await tx.saleItemTax.findMany({
-                where: {
-                  saleItem: {
-                    saleId: sale.id,
-                  },
-                },
-                select: {
-                  taxTypeId: true,
-                  taxAmount: true,
-                  taxName: true,
-                },
-              });
-
-              // Group by taxTypeId and sum amounts
-              const taxesByType = {};
-              saleItemTaxes.forEach(tax => {
-                if (!taxesByType[tax.taxTypeId]) {
-                  taxesByType[tax.taxTypeId] = {
-                    taxTypeId: tax.taxTypeId,
-                    taxAmount: 0,
-                    taxName: tax.taxName,
-                  };
-                }
-                taxesByType[tax.taxTypeId].taxAmount = addMoney(taxesByType[tax.taxTypeId].taxAmount, tax.taxAmount);
-              });
-
-              // Post each tax type separately
-              for (const taxData of Object.values(taxesByType)) {
-                if (taxData.taxAmount > 0) {
-                  try {
-                    const { autoPostTaxEntry } = await import('@/lib/taxCalculationService');
-                    await autoPostTaxEntry({
-                      tenantId: user.tenantId,
-                      userId: user.id,
-                      taxTypeId: taxData.taxTypeId,
-                      taxAmount: taxData.taxAmount,
-                      transactionDate: paymentDate,
-                      sourceType: 'Sale',
-                      sourceId: sale.id,
-                      description: `${taxData.taxName} for sale ${saleNumber}`,
-                      tx,
-                    });
-                    console.log(`✅ Auto-posted ${taxData.taxName}: ${taxData.taxAmount}`);
-                  } catch (taxError) {
-                    console.error(`Error auto-posting tax ${taxData.taxName}:`, taxError);
-                    // Don't fail the sale if tax posting fails
-                  }
-                }
-              }
-            } catch (taxPostingError) {
-              // SaleItemTax table might not exist, that's okay
-              if (!taxPostingError.message?.includes('does not exist') && 
-                  !taxPostingError.message?.includes('Unknown model')) {
-                console.error('Error fetching SaleItemTax records:', taxPostingError);
-                throw taxPostingError;
-              }
-            }
-            if (totalCOGS > 0) {
-              console.log('✅ COGS should have been recorded:', totalCOGS);
-            } else {
-              console.log('⚠️ No COGS to record (totalCOGS = 0)');
-            }
+            console.log('✅ V2 journal entries posted for sale', saleNumber, {
+              taxAmount: finalTaxAmount,
+              cogsAmount: totalCOGS,
+            });
           } catch (journalError) {
             console.error('❌ Error creating journal entries for sale:', journalError);
             console.error('Journal error details:', {
@@ -1628,6 +1570,22 @@ export async function POST(request) {
       console.log('🔍 Returning sale with paymentMethod:', paymentMethodInput);
       console.log('🔍 Sale record paymentMethod:', result.sale.paymentMethod);
       console.log('🔍 Sale payments with allocations:', saleWithPayments?.payments);
+
+      // Product Analytics (Phase 9): POS completed meaningful action (fire-and-forget)
+      if (String(result.sale.status).toLowerCase() === 'completed') {
+        try {
+          await emitPosTransactionCompleted(prisma, {
+            tenantId: user.tenantId,
+            saleId: result.sale.id,
+            actorId: user.id,
+            status: result.sale.status,
+            occurredAt: result.sale.createdAt || new Date(),
+            branchId: result.sale.branchId || null,
+          });
+        } catch (analyticsErr) {
+          console.warn('[productAnalytics] POS completed emit failed:', analyticsErr?.message);
+        }
+      }
 
       // MRA EIS: auto-submit sale to MRA for EIS-enabled tenants (fire-and-forget)
       let eisResult = null;

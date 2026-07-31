@@ -6,9 +6,9 @@ import { Save, Plus, Trash, CheckCircle, AlertCircle } from "lucide-react";
 export default function TaxSettings() {
   const [settings, setSettings] = useState({
     taxEnabled: true,
-    defaultTaxRate: 16.5,
+    defaultTaxRate: 17.5,
     taxRates: [
-      { id: "1", name: "Standard Rate", rate: 16.5, isDefault: true },
+      { id: "1", name: "Standard Rate", rate: 17.5, isDefault: true },
       { id: "2", name: "Reduced Rate", rate: 5, isDefault: false },
       { id: "3", name: "Zero Rate", rate: 0, isDefault: false }
     ],

@@ -1,0 +1,2666 @@
+﻿# Review package — Phase 14 Task 3
+
+diff --git a/lib/admin/crm/demos/environments.js b/lib/admin/crm/demos/environments.js
+new file mode 100644
+index 0000000..1268380
+--- /dev/null
++++ b/lib/admin/crm/demos/environments.js
+@@ -0,0 +1,715 @@
++/**
++ * Logical Demo Environments ΓÇö Phase 14 Wave 3.
++ * DENV numbering; request/approve; logical provisioner; health; reset; expiry; deprovision.
++ * READY only via approved provision path + health ΓÇö never invent READY.
++ * No Production connections; Γëá MRA EIS sandbox; cloud infra NOT_AVAILABLE.
++ */
++
++import {
++  CRM_DEMO_ENVIRONMENT_HEALTH,
++  CRM_DEMO_ENVIRONMENT_STATUS,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import { allocateDemoEnvironmentNumber } from './numbering.js';
++import { hasCrmDemoDataPackModel, serializeDataPack } from './dataPacks.js';
++import {
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  resolveDemoContentAccess,
++} from './versioning.js';
++
++const CONNECTION_GUARDS = Object.freeze({
++  productionDb: false,
++  productionPayment: false,
++  mraEisEndpoint: false,
++  productionEmailSender: false,
++  cloudContainer: false,
++  productionTenantAlias: false,
++});
++
++export function hasCrmDemoEnvironmentModel(prisma) {
++  return typeof prisma?.crmDemoEnvironment?.create === 'function';
++}
++
++export function serializeEnvironment(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    envNumber: row.envNumber,
++    demoId: row.demoId,
++    status: row.status,
++    healthStatus: row.healthStatus || CRM_DEMO_ENVIRONMENT_HEALTH.UNKNOWN,
++    healthJson: row.healthJson ?? null,
++    dataPackId: row.dataPackId || null,
++    expiresAt: row.expiresAt ? new Date(row.expiresAt).toISOString() : null,
++    demoBannerVisible: row.demoBannerVisible !== false,
++    cloudProvisionStatus: row.cloudProvisionStatus || 'NOT_AVAILABLE',
++    mraEisSandboxAliased: row.mraEisSandboxAliased === true,
++    productionConnections: row.productionConnections === true,
++    connectionGuardsJson: row.connectionGuardsJson ?? CONNECTION_GUARDS,
++    logicalProvisionToken: row.logicalProvisionToken || null,
++    provisionedAt: row.provisionedAt
++      ? new Date(row.provisionedAt).toISOString()
++      : null,
++    lastHealthAt: row.lastHealthAt ? new Date(row.lastHealthAt).toISOString() : null,
++    deprovisionedAt: row.deprovisionedAt
++      ? new Date(row.deprovisionedAt).toISOString()
++      : null,
++    requestedByAdminId: row.requestedByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    requestIdempotencyKey: row.requestIdempotencyKey || null,
++    provisionIdempotencyKey: row.provisionIdempotencyKey || null,
++    resetIdempotencyKey: row.resetIdempotencyKey || null,
++    deprovisionIdempotencyKey: row.deprovisionIdempotencyKey || null,
++    notes: row.notes || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadEnv(prisma, envId) {
++  const id = envId ? String(envId).trim() : '';
++  if (!id || !hasCrmDemoEnvironmentModel(prisma)) return null;
++  try {
++    if (/^DENV-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemoEnvironment.findUnique({ where: { envNumber: id } });
++    }
++    return await prisma.crmDemoEnvironment.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++function parseExpiry(raw) {
++  if (!raw) return null;
++  const d = raw instanceof Date ? raw : new Date(raw);
++  if (Number.isNaN(d.getTime())) return null;
++  return d;
++}
++
++/**
++ * Logical health check ΓÇö never fabricates cloud readiness.
++ * READY requires: not expired, banner on, no production connections, not MRA alias, logical token present.
++ */
++export function evaluateLogicalEnvironmentHealth(env, now = new Date()) {
++  const expiresAt = env.expiresAt ? new Date(env.expiresAt) : null;
++  const expired = !expiresAt || Number.isNaN(expiresAt.getTime()) || now.getTime() >= expiresAt.getTime();
++  const checks = {
++    expiryPresent: Boolean(expiresAt) && !Number.isNaN(expiresAt.getTime()),
++    notExpired: !expired,
++    demoBannerVisible: env.demoBannerVisible !== false,
++    noProductionConnections: env.productionConnections !== true,
++    mraEisNotAliased: env.mraEisSandboxAliased !== true,
++    cloudNotFabricated: (env.cloudProvisionStatus || 'NOT_AVAILABLE') === 'NOT_AVAILABLE',
++    logicalTokenPresent: Boolean(env.logicalProvisionToken),
++    connectionGuardsOk: true,
++  };
++  const guards = env.connectionGuardsJson || CONNECTION_GUARDS;
++  for (const k of Object.keys(CONNECTION_GUARDS)) {
++    if (guards[k] === true) {
++      checks.connectionGuardsOk = false;
++      checks[`guard_${k}`] = false;
++    }
++  }
++
++  if (expired) {
++    return {
++      healthStatus: CRM_DEMO_ENVIRONMENT_HEALTH.EXPIRED,
++      ok: false,
++      checks,
++      detail: 'Environment expired ΓÇö READY blocked',
++    };
++  }
++
++  const required = [
++    'expiryPresent',
++    'notExpired',
++    'demoBannerVisible',
++    'noProductionConnections',
++    'mraEisNotAliased',
++    'cloudNotFabricated',
++    'logicalTokenPresent',
++    'connectionGuardsOk',
++  ];
++  const failed = required.filter((k) => !checks[k]);
++  if (failed.length > 0) {
++    return {
++      healthStatus: CRM_DEMO_ENVIRONMENT_HEALTH.UNHEALTHY,
++      ok: false,
++      checks,
++      failed,
++      detail: `Health failed: ${failed.join(', ')}`,
++    };
++  }
++  return {
++    healthStatus: CRM_DEMO_ENVIRONMENT_HEALTH.HEALTHY,
++    ok: true,
++    checks,
++    detail: 'Logical Demo Environment healthy (Γëá MRA EIS sandbox)',
++  };
++}
++
++/**
++ * Request a logical Demo Environment. Expiry required.
++ */
++export async function requestDemoEnvironment(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  if (!hasCrmDemoEnvironmentModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_environment_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const expiresAt = parseExpiry(args.expiresAt);
++  if (!expiresAt) {
++    return { ok: false, error: 'environment_expiry_required' };
++  }
++  const now = args.now || new Date();
++  if (expiresAt.getTime() <= now.getTime()) {
++    return { ok: false, error: 'environment_expiry_must_be_future' };
++  }
++
++  const requestIdempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  if (requestIdempotencyKey) {
++    try {
++      const existing = await prisma.crmDemoEnvironment.findUnique({
++        where: { requestIdempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          environment: serializeEnvironment(existing),
++          alreadyExists: true,
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  let dataPackId = args.dataPackId ? String(args.dataPackId).trim() : null;
++  if (dataPackId) {
++    if (!hasCrmDemoDataPackModel(prisma)) {
++      return { ok: false, error: 'crm_demo_data_pack_model_unavailable', status: 'UNAVAILABLE' };
++    }
++    const pack = await prisma.crmDemoDataPack.findUnique({ where: { id: dataPackId } });
++    if (!pack) return { ok: false, error: 'data_pack_not_found' };
++    if (pack.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++      return { ok: false, error: 'data_pack_not_active' };
++    }
++  }
++
++  if (args.aliasMraEisSandbox === true || args.useProductionTenant === true) {
++    return {
++      ok: false,
++      error: 'mra_eis_or_production_tenant_alias_forbidden',
++      reason: 'demo_environment_ne_mra_eis_ne_production',
++    };
++  }
++
++  const allocated = await allocateDemoEnvironmentNumber(prisma, { now });
++  if (!allocated.ok) {
++    return { ok: false, error: allocated.error || 'denv_number_allocation_failed' };
++  }
++
++  try {
++    const row = await prisma.crmDemoEnvironment.create({
++      data: {
++        envNumber: allocated.number,
++        demoId: demo.id,
++        status: CRM_DEMO_ENVIRONMENT_STATUS.REQUESTED,
++        healthStatus: CRM_DEMO_ENVIRONMENT_HEALTH.UNKNOWN,
++        dataPackId,
++        expiresAt,
++        demoBannerVisible: true,
++        cloudProvisionStatus: 'NOT_AVAILABLE',
++        mraEisSandboxAliased: false,
++        productionConnections: false,
++        connectionGuardsJson: { ...CONNECTION_GUARDS },
++        requestedByAdminId: args.admin?.id || null,
++        requestIdempotencyKey,
++        notes: args.notes != null ? String(args.notes).trim().slice(0, 2000) : null,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++
++    await prisma.crmDemo.update({
++      where: { id: demo.id },
++      data: { environmentId: row.id, updatedAt: now },
++    });
++
++    await appendTimelineEvent(prisma, {
++      subjectType: CRM_SUBJECT_TYPE.DEMO,
++      subjectId: demo.id,
++      eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_ENVIRONMENT_REQUESTED,
++      summary: `Demo environment requested ${row.envNumber}`,
++      payload: { envId: row.id, envNumber: row.envNumber, expiresAt: expiresAt.toISOString() },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++
++    return { ok: true, environment: serializeEnvironment(row), demo: serializeDemo({ ...demo, environmentId: row.id }) };
++  } catch (err) {
++    if (requestIdempotencyKey && err?.code === 'P2002') {
++      const raced = await prisma.crmDemoEnvironment.findUnique({
++        where: { requestIdempotencyKey },
++      });
++      if (raced) {
++        return { ok: true, environment: serializeEnvironment(raced), alreadyExists: true };
++      }
++    }
++    return { ok: false, error: err?.message || 'environment_request_failed' };
++  }
++}
++
++export async function approveDemoEnvironment(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_approve_forbidden' };
++  }
++  const row = await loadEnv(prisma, args.environmentId || args.envId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'environment_not_found' };
++  if (row.status !== CRM_DEMO_ENVIRONMENT_STATUS.REQUESTED) {
++    return { ok: false, error: 'environment_not_requestable_for_approval' };
++  }
++  const sod = assertSodApprover(
++    { authoredByAdminId: row.requestedByAdminId },
++    args.admin
++  );
++  if (!sod.ok) {
++    return {
++      ok: false,
++      error: 'demo_environment_self_approval_blocked',
++      reason: sod.reason || 'sod_author_must_differ_from_approver',
++    };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_ENVIRONMENT_STATUS.APPROVED,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: row.demoId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_ENVIRONMENT_APPROVED,
++    summary: `Demo environment approved ${row.envNumber}`,
++    payload: { envId: row.id, envNumber: row.envNumber },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, environment: serializeEnvironment(updated) };
++}
++
++/**
++ * Logical provisioner ΓÇö sets READY only after health check passes.
++ * Idempotent via provisionIdempotencyKey.
++ */
++export async function provisionDemoEnvironment(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  const row = await loadEnv(prisma, args.environmentId || args.envId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'environment_not_found' };
++
++  const provisionIdempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++
++  if (
++    provisionIdempotencyKey &&
++    row.provisionIdempotencyKey === provisionIdempotencyKey &&
++    row.status === CRM_DEMO_ENVIRONMENT_STATUS.READY
++  ) {
++    return {
++      ok: true,
++      environment: serializeEnvironment(row),
++      alreadyProvisioned: true,
++    };
++  }
++
++  if (
++    row.status !== CRM_DEMO_ENVIRONMENT_STATUS.APPROVED &&
++    row.status !== CRM_DEMO_ENVIRONMENT_STATUS.UNHEALTHY &&
++    !(
++      row.status === CRM_DEMO_ENVIRONMENT_STATUS.READY &&
++      provisionIdempotencyKey &&
++      row.provisionIdempotencyKey === provisionIdempotencyKey
++    )
++  ) {
++    if (row.status === CRM_DEMO_ENVIRONMENT_STATUS.READY) {
++      return {
++        ok: true,
++        environment: serializeEnvironment(row),
++        alreadyProvisioned: true,
++      };
++    }
++    return { ok: false, error: 'environment_not_approved_for_provision' };
++  }
++
++  if (args.cloudProvider || args.fabricateCloud === true) {
++    return {
++      ok: false,
++      error: 'cloud_demo_infra_not_available',
++      cloudProvisionStatus: 'NOT_AVAILABLE',
++    };
++  }
++
++  const now = args.now || new Date();
++  const token = `logical:${row.envNumber}:${now.getTime()}`;
++
++  // Move to PROVISIONING first ΓÇö never jump to READY without health
++  await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_ENVIRONMENT_STATUS.PROVISIONING,
++      logicalProvisionToken: token,
++      provisionedAt: now,
++      provisionIdempotencyKey: provisionIdempotencyKey || row.provisionIdempotencyKey,
++      demoBannerVisible: true,
++      cloudProvisionStatus: 'NOT_AVAILABLE',
++      mraEisSandboxAliased: false,
++      productionConnections: false,
++      connectionGuardsJson: { ...CONNECTION_GUARDS },
++      updatedAt: now,
++    },
++  });
++
++  const mid = await loadEnv(prisma, row.id);
++  const health = evaluateLogicalEnvironmentHealth(mid, now);
++
++  const finalStatus = health.ok
++    ? CRM_DEMO_ENVIRONMENT_STATUS.READY
++    : health.healthStatus === CRM_DEMO_ENVIRONMENT_HEALTH.EXPIRED
++      ? CRM_DEMO_ENVIRONMENT_STATUS.EXPIRED
++      : CRM_DEMO_ENVIRONMENT_STATUS.UNHEALTHY;
++
++  const updated = await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: finalStatus,
++      healthStatus: health.healthStatus,
++      healthJson: {
++        ...health,
++        evaluatedAt: now.toISOString(),
++        provisionPath: 'logical',
++        inventReadyForbidden: true,
++      },
++      lastHealthAt: now,
++      updatedAt: now,
++    },
++  });
++
++  if (finalStatus === CRM_DEMO_ENVIRONMENT_STATUS.READY) {
++    await appendTimelineEvent(prisma, {
++      subjectType: CRM_SUBJECT_TYPE.DEMO,
++      subjectId: row.demoId,
++      eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_ENVIRONMENT_PROVISIONED,
++      summary: `Demo environment provisioned ${row.envNumber}`,
++      payload: {
++        envId: row.id,
++        envNumber: row.envNumber,
++        healthStatus: health.healthStatus,
++        logical: true,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++  }
++
++  return {
++    ok: health.ok,
++    environment: serializeEnvironment(updated),
++    health,
++    error: health.ok ? undefined : 'environment_health_failed',
++  };
++}
++
++export async function runDemoEnvironmentHealthCheck(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  const row = await loadEnv(prisma, args.environmentId || args.envId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'environment_not_found' };
++
++  const now = args.now || new Date();
++  const health = evaluateLogicalEnvironmentHealth(row, now);
++
++  let nextStatus = row.status;
++  if (row.status === CRM_DEMO_ENVIRONMENT_STATUS.DEPROVISIONED) {
++    // keep
++  } else if (health.healthStatus === CRM_DEMO_ENVIRONMENT_HEALTH.EXPIRED) {
++    nextStatus = CRM_DEMO_ENVIRONMENT_STATUS.EXPIRED;
++  } else if (
++    row.status === CRM_DEMO_ENVIRONMENT_STATUS.READY ||
++    row.status === CRM_DEMO_ENVIRONMENT_STATUS.UNHEALTHY
++  ) {
++    nextStatus = health.ok
++      ? CRM_DEMO_ENVIRONMENT_STATUS.READY
++      : CRM_DEMO_ENVIRONMENT_STATUS.UNHEALTHY;
++  }
++
++  const updated = await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: nextStatus,
++      healthStatus: health.healthStatus,
++      healthJson: { ...health, evaluatedAt: now.toISOString() },
++      lastHealthAt: now,
++      updatedAt: now,
++    },
++  });
++
++  return {
++    ok: true,
++    environment: serializeEnvironment(updated),
++    health,
++    healthy: health.ok,
++  };
++}
++
++/**
++ * Reset logical environment ΓÇö idempotent via resetIdempotencyKey.
++ * Re-runs health after reset; READY only if health passes.
++ */
++export async function resetDemoEnvironment(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  const row = await loadEnv(prisma, args.environmentId || args.envId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'environment_not_found' };
++
++  const resetIdempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  if (
++    resetIdempotencyKey &&
++    row.resetIdempotencyKey === resetIdempotencyKey &&
++    row.status === CRM_DEMO_ENVIRONMENT_STATUS.READY
++  ) {
++    return {
++      ok: true,
++      environment: serializeEnvironment(row),
++      alreadyReset: true,
++    };
++  }
++
++  if (
++    row.status !== CRM_DEMO_ENVIRONMENT_STATUS.READY &&
++    row.status !== CRM_DEMO_ENVIRONMENT_STATUS.UNHEALTHY
++  ) {
++    return { ok: false, error: 'environment_not_resettable' };
++  }
++
++  const now = args.now || new Date();
++  const token = `logical-reset:${row.envNumber}:${now.getTime()}`;
++
++  await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_ENVIRONMENT_STATUS.PROVISIONING,
++      logicalProvisionToken: token,
++      resetIdempotencyKey: resetIdempotencyKey || row.resetIdempotencyKey,
++      demoBannerVisible: true,
++      productionConnections: false,
++      mraEisSandboxAliased: false,
++      cloudProvisionStatus: 'NOT_AVAILABLE',
++      connectionGuardsJson: { ...CONNECTION_GUARDS },
++      updatedAt: now,
++    },
++  });
++
++  const mid = await loadEnv(prisma, row.id);
++  const health = evaluateLogicalEnvironmentHealth(mid, now);
++  const finalStatus = health.ok
++    ? CRM_DEMO_ENVIRONMENT_STATUS.READY
++    : health.healthStatus === CRM_DEMO_ENVIRONMENT_HEALTH.EXPIRED
++      ? CRM_DEMO_ENVIRONMENT_STATUS.EXPIRED
++      : CRM_DEMO_ENVIRONMENT_STATUS.UNHEALTHY;
++
++  const updated = await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: finalStatus,
++      healthStatus: health.healthStatus,
++      healthJson: { ...health, evaluatedAt: now.toISOString(), reset: true },
++      lastHealthAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: row.demoId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_ENVIRONMENT_RESET,
++    summary: `Demo environment reset ${row.envNumber}`,
++    payload: { envId: row.id, healthStatus: health.healthStatus },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return {
++    ok: health.ok,
++    environment: serializeEnvironment(updated),
++    health,
++    error: health.ok ? undefined : 'environment_health_failed_after_reset',
++  };
++}
++
++export async function deprovisionDemoEnvironment(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  const row = await loadEnv(prisma, args.environmentId || args.envId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'environment_not_found' };
++
++  const deprovisionIdempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  if (
++    deprovisionIdempotencyKey &&
++    row.deprovisionIdempotencyKey === deprovisionIdempotencyKey &&
++    row.status === CRM_DEMO_ENVIRONMENT_STATUS.DEPROVISIONED
++  ) {
++    return {
++      ok: true,
++      environment: serializeEnvironment(row),
++      alreadyDeprovisioned: true,
++    };
++  }
++
++  if (row.status === CRM_DEMO_ENVIRONMENT_STATUS.DEPROVISIONED) {
++    return {
++      ok: true,
++      environment: serializeEnvironment(row),
++      alreadyDeprovisioned: true,
++    };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoEnvironment.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_ENVIRONMENT_STATUS.DEPROVISIONED,
++      healthStatus: CRM_DEMO_ENVIRONMENT_HEALTH.UNKNOWN,
++      logicalProvisionToken: null,
++      deprovisionedAt: now,
++      deprovisionIdempotencyKey:
++        deprovisionIdempotencyKey || row.deprovisionIdempotencyKey,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: row.demoId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_ENVIRONMENT_DEPROVISIONED,
++    summary: `Demo environment deprovisioned ${row.envNumber}`,
++    payload: { envId: row.id, envNumber: row.envNumber },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, environment: serializeEnvironment(updated) };
++}
++
++export async function getDemoEnvironment(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  const row = await loadEnv(prisma, args.environmentId || args.envId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'environment_not_found' };
++  let dataPack = null;
++  if (row.dataPackId && hasCrmDemoDataPackModel(prisma)) {
++    try {
++      const pack = await prisma.crmDemoDataPack.findUnique({
++        where: { id: row.dataPackId },
++      });
++      dataPack = serializeDataPack(pack);
++    } catch {
++      dataPack = null;
++    }
++  }
++  return { ok: true, environment: serializeEnvironment(row), dataPack };
++}
++
++export async function listDemoEnvironments(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_environment_forbidden' };
++  }
++  if (!hasCrmDemoEnvironmentModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_environment_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++  const where = {};
++  if (args.demoId) {
++    const demo = await loadDemo(prisma, args.demoId);
++    if (demo) where.demoId = demo.id;
++    else where.demoId = String(args.demoId).trim();
++  }
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  const take = Math.min(
++    Math.max(Number(args.limit) || CRM_LIST_DEFAULT_LIMIT, 1),
++    CRM_LIST_MAX_LIMIT
++  );
++  const rows = await prisma.crmDemoEnvironment.findMany({
++    where,
++    orderBy: { createdAt: 'desc' },
++    take,
++  });
++  return {
++    ok: true,
++    environments: rows.map(serializeEnvironment),
++    count: rows.length,
++  };
++}
+diff --git a/lib/admin/crm/demos/dataPacks.js b/lib/admin/crm/demos/dataPacks.js
+new file mode 100644
+index 0000000..f8a0b50
+--- /dev/null
++++ b/lib/admin/crm/demos/dataPacks.js
+@@ -0,0 +1,341 @@
++/**
++ * Demo data packs ΓÇö Phase 14 Wave 3.
++ * Versioned safe packs; checksum; reject Production Tenant/data/credentials.
++ */
++
++import { createHash } from 'crypto';
++import {
++  CRM_DEMO_DATA_PACK_SOURCE_KIND,
++  CRM_DEMO_DATA_PACK_SOURCE_KINDS,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++} from '../catalogue.js';
++import {
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  nextVersionNumber,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++const FORBIDDEN_SOURCE = new Set([
++  'PRODUCTION',
++  'PRODUCTION_TENANT',
++  'CUSTOMER_DB',
++  'LIVE_CLONE',
++  'PROD',
++  'LIVE',
++  'CUSTOMER_PRODUCTION',
++  'MRA_EIS_SANDBOX',
++  'MRA_EIS',
++]);
++
++const CREDENTIAL_KEY_RE =
++  /^(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|connection[_-]?string|dsn|credential|auth[_-]?token)$/i;
++
++const PROD_SIGNAL_RE =
++  /production[_-]?tenant|prod[_-]?db|live[_-]?payment|mra[_-]?eis|eis[_-]?environment|postgres(ql)?:\/\/.*prod|amazonaws\.com\/prod|sk_live_|rk_live_/i;
++
++export function hasCrmDemoDataPackModel(prisma) {
++  return typeof prisma?.crmDemoDataPack?.create === 'function';
++}
++
++export function serializeDataPack(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    sourceKind: row.sourceKind,
++    checksum: row.checksum || null,
++    payloadJson: row.payloadJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++    productionDataRejected: true,
++  };
++}
++
++function checksumPayload(payload) {
++  const normalised = JSON.stringify(payload ?? null);
++  return createHash('sha256').update(normalised).digest('hex');
++}
++
++function scanObjectForForbidden(value, path = 'root', hits = []) {
++  if (value == null) return hits;
++  if (typeof value === 'string') {
++    if (PROD_SIGNAL_RE.test(value)) {
++      hits.push({ path, reason: 'production_signal_in_value' });
++    }
++    if (
++      /password\s*=|secret\s*=|api[_-]?key\s*=/i.test(value) ||
++      /Bearer\s+[A-Za-z0-9._\-]{20,}/.test(value)
++    ) {
++      hits.push({ path, reason: 'credential_signal_in_value' });
++    }
++    return hits;
++  }
++  if (typeof value !== 'object') return hits;
++  if (Array.isArray(value)) {
++    value.forEach((v, i) => scanObjectForForbidden(v, `${path}[${i}]`, hits));
++    return hits;
++  }
++  for (const [k, v] of Object.entries(value)) {
++    if (CREDENTIAL_KEY_RE.test(k)) {
++      hits.push({ path: `${path}.${k}`, reason: 'credential_key' });
++    }
++    if (/productionTenantId|prodTenantId|liveDbUrl|productionConnection/i.test(k)) {
++      hits.push({ path: `${path}.${k}`, reason: 'production_key' });
++    }
++    if (k === 'isProductionData' && v === true) {
++      hits.push({ path: `${path}.${k}`, reason: 'is_production_data_flag' });
++    }
++    if (k === 'containsCredentials' && v === true) {
++      hits.push({ path: `${path}.${k}`, reason: 'contains_credentials_flag' });
++    }
++    scanObjectForForbidden(v, `${path}.${k}`, hits);
++  }
++  return hits;
++}
++
++/**
++ * Reject Production Tenant/data/credentials as data pack source.
++ */
++export function validateDataPackSource(args = {}) {
++  const sourceKind = String(args.sourceKind || CRM_DEMO_DATA_PACK_SOURCE_KIND.SYNTHETIC)
++    .trim()
++    .toUpperCase();
++  if (FORBIDDEN_SOURCE.has(sourceKind) || !CRM_DEMO_DATA_PACK_SOURCE_KINDS.includes(sourceKind)) {
++    return {
++      ok: false,
++      error: 'production_data_pack_source_rejected',
++      reason: 'source_kind_forbidden_or_unknown',
++      sourceKind,
++    };
++  }
++  if (args.productionTenantId || (args.tenantId && args.isProduction === true)) {
++    return {
++      ok: false,
++      error: 'production_tenant_rejected',
++      reason: 'production_tenant_not_allowed_as_data_pack',
++    };
++  }
++  if (args.containsCredentials === true || args.isProductionData === true) {
++    return {
++      ok: false,
++      error: 'production_credentials_or_data_rejected',
++      reason: 'explicit_production_or_credential_flag',
++    };
++  }
++  const hits = scanObjectForForbidden(args.payloadJson);
++  if (hits.length > 0) {
++    return {
++      ok: false,
++      error: 'production_data_or_credentials_detected',
++      reason: hits[0].reason,
++      hits: hits.slice(0, 20),
++    };
++  }
++  return { ok: true, sourceKind };
++}
++
++async function loadPack(prisma, packId) {
++  const id = packId ? String(packId).trim() : '';
++  if (!id || !hasCrmDemoDataPackModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoDataPack.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++export async function createDataPackVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_data_pack_forbidden' };
++  }
++  if (!hasCrmDemoDataPackModel(prisma)) {
++    return { ok: false, error: 'crm_demo_data_pack_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_data_pack_code' };
++
++  const validation = validateDataPackSource(args);
++  if (!validation.ok) return validation;
++
++  let payloadJson;
++  try {
++    payloadJson =
++      args.payloadJson !== undefined ? assertSafeJsonTree(args.payloadJson) : { entities: [] };
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoDataPack, code);
++
++  try {
++    const row = await prisma.crmDemoDataPack.create({
++      data: {
++        code,
++        version,
++        status: CRM_DEMO_VERSION_STATUS.DRAFT,
++        name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++        sourceKind: validation.sourceKind,
++        checksum: checksumPayload(payloadJson),
++        payloadJson,
++        authoredByAdminId: args.admin?.id || null,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++    return { ok: true, dataPack: serializeDataPack(row) };
++  } catch (err) {
++    if (err?.code === 'P2002') {
++      return { ok: false, error: 'data_pack_version_conflict' };
++    }
++    return { ok: false, error: err?.message || 'data_pack_create_failed' };
++  }
++}
++
++export async function updateDataPackVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_data_pack_forbidden' };
++  }
++  const row = await loadPack(prisma, args.dataPackId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'data_pack_not_found' };
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'active_demo_content_not_directly_editable' };
++  }
++
++  const patch = args.patch || args;
++  const nextPayload =
++    patch.payloadJson !== undefined ? patch.payloadJson : row.payloadJson;
++  const validation = validateDataPackSource({
++    sourceKind: patch.sourceKind || row.sourceKind,
++    payloadJson: nextPayload,
++    productionTenantId: patch.productionTenantId,
++    tenantId: patch.tenantId,
++    isProduction: patch.isProduction,
++    containsCredentials: patch.containsCredentials,
++    isProductionData: patch.isProductionData,
++  });
++  if (!validation.ok) return validation;
++
++  let payloadJson = nextPayload;
++  try {
++    if (patch.payloadJson !== undefined) {
++      payloadJson = assertSafeJsonTree(patch.payloadJson);
++    }
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoDataPack.update({
++    where: { id: row.id },
++    data: {
++      name:
++        patch.name !== undefined
++          ? String(patch.name || '').trim().slice(0, 200) || null
++          : row.name,
++      sourceKind: validation.sourceKind,
++      payloadJson,
++      checksum: checksumPayload(payloadJson),
++      updatedAt: now,
++    },
++  });
++  return { ok: true, dataPack: serializeDataPack(updated) };
++}
++
++export async function requestDataPackApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_data_pack_forbidden' };
++  }
++  const row = await loadPack(prisma, args.dataPackId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'data_pack_not_found' };
++  if (!isEditableStatus(row.status) && row.status !== CRM_DEMO_VERSION_STATUS.DRAFT) {
++    return { ok: false, error: 'data_pack_not_requestable' };
++  }
++  const updated = await prisma.crmDemoDataPack.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      updatedAt: args.now || new Date(),
++    },
++  });
++  return { ok: true, dataPack: serializeDataPack(updated) };
++}
++
++export async function approveDataPackVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_data_pack_approve_forbidden' };
++  }
++  const row = await loadPack(prisma, args.dataPackId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'data_pack_not_found' };
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'data_pack_not_pending_approval' };
++  }
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const revalidate = validateDataPackSource({
++    sourceKind: row.sourceKind,
++    payloadJson: row.payloadJson,
++  });
++  if (!revalidate.ok) return revalidate;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoDataPack, row.code, now);
++  const updated = await prisma.crmDemoDataPack.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++  return { ok: true, dataPack: serializeDataPack(updated) };
++}
++
++export async function listDataPackVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_data_pack_forbidden' };
++  }
++  if (!hasCrmDemoDataPackModel(prisma)) {
++    return { ok: false, error: 'crm_demo_data_pack_model_unavailable', status: 'UNAVAILABLE' };
++  }
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  const take = Math.min(
++    Math.max(Number(args.limit) || CRM_LIST_DEFAULT_LIMIT, 1),
++    CRM_LIST_MAX_LIMIT
++  );
++  const rows = await prisma.crmDemoDataPack.findMany({
++    where,
++    orderBy: [{ code: 'asc' }, { version: 'desc' }],
++    take,
++  });
++  return { ok: true, dataPacks: rows.map(serializeDataPack), count: rows.length };
++}
+diff --git a/lib/admin/crm/demos/checklists.js b/lib/admin/crm/demos/checklists.js
+new file mode 100644
+index 0000000..61b110b
+--- /dev/null
++++ b/lib/admin/crm/demos/checklists.js
+@@ -0,0 +1,431 @@
++/**
++ * Demo checklists ΓÇö Phase 14 Wave 3.
++ * Versioned checklist definitions + execution; Critical fails block readiness.
++ */
++
++import {
++  CRM_DEMO_CHECKLIST_EXECUTION_STATUS,
++  CRM_DEMO_ISSUE_SEVERITY,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  assertSodApprover,
++  canApproveDemoContent,
++  canEditDemoContent,
++  canViewDemoContent,
++  isEditableStatus,
++  nextVersionNumber,
++  normalizeCode,
++  resolveDemoContentAccess,
++  retirePriorActive,
++} from './versioning.js';
++
++export function hasCrmDemoChecklistModel(prisma) {
++  return typeof prisma?.crmDemoChecklist?.create === 'function';
++}
++
++export function hasCrmDemoChecklistExecutionModel(prisma) {
++  return typeof prisma?.crmDemoChecklistExecution?.create === 'function';
++}
++
++export function serializeChecklist(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    code: row.code,
++    version: row.version,
++    status: row.status,
++    name: row.name || null,
++    itemsJson: row.itemsJson ?? null,
++    authoredByAdminId: row.authoredByAdminId || null,
++    approvedByAdminId: row.approvedByAdminId || null,
++    approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    activeDirectlyEditable: false,
++  };
++}
++
++export function serializeChecklistExecution(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    demoId: row.demoId,
++    checklistId: row.checklistId,
++    status: row.status,
++    resultsJson: row.resultsJson ?? null,
++    criticalFailed: row.criticalFailed === true,
++    completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
++    executedByAdminId: row.executedByAdminId || null,
++    idempotencyKey: row.idempotencyKey || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++async function loadChecklist(prisma, checklistId) {
++  const id = checklistId ? String(checklistId).trim() : '';
++  if (!id || !hasCrmDemoChecklistModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoChecklist.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++function normaliseItems(itemsJson) {
++  if (!Array.isArray(itemsJson)) return [];
++  return itemsJson.map((it, idx) => ({
++    key: String(it.key || `item_${idx + 1}`).trim(),
++    label: String(it.label || it.key || `Item ${idx + 1}`).trim(),
++    severity: String(it.severity || CRM_DEMO_ISSUE_SEVERITY.WARN)
++      .trim()
++      .toUpperCase(),
++    required: it.required !== false,
++  }));
++}
++
++export async function createChecklistVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_forbidden' };
++  }
++  if (!hasCrmDemoChecklistModel(prisma)) {
++    return { ok: false, error: 'crm_demo_checklist_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const code = normalizeCode(args.code);
++  if (!code) return { ok: false, error: 'invalid_checklist_code' };
++
++  let itemsJson;
++  try {
++    assertSafeDemoContentText(args.name || '');
++    itemsJson =
++      args.itemsJson !== undefined
++        ? assertSafeJsonTree(args.itemsJson)
++        : [{ key: 'prep', label: 'Prep complete', severity: 'CRITICAL', required: true }];
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const now = args.now || new Date();
++  const version =
++    args.version != null && !Number.isNaN(Number(args.version))
++      ? Number(args.version)
++      : await nextVersionNumber(prisma.crmDemoChecklist, code);
++
++  try {
++    const row = await prisma.crmDemoChecklist.create({
++      data: {
++        code,
++        version,
++        status: CRM_DEMO_VERSION_STATUS.DRAFT,
++        name: args.name != null ? String(args.name).trim().slice(0, 200) : null,
++        itemsJson,
++        authoredByAdminId: args.admin?.id || null,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++    return { ok: true, checklist: serializeChecklist(row) };
++  } catch (err) {
++    if (err?.code === 'P2002') return { ok: false, error: 'checklist_version_conflict' };
++    return { ok: false, error: err?.message || 'checklist_create_failed' };
++  }
++}
++
++export async function updateChecklistVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_forbidden' };
++  }
++  const row = await loadChecklist(prisma, args.checklistId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'checklist_not_found' };
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'active_demo_content_not_directly_editable' };
++  }
++  const patch = args.patch || args;
++  let itemsJson = row.itemsJson;
++  try {
++    if (patch.itemsJson !== undefined) {
++      itemsJson = assertSafeJsonTree(patch.itemsJson);
++    }
++    if (patch.name !== undefined) assertSafeDemoContentText(patch.name || '');
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++  const updated = await prisma.crmDemoChecklist.update({
++    where: { id: row.id },
++    data: {
++      name:
++        patch.name !== undefined
++          ? String(patch.name || '').trim().slice(0, 200) || null
++          : row.name,
++      itemsJson,
++      updatedAt: args.now || new Date(),
++    },
++  });
++  return { ok: true, checklist: serializeChecklist(updated) };
++}
++
++export async function requestChecklistApproval(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_forbidden' };
++  }
++  const row = await loadChecklist(prisma, args.checklistId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'checklist_not_found' };
++  if (!isEditableStatus(row.status)) {
++    return { ok: false, error: 'checklist_not_requestable' };
++  }
++  const updated = await prisma.crmDemoChecklist.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL,
++      updatedAt: args.now || new Date(),
++    },
++  });
++  return { ok: true, checklist: serializeChecklist(updated) };
++}
++
++export async function approveChecklistVersion(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canApproveDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_approve_forbidden' };
++  }
++  const row = await loadChecklist(prisma, args.checklistId || args.id);
++  if (!row) return { ok: false, notFound: true, error: 'checklist_not_found' };
++  if (row.status !== CRM_DEMO_VERSION_STATUS.PENDING_APPROVAL) {
++    return { ok: false, error: 'checklist_not_pending_approval' };
++  }
++  const sod = assertSodApprover(row, args.admin);
++  if (!sod.ok) return sod;
++
++  const now = args.now || new Date();
++  await retirePriorActive(prisma.crmDemoChecklist, row.code, now);
++  const updated = await prisma.crmDemoChecklist.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_VERSION_STATUS.ACTIVE,
++      approvedByAdminId: sod.approverId,
++      approvedAt: now,
++      updatedAt: now,
++    },
++  });
++  return { ok: true, checklist: serializeChecklist(updated) };
++}
++
++export async function listChecklistVersions(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_forbidden' };
++  }
++  if (!hasCrmDemoChecklistModel(prisma)) {
++    return { ok: false, error: 'crm_demo_checklist_model_unavailable', status: 'UNAVAILABLE' };
++  }
++  const where = {};
++  if (args.code) where.code = normalizeCode(args.code) || String(args.code).trim();
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  const take = Math.min(
++    Math.max(Number(args.limit) || CRM_LIST_DEFAULT_LIMIT, 1),
++    CRM_LIST_MAX_LIMIT
++  );
++  const rows = await prisma.crmDemoChecklist.findMany({
++    where,
++    orderBy: [{ code: 'asc' }, { version: 'desc' }],
++    take,
++  });
++  return { ok: true, checklists: rows.map(serializeChecklist), count: rows.length };
++}
++
++export async function pinChecklistToDemo(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_forbidden' };
++  }
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++  const checklist = await loadChecklist(prisma, args.checklistId || args.id);
++  if (!checklist) return { ok: false, notFound: true, error: 'checklist_not_found' };
++  if (checklist.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active' };
++  }
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemo.update({
++    where: { id: demo.id },
++    data: { pinnedChecklistId: checklist.id, updatedAt: now },
++  });
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    checklist: serializeChecklist(checklist),
++  };
++}
++
++/**
++ * Execute a versioned checklist against a Demo.
++ * results: [{ key, ok, severity? }]
++ * Critical failed items ΓåÆ status FAILED + criticalFailed true.
++ */
++export async function executeDemoChecklist(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_checklist_forbidden' };
++  }
++  if (!hasCrmDemoChecklistExecutionModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_checklist_execution_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const checklistId = args.checklistId || demo.pinnedChecklistId;
++  const checklist = await loadChecklist(prisma, checklistId);
++  if (!checklist) return { ok: false, notFound: true, error: 'checklist_not_found' };
++  if (checklist.status !== CRM_DEMO_VERSION_STATUS.ACTIVE) {
++    return { ok: false, error: 'demo_content_not_active' };
++  }
++
++  const idempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  if (idempotencyKey) {
++    try {
++      const existing = await prisma.crmDemoChecklistExecution.findUnique({
++        where: { idempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          execution: serializeChecklistExecution(existing),
++          alreadyExists: true,
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  const items = normaliseItems(checklist.itemsJson);
++  const resultMap = new Map();
++  const rawResults = Array.isArray(args.results) ? args.results : [];
++  for (const r of rawResults) {
++    resultMap.set(String(r.key || '').trim(), {
++      ok: r.ok === true,
++      severity: String(r.severity || '').trim().toUpperCase() || null,
++      detail: r.detail || null,
++    });
++  }
++
++  const resultsJson = items.map((item) => {
++    const got = resultMap.get(item.key);
++    const ok = got ? got.ok === true : false;
++    return {
++      key: item.key,
++      label: item.label,
++      severity: item.severity,
++      required: item.required,
++      ok,
++      detail: got?.detail || null,
++    };
++  });
++
++  const criticalFailed = resultsJson.some(
++    (r) =>
++      !r.ok &&
++      r.required &&
++      r.severity === CRM_DEMO_ISSUE_SEVERITY.CRITICAL
++  );
++  const anyRequiredFailed = resultsJson.some((r) => !r.ok && r.required);
++  const status = criticalFailed || anyRequiredFailed
++    ? CRM_DEMO_CHECKLIST_EXECUTION_STATUS.FAILED
++    : CRM_DEMO_CHECKLIST_EXECUTION_STATUS.PASSED;
++
++  const now = args.now || new Date();
++  try {
++    const row = await prisma.crmDemoChecklistExecution.create({
++      data: {
++        demoId: demo.id,
++        checklistId: checklist.id,
++        status,
++        resultsJson,
++        criticalFailed,
++        completedAt: now,
++        executedByAdminId: args.admin?.id || null,
++        idempotencyKey,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++
++    await prisma.crmDemo.update({
++      where: { id: demo.id },
++      data: {
++        pinnedChecklistId: checklist.id,
++        latestChecklistExecutionId: row.id,
++        updatedAt: now,
++      },
++    });
++
++    await appendTimelineEvent(prisma, {
++      subjectType: CRM_SUBJECT_TYPE.DEMO,
++      subjectId: demo.id,
++      eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_CHECKLIST_EXECUTED,
++      summary: `Demo checklist ${status}${criticalFailed ? ' (Critical fails)' : ''}`,
++      payload: {
++        executionId: row.id,
++        checklistId: checklist.id,
++        status,
++        criticalFailed,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++
++    return {
++      ok: true,
++      execution: serializeChecklistExecution(row),
++      criticalFailed,
++      status,
++    };
++  } catch (err) {
++    if (idempotencyKey && err?.code === 'P2002') {
++      const raced = await prisma.crmDemoChecklistExecution.findUnique({
++        where: { idempotencyKey },
++      });
++      if (raced) {
++        return {
++          ok: true,
++          execution: serializeChecklistExecution(raced),
++          alreadyExists: true,
++        };
++      }
++    }
++    return { ok: false, error: err?.message || 'checklist_execution_failed' };
++  }
++}
+diff --git a/lib/admin/crm/demos/rehearsals.js b/lib/admin/crm/demos/rehearsals.js
+new file mode 100644
+index 0000000..636970f
+--- /dev/null
++++ b/lib/admin/crm/demos/rehearsals.js
+@@ -0,0 +1,222 @@
++/**
++ * Demo rehearsals ΓÇö Phase 14 Wave 3.
++ * Rehearsal outcomes + issues; Critical issues block readiness.
++ */
++
++import {
++  CRM_DEMO_ISSUE_SEVERITY,
++  CRM_DEMO_REHEARSAL_OUTCOME,
++  CRM_DEMO_REHEARSAL_OUTCOMES,
++  CRM_LIST_DEFAULT_LIMIT,
++  CRM_LIST_MAX_LIMIT,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import {
++  assertSafeDemoContentText,
++  assertSafeJsonTree,
++  canEditDemoContent,
++  canViewDemoContent,
++  resolveDemoContentAccess,
++} from './versioning.js';
++
++export function hasCrmDemoRehearsalModel(prisma) {
++  return typeof prisma?.crmDemoRehearsal?.create === 'function';
++}
++
++export function serializeRehearsal(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    demoId: row.demoId,
++    checklistExecutionId: row.checklistExecutionId || null,
++    outcome: row.outcome,
++    issuesJson: row.issuesJson ?? null,
++    criticalIssueCount: Number(row.criticalIssueCount) || 0,
++    notes: row.notes || null,
++    performedAt: row.performedAt ? new Date(row.performedAt).toISOString() : null,
++    performedByAdminId: row.performedByAdminId || null,
++    idempotencyKey: row.idempotencyKey || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++function normaliseIssues(raw) {
++  if (!Array.isArray(raw)) return [];
++  return raw.map((issue, idx) => ({
++    key: String(issue.key || `issue_${idx + 1}`).trim(),
++    severity: String(issue.severity || CRM_DEMO_ISSUE_SEVERITY.WARN)
++      .trim()
++      .toUpperCase(),
++    detail: issue.detail != null ? String(issue.detail).trim().slice(0, 1000) : null,
++  }));
++}
++
++/**
++ * Record a rehearsal outcome for a Demo.
++ * Critical issues ΓåÆ block readiness when Demo requiresRehearsal.
++ */
++export async function recordDemoRehearsal(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canEditDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_rehearsal_forbidden' };
++  }
++  if (!hasCrmDemoRehearsalModel(prisma)) {
++    return { ok: false, error: 'crm_demo_rehearsal_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const outcome = String(args.outcome || '')
++    .trim()
++    .toUpperCase();
++  if (!CRM_DEMO_REHEARSAL_OUTCOMES.includes(outcome)) {
++    return { ok: false, error: 'invalid_rehearsal_outcome' };
++  }
++
++  const idempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  if (idempotencyKey) {
++    try {
++      const existing = await prisma.crmDemoRehearsal.findUnique({
++        where: { idempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          rehearsal: serializeRehearsal(existing),
++          alreadyExists: true,
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  let issuesJson;
++  try {
++    issuesJson = assertSafeJsonTree(normaliseIssues(args.issues));
++    if (args.notes != null) assertSafeDemoContentText(args.notes);
++  } catch {
++    return { ok: false, error: 'executable_template_expressions_forbidden' };
++  }
++
++  const criticalIssueCount = issuesJson.filter(
++    (i) => i.severity === CRM_DEMO_ISSUE_SEVERITY.CRITICAL
++  ).length;
++
++  // Critical issues force FAILED outcome for readiness honesty
++  let finalOutcome = outcome;
++  if (criticalIssueCount > 0 && outcome === CRM_DEMO_REHEARSAL_OUTCOME.PASSED) {
++    finalOutcome = CRM_DEMO_REHEARSAL_OUTCOME.FAILED;
++  }
++
++  const now = args.now || new Date();
++  try {
++    const row = await prisma.crmDemoRehearsal.create({
++      data: {
++        demoId: demo.id,
++        checklistExecutionId: args.checklistExecutionId
++          ? String(args.checklistExecutionId).trim()
++          : demo.latestChecklistExecutionId || null,
++        outcome: finalOutcome,
++        issuesJson,
++        criticalIssueCount,
++        notes: args.notes != null ? String(args.notes).trim().slice(0, 4000) : null,
++        performedAt: now,
++        performedByAdminId: args.admin?.id || null,
++        idempotencyKey,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++
++    await prisma.crmDemo.update({
++      where: { id: demo.id },
++      data: {
++        latestRehearsalId: row.id,
++        updatedAt: now,
++      },
++    });
++
++    await appendTimelineEvent(prisma, {
++      subjectType: CRM_SUBJECT_TYPE.DEMO,
++      subjectId: demo.id,
++      eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_REHEARSAL_RECORDED,
++      summary: `Demo rehearsal ${finalOutcome} (critical=${criticalIssueCount})`,
++      payload: {
++        rehearsalId: row.id,
++        outcome: finalOutcome,
++        criticalIssueCount,
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++
++    return {
++      ok: true,
++      rehearsal: serializeRehearsal(row),
++      criticalIssueCount,
++      outcome: finalOutcome,
++      demo: serializeDemo({ ...demo, latestRehearsalId: row.id }),
++    };
++  } catch (err) {
++    if (idempotencyKey && err?.code === 'P2002') {
++      const raced = await prisma.crmDemoRehearsal.findUnique({
++        where: { idempotencyKey },
++      });
++      if (raced) {
++        return {
++          ok: true,
++          rehearsal: serializeRehearsal(raced),
++          alreadyExists: true,
++        };
++      }
++    }
++    return { ok: false, error: err?.message || 'rehearsal_record_failed' };
++  }
++}
++
++export async function listDemoRehearsals(prisma, args = {}) {
++  const access = resolveDemoContentAccess(args.admin);
++  if (!canViewDemoContent(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_rehearsal_forbidden' };
++  }
++  if (!hasCrmDemoRehearsalModel(prisma)) {
++    return { ok: false, error: 'crm_demo_rehearsal_model_unavailable', status: 'UNAVAILABLE' };
++  }
++  const where = {};
++  if (args.demoId) {
++    const demo = await loadDemo(prisma, args.demoId);
++    if (demo) where.demoId = demo.id;
++    else where.demoId = String(args.demoId).trim();
++  }
++  const take = Math.min(
++    Math.max(Number(args.limit) || CRM_LIST_DEFAULT_LIMIT, 1),
++    CRM_LIST_MAX_LIMIT
++  );
++  const rows = await prisma.crmDemoRehearsal.findMany({
++    where,
++    orderBy: { performedAt: 'desc' },
++    take,
++  });
++  return { ok: true, rehearsals: rows.map(serializeRehearsal), count: rows.length };
++}
+diff --git a/scripts/sql/crm-demo-phase14-wave3.sql b/scripts/sql/crm-demo-phase14-wave3.sql
+new file mode 100644
+index 0000000..12205dd
+--- /dev/null
++++ b/scripts/sql/crm-demo-phase14-wave3.sql
+@@ -0,0 +1,186 @@
++-- Phase 14 Wave 3 ΓÇö Logical Demo Environment + data packs + checklist/rehearsal
++-- Safe to re-run (IF NOT EXISTS). Apply when prisma generate hits EPERM.
++
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "requiresLogicalEnvironment" BOOLEAN NOT NULL DEFAULT false;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "requiresChecklist" BOOLEAN NOT NULL DEFAULT false;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "requiresRehearsal" BOOLEAN NOT NULL DEFAULT false;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "environmentId" TEXT;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "pinnedChecklistId" TEXT;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "latestChecklistExecutionId" TEXT;
++ALTER TABLE "CrmDemo" ADD COLUMN IF NOT EXISTS "latestRehearsalId" TEXT;
++CREATE INDEX IF NOT EXISTS "CrmDemo_environmentId_idx" ON "CrmDemo"("environmentId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_pinnedChecklistId_idx" ON "CrmDemo"("pinnedChecklistId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_latestChecklistExecutionId_idx" ON "CrmDemo"("latestChecklistExecutionId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_latestRehearsalId_idx" ON "CrmDemo"("latestRehearsalId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoDataPack" (
++  "id" TEXT NOT NULL,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "sourceKind" TEXT NOT NULL DEFAULT 'SYNTHETIC',
++  "checksum" TEXT,
++  "payloadJson" JSONB,
++  "authoredByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "CrmDemoDataPack_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoDataPack_code_version_key" ON "CrmDemoDataPack"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmDemoDataPack_code_status_idx" ON "CrmDemoDataPack"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoDataPack_status_idx" ON "CrmDemoDataPack"("status");
++CREATE INDEX IF NOT EXISTS "CrmDemoDataPack_sourceKind_idx" ON "CrmDemoDataPack"("sourceKind");
++CREATE INDEX IF NOT EXISTS "CrmDemoDataPack_authoredByAdminId_idx" ON "CrmDemoDataPack"("authoredByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoDataPack_approvedByAdminId_idx" ON "CrmDemoDataPack"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoEnvironment" (
++  "id" TEXT NOT NULL,
++  "envNumber" TEXT NOT NULL,
++  "demoId" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'REQUESTED',
++  "healthStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
++  "healthJson" JSONB,
++  "dataPackId" TEXT,
++  "expiresAt" TIMESTAMP(3) NOT NULL,
++  "demoBannerVisible" BOOLEAN NOT NULL DEFAULT true,
++  "cloudProvisionStatus" TEXT NOT NULL DEFAULT 'NOT_AVAILABLE',
++  "mraEisSandboxAliased" BOOLEAN NOT NULL DEFAULT false,
++  "productionConnections" BOOLEAN NOT NULL DEFAULT false,
++  "connectionGuardsJson" JSONB,
++  "logicalProvisionToken" TEXT,
++  "provisionedAt" TIMESTAMP(3),
++  "lastHealthAt" TIMESTAMP(3),
++  "deprovisionedAt" TIMESTAMP(3),
++  "requestedByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "requestIdempotencyKey" TEXT,
++  "provisionIdempotencyKey" TEXT,
++  "resetIdempotencyKey" TEXT,
++  "deprovisionIdempotencyKey" TEXT,
++  "notes" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "CrmDemoEnvironment_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoEnvironment_envNumber_key" ON "CrmDemoEnvironment"("envNumber");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoEnvironment_requestIdempotencyKey_key" ON "CrmDemoEnvironment"("requestIdempotencyKey");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoEnvironment_provisionIdempotencyKey_key" ON "CrmDemoEnvironment"("provisionIdempotencyKey");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoEnvironment_resetIdempotencyKey_key" ON "CrmDemoEnvironment"("resetIdempotencyKey");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoEnvironment_deprovisionIdempotencyKey_key" ON "CrmDemoEnvironment"("deprovisionIdempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmDemoEnvironment_demoId_status_idx" ON "CrmDemoEnvironment"("demoId", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoEnvironment_status_expiresAt_idx" ON "CrmDemoEnvironment"("status", "expiresAt");
++CREATE INDEX IF NOT EXISTS "CrmDemoEnvironment_healthStatus_idx" ON "CrmDemoEnvironment"("healthStatus");
++CREATE INDEX IF NOT EXISTS "CrmDemoEnvironment_dataPackId_idx" ON "CrmDemoEnvironment"("dataPackId");
++CREATE INDEX IF NOT EXISTS "CrmDemoEnvironment_requestedByAdminId_idx" ON "CrmDemoEnvironment"("requestedByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoEnvironment_approvedByAdminId_idx" ON "CrmDemoEnvironment"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoChecklist" (
++  "id" TEXT NOT NULL,
++  "code" TEXT NOT NULL,
++  "version" INTEGER NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'DRAFT',
++  "name" TEXT,
++  "itemsJson" JSONB,
++  "authoredByAdminId" TEXT,
++  "approvedByAdminId" TEXT,
++  "approvedAt" TIMESTAMP(3),
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "CrmDemoChecklist_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoChecklist_code_version_key" ON "CrmDemoChecklist"("code", "version");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklist_code_status_idx" ON "CrmDemoChecklist"("code", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklist_status_idx" ON "CrmDemoChecklist"("status");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklist_authoredByAdminId_idx" ON "CrmDemoChecklist"("authoredByAdminId");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklist_approvedByAdminId_idx" ON "CrmDemoChecklist"("approvedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoChecklistExecution" (
++  "id" TEXT NOT NULL,
++  "demoId" TEXT NOT NULL,
++  "checklistId" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'IN_PROGRESS',
++  "resultsJson" JSONB,
++  "criticalFailed" BOOLEAN NOT NULL DEFAULT false,
++  "completedAt" TIMESTAMP(3),
++  "executedByAdminId" TEXT,
++  "idempotencyKey" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "CrmDemoChecklistExecution_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoChecklistExecution_idempotencyKey_key" ON "CrmDemoChecklistExecution"("idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklistExecution_demoId_status_idx" ON "CrmDemoChecklistExecution"("demoId", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklistExecution_checklistId_idx" ON "CrmDemoChecklistExecution"("checklistId");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklistExecution_criticalFailed_idx" ON "CrmDemoChecklistExecution"("criticalFailed");
++CREATE INDEX IF NOT EXISTS "CrmDemoChecklistExecution_executedByAdminId_idx" ON "CrmDemoChecklistExecution"("executedByAdminId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoRehearsal" (
++  "id" TEXT NOT NULL,
++  "demoId" TEXT NOT NULL,
++  "checklistExecutionId" TEXT,
++  "outcome" TEXT NOT NULL,
++  "issuesJson" JSONB,
++  "criticalIssueCount" INTEGER NOT NULL DEFAULT 0,
++  "notes" TEXT,
++  "performedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "performedByAdminId" TEXT,
++  "idempotencyKey" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "CrmDemoRehearsal_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoRehearsal_idempotencyKey_key" ON "CrmDemoRehearsal"("idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmDemoRehearsal_demoId_outcome_idx" ON "CrmDemoRehearsal"("demoId", "outcome");
++CREATE INDEX IF NOT EXISTS "CrmDemoRehearsal_checklistExecutionId_idx" ON "CrmDemoRehearsal"("checklistExecutionId");
++CREATE INDEX IF NOT EXISTS "CrmDemoRehearsal_criticalIssueCount_idx" ON "CrmDemoRehearsal"("criticalIssueCount");
++CREATE INDEX IF NOT EXISTS "CrmDemoRehearsal_performedByAdminId_idx" ON "CrmDemoRehearsal"("performedByAdminId");
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDemoEnvironment_demoId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDemoEnvironment"
++      ADD CONSTRAINT "CrmDemoEnvironment_demoId_fkey"
++      FOREIGN KEY ("demoId") REFERENCES "CrmDemo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDemoEnvironment_dataPackId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDemoEnvironment"
++      ADD CONSTRAINT "CrmDemoEnvironment_dataPackId_fkey"
++      FOREIGN KEY ("dataPackId") REFERENCES "CrmDemoDataPack"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDemoChecklistExecution_demoId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDemoChecklistExecution"
++      ADD CONSTRAINT "CrmDemoChecklistExecution_demoId_fkey"
++      FOREIGN KEY ("demoId") REFERENCES "CrmDemo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDemoChecklistExecution_checklistId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDemoChecklistExecution"
++      ADD CONSTRAINT "CrmDemoChecklistExecution_checklistId_fkey"
++      FOREIGN KEY ("checklistId") REFERENCES "CrmDemoChecklist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++  END IF;
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDemoRehearsal_demoId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDemoRehearsal"
++      ADD CONSTRAINT "CrmDemoRehearsal_demoId_fkey"
++      FOREIGN KEY ("demoId") REFERENCES "CrmDemo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++  END IF;
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint WHERE conname = 'CrmDemoRehearsal_checklistExecutionId_fkey'
++  ) THEN
++    ALTER TABLE "CrmDemoRehearsal"
++      ADD CONSTRAINT "CrmDemoRehearsal_checklistExecutionId_fkey"
++      FOREIGN KEY ("checklistExecutionId") REFERENCES "CrmDemoChecklistExecution"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++  END IF;
++END $$;
+diff --git a/test/systemAdmin.crm.demoWave3.test.js b/test/systemAdmin.crm.demoWave3.test.js
+new file mode 100644
+index 0000000..af0458f
+--- /dev/null
++++ b/test/systemAdmin.crm.demoWave3.test.js
+@@ -0,0 +1,733 @@
++/**
++ * Phase 14 Wave 3 ΓÇö Logical Environment + data packs + checklist/rehearsal.
++ * DENV numbering; provision/reset idempotent; expiry; DEMO banner;
++ * Production data/credentials rejected; Critical checklist/rehearsal blocks readiness.
++ */
++import { describe, it, expect, vi } from 'vitest';
++import {
++  CRM_DEMO_CHECKLIST_EXECUTION_STATUS,
++  CRM_DEMO_DATA_PACK_SOURCE_KIND,
++  CRM_DEMO_ENVIRONMENT_HEALTH,
++  CRM_DEMO_ENVIRONMENT_STATUS,
++  CRM_DEMO_ISSUE_SEVERITY,
++  CRM_DEMO_REHEARSAL_OUTCOME,
++  CRM_DEMO_VERSION_STATUS,
++  CRM_READINESS_STATUS,
++  approveChecklistVersion,
++  approveDataPackVersion,
++  approveDemoEnvironment,
++  configureDemoReadinessRequirements,
++  createChecklistVersion,
++  createDataPackVersion,
++  createDemo,
++  deprovisionDemoEnvironment,
++  evaluateDemoReadiness,
++  executeDemoChecklist,
++  getDemoDomainContract,
++  provisionDemoEnvironment,
++  recordDemoRehearsal,
++  requestChecklistApproval,
++  requestDataPackApproval,
++  requestDemoEnvironment,
++  resetDemoEnvironment,
++  validateDataPackSource,
++} from '@/lib/admin/crm';
++
++function makeAdmin(id, crmPerms = {}, role = 'Platform Support') {
++  return {
++    id,
++    role,
++    permissions: {
++      systemAdmin: {
++        crm: {
++          view: true,
++          viewLeads: true,
++          editLeads: true,
++          mergeLeads: true,
++          activities: { view: true, edit: true },
++          opportunities: { view: true, edit: true },
++          ...crmPerms,
++        },
++      },
++    },
++  };
++}
++
++function makePrisma(overrides = {}) {
++  const seqStore = overrides._seqStore || [];
++  const demoStore = overrides._demoStore || [];
++  const envStore = overrides._envStore || [];
++  const packStore = overrides._packStore || [];
++  const checklistStore = overrides._checklistStore || [];
++  const executionStore = overrides._executionStore || [];
++  const rehearsalStore = overrides._rehearsalStore || [];
++  const timelineStore = overrides._timelineStore || [];
++
++  const versionCrud = (store, prefix) => ({
++    findUnique: vi.fn(async ({ where = {} } = {}) => {
++      if (where.id) return store.find((r) => r.id === where.id) || null;
++      if (where.code_version) {
++        return (
++          store.find(
++            (r) =>
++              r.code === where.code_version.code &&
++              r.version === where.code_version.version
++          ) || null
++        );
++      }
++      return null;
++    }),
++    findFirst: vi.fn(async ({ where = {}, orderBy } = {}) => {
++      let rows = [...store];
++      if (where.code) rows = rows.filter((r) => r.code === where.code);
++      if (where.status) rows = rows.filter((r) => r.status === where.status);
++      if (orderBy?.version === 'desc') rows.sort((a, b) => b.version - a.version);
++      return rows[0] || null;
++    }),
++    findMany: vi.fn(async ({ where = {}, take, orderBy } = {}) => {
++      let rows = [...store];
++      if (where.code) rows = rows.filter((r) => r.code === where.code);
++      if (where.status) rows = rows.filter((r) => r.status === where.status);
++      if (orderBy?.[0]?.version === 'desc' || orderBy?.version === 'desc') {
++        rows.sort((a, b) => b.version - a.version);
++      }
++      if (typeof take === 'number') rows = rows.slice(0, take);
++      return rows;
++    }),
++    create: vi.fn(async ({ data }) => {
++      const row = {
++        id: data.id || `${prefix}-${store.length + 1}`,
++        createdAt: data.createdAt || new Date(),
++        updatedAt: data.updatedAt || new Date(),
++        approvedAt: data.approvedAt ?? null,
++        approvedByAdminId: data.approvedByAdminId ?? null,
++        ...data,
++      };
++      store.push(row);
++      return row;
++    }),
++    update: vi.fn(async ({ where, data }) => {
++      const row = store.find((r) => r.id === where.id);
++      if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++      return row;
++    }),
++    updateMany: vi.fn(async ({ where, data }) => {
++      let count = 0;
++      for (const row of store) {
++        if (where.code && row.code !== where.code) continue;
++        if (where.status && row.status !== where.status) continue;
++        Object.assign(row, data);
++        count += 1;
++      }
++      return { count };
++    }),
++  });
++
++  const prisma = {
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    _envStore: envStore,
++    _packStore: packStore,
++    _checklistStore: checklistStore,
++    _executionStore: executionStore,
++    _rehearsalStore: rehearsalStore,
++    _demoStore: demoStore,
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmDemo: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return demoStore.find((r) => r.id === where.id) || null;
++        if (where.demoNumber) {
++          return demoStore.find((r) => r.demoNumber === where.demoNumber) || null;
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `demo-${demoStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          readinessStatus: data.readinessStatus || 'NOT_READY',
++          readinessJson: data.readinessJson ?? null,
++          requiresLogicalEnvironment: data.requiresLogicalEnvironment === true,
++          requiresChecklist: data.requiresChecklist === true,
++          requiresRehearsal: data.requiresRehearsal === true,
++          environmentId: data.environmentId ?? null,
++          pinnedChecklistId: data.pinnedChecklistId ?? null,
++          latestChecklistExecutionId: data.latestChecklistExecutionId ?? null,
++          latestRehearsalId: data.latestRehearsalId ?? null,
++          ...data,
++        };
++        demoStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = demoStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++      findMany: vi.fn(async () => [...demoStore]),
++    },
++    crmDemoDataPack: versionCrud(packStore, 'pack'),
++    crmDemoChecklist: versionCrud(checklistStore, 'chk'),
++    crmDemoEnvironment: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return envStore.find((r) => r.id === where.id) || null;
++        if (where.envNumber) {
++          return envStore.find((r) => r.envNumber === where.envNumber) || null;
++        }
++        if (where.requestIdempotencyKey) {
++          return (
++            envStore.find(
++              (r) => r.requestIdempotencyKey === where.requestIdempotencyKey
++            ) || null
++          );
++        }
++        if (where.provisionIdempotencyKey) {
++          return (
++            envStore.find(
++              (r) => r.provisionIdempotencyKey === where.provisionIdempotencyKey
++            ) || null
++          );
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `env-${envStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        envStore.push(row);
++        return row;
++      }),
++      update: vi.fn(async ({ where, data }) => {
++        const row = envStore.find((r) => r.id === where.id);
++        if (!row) throw Object.assign(new Error('not found'), { code: 'P2025' });
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...envStore];
++        if (where.demoId) rows = rows.filter((r) => r.demoId === where.demoId);
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        return rows;
++      }),
++    },
++    crmDemoChecklistExecution: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return executionStore.find((r) => r.id === where.id) || null;
++        if (where.idempotencyKey) {
++          return (
++            executionStore.find((r) => r.idempotencyKey === where.idempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `exec-${executionStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        executionStore.push(row);
++        return row;
++      }),
++    },
++    crmDemoRehearsal: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return rehearsalStore.find((r) => r.id === where.id) || null;
++        if (where.idempotencyKey) {
++          return (
++            rehearsalStore.find((r) => r.idempotencyKey === where.idempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `reh-${rehearsalStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        rehearsalStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...rehearsalStore];
++        if (where.demoId) rows = rows.filter((r) => r.demoId === where.demoId);
++        return rows;
++      }),
++    },
++    crmDemoStatusHistory: {
++      create: vi.fn(async ({ data }) => ({ id: `hist-${Date.now()}`, ...data })),
++    },
++    crmTimelineEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
++        timelineStore.push(row);
++        return row;
++      }),
++    },
++  };
++
++  return prisma;
++}
++
++async function activatePack(prisma, author, approver, opts = {}) {
++  const created = await createDataPackVersion(prisma, {
++    admin: author,
++    code: opts.code || 'SAFE_PACK',
++    name: opts.name || 'Safe synthetic',
++    sourceKind: CRM_DEMO_DATA_PACK_SOURCE_KIND.SYNTHETIC,
++    payloadJson: opts.payloadJson || { entities: [{ type: 'demo_account', name: 'Acme Demo' }] },
++  });
++  expect(created.ok).toBe(true);
++  await requestDataPackApproval(prisma, {
++    admin: author,
++    dataPackId: created.dataPack.id,
++  });
++  const approved = await approveDataPackVersion(prisma, {
++    admin: approver,
++    dataPackId: created.dataPack.id,
++  });
++  expect(approved.ok).toBe(true);
++  expect(approved.dataPack.status).toBe(CRM_DEMO_VERSION_STATUS.ACTIVE);
++  return approved.dataPack;
++}
++
++async function activateChecklist(prisma, author, approver, opts = {}) {
++  const created = await createChecklistVersion(prisma, {
++    admin: author,
++    code: opts.code || 'DELIVERY_CHK',
++    name: 'Delivery checklist',
++    itemsJson: opts.itemsJson || [
++      { key: 'env_ready', label: 'Env ready', severity: 'CRITICAL', required: true },
++      { key: 'script_reviewed', label: 'Script reviewed', severity: 'WARN', required: true },
++    ],
++  });
++  expect(created.ok).toBe(true);
++  await requestChecklistApproval(prisma, {
++    admin: author,
++    checklistId: created.checklist.id,
++  });
++  const approved = await approveChecklistVersion(prisma, {
++    admin: approver,
++    checklistId: created.checklist.id,
++  });
++  expect(approved.ok).toBe(true);
++  return approved.checklist;
++}
++
++describe('Phase 14 Wave 3 ΓÇö Data packs reject Production', () => {
++  it('rejects Production source kinds and credential payloads', () => {
++    expect(
++      validateDataPackSource({ sourceKind: 'PRODUCTION_TENANT' }).ok
++    ).toBe(false);
++    expect(
++      validateDataPackSource({
++        sourceKind: CRM_DEMO_DATA_PACK_SOURCE_KIND.SYNTHETIC,
++        payloadJson: { password: 'secret' },
++      }).error
++    ).toBe('production_data_or_credentials_detected');
++    expect(
++      validateDataPackSource({
++        sourceKind: CRM_DEMO_DATA_PACK_SOURCE_KIND.SYNTHETIC,
++        productionTenantId: 'tenant-prod-1',
++      }).error
++    ).toBe('production_tenant_rejected');
++  });
++
++  it('creates ACTIVE safe pack with checksum; refuses Production create', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('a1');
++    const approver = makeAdmin('a2');
++    const pack = await activatePack(prisma, author, approver);
++    expect(pack.checksum).toMatch(/^[a-f0-9]{64}$/);
++
++    const bad = await createDataPackVersion(prisma, {
++      admin: author,
++      code: 'BAD_PACK',
++      sourceKind: 'PRODUCTION',
++      payloadJson: { entities: [] },
++    });
++    expect(bad.ok).toBe(false);
++    expect(bad.error).toBe('production_data_pack_source_rejected');
++  });
++});
++
++describe('Phase 14 Wave 3 ΓÇö DENV provision / reset / expiry / DEMO banner', () => {
++  it('allocates DENV; READY only after approve + provision health; DEMO banner on', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('env-author');
++    const approver = makeAdmin('env-approver');
++    const demo = await createDemo(prisma, {
++      admin: author,
++      title: 'Env demo',
++      contactId: 'c1',
++    });
++    const pack = await activatePack(prisma, author, approver, { code: 'ENV_PACK' });
++
++    const now = new Date('2026-07-30T10:00:00.000Z');
++    const expiresAt = new Date('2026-08-15T10:00:00.000Z');
++
++    const requested = await requestDemoEnvironment(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      expiresAt,
++      dataPackId: pack.id,
++      idempotencyKey: 'req-env-1',
++      now,
++    });
++    expect(requested.ok).toBe(true);
++    expect(requested.environment.envNumber).toMatch(/^DENV-\d{4}-\d{6}$/);
++    expect(requested.environment.status).toBe(CRM_DEMO_ENVIRONMENT_STATUS.REQUESTED);
++    expect(requested.environment.demoBannerVisible).toBe(true);
++    expect(requested.environment.cloudProvisionStatus).toBe('NOT_AVAILABLE');
++    expect(requested.environment.mraEisSandboxAliased).toBe(false);
++
++    // Cannot invent READY without provision path
++    expect(requested.environment.status).not.toBe(CRM_DEMO_ENVIRONMENT_STATUS.READY);
++
++    const selfApprove = await approveDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++    });
++    expect(selfApprove.ok).toBe(false);
++
++    const approved = await approveDemoEnvironment(prisma, {
++      admin: approver,
++      environmentId: requested.environment.id,
++      now,
++    });
++    expect(approved.ok).toBe(true);
++    expect(approved.environment.status).toBe(CRM_DEMO_ENVIRONMENT_STATUS.APPROVED);
++
++    const provisioned = await provisionDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++      idempotencyKey: 'prov-1',
++      now,
++    });
++    expect(provisioned.ok).toBe(true);
++    expect(provisioned.environment.status).toBe(CRM_DEMO_ENVIRONMENT_STATUS.READY);
++    expect(provisioned.environment.healthStatus).toBe(
++      CRM_DEMO_ENVIRONMENT_HEALTH.HEALTHY
++    );
++    expect(provisioned.environment.demoBannerVisible).toBe(true);
++    expect(provisioned.environment.logicalProvisionToken).toMatch(/^logical:/);
++
++    const again = await provisionDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++      idempotencyKey: 'prov-1',
++      now,
++    });
++    expect(again.ok).toBe(true);
++    expect(again.alreadyProvisioned).toBe(true);
++
++    const reset = await resetDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++      idempotencyKey: 'reset-1',
++      now,
++    });
++    expect(reset.ok).toBe(true);
++    expect(reset.environment.status).toBe(CRM_DEMO_ENVIRONMENT_STATUS.READY);
++
++    const resetAgain = await resetDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++      idempotencyKey: 'reset-1',
++      now,
++    });
++    expect(resetAgain.alreadyReset).toBe(true);
++
++    const deprov = await deprovisionDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++      idempotencyKey: 'deprov-1',
++      now,
++    });
++    expect(deprov.ok).toBe(true);
++    expect(deprov.environment.status).toBe(CRM_DEMO_ENVIRONMENT_STATUS.DEPROVISIONED);
++  });
++
++  it('requires expiry; rejects MRA EIS / Production alias; expired blocks READY', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('a1');
++    const approver = makeAdmin('a2');
++    const demo = await createDemo(prisma, {
++      admin: author,
++      title: 'Expiry',
++      contactId: 'c1',
++    });
++
++    const noExpiry = await requestDemoEnvironment(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++    });
++    expect(noExpiry.ok).toBe(false);
++    expect(noExpiry.error).toBe('environment_expiry_required');
++
++    const alias = await requestDemoEnvironment(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      expiresAt: '2026-09-01T00:00:00.000Z',
++      aliasMraEisSandbox: true,
++    });
++    expect(alias.ok).toBe(false);
++    expect(alias.error).toBe('mra_eis_or_production_tenant_alias_forbidden');
++
++    const now = new Date('2026-07-30T12:00:00.000Z');
++    const requested = await requestDemoEnvironment(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      expiresAt: '2026-08-01T00:00:00.000Z',
++      now,
++    });
++    await approveDemoEnvironment(prisma, {
++      admin: approver,
++      environmentId: requested.environment.id,
++      now,
++    });
++
++    const afterExpiry = new Date('2026-08-02T00:00:00.000Z');
++    const provisioned = await provisionDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: requested.environment.id,
++      idempotencyKey: 'late-prov',
++      now: afterExpiry,
++    });
++    expect(provisioned.ok).toBe(false);
++    expect(provisioned.environment.status).toBe(CRM_DEMO_ENVIRONMENT_STATUS.EXPIRED);
++    expect(provisioned.environment.healthStatus).toBe(
++      CRM_DEMO_ENVIRONMENT_HEALTH.EXPIRED
++    );
++  });
++});
++
++describe('Phase 14 Wave 3 ΓÇö Checklist / rehearsal Critical blocks readiness', () => {
++  it('Critical checklist fail and Critical rehearsal issue block readiness when configured', async () => {
++    const prisma = makePrisma();
++    const author = makeAdmin('r-author');
++    const approver = makeAdmin('r-approver');
++    const demo = await createDemo(prisma, {
++      admin: author,
++      title: 'Gates',
++      contactId: 'c1',
++      requiresLogicalEnvironment: true,
++      requiresChecklist: true,
++      requiresRehearsal: true,
++    });
++    expect(demo.demo.requiresLogicalEnvironment).toBe(true);
++
++    const blocked = await evaluateDemoReadiness(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    expect(blocked.ok).toBe(true);
++    expect(blocked.readinessStatus).toBe(CRM_READINESS_STATUS.BLOCKED);
++    expect(blocked.blockers).toEqual(
++      expect.arrayContaining([
++        'logical_environment',
++        'checklist_gate',
++        'rehearsal_gate',
++      ])
++    );
++
++    const pack = await activatePack(prisma, author, approver, { code: 'GATE_PACK' });
++    const now = new Date('2026-07-30T10:00:00.000Z');
++    const envReq = await requestDemoEnvironment(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      expiresAt: '2026-09-01T00:00:00.000Z',
++      dataPackId: pack.id,
++      now,
++    });
++    await approveDemoEnvironment(prisma, {
++      admin: approver,
++      environmentId: envReq.environment.id,
++      now,
++    });
++    await provisionDemoEnvironment(prisma, {
++      admin: author,
++      environmentId: envReq.environment.id,
++      idempotencyKey: 'gate-prov',
++      now,
++    });
++
++    const checklist = await activateChecklist(prisma, author, approver);
++    const failExec = await executeDemoChecklist(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      checklistId: checklist.id,
++      results: [
++        { key: 'env_ready', ok: false },
++        { key: 'script_reviewed', ok: true },
++      ],
++      idempotencyKey: 'chk-fail',
++      now,
++    });
++    expect(failExec.ok).toBe(true);
++    expect(failExec.criticalFailed).toBe(true);
++    expect(failExec.status).toBe(CRM_DEMO_CHECKLIST_EXECUTION_STATUS.FAILED);
++
++    const mid = await evaluateDemoReadiness(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    expect(mid.blockers).toEqual(expect.arrayContaining(['checklist_gate']));
++
++    const passExec = await executeDemoChecklist(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      checklistId: checklist.id,
++      results: [
++        { key: 'env_ready', ok: true },
++        { key: 'script_reviewed', ok: true },
++      ],
++      idempotencyKey: 'chk-pass',
++      now,
++    });
++    expect(passExec.criticalFailed).toBe(false);
++
++    const rehFail = await recordDemoRehearsal(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      outcome: CRM_DEMO_REHEARSAL_OUTCOME.PASSED,
++      issues: [
++        {
++          key: 'audio',
++          severity: CRM_DEMO_ISSUE_SEVERITY.CRITICAL,
++          detail: 'Mic failed',
++        },
++      ],
++      idempotencyKey: 'reh-crit',
++      now,
++    });
++    expect(rehFail.outcome).toBe(CRM_DEMO_REHEARSAL_OUTCOME.FAILED);
++    expect(rehFail.criticalIssueCount).toBe(1);
++
++    const stillBlocked = await evaluateDemoReadiness(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    expect(stillBlocked.blockers).toEqual(
++      expect.arrayContaining(['rehearsal_gate'])
++    );
++
++    const rehPass = await recordDemoRehearsal(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      outcome: CRM_DEMO_REHEARSAL_OUTCOME.PASSED,
++      issues: [],
++      idempotencyKey: 'reh-ok',
++      now,
++    });
++    expect(rehPass.outcome).toBe(CRM_DEMO_REHEARSAL_OUTCOME.PASSED);
++
++    // Meeting/presenter still missing ΓåÆ other blockers remain, but wave3 gates clear
++    const final = await evaluateDemoReadiness(prisma, {
++      admin: author,
++      demoId: demo.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    expect(final.blockers).not.toContain('logical_environment');
++    expect(final.blockers).not.toContain('checklist_gate');
++    expect(final.blockers).not.toContain('rehearsal_gate');
++  });
++
++  it('unconfigured gates stay INFO and do not block Waves 1ΓÇô2 demos', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('plain');
++    const demo = await createDemo(prisma, {
++      admin,
++      title: 'No gates',
++      contactId: 'c1',
++    });
++    const readiness = await evaluateDemoReadiness(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    const envItem = readiness.items.find((i) => i.key === 'logical_environment');
++    const chkItem = readiness.items.find((i) => i.key === 'checklist_gate');
++    const rehItem = readiness.items.find((i) => i.key === 'rehearsal_gate');
++    expect(envItem.ok).toBe(true);
++    expect(envItem.severity).toBe('INFO');
++    expect(chkItem.ok).toBe(true);
++    expect(rehItem.ok).toBe(true);
++    expect(readiness.blockers).not.toContain('logical_environment');
++  });
++
++  it('configureDemoReadinessRequirements toggles gates', async () => {
++    const prisma = makePrisma();
++    const admin = makeAdmin('cfg');
++    const demo = await createDemo(prisma, {
++      admin,
++      title: 'Toggle',
++      contactId: 'c1',
++    });
++    const configured = await configureDemoReadinessRequirements(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      requiresChecklist: true,
++    });
++    expect(configured.ok).toBe(true);
++    expect(configured.demo.requiresChecklist).toBe(true);
++    const readiness = await evaluateDemoReadiness(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      persist: false,
++      timeline: false,
++    });
++    expect(readiness.blockers).toContain('checklist_gate');
++  });
++
++  it('domain contract wave 3 honesty', () => {
++    const contract = getDemoDomainContract();
++    expect(contract.wave).toBe(3);
++    expect(contract.cloudDemoInfra).toBe('NOT_AVAILABLE');
++    expect(contract.productionDataPackForbidden).toBe(true);
++    expect(contract.demoBannerRequired).toBe(true);
++    expect(contract.expiryRequired).toBe(true);
++    expect(contract.mraEisSandboxEqualsDemoEnvironment).toBe(false);
++  });
++});

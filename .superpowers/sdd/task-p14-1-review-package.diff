@@ -1,0 +1,3667 @@
+﻿# Review package — Phase 14 Task 1
+
+diff --git "a/lib\\admin\\crm\\demos\\catalogue.js" "b/lib\\admin\\crm\\demos\\catalogue.js"
+new file mode 100644
+index 0000000..07b807f
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\catalogue.js"
+@@ -0,0 +1,123 @@
++/**
++ * Demo catalogue ΓÇö Phase 14 Wave 1.
++ * Demo Γëá Meeting Γëá Trial Γëá Proposal; RSVP Γëá attendance; MRA EIS sandbox Γëá Demo Environment.
++ */
++
++import {
++  CRM_DEMO_NUMBER_RE,
++  CRM_DEMO_REQUEST_NUMBER_RE,
++  CRM_DEMO_REQUEST_STATUS,
++  CRM_DEMO_REQUEST_STATUSES,
++  CRM_DEMO_STATUS,
++  CRM_DEMO_STATUSES,
++  CRM_DEMO_STATUSES_WAVE1,
++  CRM_DEMO_TRANSITION_TABLE,
++  CRM_NUMBER_PREFIX,
++  CRM_READINESS_STATUS,
++  CRM_READINESS_STATUSES,
++} from '../catalogue.js';
++
++export {
++  CRM_DEMO_NUMBER_RE,
++  CRM_DEMO_REQUEST_NUMBER_RE,
++  CRM_DEMO_REQUEST_STATUS,
++  CRM_DEMO_REQUEST_STATUSES,
++  CRM_DEMO_STATUS,
++  CRM_DEMO_STATUSES,
++  CRM_DEMO_STATUSES_WAVE1,
++  CRM_DEMO_TRANSITION_TABLE,
++  CRM_NUMBER_PREFIX,
++  CRM_READINESS_STATUS,
++  CRM_READINESS_STATUSES,
++};
++
++export const CRM_DEMO_PARTICIPANT_TYPE = Object.freeze({
++  CONTACT: 'CONTACT',
++  ADMIN: 'ADMIN',
++  EXTERNAL: 'EXTERNAL',
++});
++
++export const CRM_DEMO_PARTICIPANT_TYPES = Object.freeze(
++  Object.values(CRM_DEMO_PARTICIPANT_TYPE)
++);
++
++export const CRM_DEMO_PARTICIPANT_ROLE = Object.freeze({
++  PRIMARY_CONTACT: 'PRIMARY_CONTACT',
++  PRESENTER: 'PRESENTER',
++  ORGANIZER: 'ORGANIZER',
++  REQUIRED: 'REQUIRED',
++  OPTIONAL: 'OPTIONAL',
++});
++
++export const CRM_DEMO_PARTICIPANT_ROLES = Object.freeze(
++  Object.values(CRM_DEMO_PARTICIPANT_ROLE)
++);
++
++const DEMO_STATUS_SET = new Set(CRM_DEMO_STATUSES);
++const REQUEST_STATUS_SET = new Set(CRM_DEMO_REQUEST_STATUSES);
++const ROLE_SET = new Set(CRM_DEMO_PARTICIPANT_ROLES);
++const TYPE_SET = new Set(CRM_DEMO_PARTICIPANT_TYPES);
++const WAVE1_STATUS_SET = new Set(CRM_DEMO_STATUSES_WAVE1);
++
++/**
++ * @param {string} status
++ * @returns {boolean}
++ */
++export function isValidDemoStatus(status) {
++  return DEMO_STATUS_SET.has(String(status || '').trim().toUpperCase());
++}
++
++/**
++ * @param {string} status
++ * @returns {boolean}
++ */
++export function isValidDemoRequestStatus(status) {
++  return REQUEST_STATUS_SET.has(String(status || '').trim().toUpperCase());
++}
++
++/**
++ * @param {string} role
++ * @returns {boolean}
++ */
++export function isValidDemoParticipantRole(role) {
++  return ROLE_SET.has(String(role || '').trim().toUpperCase());
++}
++
++/**
++ * @param {string} type
++ * @returns {boolean}
++ */
++export function isValidDemoParticipantType(type) {
++  return TYPE_SET.has(String(type || '').trim().toUpperCase());
++}
++
++/**
++ * @param {string} from
++ * @param {string} to
++ * @returns {boolean}
++ */
++export function canTransitionDemoStatus(from, to) {
++  const f = String(from || '').trim().toUpperCase();
++  const t = String(to || '').trim().toUpperCase();
++  if (!WAVE1_STATUS_SET.has(t) && t !== CRM_DEMO_STATUS.NO_SHOW) return false;
++  const allowed = CRM_DEMO_TRANSITION_TABLE[f];
++  return Array.isArray(allowed) && allowed.includes(t);
++}
++
++/**
++ * Honesty contract ΓÇö never alias Meeting / MRA EIS / Proposal / Tenant.
++ */
++export function getDemoDomainContract() {
++  return Object.freeze({
++    demoEqualsMeeting: false,
++    meetingCompletedEqualsDemoDelivered: false,
++    rsvpEqualsAttendance: false,
++    inventAttendanceForbidden: true,
++    mraEisSandboxEqualsDemoEnvironment: false,
++    inventProposalForbidden: true,
++    inventTenantProvisionForbidden: true,
++    autoOpportunityStageMutationForbidden: true,
++    recordingProvider: 'NOT_AVAILABLE',
++    wave: 1,
++  });
++}
+diff --git "a/lib\\admin\\crm\\demos\\index.js" "b/lib\\admin\\crm\\demos\\index.js"
+new file mode 100644
+index 0000000..8970e91
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\index.js"
+@@ -0,0 +1,72 @@
++/**
++ * CRM Demos ΓÇö Phase 14 Wave 1 public surface.
++ * Demo Γëá Meeting Γëá Trial Γëá Proposal; RSVP Γëá attendance; convert idempotent.
++ */
++
++export {
++  CRM_DEMO_REQUEST_STATUS,
++  CRM_DEMO_REQUEST_STATUSES,
++  CRM_DEMO_STATUS,
++  CRM_DEMO_STATUSES,
++  CRM_DEMO_STATUSES_WAVE1,
++  CRM_DEMO_TRANSITION_TABLE,
++  CRM_DEMO_NUMBER_RE,
++  CRM_DEMO_REQUEST_NUMBER_RE,
++  CRM_DEMO_PARTICIPANT_TYPE,
++  CRM_DEMO_PARTICIPANT_TYPES,
++  CRM_DEMO_PARTICIPANT_ROLE,
++  CRM_DEMO_PARTICIPANT_ROLES,
++  CRM_READINESS_STATUS,
++  isValidDemoStatus,
++  isValidDemoRequestStatus,
++  isValidDemoParticipantRole,
++  isValidDemoParticipantType,
++  canTransitionDemoStatus,
++  getDemoDomainContract,
++} from './catalogue.js';
++
++export {
++  allocateDemoRequestNumber,
++  allocateDemoNumber,
++} from './numbering.js';
++
++export {
++  hasCrmDemoRequestModel,
++  hasCrmDemoModel,
++  hasCrmDemoParticipantModel,
++  hasCrmDemoStatusHistoryModel,
++  serializeDemoRequest,
++  serializeDemo,
++  serializeDemoParticipant,
++  serializeDemoStatusHistory,
++} from './model.js';
++
++export {
++  createDemoRequest,
++  qualifyDemoRequest,
++  rejectDemoRequest,
++  convertDemoRequest,
++  listDemoRequests,
++} from './requests.js';
++
++export {
++  createDemo,
++  getDemo,
++  listDemos,
++  transitionDemoStatus,
++} from './service.js';
++
++export {
++  addDemoParticipant,
++  removeDemoParticipant,
++  listDemoParticipants,
++} from './participants.js';
++
++export { scheduleDemo } from './schedule.js';
++
++export { evaluateDemoReadiness } from './readiness.js';
++
++export {
++  listDemosForLead,
++  listDemosForOpportunity,
++} from './projections.js';
+diff --git "a/lib\\admin\\crm\\demos\\model.js" "b/lib\\admin\\crm\\demos\\model.js"
+new file mode 100644
+index 0000000..6748f49
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\model.js"
+@@ -0,0 +1,123 @@
++/**
++ * CrmDemo* model guards + serialize ΓÇö Phase 14 Wave 1.
++ * Demo Γëá Meeting; RSVP Γëá attendance; never invent attendance.
++ */
++
++import {
++  CRM_DEMO_STATUS,
++  CRM_READINESS_STATUS,
++  getDemoDomainContract,
++} from './catalogue.js';
++
++export function hasCrmDemoRequestModel(prisma) {
++  return typeof prisma?.crmDemoRequest?.create === 'function';
++}
++
++export function hasCrmDemoModel(prisma) {
++  return typeof prisma?.crmDemo?.create === 'function';
++}
++
++export function hasCrmDemoParticipantModel(prisma) {
++  return typeof prisma?.crmDemoParticipant?.create === 'function';
++}
++
++export function hasCrmDemoStatusHistoryModel(prisma) {
++  return typeof prisma?.crmDemoStatusHistory?.create === 'function';
++}
++
++export function serializeDemoRequest(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    requestNumber: row.requestNumber,
++    status: row.status,
++    leadId: row.leadId || null,
++    opportunityId: row.opportunityId || null,
++    accountId: row.accountId || null,
++    contactId: row.contactId || null,
++    title: row.title || null,
++    notes: row.notes || null,
++    source: row.source || null,
++    ownerAdminId: row.ownerAdminId || null,
++    createdByAdminId: row.createdByAdminId || null,
++    convertedDemoId: row.convertedDemoId || null,
++    convertIdempotencyKey: row.convertIdempotencyKey || null,
++    rejectedReason: row.rejectedReason || null,
++    qualifiedAt: row.qualifiedAt ? new Date(row.qualifiedAt).toISOString() : null,
++    convertedAt: row.convertedAt ? new Date(row.convertedAt).toISOString() : null,
++    rejectedAt: row.rejectedAt ? new Date(row.rejectedAt).toISOString() : null,
++    idempotencyKey: row.idempotencyKey || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++export function serializeDemo(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    demoNumber: row.demoNumber,
++    status: row.status || CRM_DEMO_STATUS.DRAFT,
++    readinessStatus: row.readinessStatus || CRM_READINESS_STATUS.NOT_READY,
++    readinessJson: row.readinessJson ?? null,
++    requestId: row.requestId || null,
++    leadId: row.leadId || null,
++    opportunityId: row.opportunityId || null,
++    accountId: row.accountId || null,
++    contactId: row.contactId || null,
++    meetingId: row.meetingId || null,
++    calendarEventId: row.calendarEventId || null,
++    title: row.title || null,
++    notes: row.notes || null,
++    timezone: row.timezone || null,
++    startsAtUtc: row.startsAtUtc ? new Date(row.startsAtUtc).toISOString() : null,
++    endsAtUtc: row.endsAtUtc ? new Date(row.endsAtUtc).toISOString() : null,
++    startsAtOriginal: row.startsAtOriginal || null,
++    endsAtOriginal: row.endsAtOriginal || null,
++    ownerAdminId: row.ownerAdminId || null,
++    createdByAdminId: row.createdByAdminId || null,
++    convertIdempotencyKey: row.convertIdempotencyKey || null,
++    scheduleIdempotencyKey: row.scheduleIdempotencyKey || null,
++    idempotencyKey: row.idempotencyKey || null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++    /** Honesty ΓÇö Wave 1 never fabricates these */
++    attendanceFabricated: false,
++    proposalCreated: false,
++    tenantProvisioned: false,
++    domain: getDemoDomainContract(),
++  };
++}
++
++export function serializeDemoParticipant(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    demoId: row.demoId,
++    participantType: row.participantType,
++    participantId: row.participantId,
++    role: row.role || 'REQUIRED',
++    rsvpStatus: row.rsvpStatus || 'PENDING',
++    /** Attendance never inferred from RSVP ΓÇö Wave 4 owns recording */
++    attendanceStatus: row.attendanceStatus || 'UNKNOWN',
++    invitationStatus: row.invitationStatus || 'NOT_SENT',
++    eligibilityJson: row.eligibilityJson ?? null,
++    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
++    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
++  };
++}
++
++export function serializeDemoStatusHistory(row) {
++  if (!row) return null;
++  return {
++    id: row.id,
++    demoId: row.demoId,
++    fromStatus: row.fromStatus || null,
++    toStatus: row.toStatus,
++    reason: row.reason || null,
++    changedByAdminId: row.changedByAdminId || null,
++    at: row.at ? new Date(row.at).toISOString() : null,
++  };
++}
++
++export { getDemoDomainContract };
+diff --git "a/lib\\admin\\crm\\demos\\numbering.js" "b/lib\\admin\\crm\\demos\\numbering.js"
+new file mode 100644
+index 0000000..7aaf13b
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\numbering.js"
+@@ -0,0 +1,41 @@
++/**
++ * Demo numbering ΓÇö DMR-YYYY-###### / DEMO-YYYY-###### (UTC year).
++ * Reuses CrmNumberSeq CAS via allocateCrmNumber.
++ */
++
++import { allocateCrmNumber, formatCrmNumber, utcYearOf } from '../numbering.js';
++import {
++  CRM_DEMO_NUMBER_RE,
++  CRM_DEMO_REQUEST_NUMBER_RE,
++  CRM_NUMBER_PREFIX,
++} from '../catalogue.js';
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ now?: Date }} [opts]
++ */
++export async function allocateDemoRequestNumber(prisma, opts = {}) {
++  return allocateCrmNumber(prisma, {
++    prefix: CRM_NUMBER_PREFIX.DMR,
++    now: opts.now,
++  });
++}
++
++/**
++ * @param {import('@prisma/client').PrismaClient} prisma
++ * @param {{ now?: Date }} [opts]
++ */
++export async function allocateDemoNumber(prisma, opts = {}) {
++  return allocateCrmNumber(prisma, {
++    prefix: CRM_NUMBER_PREFIX.DEMO,
++    now: opts.now,
++  });
++}
++
++export {
++  formatCrmNumber,
++  utcYearOf,
++  CRM_DEMO_NUMBER_RE,
++  CRM_DEMO_REQUEST_NUMBER_RE,
++  CRM_NUMBER_PREFIX,
++};
+diff --git "a/lib\\admin\\crm\\demos\\participants.js" "b/lib\\admin\\crm\\demos\\participants.js"
+new file mode 100644
+index 0000000..7c2c500
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\participants.js"
+@@ -0,0 +1,269 @@
++/**
++ * Demo participants ΓÇö Phase 14 Wave 1.
++ * Roles: PRIMARY_CONTACT, PRESENTER, ORGANIZER, REQUIRED, OPTIONAL.
++ * RSVP Γëá attendance; attendance stays UNKNOWN until Wave 4.
++ */
++
++import {
++  CRM_COMMUNICATION_CHANNEL,
++  CRM_CONSENT_PURPOSE,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { checkCommunicationEligibility } from '../eligibility.js';
++import { appendTimelineEvent } from '../timeline.js';
++import {
++  CRM_DEMO_PARTICIPANT_ROLE,
++  CRM_DEMO_PARTICIPANT_TYPE,
++  isValidDemoParticipantRole,
++  isValidDemoParticipantType,
++} from './catalogue.js';
++import {
++  hasCrmDemoModel,
++  hasCrmDemoParticipantModel,
++  serializeDemoParticipant,
++} from './model.js';
++import { canEditDemos, loadDemo } from './service.js';
++
++/**
++ * Add a Demo participant.
++ */
++export async function addDemoParticipant(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_participant_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma) || !hasCrmDemoParticipantModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_participant_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const participantType = String(args.participantType || '')
++    .trim()
++    .toUpperCase();
++  const participantId = args.participantId
++    ? String(args.participantId).trim()
++    : '';
++  const role = String(args.role || CRM_DEMO_PARTICIPANT_ROLE.REQUIRED)
++    .trim()
++    .toUpperCase();
++
++  if (!isValidDemoParticipantType(participantType)) {
++    return { ok: false, error: 'invalid_participant_type' };
++  }
++  if (!participantId) {
++    return { ok: false, error: 'participantId_required' };
++  }
++  if (!isValidDemoParticipantRole(role)) {
++    return { ok: false, error: 'invalid_participant_role' };
++  }
++
++  if (
++    role === CRM_DEMO_PARTICIPANT_ROLE.PRESENTER &&
++    participantType !== CRM_DEMO_PARTICIPANT_TYPE.ADMIN
++  ) {
++    return { ok: false, error: 'presenter_must_be_admin' };
++  }
++  if (
++    role === CRM_DEMO_PARTICIPANT_ROLE.PRIMARY_CONTACT &&
++    participantType !== CRM_DEMO_PARTICIPANT_TYPE.CONTACT
++  ) {
++    return { ok: false, error: 'primary_contact_must_be_contact' };
++  }
++
++  try {
++    const existing = await prisma.crmDemoParticipant.findFirst({
++      where: { demoId: demo.id, participantType, participantId, role },
++    });
++    if (existing) {
++      return {
++        ok: true,
++        participant: serializeDemoParticipant(existing),
++        alreadyExists: true,
++      };
++    }
++  } catch {
++    // continue
++  }
++
++  const now = args.now || new Date();
++  let eligibilityJson = null;
++  let invitationStatus = 'NOT_SENT';
++
++  if (
++    participantType === CRM_DEMO_PARTICIPANT_TYPE.CONTACT &&
++    args.evaluateEligibility === true
++  ) {
++    const elig = await checkCommunicationEligibility(prisma, {
++      contactId: participantId,
++      purpose: CRM_CONSENT_PURPOSE.DEMO_COMMUNICATION,
++      channel: CRM_COMMUNICATION_CHANNEL.EMAIL,
++    });
++    eligibilityJson = {
++      eligible: elig.eligible,
++      reasons: elig.reasons,
++      consentStatus: elig.consentStatus,
++      dncFlags: elig.dncFlags,
++      inferred: false,
++      evaluatedAt: now.toISOString(),
++      channel: CRM_COMMUNICATION_CHANNEL.EMAIL,
++      purpose: CRM_CONSENT_PURPOSE.DEMO_COMMUNICATION,
++    };
++    invitationStatus = elig.eligible ? 'REQUESTED' : 'BLOCKED_BY_CONSENT';
++  }
++
++  let row;
++  try {
++    row = await prisma.crmDemoParticipant.create({
++      data: {
++        demoId: demo.id,
++        participantType,
++        participantId,
++        role,
++        rsvpStatus: 'PENDING',
++        attendanceStatus: 'UNKNOWN',
++        invitationStatus,
++        eligibilityJson,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_participant_create_failed' };
++  }
++
++  if (
++    role === CRM_DEMO_PARTICIPANT_ROLE.PRIMARY_CONTACT &&
++    !demo.contactId
++  ) {
++    try {
++      await prisma.crmDemo.update({
++        where: { id: demo.id },
++        data: { contactId: participantId, updatedAt: now },
++      });
++    } catch {
++      // non-fatal
++    }
++  }
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: demo.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_PARTICIPANT_ADDED,
++    summary: `Demo participant added (${role})`,
++    payload: {
++      participantType,
++      participantId,
++      role,
++      attendanceInvented: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, participant: serializeDemoParticipant(row) };
++}
++
++/**
++ * Remove a Demo participant.
++ */
++export async function removeDemoParticipant(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_participant_forbidden' };
++  }
++  if (!hasCrmDemoParticipantModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_participant_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const participantId = args.participantRecordId || args.id;
++  if (!participantId) {
++    return { ok: false, error: 'participant_record_id_required' };
++  }
++
++  let row = null;
++  try {
++    row = await prisma.crmDemoParticipant.findUnique({
++      where: { id: String(participantId).trim() },
++    });
++  } catch {
++    row = null;
++  }
++  if (!row) return { ok: false, notFound: true, error: 'demo_participant_not_found' };
++
++  const now = args.now || new Date();
++  try {
++    await prisma.crmDemoParticipant.delete({ where: { id: row.id } });
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_participant_delete_failed' };
++  }
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: row.demoId,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_PARTICIPANT_REMOVED,
++    summary: `Demo participant removed (${row.role})`,
++    payload: {
++      participantType: row.participantType,
++      participantId: row.participantId,
++      role: row.role,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, removed: serializeDemoParticipant(row) };
++}
++
++/**
++ * List participants for a Demo.
++ */
++export async function listDemoParticipants(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !(
++      access.canViewActivities ||
++      access.canViewLeads ||
++      access.canViewOpportunities ||
++      access.canView
++    )
++  ) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_participant_view_forbidden' };
++  }
++  if (!hasCrmDemoParticipantModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_participant_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoParticipant.findMany({
++      where: { demoId: demo.id },
++    });
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_participant_list_failed' };
++  }
++
++  return {
++    ok: true,
++    participants: rows.map(serializeDemoParticipant),
++    count: rows.length,
++  };
++}
+diff --git "a/lib\\admin\\crm\\demos\\projections.js" "b/lib\\admin\\crm\\demos\\projections.js"
+new file mode 100644
+index 0000000..b98d7c7
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\projections.js"
+@@ -0,0 +1,106 @@
++/**
++ * Thin Opportunity / Lead Demo projections ΓÇö Phase 14 Wave 1.
++ * Read-only lists; never mutates Opportunity stage / probability / close-date.
++ */
++
++import { resolveCrmAccess } from '../authz.js';
++import { hasCrmDemoModel, hasCrmDemoRequestModel, serializeDemo, serializeDemoRequest } from './model.js';
++
++function canView(access) {
++  return (
++    access.canViewActivities ||
++    access.canViewLeads ||
++    access.canViewOpportunities ||
++    access.canView
++  );
++}
++
++/**
++ * Project Demos linked to a Lead (read-only).
++ */
++export async function listDemosForLead(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canView(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_projection_forbidden' };
++  }
++  const leadId = args.leadId ? String(args.leadId).trim() : '';
++  if (!leadId) return { ok: false, error: 'leadId_required' };
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  let demos = [];
++  let requests = [];
++  try {
++    demos = await prisma.crmDemo.findMany({
++      where: { leadId },
++      orderBy: { createdAt: 'desc' },
++      take: 50,
++    });
++    if (hasCrmDemoRequestModel(prisma)) {
++      requests = await prisma.crmDemoRequest.findMany({
++        where: { leadId },
++        orderBy: { createdAt: 'desc' },
++        take: 50,
++      });
++    }
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_lead_projection_failed' };
++  }
++
++  return {
++    ok: true,
++    leadId,
++    demos: demos.map(serializeDemo),
++    requests: requests.map(serializeDemoRequest),
++    opportunityStageMutated: false,
++    proposalCreated: false,
++  };
++}
++
++/**
++ * Project Demos linked to an Opportunity (read-only).
++ */
++export async function listDemosForOpportunity(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canView(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_projection_forbidden' };
++  }
++  const opportunityId = args.opportunityId
++    ? String(args.opportunityId).trim()
++    : '';
++  if (!opportunityId) return { ok: false, error: 'opportunityId_required' };
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  let demos = [];
++  let requests = [];
++  try {
++    demos = await prisma.crmDemo.findMany({
++      where: { opportunityId },
++      orderBy: { createdAt: 'desc' },
++      take: 50,
++    });
++    if (hasCrmDemoRequestModel(prisma)) {
++      requests = await prisma.crmDemoRequest.findMany({
++        where: { opportunityId },
++        orderBy: { createdAt: 'desc' },
++        take: 50,
++      });
++    }
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_opportunity_projection_failed' };
++  }
++
++  return {
++    ok: true,
++    opportunityId,
++    demos: demos.map(serializeDemo),
++    requests: requests.map(serializeDemoRequest),
++    opportunityStageMutated: false,
++    probabilityMutated: false,
++    closeDateMutated: false,
++    proposalCreated: false,
++  };
++}
+diff --git "a/lib\\admin\\crm\\demos\\readiness.js" "b/lib\\admin\\crm\\demos\\readiness.js"
+new file mode 100644
+index 0000000..5de5c3a
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\readiness.js"
+@@ -0,0 +1,286 @@
++/**
++ * Demo readiness spine ΓÇö Phase 14 Wave 1.
++ * NOT_READY / PARTIALLY_READY / READY / BLOCKED.
++ * Missing Meeting / presenter / Contact blocks READY_TO_DELIVER.
++ * Agenda/Script/Env/Checklist deferred to Waves 2ΓÇô3 (INFO, non-blocking).
++ */
++
++import {
++  CRM_READINESS_STATUS,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { hasCrmMeetingModel } from '../meetings/model.js';
++import { hasCrmCalendarEventModel } from '../calendar/model.js';
++import { CRM_DEMO_PARTICIPANT_ROLE } from './catalogue.js';
++import {
++  hasCrmDemoModel,
++  hasCrmDemoParticipantModel,
++  serializeDemo,
++} from './model.js';
++
++function item(key, ok, severity, detail, blocker = false) {
++  return {
++    key,
++    ok: Boolean(ok),
++    severity: severity || (ok ? 'INFO' : 'WARN'),
++    detail: detail || null,
++    blocker: Boolean(blocker),
++  };
++}
++
++function deriveStatus(items) {
++  const blockers = items.filter((i) => i.blocker && !i.ok);
++  if (blockers.length > 0) return CRM_READINESS_STATUS.BLOCKED;
++  const failed = items.filter((i) => !i.ok);
++  if (failed.length === 0) return CRM_READINESS_STATUS.READY;
++  const requiredFailed = failed.filter((i) => i.severity !== 'INFO');
++  if (requiredFailed.length === 0) return CRM_READINESS_STATUS.PARTIALLY_READY;
++  const allSoft = requiredFailed.every((i) => i.severity === 'WARN');
++  if (allSoft && requiredFailed.length < items.length) {
++    return CRM_READINESS_STATUS.PARTIALLY_READY;
++  }
++  return CRM_READINESS_STATUS.NOT_READY;
++}
++
++async function loadDemoRow(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Evaluate Demo readiness. Never fabricates Meeting / attendance / env / proposal.
++ */
++export async function evaluateDemoReadiness(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (
++    !(
++      access.canViewActivities ||
++      access.canViewLeads ||
++      access.canViewOpportunities ||
++      access.canView
++    )
++  ) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_readiness_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadDemoRow(prisma, args.demoId);
++  if (!row) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const items = [];
++  const now = args.now || new Date();
++
++  items.push(
++    item(
++      'demo_number',
++      Boolean(row.demoNumber),
++      'CRITICAL',
++      row.demoNumber ? `Number ${row.demoNumber}` : 'Demo number missing',
++      !row.demoNumber
++    )
++  );
++
++  const meetingLinked = Boolean(row.meetingId);
++  items.push(
++    item(
++      'meeting_linked',
++      meetingLinked,
++      'CRITICAL',
++      meetingLinked
++        ? `Meeting ${row.meetingId} linked`
++        : 'CrmMeeting required before READY_TO_DELIVER',
++      !meetingLinked
++    )
++  );
++
++  let timesReconcile = false;
++  let calendarLinked = Boolean(row.calendarEventId);
++  if (meetingLinked && hasCrmMeetingModel(prisma)) {
++    try {
++      const meeting = await prisma.crmMeeting.findUnique({
++        where: { id: row.meetingId },
++      });
++      if (meeting && row.startsAtUtc && row.endsAtUtc) {
++        const mStart = new Date(meeting.startsAtUtc).getTime();
++        const mEnd = new Date(meeting.endsAtUtc).getTime();
++        const dStart = new Date(row.startsAtUtc).getTime();
++        const dEnd = new Date(row.endsAtUtc).getTime();
++        timesReconcile =
++          mStart === dStart &&
++          mEnd === dEnd &&
++          String(meeting.timezone || '') === String(row.timezone || '');
++      }
++      if (!calendarLinked && hasCrmCalendarEventModel(prisma)) {
++        const events = await prisma.crmCalendarEvent.findMany({
++          where: { meetingId: row.meetingId },
++          take: 1,
++        });
++        calendarLinked = events.length > 0;
++      }
++    } catch {
++      timesReconcile = false;
++    }
++  }
++
++  items.push(
++    item(
++      'calendar_linked',
++      calendarLinked,
++      'CRITICAL',
++      calendarLinked
++        ? 'Calendar Event linked'
++        : 'Calendar Event required with Meeting',
++      meetingLinked && !calendarLinked
++    )
++  );
++
++  items.push(
++    item(
++      'times_reconcile',
++      !meetingLinked || timesReconcile,
++      'CRITICAL',
++      timesReconcile || !meetingLinked
++        ? 'Demo times reconcile with Meeting'
++        : 'Demo startsAt/endsAt/timezone must match Meeting',
++      meetingLinked && !timesReconcile
++    )
++  );
++
++  let hasPresenter = false;
++  let hasPrimaryContact = Boolean(row.contactId);
++  if (hasCrmDemoParticipantModel(prisma)) {
++    try {
++      const parts = await prisma.crmDemoParticipant.findMany({
++        where: { demoId: row.id },
++      });
++      hasPresenter = parts.some(
++        (p) => p.role === CRM_DEMO_PARTICIPANT_ROLE.PRESENTER
++      );
++      hasPrimaryContact =
++        hasPrimaryContact ||
++        parts.some((p) => p.role === CRM_DEMO_PARTICIPANT_ROLE.PRIMARY_CONTACT);
++    } catch {
++      // keep flags
++    }
++  }
++
++  items.push(
++    item(
++      'presenter_assigned',
++      hasPresenter,
++      'CRITICAL',
++      hasPresenter ? 'Presenter assigned' : 'Presenter (ADMIN) required',
++      !hasPresenter
++    )
++  );
++
++  items.push(
++    item(
++      'primary_contact',
++      hasPrimaryContact,
++      'CRITICAL',
++      hasPrimaryContact
++        ? 'Primary Contact present'
++        : 'Primary Contact required',
++      !hasPrimaryContact
++    )
++  );
++
++  // Wave 2ΓÇô3 deferred gates ΓÇö honesty INFO, not Wave 1 blockers
++  items.push(
++    item(
++      'agenda_version',
++      false,
++      'INFO',
++      'Agenda version pinning deferred to Wave 2',
++      false
++    )
++  );
++  items.push(
++    item(
++      'script_version',
++      false,
++      'INFO',
++      'Script version pinning deferred to Wave 2',
++      false
++    )
++  );
++  items.push(
++    item(
++      'logical_environment',
++      false,
++      'INFO',
++      'Logical Demo Environment deferred to Wave 3 (Γëá MRA EIS sandbox)',
++      false
++    )
++  );
++
++  const readinessStatus = deriveStatus(items);
++  const blockers = items.filter((i) => i.blocker && !i.ok).map((i) => i.key);
++  const readinessJson = {
++    status: readinessStatus,
++    items,
++    blockers,
++    evaluatedAt: now.toISOString(),
++    wave: 1,
++    inventAttendanceForbidden: true,
++    inventProposalForbidden: true,
++    inventTenantProvisionForbidden: true,
++    mraEisSandboxEqualsDemoEnvironment: false,
++  };
++
++  if (args.persist !== false) {
++    try {
++      await prisma.crmDemo.update({
++        where: { id: row.id },
++        data: {
++          readinessStatus,
++          readinessJson,
++          updatedAt: now,
++        },
++      });
++    } catch {
++      // non-fatal for evaluation return
++    }
++  }
++
++  if (args.timeline !== false) {
++    await appendTimelineEvent(prisma, {
++      subjectType: CRM_SUBJECT_TYPE.DEMO,
++      subjectId: row.id,
++      eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_READINESS_EVALUATED,
++      summary: `Demo readiness: ${readinessStatus}`,
++      payload: {
++        readinessStatus,
++        blockers,
++        checklistKeys: items.map((i) => i.key),
++      },
++      actorAdminId: args.admin?.id || null,
++      at: now,
++    });
++  }
++
++  const refreshed = await loadDemoRow(prisma, row.id);
++
++  return {
++    ok: true,
++    demo: serializeDemo(refreshed || { ...row, readinessStatus, readinessJson }),
++    readinessStatus,
++    items,
++    blockers,
++    readinessJson,
++  };
++}
+diff --git "a/lib\\admin\\crm\\demos\\requests.js" "b/lib\\admin\\crm\\demos\\requests.js"
+new file mode 100644
+index 0000000..a29e051
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\requests.js"
+@@ -0,0 +1,459 @@
++/**
++ * Demo Requests ΓÇö Phase 14 Wave 1.
++ * Convert Demo Request Γëá create Opportunity; convert is idempotent.
++ */
++
++import {
++  CRM_DEMO_REQUEST_STATUS,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { allocateDemoRequestNumber } from './numbering.js';
++import {
++  hasCrmDemoModel,
++  hasCrmDemoRequestModel,
++  serializeDemo,
++  serializeDemoRequest,
++} from './model.js';
++import { createDemo } from './service.js';
++
++function canEditDemos(access) {
++  return (
++    access.canEditActivities ||
++    access.canEditLeads ||
++    access.canEditOpportunities ||
++    access.canCreateLeads
++  );
++}
++
++function canViewDemos(access) {
++  return (
++    access.canViewActivities ||
++    access.canViewLeads ||
++    access.canViewOpportunities ||
++    access.canView
++  );
++}
++
++async function loadRequest(prisma, requestId) {
++  const id = requestId ? String(requestId).trim() : '';
++  if (!id || !hasCrmDemoRequestModel(prisma)) return null;
++  try {
++    if (/^DMR-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemoRequest.findUnique({ where: { requestNumber: id } });
++    }
++    return await prisma.crmDemoRequest.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Create a Demo Request (DMR-YYYY-######).
++ */
++export async function createDemoRequest(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_request_create_forbidden' };
++  }
++  if (!hasCrmDemoRequestModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_request_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const now = args.now || new Date();
++  const idempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++
++  if (idempotencyKey) {
++    try {
++      const existing = await prisma.crmDemoRequest.findUnique({
++        where: { idempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          request: serializeDemoRequest(existing),
++          alreadyExists: true,
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  const allocated = await allocateDemoRequestNumber(prisma, { now });
++  if (!allocated.ok) {
++    return {
++      ok: false,
++      error: allocated.error || 'demo_request_number_allocation_failed',
++    };
++  }
++
++  const title =
++    args.title != null ? String(args.title).trim().slice(0, 500) : 'Demo request';
++  const ownerAdminId = args.ownerAdminId || args.admin?.id || null;
++
++  let row;
++  try {
++    row = await prisma.crmDemoRequest.create({
++      data: {
++        requestNumber: allocated.number,
++        status: CRM_DEMO_REQUEST_STATUS.NEW,
++        leadId: args.leadId ? String(args.leadId).trim() : null,
++        opportunityId: args.opportunityId
++          ? String(args.opportunityId).trim()
++          : null,
++        accountId: args.accountId ? String(args.accountId).trim() : null,
++        contactId: args.contactId ? String(args.contactId).trim() : null,
++        title,
++        notes: args.notes != null ? String(args.notes).trim().slice(0, 4000) : null,
++        source: args.source ? String(args.source).trim().slice(0, 80) : null,
++        ownerAdminId,
++        createdByAdminId: args.admin?.id || null,
++        idempotencyKey,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++  } catch (err) {
++    if (idempotencyKey) {
++      try {
++        const raced = await prisma.crmDemoRequest.findUnique({
++          where: { idempotencyKey },
++        });
++        if (raced) {
++          return {
++            ok: true,
++            request: serializeDemoRequest(raced),
++            alreadyExists: true,
++          };
++        }
++      } catch {
++        // fall through
++      }
++    }
++    return {
++      ok: false,
++      error: err?.message || 'demo_request_create_failed',
++    };
++  }
++
++  await appendTimelineEvent(prisma, {
++    subjectType: row.leadId
++      ? CRM_SUBJECT_TYPE.LEAD
++      : row.opportunityId
++        ? CRM_SUBJECT_TYPE.OPPORTUNITY
++        : CRM_SUBJECT_TYPE.CONTACT,
++    subjectId: row.leadId || row.opportunityId || row.contactId || row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_REQUEST_CREATED,
++    summary: `Demo request ${row.requestNumber} created`,
++    payload: { requestId: row.id, requestNumber: row.requestNumber },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, request: serializeDemoRequest(row) };
++}
++
++/**
++ * Qualify a Demo Request ΓåÆ QUALIFIED (from NEW / QUALIFYING).
++ */
++export async function qualifyDemoRequest(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_request_qualify_forbidden' };
++  }
++  if (!hasCrmDemoRequestModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_request_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const row = await loadRequest(prisma, args.requestId);
++  if (!row) return { ok: false, notFound: true, error: 'demo_request_not_found' };
++
++  if (row.status === CRM_DEMO_REQUEST_STATUS.QUALIFIED) {
++    return { ok: true, request: serializeDemoRequest(row), alreadyQualified: true };
++  }
++  if (row.status === CRM_DEMO_REQUEST_STATUS.CONVERTED) {
++    return { ok: false, error: 'demo_request_already_converted' };
++  }
++  if (
++    row.status !== CRM_DEMO_REQUEST_STATUS.NEW &&
++    row.status !== CRM_DEMO_REQUEST_STATUS.QUALIFYING
++  ) {
++    return { ok: false, error: 'demo_request_not_qualifiable', status: row.status };
++  }
++
++  const now = args.now || new Date();
++  const updated = await prisma.crmDemoRequest.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_REQUEST_STATUS.QUALIFIED,
++      qualifiedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: updated.leadId
++      ? CRM_SUBJECT_TYPE.LEAD
++      : CRM_SUBJECT_TYPE.OPPORTUNITY,
++    subjectId: updated.leadId || updated.opportunityId || updated.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_REQUEST_QUALIFIED,
++    summary: `Demo request ${updated.requestNumber} qualified`,
++    payload: { requestId: updated.id },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, request: serializeDemoRequest(updated) };
++}
++
++/**
++ * Reject a Demo Request.
++ */
++export async function rejectDemoRequest(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_request_reject_forbidden' };
++  }
++  if (!hasCrmDemoRequestModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_request_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const row = await loadRequest(prisma, args.requestId);
++  if (!row) return { ok: false, notFound: true, error: 'demo_request_not_found' };
++
++  if (row.status === CRM_DEMO_REQUEST_STATUS.REJECTED) {
++    return { ok: true, request: serializeDemoRequest(row), alreadyRejected: true };
++  }
++  if (row.status === CRM_DEMO_REQUEST_STATUS.CONVERTED) {
++    return { ok: false, error: 'demo_request_already_converted' };
++  }
++
++  const now = args.now || new Date();
++  const reason =
++    args.reason != null ? String(args.reason).trim().slice(0, 1000) : null;
++
++  const updated = await prisma.crmDemoRequest.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_REQUEST_STATUS.REJECTED,
++      rejectedReason: reason,
++      rejectedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: updated.leadId
++      ? CRM_SUBJECT_TYPE.LEAD
++      : CRM_SUBJECT_TYPE.OPPORTUNITY,
++    subjectId: updated.leadId || updated.opportunityId || updated.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_REQUEST_REJECTED,
++    summary: `Demo request ${updated.requestNumber} rejected`,
++    payload: { requestId: updated.id, reason },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return { ok: true, request: serializeDemoRequest(updated) };
++}
++
++/**
++ * Convert QUALIFIED Demo Request ΓåÆ CrmDemo (idempotent; stable key).
++ * Exact retry returns existing Demo. Never creates Opportunity / Proposal / Tenant.
++ */
++export async function convertDemoRequest(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_request_convert_forbidden' };
++  }
++  if (!hasCrmDemoRequestModel(prisma) || !hasCrmDemoModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const row = await loadRequest(prisma, args.requestId);
++  if (!row) return { ok: false, notFound: true, error: 'demo_request_not_found' };
++
++  const convertKey = `dmr-convert:${row.id}`;
++
++  if (row.status === CRM_DEMO_REQUEST_STATUS.CONVERTED && row.convertedDemoId) {
++    try {
++      const existingDemo = await prisma.crmDemo.findUnique({
++        where: { id: row.convertedDemoId },
++      });
++      if (existingDemo) {
++        return {
++          ok: true,
++          request: serializeDemoRequest(row),
++          demo: serializeDemo(existingDemo),
++          alreadyExists: true,
++        };
++      }
++    } catch {
++      // fall through to key lookup
++    }
++  }
++
++  try {
++    const byKey = await prisma.crmDemo.findUnique({
++      where: { convertIdempotencyKey: convertKey },
++    });
++    if (byKey) {
++      return {
++        ok: true,
++        request: serializeDemoRequest(row),
++        demo: serializeDemo(byKey),
++        alreadyExists: true,
++      };
++    }
++  } catch {
++    // continue
++  }
++
++  if (
++    row.status !== CRM_DEMO_REQUEST_STATUS.QUALIFIED &&
++    row.status !== CRM_DEMO_REQUEST_STATUS.CONVERTED
++  ) {
++    return {
++      ok: false,
++      error: 'demo_request_must_be_qualified',
++      status: row.status,
++    };
++  }
++
++  const now = args.now || new Date();
++  const demoResult = await createDemo(prisma, {
++    admin: args.admin,
++    title: args.title || row.title || `Demo from ${row.requestNumber}`,
++    notes: args.notes != null ? args.notes : row.notes,
++    leadId: row.leadId,
++    opportunityId: row.opportunityId,
++    accountId: row.accountId,
++    contactId: row.contactId,
++    requestId: row.id,
++    ownerAdminId: args.ownerAdminId || row.ownerAdminId || args.admin?.id,
++    convertIdempotencyKey: convertKey,
++    idempotencyKey: args.idempotencyKey || convertKey,
++    now,
++  });
++
++  if (!demoResult.ok) {
++    if (demoResult.alreadyExists && demoResult.demo) {
++      // Ensure request points at existing demo
++      const patched = await prisma.crmDemoRequest.update({
++        where: { id: row.id },
++        data: {
++          status: CRM_DEMO_REQUEST_STATUS.CONVERTED,
++          convertedDemoId: demoResult.demo.id,
++          convertIdempotencyKey: convertKey,
++          convertedAt: row.convertedAt || now,
++          updatedAt: now,
++        },
++      });
++      return {
++        ok: true,
++        request: serializeDemoRequest(patched),
++        demo: demoResult.demo,
++        alreadyExists: true,
++      };
++    }
++    return demoResult;
++  }
++
++  const updated = await prisma.crmDemoRequest.update({
++    where: { id: row.id },
++    data: {
++      status: CRM_DEMO_REQUEST_STATUS.CONVERTED,
++      convertedDemoId: demoResult.demo.id,
++      convertIdempotencyKey: convertKey,
++      convertedAt: now,
++      updatedAt: now,
++    },
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: demoResult.demo.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_REQUEST_CONVERTED,
++    summary: `Demo request ${updated.requestNumber} ΓåÆ ${demoResult.demo.demoNumber}`,
++    payload: {
++      requestId: updated.id,
++      demoId: demoResult.demo.id,
++      opportunityCreated: false,
++      proposalCreated: false,
++      tenantProvisioned: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    request: serializeDemoRequest(updated),
++    demo: demoResult.demo,
++    alreadyExists: Boolean(demoResult.alreadyExists),
++  };
++}
++
++/**
++ * List Demo Requests (thin portfolio list).
++ */
++export async function listDemoRequests(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_request_view_forbidden' };
++  }
++  if (!hasCrmDemoRequestModel(prisma)) {
++    return {
++      ok: false,
++      error: 'crm_demo_request_model_unavailable',
++      status: 'UNAVAILABLE',
++    };
++  }
++
++  const where = {};
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  if (args.ownerAdminId) where.ownerAdminId = String(args.ownerAdminId).trim();
++  if (args.leadId) where.leadId = String(args.leadId).trim();
++  if (args.opportunityId) where.opportunityId = String(args.opportunityId).trim();
++
++  const limit = Math.min(Math.max(Number(args.limit) || 50, 1), 100);
++  let rows = [];
++  try {
++    rows = await prisma.crmDemoRequest.findMany({
++      where,
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++    });
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_request_list_failed' };
++  }
++
++  return {
++    ok: true,
++    requests: rows.map(serializeDemoRequest),
++    count: rows.length,
++  };
++}
++
++export { loadRequest as loadDemoRequest };
+diff --git "a/lib\\admin\\crm\\demos\\schedule.js" "b/lib\\admin\\crm\\demos\\schedule.js"
+new file mode 100644
+index 0000000..5b2d74f
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\schedule.js"
+@@ -0,0 +1,218 @@
++/**
++ * Demo scheduling ΓÇö Phase 14 Wave 1.
++ * Requires one CrmMeeting + Calendar Event; times reconcile via Phase 13 patterns.
++ * Demo Γëá Meeting; schedule does not fabricate attendance or Proposal.
++ */
++
++import {
++  CRM_DEMO_STATUS,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { createMeeting } from '../meetings/index.js';
++import { appendTimelineEvent } from '../timeline.js';
++import { getDemoDomainContract } from './catalogue.js';
++import { hasCrmDemoModel, serializeDemo } from './model.js';
++import { canEditDemos, loadDemo } from './service.js';
++import { evaluateDemoReadiness } from './readiness.js';
++
++function toUtcDate(value) {
++  if (!value) return null;
++  const d = value instanceof Date ? value : new Date(value);
++  return Number.isNaN(d.getTime()) ? null : d;
++}
++
++/**
++ * Schedule a Demo ΓåÆ create/link CrmMeeting + Calendar Event; reconcile times.
++ */
++export async function scheduleDemo(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_schedule_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const demo = await loadDemo(prisma, args.demoId);
++  if (!demo) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  if (
++    demo.status === CRM_DEMO_STATUS.CANCELLED ||
++    demo.status === CRM_DEMO_STATUS.ARCHIVED
++  ) {
++    return { ok: false, error: 'demo_not_schedulable', status: demo.status };
++  }
++
++  const timezone = args.timezone != null ? String(args.timezone).trim() : '';
++  if (!timezone) {
++    return { ok: false, error: 'timezone_required' };
++  }
++
++  const startsAtUtc = toUtcDate(args.startsAt || args.startsAtUtc);
++  const endsAtUtc = toUtcDate(args.endsAt || args.endsAtUtc);
++  if (!startsAtUtc || !endsAtUtc) {
++    return { ok: false, error: 'startsAt_and_endsAt_required' };
++  }
++  if (endsAtUtc <= startsAtUtc) {
++    return { ok: false, error: 'end_before_start' };
++  }
++
++  const scheduleKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : `demo-schedule:${demo.id}`;
++
++  // Idempotent retry ΓÇö exact key or already linked meeting with same window
++  if (demo.scheduleIdempotencyKey === scheduleKey && demo.meetingId) {
++    return {
++      ok: true,
++      demo: serializeDemo(demo),
++      alreadyExists: true,
++      meetingId: demo.meetingId,
++      calendarEventId: demo.calendarEventId,
++      domain: getDemoDomainContract(),
++    };
++  }
++
++  if (
++    demo.meetingId &&
++    demo.startsAtUtc &&
++    demo.endsAtUtc &&
++    new Date(demo.startsAtUtc).getTime() === startsAtUtc.getTime() &&
++    new Date(demo.endsAtUtc).getTime() === endsAtUtc.getTime() &&
++    String(demo.timezone || '') === timezone
++  ) {
++    return {
++      ok: true,
++      demo: serializeDemo(demo),
++      alreadyExists: true,
++      meetingId: demo.meetingId,
++      calendarEventId: demo.calendarEventId,
++      domain: getDemoDomainContract(),
++    };
++  }
++
++  const now = args.now || new Date();
++  const title = args.title || demo.title || `Demo ${demo.demoNumber}`;
++
++  const meetingResult = await createMeeting(prisma, {
++    admin: args.admin,
++    title,
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: demo.id,
++    contactId: args.contactId || demo.contactId,
++    purpose: args.purpose || 'DEMO_COMMUNICATION',
++    timezone,
++    startsAtUtc,
++    endsAtUtc,
++    startsAtOriginal: args.startsAtOriginal,
++    endsAtOriginal: args.endsAtOriginal,
++    location: args.location,
++    notes: args.notes != null ? args.notes : demo.notes,
++    visibility: args.visibility,
++    participants: args.participants,
++    sendInvitations: args.sendInvitations === true,
++    conflictPolicy: args.conflictPolicy,
++    conflictReason: args.conflictReason,
++    ownerAdminId: args.ownerAdminId || demo.ownerAdminId || args.admin?.id,
++    idempotencyKey: scheduleKey,
++    now,
++  });
++
++  if (!meetingResult.ok) {
++    return meetingResult;
++  }
++
++  if (meetingResult.alreadyExists && demo.meetingId === meetingResult.meeting?.id) {
++    return {
++      ok: true,
++      demo: serializeDemo(demo),
++      meeting: meetingResult.meeting,
++      calendarEvent: meetingResult.calendarEvent,
++      alreadyExists: true,
++      domain: getDemoDomainContract(),
++    };
++  }
++
++  const meetingId = meetingResult.meeting?.id || null;
++  const calendarEventId = meetingResult.calendarEvent?.id || null;
++
++  if (!meetingId) {
++    return { ok: false, error: 'meeting_create_returned_no_id' };
++  }
++
++  // Fail-closed: Meeting without Calendar is not a valid Demo schedule
++  if (!calendarEventId && !meetingResult.alreadyExists) {
++    return {
++      ok: false,
++      error: 'calendar_event_required_for_demo_schedule',
++      meeting: meetingResult.meeting,
++    };
++  }
++
++  let updated;
++  try {
++    updated = await prisma.crmDemo.update({
++      where: { id: demo.id },
++      data: {
++        status: CRM_DEMO_STATUS.SCHEDULED,
++        meetingId,
++        calendarEventId: calendarEventId || demo.calendarEventId,
++        timezone,
++        startsAtUtc,
++        endsAtUtc,
++        startsAtOriginal: args.startsAtOriginal
++          ? String(args.startsAtOriginal)
++          : demo.startsAtOriginal,
++        endsAtOriginal: args.endsAtOriginal
++          ? String(args.endsAtOriginal)
++          : demo.endsAtOriginal,
++        scheduleIdempotencyKey: scheduleKey,
++        updatedAt: now,
++      },
++    });
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_schedule_persist_failed' };
++  }
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: demo.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_SCHEDULED,
++    summary: `Demo ${demo.demoNumber} scheduled via Meeting ${meetingResult.meeting?.meetingNumber}`,
++    payload: {
++      meetingId,
++      calendarEventId,
++      startsAtUtc: startsAtUtc.toISOString(),
++      endsAtUtc: endsAtUtc.toISOString(),
++      timezone,
++      attendanceInvented: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  const readiness = await evaluateDemoReadiness(prisma, {
++    admin: args.admin,
++    demoId: demo.id,
++    now,
++    persist: true,
++    timeline: false,
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    meeting: meetingResult.meeting,
++    calendarEvent: meetingResult.calendarEvent,
++    activity: meetingResult.activity,
++    participants: meetingResult.participants,
++    conflicts: meetingResult.conflicts,
++    integrations: meetingResult.integrations,
++    readinessStatus: readiness.readinessStatus,
++    readinessBlockers: readiness.blockers,
++    alreadyExists: Boolean(meetingResult.alreadyExists),
++    domain: getDemoDomainContract(),
++  };
++}
+diff --git "a/lib\\admin\\crm\\demos\\service.js" "b/lib\\admin\\crm\\demos\\service.js"
+new file mode 100644
+index 0000000..12fa0bd
+--- /dev/null
++++ "b/lib\\admin\\crm\\demos\\service.js"
+@@ -0,0 +1,410 @@
++/**
++ * Demo service ΓÇö Phase 14 Wave 1.
++ * create / get / list / status. Demo Γëá Meeting; no Proposal/Tenant provision.
++ */
++
++import {
++  CRM_DEMO_STATUS,
++  CRM_READINESS_STATUS,
++  CRM_SUBJECT_TYPE,
++  CRM_TIMELINE_EVENT_TYPE,
++} from '../catalogue.js';
++import { resolveCrmAccess } from '../authz.js';
++import { appendTimelineEvent } from '../timeline.js';
++import {
++  canTransitionDemoStatus,
++  getDemoDomainContract,
++  isValidDemoStatus,
++} from './catalogue.js';
++import { allocateDemoNumber } from './numbering.js';
++import {
++  hasCrmDemoModel,
++  hasCrmDemoStatusHistoryModel,
++  serializeDemo,
++  serializeDemoParticipant,
++  serializeDemoStatusHistory,
++} from './model.js';
++import { evaluateDemoReadiness } from './readiness.js';
++
++function canEditDemos(access) {
++  return (
++    access.canEditActivities ||
++    access.canEditLeads ||
++    access.canEditOpportunities ||
++    access.canCreateLeads
++  );
++}
++
++function canViewDemos(access) {
++  return (
++    access.canViewActivities ||
++    access.canViewLeads ||
++    access.canViewOpportunities ||
++    access.canView
++  );
++}
++
++async function loadDemo(prisma, demoId) {
++  const id = demoId ? String(demoId).trim() : '';
++  if (!id || !hasCrmDemoModel(prisma)) return null;
++  try {
++    if (/^DEMO-\d{4}-\d{6}$/.test(id)) {
++      return await prisma.crmDemo.findUnique({ where: { demoNumber: id } });
++    }
++    return await prisma.crmDemo.findUnique({ where: { id } });
++  } catch {
++    return null;
++  }
++}
++
++async function recordStatusHistory(prisma, { demoId, fromStatus, toStatus, reason, adminId, at }) {
++  if (!hasCrmDemoStatusHistoryModel(prisma)) return null;
++  try {
++    return await prisma.crmDemoStatusHistory.create({
++      data: {
++        demoId,
++        fromStatus: fromStatus || null,
++        toStatus,
++        reason: reason || null,
++        changedByAdminId: adminId || null,
++        at: at || new Date(),
++      },
++    });
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Create a CrmDemo (DEMO-YYYY-######).
++ */
++export async function createDemo(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_create_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const now = args.now || new Date();
++  const idempotencyKey = args.idempotencyKey
++    ? String(args.idempotencyKey).trim()
++    : null;
++  const convertIdempotencyKey = args.convertIdempotencyKey
++    ? String(args.convertIdempotencyKey).trim()
++    : null;
++
++  if (convertIdempotencyKey) {
++    try {
++      const existing = await prisma.crmDemo.findUnique({
++        where: { convertIdempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          demo: serializeDemo(existing),
++          alreadyExists: true,
++          domain: getDemoDomainContract(),
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  if (idempotencyKey) {
++    try {
++      const existing = await prisma.crmDemo.findUnique({
++        where: { idempotencyKey },
++      });
++      if (existing) {
++        return {
++          ok: true,
++          demo: serializeDemo(existing),
++          alreadyExists: true,
++          domain: getDemoDomainContract(),
++        };
++      }
++    } catch {
++      // continue
++    }
++  }
++
++  const allocated = await allocateDemoNumber(prisma, { now });
++  if (!allocated.ok) {
++    return { ok: false, error: allocated.error || 'demo_number_allocation_failed' };
++  }
++
++  const title =
++    args.title != null ? String(args.title).trim().slice(0, 500) : 'Demo';
++  const status = args.status
++    ? String(args.status).trim().toUpperCase()
++    : CRM_DEMO_STATUS.PLANNED;
++  if (
++    status !== CRM_DEMO_STATUS.DRAFT &&
++    status !== CRM_DEMO_STATUS.PLANNED
++  ) {
++    return { ok: false, error: 'invalid_initial_demo_status' };
++  }
++
++  let row;
++  try {
++    row = await prisma.crmDemo.create({
++      data: {
++        demoNumber: allocated.number,
++        status,
++        readinessStatus: CRM_READINESS_STATUS.NOT_READY,
++        requestId: args.requestId ? String(args.requestId).trim() : null,
++        leadId: args.leadId ? String(args.leadId).trim() : null,
++        opportunityId: args.opportunityId
++          ? String(args.opportunityId).trim()
++          : null,
++        accountId: args.accountId ? String(args.accountId).trim() : null,
++        contactId: args.contactId ? String(args.contactId).trim() : null,
++        title,
++        notes: args.notes != null ? String(args.notes).trim().slice(0, 4000) : null,
++        ownerAdminId: args.ownerAdminId || args.admin?.id || null,
++        createdByAdminId: args.admin?.id || null,
++        convertIdempotencyKey,
++        idempotencyKey,
++        createdAt: now,
++        updatedAt: now,
++      },
++    });
++  } catch (err) {
++    if (convertIdempotencyKey) {
++      try {
++        const raced = await prisma.crmDemo.findUnique({
++          where: { convertIdempotencyKey },
++        });
++        if (raced) {
++          return {
++            ok: true,
++            demo: serializeDemo(raced),
++            alreadyExists: true,
++            domain: getDemoDomainContract(),
++          };
++        }
++      } catch {
++        // fall through
++      }
++    }
++    if (idempotencyKey) {
++      try {
++        const raced = await prisma.crmDemo.findUnique({
++          where: { idempotencyKey },
++        });
++        if (raced) {
++          return {
++            ok: true,
++            demo: serializeDemo(raced),
++            alreadyExists: true,
++            domain: getDemoDomainContract(),
++          };
++        }
++      } catch {
++        // fall through
++      }
++    }
++    return { ok: false, error: err?.message || 'demo_create_failed' };
++  }
++
++  await recordStatusHistory(prisma, {
++    demoId: row.id,
++    fromStatus: null,
++    toStatus: status,
++    reason: 'create',
++    adminId: args.admin?.id,
++    at: now,
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_CREATED,
++    summary: `Demo ${row.demoNumber} created`,
++    payload: {
++      demoId: row.id,
++      demoNumber: row.demoNumber,
++      proposalCreated: false,
++      tenantProvisioned: false,
++    },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(row),
++    domain: getDemoDomainContract(),
++  };
++}
++
++/**
++ * Get a Demo by id or DEMO- number.
++ */
++export async function getDemo(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_view_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadDemo(prisma, args.demoId);
++  if (!row) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  let participants = [];
++  if (typeof prisma.crmDemoParticipant?.findMany === 'function') {
++    try {
++      participants = await prisma.crmDemoParticipant.findMany({
++        where: { demoId: row.id },
++      });
++    } catch {
++      participants = [];
++    }
++  }
++
++  return {
++    ok: true,
++    demo: serializeDemo(row),
++    participants: participants.map(serializeDemoParticipant),
++    domain: getDemoDomainContract(),
++  };
++}
++
++/**
++ * List Demos.
++ */
++export async function listDemos(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canViewDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_view_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const where = {};
++  if (args.status) where.status = String(args.status).trim().toUpperCase();
++  if (args.ownerAdminId) where.ownerAdminId = String(args.ownerAdminId).trim();
++  if (args.leadId) where.leadId = String(args.leadId).trim();
++  if (args.opportunityId) where.opportunityId = String(args.opportunityId).trim();
++  if (args.requestId) where.requestId = String(args.requestId).trim();
++
++  const limit = Math.min(Math.max(Number(args.limit) || 50, 1), 100);
++  let rows = [];
++  try {
++    rows = await prisma.crmDemo.findMany({
++      where,
++      orderBy: { createdAt: 'desc' },
++      take: limit,
++    });
++  } catch (err) {
++    return { ok: false, error: err?.message || 'demo_list_failed' };
++  }
++
++  return {
++    ok: true,
++    demos: rows.map(serializeDemo),
++    count: rows.length,
++    domain: getDemoDomainContract(),
++  };
++}
++
++/**
++ * Transition Demo status. READY_TO_DELIVER blocked when readiness blockers present.
++ */
++export async function transitionDemoStatus(prisma, args = {}) {
++  const access = resolveCrmAccess(args.admin);
++  if (!canEditDemos(access)) {
++    return { ok: false, forbidden: true, reason: 'crm_demo_status_forbidden' };
++  }
++  if (!hasCrmDemoModel(prisma)) {
++    return { ok: false, error: 'crm_demo_model_unavailable', status: 'UNAVAILABLE' };
++  }
++
++  const row = await loadDemo(prisma, args.demoId);
++  if (!row) return { ok: false, notFound: true, error: 'demo_not_found' };
++
++  const toStatus = String(args.toStatus || args.status || '')
++    .trim()
++    .toUpperCase();
++  if (!isValidDemoStatus(toStatus)) {
++    return { ok: false, error: 'invalid_demo_status' };
++  }
++  if (row.status === toStatus) {
++    return { ok: true, demo: serializeDemo(row), alreadyInStatus: true };
++  }
++  if (!canTransitionDemoStatus(row.status, toStatus)) {
++    return {
++      ok: false,
++      error: 'demo_status_transition_forbidden',
++      from: row.status,
++      to: toStatus,
++    };
++  }
++
++  const now = args.now || new Date();
++
++  if (toStatus === CRM_DEMO_STATUS.READY_TO_DELIVER) {
++    const readiness = await evaluateDemoReadiness(prisma, {
++      admin: args.admin,
++      demoId: row.id,
++      now,
++      persist: true,
++    });
++    if (!readiness.ok) return readiness;
++    if (
++      readiness.readinessStatus === CRM_READINESS_STATUS.BLOCKED ||
++      readiness.readinessStatus === CRM_READINESS_STATUS.NOT_READY ||
++      readiness.blockers?.length
++    ) {
++      return {
++        ok: false,
++        error: 'demo_not_ready_to_deliver',
++        readinessStatus: readiness.readinessStatus,
++        blockers: readiness.blockers,
++        items: readiness.items,
++      };
++    }
++  }
++
++  const updated = await prisma.crmDemo.update({
++    where: { id: row.id },
++    data: {
++      status: toStatus,
++      updatedAt: now,
++    },
++  });
++
++  const history = await recordStatusHistory(prisma, {
++    demoId: row.id,
++    fromStatus: row.status,
++    toStatus,
++    reason: args.reason || null,
++    adminId: args.admin?.id,
++    at: now,
++  });
++
++  await appendTimelineEvent(prisma, {
++    subjectType: CRM_SUBJECT_TYPE.DEMO,
++    subjectId: row.id,
++    eventType: CRM_TIMELINE_EVENT_TYPE.DEMO_STATUS_CHANGED,
++    summary: `Demo ${row.demoNumber}: ${row.status} ΓåÆ ${toStatus}`,
++    payload: { fromStatus: row.status, toStatus },
++    actorAdminId: args.admin?.id || null,
++    at: now,
++  });
++
++  return {
++    ok: true,
++    demo: serializeDemo(updated),
++    history: serializeDemoStatusHistory(history),
++    domain: getDemoDomainContract(),
++  };
++}
++
++export { loadDemo, canEditDemos, canViewDemos };
+diff --git a/scripts/sql/crm-demo-phase14-wave1.sql b/scripts/sql/crm-demo-phase14-wave1.sql
+new file mode 100644
+index 0000000..031456a
+--- /dev/null
++++ b/scripts/sql/crm-demo-phase14-wave1.sql
+@@ -0,0 +1,112 @@
++-- Phase 14 Wave 1 ΓÇö CrmDemoRequest + CrmDemo + participants + status history (PostgreSQL).
++-- Prefer: npx prisma db push (or migrate) + npx prisma generate.
++-- Use this when prisma generate / db push hits Windows EPERM on the query engine.
++-- Safe to re-run with IF NOT EXISTS where supported.
++--
++-- Demo Γëá Meeting; convert Γëá Opportunity create; RSVP Γëá attendance.
++-- Never alias MRA EIS sandbox as Demo Environment.
++
++CREATE TABLE IF NOT EXISTS "CrmDemoRequest" (
++  "id" TEXT PRIMARY KEY,
++  "requestNumber" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'NEW',
++  "leadId" TEXT,
++  "opportunityId" TEXT,
++  "accountId" TEXT,
++  "contactId" TEXT,
++  "title" TEXT,
++  "notes" TEXT,
++  "source" TEXT,
++  "ownerAdminId" TEXT,
++  "createdByAdminId" TEXT,
++  "convertedDemoId" TEXT,
++  "convertIdempotencyKey" TEXT,
++  "rejectedReason" TEXT,
++  "qualifiedAt" TIMESTAMP(3),
++  "convertedAt" TIMESTAMP(3),
++  "rejectedAt" TIMESTAMP(3),
++  "idempotencyKey" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoRequest_requestNumber_key" ON "CrmDemoRequest"("requestNumber");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoRequest_convertIdempotencyKey_key" ON "CrmDemoRequest"("convertIdempotencyKey");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoRequest_idempotencyKey_key" ON "CrmDemoRequest"("idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmDemoRequest_status_createdAt_idx" ON "CrmDemoRequest"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmDemoRequest_leadId_idx" ON "CrmDemoRequest"("leadId");
++CREATE INDEX IF NOT EXISTS "CrmDemoRequest_opportunityId_idx" ON "CrmDemoRequest"("opportunityId");
++CREATE INDEX IF NOT EXISTS "CrmDemoRequest_contactId_idx" ON "CrmDemoRequest"("contactId");
++CREATE INDEX IF NOT EXISTS "CrmDemoRequest_owner_status_idx" ON "CrmDemoRequest"("ownerAdminId", "status");
++
++CREATE TABLE IF NOT EXISTS "CrmDemo" (
++  "id" TEXT PRIMARY KEY,
++  "demoNumber" TEXT NOT NULL,
++  "status" TEXT NOT NULL DEFAULT 'PLANNED',
++  "readinessStatus" TEXT NOT NULL DEFAULT 'NOT_READY',
++  "readinessJson" JSONB,
++  "requestId" TEXT,
++  "leadId" TEXT,
++  "opportunityId" TEXT,
++  "accountId" TEXT,
++  "contactId" TEXT,
++  "meetingId" TEXT,
++  "calendarEventId" TEXT,
++  "title" TEXT,
++  "notes" TEXT,
++  "timezone" TEXT,
++  "startsAtUtc" TIMESTAMP(3),
++  "endsAtUtc" TIMESTAMP(3),
++  "startsAtOriginal" TEXT,
++  "endsAtOriginal" TEXT,
++  "ownerAdminId" TEXT,
++  "createdByAdminId" TEXT,
++  "convertIdempotencyKey" TEXT,
++  "scheduleIdempotencyKey" TEXT,
++  "idempotencyKey" TEXT,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemo_demoNumber_key" ON "CrmDemo"("demoNumber");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemo_convertIdempotencyKey_key" ON "CrmDemo"("convertIdempotencyKey");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemo_scheduleIdempotencyKey_key" ON "CrmDemo"("scheduleIdempotencyKey");
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemo_idempotencyKey_key" ON "CrmDemo"("idempotencyKey");
++CREATE INDEX IF NOT EXISTS "CrmDemo_status_createdAt_idx" ON "CrmDemo"("status", "createdAt");
++CREATE INDEX IF NOT EXISTS "CrmDemo_readinessStatus_idx" ON "CrmDemo"("readinessStatus");
++CREATE INDEX IF NOT EXISTS "CrmDemo_leadId_idx" ON "CrmDemo"("leadId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_opportunityId_idx" ON "CrmDemo"("opportunityId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_requestId_idx" ON "CrmDemo"("requestId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_meetingId_idx" ON "CrmDemo"("meetingId");
++CREATE INDEX IF NOT EXISTS "CrmDemo_owner_status_idx" ON "CrmDemo"("ownerAdminId", "status");
++CREATE INDEX IF NOT EXISTS "CrmDemo_contactId_idx" ON "CrmDemo"("contactId");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoParticipant" (
++  "id" TEXT PRIMARY KEY,
++  "demoId" TEXT NOT NULL,
++  "participantType" TEXT NOT NULL,
++  "participantId" TEXT NOT NULL,
++  "role" TEXT NOT NULL DEFAULT 'REQUIRED',
++  "rsvpStatus" TEXT NOT NULL DEFAULT 'PENDING',
++  "attendanceStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
++  "invitationStatus" TEXT NOT NULL DEFAULT 'NOT_SENT',
++  "eligibilityJson" JSONB,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "CrmDemoParticipant_demo_participant_role_key"
++  ON "CrmDemoParticipant"("demoId", "participantType", "participantId", "role");
++CREATE INDEX IF NOT EXISTS "CrmDemoParticipant_demoId_idx" ON "CrmDemoParticipant"("demoId");
++CREATE INDEX IF NOT EXISTS "CrmDemoParticipant_participant_idx"
++  ON "CrmDemoParticipant"("participantType", "participantId");
++CREATE INDEX IF NOT EXISTS "CrmDemoParticipant_role_idx" ON "CrmDemoParticipant"("role");
++
++CREATE TABLE IF NOT EXISTS "CrmDemoStatusHistory" (
++  "id" TEXT PRIMARY KEY,
++  "demoId" TEXT NOT NULL,
++  "fromStatus" TEXT,
++  "toStatus" TEXT NOT NULL,
++  "reason" TEXT,
++  "changedByAdminId" TEXT,
++  "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS "CrmDemoStatusHistory_demo_at_idx" ON "CrmDemoStatusHistory"("demoId", "at");
++CREATE INDEX IF NOT EXISTS "CrmDemoStatusHistory_changedBy_idx" ON "CrmDemoStatusHistory"("changedByAdminId");
+diff --git a/test/systemAdmin.crm.demoWave1.test.js b/test/systemAdmin.crm.demoWave1.test.js
+new file mode 100644
+index 0000000..e2289c4
+--- /dev/null
++++ b/test/systemAdmin.crm.demoWave1.test.js
+@@ -0,0 +1,787 @@
++/**
++ * Phase 14 Wave 1 ΓÇö Demo Request + Demo + schedule + participants + readiness.
++ * Demo Γëá Meeting; convert idempotent; RSVP Γëá attendance; no Proposal/Tenant.
++ */
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import {
++  CRM_DEMO_NUMBER_RE,
++  CRM_DEMO_REQUEST_NUMBER_RE,
++  CRM_DEMO_REQUEST_STATUS,
++  CRM_DEMO_STATUS,
++  CRM_DEMO_PARTICIPANT_ROLE,
++  CRM_DEMO_PARTICIPANT_TYPE,
++  CRM_READINESS_STATUS,
++  CRM_MEETING_NUMBER_RE,
++  allocateDemoRequestNumber,
++  allocateDemoNumber,
++  createDemoRequest,
++  qualifyDemoRequest,
++  rejectDemoRequest,
++  convertDemoRequest,
++  createDemo,
++  getDemo,
++  listDemos,
++  transitionDemoStatus,
++  scheduleDemo,
++  evaluateDemoReadiness,
++  addDemoParticipant,
++  removeDemoParticipant,
++  getDemoDomainContract,
++} from '@/lib/admin/crm';
++
++function makeAdmin(id, crmPerms = {}, role = 'Platform Support') {
++  return {
++    id,
++    role,
++    permissions: {
++      systemAdmin: {
++        crm: { ...crmPerms },
++      },
++    },
++  };
++}
++
++function superAdmin(id = 'super-1') {
++  return { id, role: 'Super Admin', permissions: {} };
++}
++
++function makePrisma(overrides = {}) {
++  const seqStore = overrides._seqStore || [];
++  const activityStore = overrides._activityStore || [];
++  const statusHistoryStore = overrides._statusHistoryStore || [];
++  const relationStore = overrides._relationStore || [];
++  const participantStore = overrides._participantStore || [];
++  const meetingStore = overrides._meetingStore || [];
++  const meetingParticipantStore = overrides._meetingParticipantStore || [];
++  const rescheduleStore = overrides._rescheduleStore || [];
++  const calendarStore = overrides._calendarStore || [];
++  const followUpStore = overrides._followUpStore || [];
++  const timelineStore = overrides._timelineStore || [];
++  const consentStore = overrides._consentStore || [];
++  const dncStore = overrides._dncStore || [];
++  const demoRequestStore = overrides._demoRequestStore || [];
++  const demoStore = overrides._demoStore || [];
++  const demoParticipantStore = overrides._demoParticipantStore || [];
++  const demoStatusHistoryStore = overrides._demoStatusHistoryStore || [];
++  const contactStore = overrides._contactStore || [
++    { id: 'con-ok', contactNumber: 'CON-2026-000001', email: 'ok@example.com' },
++  ];
++
++  const prisma = {
++    $transaction: vi.fn(async (fn) => fn(prisma)),
++    crmNumberSeq: {
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        const key = where.prefix_year || where;
++        return (
++          seqStore.find((r) => r.prefix === key.prefix && r.year === key.year) || null
++        );
++      }),
++      create: vi.fn(async ({ data }) => {
++        const row = { ...data, updatedAt: new Date() };
++        seqStore.push(row);
++        return row;
++      }),
++      updateMany: vi.fn(async ({ where, data }) => {
++        const row = seqStore.find(
++          (r) =>
++            r.prefix === where.prefix &&
++            r.year === where.year &&
++            r.lastIssued === where.lastIssued
++        );
++        if (!row) return { count: 0 };
++        row.lastIssued = data.lastIssued;
++        return { count: 1 };
++      }),
++    },
++    crmActivity: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `act-${activityStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        activityStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return activityStore.find((r) => r.id === where.id) || null;
++        if (where.idempotencyKey) {
++          return activityStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        return null;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = activityStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmActivityStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `ash-${statusHistoryStore.length + 1}`, ...data };
++        statusHistoryStore.push(row);
++        return row;
++      }),
++    },
++    crmActivityRelation: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `rel-${relationStore.length + 1}`, ...data };
++        relationStore.push(row);
++        return row;
++      }),
++    },
++    crmActivityParticipant: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `part-${participantStore.length + 1}`, ...data };
++        participantStore.push(row);
++        return row;
++      }),
++    },
++    crmMeeting: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `meet-${meetingStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          outcome: data.outcome ?? null,
++          consentBlocked: data.consentBlocked === true,
++          eligibilityJson: data.eligibilityJson ?? null,
++          ...data,
++        };
++        meetingStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return meetingStore.find((r) => r.id === where.id) || null;
++        if (where.meetingNumber) {
++          return meetingStore.find((r) => r.meetingNumber === where.meetingNumber) || null;
++        }
++        if (where.idempotencyKey) {
++          return meetingStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...meetingStore];
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.ownerAdminId) {
++          rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
++        }
++        if (where.AND) {
++          for (const clause of where.AND) {
++            if (clause.startsAtUtc?.lt) {
++              rows = rows.filter((r) => new Date(r.startsAtUtc) < new Date(clause.startsAtUtc.lt));
++            }
++            if (clause.endsAtUtc?.gt) {
++              rows = rows.filter((r) => new Date(r.endsAtUtc) > new Date(clause.endsAtUtc.gt));
++            }
++            if (clause.status?.not) {
++              rows = rows.filter((r) => r.status !== clause.status.not);
++            }
++            if (clause.status?.in) {
++              rows = rows.filter((r) => clause.status.in.includes(r.status));
++            }
++            if (clause.id?.not) {
++              rows = rows.filter((r) => r.id !== clause.id.not);
++            }
++            if (clause.ownerAdminId) {
++              rows = rows.filter((r) => r.ownerAdminId === clause.ownerAdminId);
++            }
++          }
++        }
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = meetingStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmMeetingParticipant: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `mp-${meetingParticipantStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        meetingParticipantStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...meetingParticipantStore];
++        if (where.meetingId) rows = rows.filter((r) => r.meetingId === where.meetingId);
++        return rows;
++      }),
++    },
++    crmMeetingRescheduleHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `mrh-${rescheduleStore.length + 1}`, ...data };
++        rescheduleStore.push(row);
++        return row;
++      }),
++    },
++    crmCalendarEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `cal-${calendarStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        calendarStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...calendarStore];
++        if (where.meetingId) rows = rows.filter((r) => r.meetingId === where.meetingId);
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.ownerAdminId) {
++          rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
++        }
++        if (where.AND) {
++          for (const clause of where.AND) {
++            if (clause.startsAtUtc?.lt) {
++              rows = rows.filter((r) => new Date(r.startsAtUtc) < new Date(clause.startsAtUtc.lt));
++            }
++            if (clause.endsAtUtc?.gt) {
++              rows = rows.filter((r) => new Date(r.endsAtUtc) > new Date(clause.endsAtUtc.gt));
++            }
++            if (clause.status?.not) {
++              rows = rows.filter((r) => r.status !== clause.status.not);
++            }
++            if (clause.meetingId?.not) {
++              rows = rows.filter((r) => r.meetingId !== clause.meetingId.not);
++            }
++            if (clause.ownerAdminId) {
++              rows = rows.filter((r) => r.ownerAdminId === clause.ownerAdminId);
++            }
++          }
++        }
++        return rows;
++      }),
++      updateMany: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        let count = 0;
++        for (const row of calendarStore) {
++          if (where.meetingId && row.meetingId !== where.meetingId) continue;
++          Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++          count += 1;
++        }
++        return { count };
++      }),
++    },
++    crmDemoRequest: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `dmr-${demoRequestStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          convertedDemoId: data.convertedDemoId ?? null,
++          convertIdempotencyKey: data.convertIdempotencyKey ?? null,
++          ...data,
++        };
++        demoRequestStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return demoRequestStore.find((r) => r.id === where.id) || null;
++        if (where.requestNumber) {
++          return demoRequestStore.find((r) => r.requestNumber === where.requestNumber) || null;
++        }
++        if (where.idempotencyKey) {
++          return demoRequestStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        if (where.convertIdempotencyKey) {
++          return (
++            demoRequestStore.find(
++              (r) => r.convertIdempotencyKey === where.convertIdempotencyKey
++            ) || null
++          );
++        }
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...demoRequestStore];
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = demoRequestStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmDemo: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `demo-${demoStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          meetingId: data.meetingId ?? null,
++          calendarEventId: data.calendarEventId ?? null,
++          readinessJson: data.readinessJson ?? null,
++          ...data,
++        };
++        demoStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return demoStore.find((r) => r.id === where.id) || null;
++        if (where.demoNumber) {
++          return demoStore.find((r) => r.demoNumber === where.demoNumber) || null;
++        }
++        if (where.idempotencyKey) {
++          return demoStore.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
++        }
++        if (where.convertIdempotencyKey) {
++          return (
++            demoStore.find((r) => r.convertIdempotencyKey === where.convertIdempotencyKey) ||
++            null
++          );
++        }
++        if (where.scheduleIdempotencyKey) {
++          return (
++            demoStore.find((r) => r.scheduleIdempotencyKey === where.scheduleIdempotencyKey) ||
++            null
++          );
++        }
++        return null;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...demoStore];
++        if (where.status) rows = rows.filter((r) => r.status === where.status);
++        if (where.leadId) rows = rows.filter((r) => r.leadId === where.leadId);
++        if (where.opportunityId) {
++          rows = rows.filter((r) => r.opportunityId === where.opportunityId);
++        }
++        if (where.requestId) rows = rows.filter((r) => r.requestId === where.requestId);
++        return rows;
++      }),
++      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
++        const row = demoStore.find((r) => r.id === where.id);
++        if (!row) throw new Error('not found');
++        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
++        return row;
++      }),
++    },
++    crmDemoParticipant: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `dp-${demoParticipantStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          attendanceStatus: data.attendanceStatus || 'UNKNOWN',
++          rsvpStatus: data.rsvpStatus || 'PENDING',
++          ...data,
++        };
++        demoParticipantStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return demoParticipantStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        return (
++          demoParticipantStore.find(
++            (r) =>
++              (!where.demoId || r.demoId === where.demoId) &&
++              (!where.participantType || r.participantType === where.participantType) &&
++              (!where.participantId || r.participantId === where.participantId) &&
++              (!where.role || r.role === where.role)
++          ) || null
++        );
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...demoParticipantStore];
++        if (where.demoId) rows = rows.filter((r) => r.demoId === where.demoId);
++        return rows;
++      }),
++      delete: vi.fn(async ({ where = {} } = {}) => {
++        const idx = demoParticipantStore.findIndex((r) => r.id === where.id);
++        if (idx < 0) throw new Error('not found');
++        const [row] = demoParticipantStore.splice(idx, 1);
++        return row;
++      }),
++    },
++    crmDemoStatusHistory: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `dsh-${demoStatusHistoryStore.length + 1}`, ...data };
++        demoStatusHistoryStore.push(row);
++        return row;
++      }),
++    },
++    crmFollowUp: {
++      create: vi.fn(async ({ data }) => {
++        const row = {
++          id: data.id || `fu-${followUpStore.length + 1}`,
++          createdAt: data.createdAt || new Date(),
++          updatedAt: data.updatedAt || new Date(),
++          ...data,
++        };
++        followUpStore.push(row);
++        return row;
++      }),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return followUpStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++    },
++    crmContact: {
++      findMany: vi.fn(async () => [...contactStore]),
++      findUnique: vi.fn(async ({ where = {} } = {}) => {
++        if (where.id) return contactStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++      findFirst: vi.fn(async ({ where = {} } = {}) => {
++        if (where.OR) {
++          return (
++            contactStore.find((r) =>
++              where.OR.some(
++                (c) =>
++                  (c.id && r.id === c.id) ||
++                  (c.contactNumber && r.contactNumber === c.contactNumber)
++              )
++            ) || null
++          );
++        }
++        if (where.id) return contactStore.find((r) => r.id === where.id) || null;
++        return null;
++      }),
++    },
++    crmFollowUpHistory: {
++      create: vi.fn(async ({ data }) => data),
++    },
++    crmTimelineEvent: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `tl-${timelineStore.length + 1}`, ...data };
++        timelineStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...timelineStore]),
++    },
++    crmConsentRecord: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `cons-${consentStore.length + 1}`, ...data };
++        consentStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async ({ where = {} } = {}) => {
++        let rows = [...consentStore];
++        if (where.contactId) rows = rows.filter((r) => r.contactId === where.contactId);
++        return rows;
++      }),
++      findFirst: vi.fn(async () => null),
++    },
++    crmDoNotContact: {
++      create: vi.fn(async ({ data }) => {
++        const row = { id: `dnc-${dncStore.length + 1}`, ...data };
++        dncStore.push(row);
++        return row;
++      }),
++      findMany: vi.fn(async () => [...dncStore]),
++      findFirst: vi.fn(async () => null),
++    },
++    _stores: {
++      seqStore,
++      demoRequestStore,
++      demoStore,
++      demoParticipantStore,
++      meetingStore,
++      calendarStore,
++      timelineStore,
++    },
++  };
++
++  return prisma;
++}
++
++describe('Phase 14 Wave 1 ΓÇö Demo Request + Demo spine', () => {
++  let prisma;
++  let admin;
++
++  beforeEach(() => {
++    prisma = makePrisma();
++    admin = superAdmin();
++  });
++
++  it('allocates unique immutable DMR and DEMO numbers', async () => {
++    const dmr = await allocateDemoRequestNumber(prisma);
++    const demo = await allocateDemoNumber(prisma);
++    expect(dmr.ok).toBe(true);
++    expect(demo.ok).toBe(true);
++    expect(dmr.number).toMatch(CRM_DEMO_REQUEST_NUMBER_RE);
++    expect(demo.number).toMatch(CRM_DEMO_NUMBER_RE);
++
++    const dmr2 = await allocateDemoRequestNumber(prisma);
++    const demo2 = await allocateDemoNumber(prisma);
++    expect(dmr2.number).not.toBe(dmr.number);
++    expect(demo2.number).not.toBe(demo.number);
++  });
++
++  it('creates, qualifies, rejects demo requests', async () => {
++    const created = await createDemoRequest(prisma, {
++      admin,
++      title: 'Acme demo',
++      leadId: 'lead-1',
++      contactId: 'con-ok',
++      source: 'REQUEST_DEMO',
++    });
++    expect(created.ok).toBe(true);
++    expect(created.request.requestNumber).toMatch(CRM_DEMO_REQUEST_NUMBER_RE);
++    expect(created.request.status).toBe(CRM_DEMO_REQUEST_STATUS.NEW);
++
++    const qualified = await qualifyDemoRequest(prisma, {
++      admin,
++      requestId: created.request.id,
++    });
++    expect(qualified.ok).toBe(true);
++    expect(qualified.request.status).toBe(CRM_DEMO_REQUEST_STATUS.QUALIFIED);
++
++    const req2 = await createDemoRequest(prisma, {
++      admin,
++      title: 'Reject me',
++      leadId: 'lead-2',
++    });
++    const rejected = await rejectDemoRequest(prisma, {
++      admin,
++      requestId: req2.request.id,
++      reason: 'Not a fit',
++    });
++    expect(rejected.ok).toBe(true);
++    expect(rejected.request.status).toBe(CRM_DEMO_REQUEST_STATUS.REJECTED);
++  });
++
++  it('convert is idempotent ΓÇö exact retry returns existing Demo', async () => {
++    const created = await createDemoRequest(prisma, {
++      admin,
++      title: 'Convert path',
++      leadId: 'lead-c',
++      contactId: 'con-ok',
++      opportunityId: 'opp-1',
++    });
++    await qualifyDemoRequest(prisma, { admin, requestId: created.request.id });
++
++    const first = await convertDemoRequest(prisma, {
++      admin,
++      requestId: created.request.id,
++    });
++    expect(first.ok).toBe(true);
++    expect(first.alreadyExists).toBeFalsy();
++    expect(first.demo.demoNumber).toMatch(CRM_DEMO_NUMBER_RE);
++    expect(first.request.status).toBe(CRM_DEMO_REQUEST_STATUS.CONVERTED);
++    expect(first.demo.proposalCreated).toBe(false);
++    expect(first.demo.tenantProvisioned).toBe(false);
++
++    const second = await convertDemoRequest(prisma, {
++      admin,
++      requestId: created.request.id,
++    });
++    expect(second.ok).toBe(true);
++    expect(second.alreadyExists).toBe(true);
++    expect(second.demo.id).toBe(first.demo.id);
++    expect(second.demo.demoNumber).toBe(first.demo.demoNumber);
++    expect(prisma._stores.demoStore.length).toBe(1);
++  });
++
++  it('schedule creates Meeting + Calendar and reconciles times; end-before-start blocked', async () => {
++    const demo = await createDemo(prisma, {
++      admin,
++      title: 'Schedule me',
++      contactId: 'con-ok',
++      leadId: 'lead-s',
++    });
++    expect(demo.ok).toBe(true);
++
++    const bad = await scheduleDemo(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      timezone: 'Africa/Blantyre',
++      startsAt: '2026-08-01T10:00:00.000Z',
++      endsAt: '2026-08-01T09:00:00.000Z',
++    });
++    expect(bad.ok).toBe(false);
++    expect(bad.error).toBe('end_before_start');
++
++    const noTz = await scheduleDemo(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      startsAt: '2026-08-01T10:00:00.000Z',
++      endsAt: '2026-08-01T11:00:00.000Z',
++    });
++    expect(noTz.ok).toBe(false);
++    expect(noTz.error).toBe('timezone_required');
++
++    const scheduled = await scheduleDemo(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      timezone: 'Africa/Blantyre',
++      startsAt: '2026-08-01T10:00:00.000Z',
++      endsAt: '2026-08-01T11:00:00.000Z',
++      idempotencyKey: 'sched-1',
++    });
++    expect(scheduled.ok).toBe(true);
++    expect(scheduled.demo.status).toBe(CRM_DEMO_STATUS.SCHEDULED);
++    expect(scheduled.demo.meetingId).toBeTruthy();
++    expect(scheduled.demo.calendarEventId).toBeTruthy();
++    expect(scheduled.meeting.meetingNumber).toMatch(CRM_MEETING_NUMBER_RE);
++    expect(scheduled.demo.startsAtUtc).toBe('2026-08-01T10:00:00.000Z');
++    expect(scheduled.demo.endsAtUtc).toBe('2026-08-01T11:00:00.000Z');
++    expect(scheduled.demo.timezone).toBe('Africa/Blantyre');
++
++    const retry = await scheduleDemo(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      timezone: 'Africa/Blantyre',
++      startsAt: '2026-08-01T10:00:00.000Z',
++      endsAt: '2026-08-01T11:00:00.000Z',
++      idempotencyKey: 'sched-1',
++    });
++    expect(retry.ok).toBe(true);
++    expect(retry.alreadyExists).toBe(true);
++    expect(prisma._stores.meetingStore.length).toBe(1);
++  });
++
++  it('readiness blocks READY_TO_DELIVER when Meeting/presenter/Contact missing', async () => {
++    const demo = await createDemo(prisma, {
++      admin,
++      title: 'Readiness',
++    });
++    expect(demo.ok).toBe(true);
++
++    const eval1 = await evaluateDemoReadiness(prisma, {
++      admin,
++      demoId: demo.demo.id,
++    });
++    expect(eval1.ok).toBe(true);
++    expect(eval1.readinessStatus).toBe(CRM_READINESS_STATUS.BLOCKED);
++    expect(eval1.blockers).toEqual(
++      expect.arrayContaining(['meeting_linked', 'presenter_assigned', 'primary_contact'])
++    );
++
++    // Schedule alone clears meeting/calendar but not presenter/contact
++    const scheduled = await scheduleDemo(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      timezone: 'UTC',
++      startsAt: '2026-08-02T10:00:00.000Z',
++      endsAt: '2026-08-02T11:00:00.000Z',
++    });
++    expect(scheduled.ok).toBe(true);
++    expect(scheduled.demo.status).toBe(CRM_DEMO_STATUS.SCHEDULED);
++
++    const blocked = await transitionDemoStatus(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      toStatus: CRM_DEMO_STATUS.READY_TO_DELIVER,
++    });
++    expect(blocked.ok).toBe(false);
++    expect(blocked.error).toBe('demo_not_ready_to_deliver');
++    expect(blocked.blockers).toEqual(
++      expect.arrayContaining(['presenter_assigned', 'primary_contact'])
++    );
++
++    await addDemoParticipant(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      participantType: CRM_DEMO_PARTICIPANT_TYPE.ADMIN,
++      participantId: admin.id,
++      role: CRM_DEMO_PARTICIPANT_ROLE.PRESENTER,
++    });
++    await addDemoParticipant(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      participantType: CRM_DEMO_PARTICIPANT_TYPE.CONTACT,
++      participantId: 'con-ok',
++      role: CRM_DEMO_PARTICIPANT_ROLE.PRIMARY_CONTACT,
++    });
++
++    const eval2 = await evaluateDemoReadiness(prisma, {
++      admin,
++      demoId: demo.demo.id,
++    });
++    expect(eval2.ok).toBe(true);
++    expect(eval2.blockers).toEqual([]);
++    expect(
++      [CRM_READINESS_STATUS.READY, CRM_READINESS_STATUS.PARTIALLY_READY].includes(
++        eval2.readinessStatus
++      )
++    ).toBe(true);
++
++    const ready = await transitionDemoStatus(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      toStatus: CRM_DEMO_STATUS.READY_TO_DELIVER,
++    });
++    expect(ready.ok).toBe(true);
++    expect(ready.demo.status).toBe(CRM_DEMO_STATUS.READY_TO_DELIVER);
++  });
++
++  it('participants keep attendance UNKNOWN; RSVP never invents attendance; domain contract honest', async () => {
++    const demo = await createDemo(prisma, {
++      admin,
++      title: 'Participants',
++      contactId: 'con-ok',
++    });
++    const added = await addDemoParticipant(prisma, {
++      admin,
++      demoId: demo.demo.id,
++      participantType: CRM_DEMO_PARTICIPANT_TYPE.CONTACT,
++      participantId: 'con-ok',
++      role: CRM_DEMO_PARTICIPANT_ROLE.PRIMARY_CONTACT,
++    });
++    expect(added.ok).toBe(true);
++    expect(added.participant.attendanceStatus).toBe('UNKNOWN');
++    expect(added.participant.rsvpStatus).toBe('PENDING');
++
++    const removed = await removeDemoParticipant(prisma, {
++      admin,
++      participantRecordId: added.participant.id,
++    });
++    expect(removed.ok).toBe(true);
++
++    const contract = getDemoDomainContract();
++    expect(contract.demoEqualsMeeting).toBe(false);
++    expect(contract.mraEisSandboxEqualsDemoEnvironment).toBe(false);
++    expect(contract.inventProposalForbidden).toBe(true);
++    expect(contract.inventTenantProvisionForbidden).toBe(true);
++    expect(contract.inventAttendanceForbidden).toBe(true);
++  });
++
++  it('get/list demos and forbids unprivileged admin', async () => {
++    const created = await createDemo(prisma, {
++      admin,
++      title: 'Listable',
++      leadId: 'lead-l',
++    });
++    const got = await getDemo(prisma, { admin, demoId: created.demo.id });
++    expect(got.ok).toBe(true);
++    expect(got.demo.demoNumber).toBe(created.demo.demoNumber);
++
++    const listed = await listDemos(prisma, { admin, leadId: 'lead-l' });
++    expect(listed.ok).toBe(true);
++    expect(listed.count).toBe(1);
++
++    const denied = await createDemo(prisma, {
++      admin: makeAdmin('noperm', {}),
++      title: 'Nope',
++    });
++    expect(denied.ok).toBe(false);
++    expect(denied.forbidden).toBe(true);
++  });
++
++  it('returns UNAVAILABLE when Demo model missing (EPERM guard)', async () => {
++    const bare = {
++      crmDemo: undefined,
++      crmDemoRequest: undefined,
++    };
++    const result = await createDemo(bare, { admin, title: 'x' });
++    expect(result.ok).toBe(false);
++    expect(result.status).toBe('UNAVAILABLE');
++  });
++});
+diff --git "a/app\\api\\admin\\crm\\demos\\route.js" "b/app\\api\\admin\\crm\\demos\\route.js"
+new file mode 100644
+index 0000000..e3e17d1
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\demos\\route.js"
+@@ -0,0 +1,98 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { createDemo, listDemos } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listDemos(prisma, {
++      admin,
++      status: searchParams.get('status') || undefined,
++      ownerAdminId: searchParams.get('ownerAdminId') || undefined,
++      leadId: searchParams.get('leadId') || undefined,
++      opportunityId: searchParams.get('opportunityId') || undefined,
++      requestId: searchParams.get('requestId') || undefined,
++      limit: searchParams.get('limit') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to list demos' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM demos list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM demos' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await createDemo(prisma, {
++      admin,
++      title: body.title,
++      notes: body.notes,
++      status: body.status,
++      leadId: body.leadId,
++      opportunityId: body.opportunityId,
++      accountId: body.accountId,
++      contactId: body.contactId,
++      requestId: body.requestId,
++      ownerAdminId: body.ownerAdminId,
++      idempotencyKey: body.idempotencyKey,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to create demo' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json(
++      {
++        success: true,
++        demo: result.demo,
++        alreadyExists: result.alreadyExists,
++        domain: result.domain,
++      },
++      { status: result.alreadyExists ? 200 : 201 }
++    );
++  } catch (error) {
++    console.error('CRM demos create error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to create CRM demo' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\demos\\[id]\\route.js" "b/app\\api\\admin\\crm\\demos\\[id]\\route.js"
+new file mode 100644
+index 0000000..99bcd7f
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\demos\\[id]\\route.js"
+@@ -0,0 +1,46 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { getDemo } from '@/lib/admin/crm';
++
++export async function GET(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const result = await getDemo(prisma, {
++      admin,
++      demoId: params?.id,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Not found' },
++        { status: 404 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to get demo' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM demo get error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to get CRM demo' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\demos\\[id]\\[action]\\route.js" "b/app\\api\\admin\\crm\\demos\\[id]\\[action]\\route.js"
+new file mode 100644
+index 0000000..43c6572
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\demos\\[id]\\[action]\\route.js"
+@@ -0,0 +1,129 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import {
++  addDemoParticipant,
++  evaluateDemoReadiness,
++  removeDemoParticipant,
++  scheduleDemo,
++  transitionDemoStatus,
++} from '@/lib/admin/crm';
++
++const ACTIONS = new Set([
++  'schedule',
++  'status',
++  'readiness',
++  'participants',
++  'remove-participant',
++]);
++
++export async function POST(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const id = params?.id;
++    const action = String(params?.action || '')
++      .trim()
++      .toLowerCase();
++    if (!ACTIONS.has(action)) {
++      return NextResponse.json(
++        { success: false, error: 'Unsupported action' },
++        { status: 404 }
++      );
++    }
++
++    const body = await request.json().catch(() => ({}));
++    let result;
++
++    if (action === 'schedule') {
++      result = await scheduleDemo(prisma, {
++        admin,
++        demoId: id,
++        title: body.title,
++        timezone: body.timezone,
++        startsAt: body.startsAt || body.startsAtUtc,
++        endsAt: body.endsAt || body.endsAtUtc,
++        startsAtOriginal: body.startsAtOriginal,
++        endsAtOriginal: body.endsAtOriginal,
++        location: body.location,
++        notes: body.notes,
++        contactId: body.contactId,
++        purpose: body.purpose,
++        visibility: body.visibility,
++        participants: body.participants,
++        sendInvitations: body.sendInvitations === true,
++        conflictPolicy: body.conflictPolicy,
++        conflictReason: body.conflictReason,
++        ownerAdminId: body.ownerAdminId,
++        idempotencyKey: body.idempotencyKey,
++      });
++    } else if (action === 'status') {
++      result = await transitionDemoStatus(prisma, {
++        admin,
++        demoId: id,
++        toStatus: body.toStatus || body.status,
++        reason: body.reason,
++      });
++    } else if (action === 'readiness') {
++      result = await evaluateDemoReadiness(prisma, {
++        admin,
++        demoId: id,
++        persist: body.persist !== false,
++      });
++    } else if (action === 'participants') {
++      result = await addDemoParticipant(prisma, {
++        admin,
++        demoId: id,
++        participantType: body.participantType,
++        participantId: body.participantId,
++        role: body.role,
++        evaluateEligibility: body.evaluateEligibility === true,
++      });
++    } else {
++      result = await removeDemoParticipant(prisma, {
++        admin,
++        participantRecordId: body.participantRecordId || body.id,
++      });
++    }
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Not found' },
++        { status: 404 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        {
++          success: false,
++          error: result.error || `Failed to ${action} demo`,
++          blockers: result.blockers,
++          readinessStatus: result.readinessStatus,
++          conflicts: result.conflicts,
++        },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({
++      success: true,
++      ...result,
++    });
++  } catch (error) {
++    console.error('CRM demo action error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to process demo action' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\demo-requests\\route.js" "b/app\\api\\admin\\crm\\demo-requests\\route.js"
+new file mode 100644
+index 0000000..9f78c3b
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\demo-requests\\route.js"
+@@ -0,0 +1,91 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import { createDemoRequest, listDemoRequests } from '@/lib/admin/crm';
++
++export async function GET(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const { searchParams } = new URL(request.url);
++    const result = await listDemoRequests(prisma, {
++      admin,
++      status: searchParams.get('status') || undefined,
++      ownerAdminId: searchParams.get('ownerAdminId') || undefined,
++      leadId: searchParams.get('leadId') || undefined,
++      opportunityId: searchParams.get('opportunityId') || undefined,
++      limit: searchParams.get('limit') || undefined,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges' },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to list demo requests' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({ success: true, ...result });
++  } catch (error) {
++    console.error('CRM demo-requests list error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to list CRM demo requests' },
++      { status: 500 }
++    );
++  }
++}
++
++export async function POST(request) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const result = await createDemoRequest(prisma, {
++      admin,
++      title: body.title,
++      notes: body.notes,
++      source: body.source,
++      leadId: body.leadId,
++      opportunityId: body.opportunityId,
++      accountId: body.accountId,
++      contactId: body.contactId,
++      ownerAdminId: body.ownerAdminId,
++      idempotencyKey: body.idempotencyKey,
++    });
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Failed to create demo request' },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json(
++      { success: true, request: result.request, alreadyExists: result.alreadyExists },
++      { status: result.alreadyExists ? 200 : 201 }
++    );
++  } catch (error) {
++    console.error('CRM demo-requests create error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to create CRM demo request' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\api\\admin\\crm\\demo-requests\\[id]\\[action]\\route.js" "b/app\\api\\admin\\crm\\demo-requests\\[id]\\[action]\\route.js"
+new file mode 100644
+index 0000000..734ed3c
+--- /dev/null
++++ "b/app\\api\\admin\\crm\\demo-requests\\[id]\\[action]\\route.js"
+@@ -0,0 +1,93 @@
++import { NextResponse } from 'next/server';
++import prisma from '@/lib/prisma';
++import { getAdminFromRequest } from '@/lib/adminAuth';
++import {
++  convertDemoRequest,
++  qualifyDemoRequest,
++  rejectDemoRequest,
++} from '@/lib/admin/crm';
++
++const ACTIONS = new Set(['qualify', 'reject', 'convert']);
++
++export async function POST(request, context) {
++  try {
++    const admin = await getAdminFromRequest(request);
++    if (!admin) {
++      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++    }
++
++    const params = await context.params;
++    const id = params?.id;
++    const action = String(params?.action || '')
++      .trim()
++      .toLowerCase();
++    if (!ACTIONS.has(action)) {
++      return NextResponse.json(
++        { success: false, error: 'Unsupported action' },
++        { status: 404 }
++      );
++    }
++
++    const body = await request.json().catch(() => ({}));
++    let result;
++    if (action === 'qualify') {
++      result = await qualifyDemoRequest(prisma, {
++        admin,
++        requestId: id,
++      });
++    } else if (action === 'reject') {
++      result = await rejectDemoRequest(prisma, {
++        admin,
++        requestId: id,
++        reason: body.reason,
++      });
++    } else {
++      result = await convertDemoRequest(prisma, {
++        admin,
++        requestId: id,
++        title: body.title,
++        notes: body.notes,
++        ownerAdminId: body.ownerAdminId,
++        idempotencyKey: body.idempotencyKey,
++      });
++    }
++
++    if (result.forbidden) {
++      return NextResponse.json(
++        { success: false, error: 'Insufficient admin privileges', reason: result.reason },
++        { status: 403 }
++      );
++    }
++    if (result.notFound) {
++      return NextResponse.json(
++        { success: false, error: result.error || 'Not found' },
++        { status: 404 }
++      );
++    }
++    if (!result.ok) {
++      return NextResponse.json(
++        {
++          success: false,
++          error: result.error || `Failed to ${action} demo request`,
++          status: result.status,
++        },
++        { status: result.status === 'UNAVAILABLE' ? 503 : 400 }
++      );
++    }
++
++    return NextResponse.json({
++      success: true,
++      request: result.request,
++      demo: result.demo,
++      alreadyExists: result.alreadyExists,
++      alreadyQualified: result.alreadyQualified,
++      alreadyRejected: result.alreadyRejected,
++    });
++  } catch (error) {
++    console.error('CRM demo-request action error:', error);
++    return NextResponse.json(
++      { success: false, error: 'Failed to process demo request action' },
++      { status: 500 }
++    );
++  }
++}
+diff --git "a/app\\insightbooks\\crm\\demos\\page.js" "b/app\\insightbooks\\crm\\demos\\page.js"
+new file mode 100644
+index 0000000..9e2edd6
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\demos\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmDemosPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.demos"
++      hintKey="admin-pages.crm.sectionHints.demos"
++      emptyTitleKey="admin-pages.crm.demos.emptyTitle"
++      emptyHintKey="admin-pages.crm.demos.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\demos\\list\\page.js" "b/app\\insightbooks\\crm\\demos\\list\\page.js"
+new file mode 100644
+index 0000000..69eb85c
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\demos\\list\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmDemosListPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.demosList"
++      hintKey="admin-pages.crm.sectionHints.demosList"
++      emptyTitleKey="admin-pages.crm.demos.emptyTitle"
++      emptyHintKey="admin-pages.crm.demos.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\demos\\my-demos\\page.js" "b/app\\insightbooks\\crm\\demos\\my-demos\\page.js"
+new file mode 100644
+index 0000000..230e674
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\demos\\my-demos\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmMyDemosPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.demosMyDemos"
++      hintKey="admin-pages.crm.sectionHints.demosMyDemos"
++      emptyTitleKey="admin-pages.crm.demos.emptyTitle"
++      emptyHintKey="admin-pages.crm.demos.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\demos\\requests\\page.js" "b/app\\insightbooks\\crm\\demos\\requests\\page.js"
+new file mode 100644
+index 0000000..7e39f59
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\demos\\requests\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmDemoRequestsPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.demoRequests"
++      hintKey="admin-pages.crm.sectionHints.demoRequests"
++      emptyTitleKey="admin-pages.crm.demoRequests.emptyTitle"
++      emptyHintKey="admin-pages.crm.demoRequests.emptyHint"
++    />
++  );
++}
+diff --git "a/app\\insightbooks\\crm\\demos\\[id]\\page.js" "b/app\\insightbooks\\crm\\demos\\[id]\\page.js"
+new file mode 100644
+index 0000000..b5392dd
+--- /dev/null
++++ "b/app\\insightbooks\\crm\\demos\\[id]\\page.js"
+@@ -0,0 +1,14 @@
++'use client';
++
++import { CrmStubView } from '@/components/admin';
++
++export default function CrmDemoDetailPage() {
++  return (
++    <CrmStubView
++      titleKey="admin-pages.crm.sections.demoDetail"
++      hintKey="admin-pages.crm.sectionHints.demoDetail"
++      emptyTitleKey="admin-pages.crm.demos.detailEmptyTitle"
++      emptyHintKey="admin-pages.crm.demos.detailEmptyHint"
++    />
++  );
++}

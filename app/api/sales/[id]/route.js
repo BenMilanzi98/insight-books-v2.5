@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { calculateCOGS } from '@/lib/inventoryCosting';
-import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
+import { postPosSaleAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
 import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
+import { emitPosTransactionCompleted } from '@/lib/admin/productAnalytics/producers';
 
 // Helper function to get sale by ID with validation
 async function getSaleWithValidation(id, userId, tenantId) {
@@ -366,61 +367,56 @@ export async function PUT(request, { params }) {
             }
           });
 
-          // Create transactions for sale (Revenue + COGS) if they don't already exist
+          // V2 accounting: revenue (+ tax) and COGS via adapters
           try {
-            const existingTransaction = await tx.transaction.findFirst({
-              where: {
-                tenantId: user.tenantId,
-                sourceType: 'Sale',
-                sourceId: sale.id,
-                status: 'posted',
-              },
-            });
+            let totalCOGS = 0;
 
-            if (!existingTransaction) {
-              // Calculate total COGS for all inventory items
-              let totalCOGS = 0;
-              const hasServices = sale.items.some(item => item.isCustom || !item.productId);
+            for (const item of sale.items) {
+              if (item.productId && !item.isCustom) {
+                try {
+                  const product = await tx.product.findUnique({
+                    where: { id: item.productId },
+                    select: { id: true, isService: true }
+                  });
 
-              for (const item of sale.items) {
-                if (item.productId && !item.isCustom) {
-                  try {
-                    // Check if product is a service (services don't have COGS)
-                    const product = await tx.product.findUnique({
-                      where: { id: item.productId },
-                      select: { id: true, isService: true }
+                  if (product && !product.isService) {
+                    const cogsData = await calculateCOGS({
+                      productId: item.productId,
+                      tenantId: user.tenantId,
+                      quantitySold: item.quantity,
+                      tx,
                     });
-                    
-                    // Only calculate COGS for non-service products
-                    if (product && !product.isService) {
-                      const cogsData = await calculateCOGS({
-                        productId: item.productId,
-                        tenantId: user.tenantId,
-                        quantitySold: item.quantity,
-                        tx,
-                      });
-                      totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
-                    }
-                  } catch (cogsError) {
-                    console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);
-                    // Continue with other items
+                    totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
                   }
+                } catch (cogsError) {
+                  console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);
                 }
               }
+            }
 
-              // Create journal entries
-              await createSaleJournalEntries({
+            await postPosSaleAccounting({
+              db: tx,
+              tenantId: user.tenantId,
+              userId: user.id,
+              saleId: sale.id,
+              saleNumber: sale.saleNumber,
+              saleDate: paymentDate,
+              totalAmount: sale.total,
+              paymentMethod: body.paymentMethod || sale.paymentMethod,
+              taxAmount: sale.taxAmount ?? 0,
+              branchId: sale.branchId || null,
+            });
+            if (totalCOGS > 0) {
+              await postCostOfSalesAccounting({
+                db: tx,
                 tenantId: user.tenantId,
                 userId: user.id,
-                saleId: sale.id,
-                saleNumber: sale.saleNumber,
-                saleDate: paymentDate,
-                totalAmount: sale.total,
-                paymentMethod: body.paymentMethod || sale.paymentMethod,
-                hasServices,
+                documentKind: 'Sale',
+                documentId: sale.id,
+                documentNumber: sale.saleNumber,
+                documentDate: paymentDate,
                 cogsAmount: totalCOGS,
                 branchId: sale.branchId || null,
-                tx,
               });
             }
           } catch (journalError) {
@@ -447,6 +443,25 @@ export async function PUT(request, { params }) {
       
       return sale;
     });
+
+    // Product Analytics (Phase 9): draft → completed (idempotent on saleId)
+    if (
+      result.sale.status !== 'completed' &&
+      String(updatedSale.status).toLowerCase() === 'completed'
+    ) {
+      try {
+        await emitPosTransactionCompleted(prisma, {
+          tenantId: user.tenantId,
+          saleId: updatedSale.id,
+          actorId: user.id,
+          status: updatedSale.status,
+          occurredAt: updatedSale.updatedAt || new Date(),
+          branchId: updatedSale.branchId || null,
+        });
+      } catch (analyticsErr) {
+        console.warn('[productAnalytics] POS completed emit failed:', analyticsErr?.message);
+      }
+    }
     
     // Return updated sale
     return NextResponse.json({

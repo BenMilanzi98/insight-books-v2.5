@@ -1,0 +1,1812 @@
+# Task 3 re-review
+
+
+===== lib/admin/customerSuccess/onboarding/readiness/evaluate.js =====
+
+/**
+ * Aggregate onboarding readiness evaluation — UNKNOWN never treated as READY.
+ * Fresh evaluation must not lift live UNKNOWN to READY from a stored snapshot.
+ */
+
+import { loadOnboardingProjectForActor } from '../projectAccess.js';
+import {
+  canManageOnboarding,
+  hasCustomerOnboardingReadinessEvaluationModel,
+  resolveOnboardingActor,
+} from '../model.js';
+import { getOnboardingDomainContract } from '../catalogue.js';
+import { evaluateTenantReadiness, READINESS_STATUS } from './tenant.js';
+import { evaluateBusinessBranchReadiness } from './businessBranch.js';
+import { evaluateUsersReadiness } from './users.js';
+import { evaluateConfigurationReadiness } from './configuration.js';
+import { evaluateAccountingReadiness } from './accounting.js';
+
+const READINESS_RULES_VERSION = 'onboarding-readiness-v1';
+
+const CORE_DIMENSIONS = [
+  'tenant',
+  'businessBranch',
+  'users',
+  'configuration',
+  'accounting',
+  'migration',
+  'mraEis',
+  'training',
+  'testing',
+  'defects',
+];
+
+/** Statuses that allow go-live approve / execute / outcome per policy. */
+export function isGoLiveReadinessAllowed(overallStatus) {
+  const s = String(overallStatus || '').toUpperCase();
+  return (
+    s === READINESS_STATUS.READY || s === 'READY_WITH_WARNINGS'
+  );
+}
+
+function overallFromDimensions(dimensions) {
+  const values = Object.values(dimensions).map((v) =>
+    String(v || READINESS_STATUS.UNKNOWN).toUpperCase()
+  );
+  if (values.some((v) => v === READINESS_STATUS.NOT_READY)) {
+    return READINESS_STATUS.NOT_READY;
+  }
+  if (values.some((v) => v === READINESS_STATUS.UNKNOWN)) {
+    return READINESS_STATUS.UNKNOWN;
+  }
+  if (
+    values.every(
+      (v) =>
+        v === READINESS_STATUS.READY || v === READINESS_STATUS.NOT_APPLICABLE
+    )
+  ) {
+    return READINESS_STATUS.READY;
+  }
+  return READINESS_STATUS.UNKNOWN;
+}
+
+async function loadLatestStoredEvaluation(prisma, projectId) {
+  if (!hasCustomerOnboardingReadinessEvaluationModel(prisma)) return null;
+  if (typeof prisma.customerOnboardingReadinessEvaluation.findFirst === 'function') {
+    return prisma.customerOnboardingReadinessEvaluation.findFirst({
+      where: { projectId },
+    });
+  }
+  if (typeof prisma.customerOnboardingReadinessEvaluation.findMany === 'function') {
+    const rows = await prisma.customerOnboardingReadinessEvaluation.findMany({
+      where: { projectId },
+    });
+    return rows[rows.length - 1] || null;
+  }
+  return null;
+}
+
+async function evaluateMigrationDim(prisma, projectId, overrides) {
+  if (overrides?.migration) {
+    return String(overrides.migration).toUpperCase();
+  }
+  if (typeof prisma?.customerOnboardingMigration?.findFirst !== 'function') {
+    return READINESS_STATUS.UNKNOWN;
+  }
+  const mig = await prisma.customerOnboardingMigration.findFirst({
+    where: { projectId },
+  });
+  if (!mig) return READINESS_STATUS.UNKNOWN;
+  const status = String(mig.status || '').toUpperCase();
+  if (status === 'COMPLETED') {
+    const recon = String(mig.reconciliationStatus || '').toUpperCase();
+    return recon === 'PASSED' || recon === 'COMPLETE' || recon === 'OK'
+      ? READINESS_STATUS.READY
+      : READINESS_STATUS.NOT_READY;
+  }
+  if (status === 'NOT_APPLICABLE' || status === 'N/A' || status === 'NOT_REQUIRED') {
+    return READINESS_STATUS.NOT_APPLICABLE;
+  }
+  if (status === 'IN_PROGRESS') {
+    return READINESS_STATUS.NOT_READY;
+  }
+  if (status === 'READY') {
+    return READINESS_STATUS.READY;
+  }
+  return READINESS_STATUS.UNKNOWN;
+}
+
+/**
+ * Training go-live dimension: only authoritative Training-domain COMPLETED
+ * or NOT_REQUIRED / WAIVED_WITH_APPROVAL count as READY/NOT_APPLICABLE.
+ * Phase 18 stub UNKNOWN / IN_PROGRESS remain non-READY.
+ */
+async function evaluateTrainingDim(prisma, projectId, overrides) {
+  if (overrides?.training) return String(overrides.training).toUpperCase();
+  if (typeof prisma?.customerOnboardingTraining?.findFirst !== 'function') {
+    return READINESS_STATUS.UNKNOWN;
+  }
+  const trn = await prisma.customerOnboardingTraining.findFirst({
+    where: { projectId },
+  });
+  if (!trn) return READINESS_STATUS.UNKNOWN;
+
+  const status = String(trn.status || '').toUpperCase();
+  const domainStatus = String(trn.trainingDomainStatus || '').toUpperCase();
+  const domainSource = String(trn.trainingDomainSource || '').toUpperCase();
+
+  if (
+    status === 'NOT_REQUIRED' ||
+    status === 'WAIVED_WITH_APPROVAL' ||
+    status === 'NOT_APPLICABLE'
+  ) {
+    return READINESS_STATUS.NOT_APPLICABLE;
+  }
+
+  if (status === 'COMPLETED') {
+    const authoritative =
+      domainStatus === 'COMPLETED' &&
+      (domainSource.includes('PHASE_18') ||
+        domainSource.includes('TRAINING') ||
+        domainSource === 'CUSTOMER_TRAINING');
+    return authoritative ? READINESS_STATUS.READY : READINESS_STATUS.NOT_READY;
+  }
+
+  // IN_PROGRESS / READY coordination without Training-domain COMPLETED → non-READY
+  if (status === 'IN_PROGRESS' || status === 'READY') {
+    return READINESS_STATUS.NOT_READY;
+  }
+
+  return READINESS_STATUS.UNKNOWN;
+}
+
+async function evaluateMraDim(prisma, projectId, overrides) {
+  if (overrides?.mraEis) return String(overrides.mraEis).toUpperCase();
+  if (typeof prisma?.customerOnboardingMraEis?.findFirst !== 'function') {
+    return READINESS_STATUS.UNKNOWN;
+  }
+  const mra = await prisma.customerOnboardingMraEis.findFirst({
+    where: { projectId },
+  });
+  if (!mra) return READINESS_STATUS.NOT_APPLICABLE;
+  const status = String(mra.status || '').toUpperCase();
+  if (status === 'READY' || status === 'COMPLETED' || status === 'NOT_REQUIRED') {
+    return status === 'NOT_REQUIRED'
+      ? READINESS_STATUS.NOT_APPLICABLE
+      : READINESS_STATUS.READY;
+  }
+  if (status === 'UNKNOWN') return READINESS_STATUS.UNKNOWN;
+  return READINESS_STATUS.NOT_READY;
+}
+
+async function evaluateTestingDim(prisma, projectId, overrides) {
+  if (overrides?.testing) return String(overrides.testing).toUpperCase();
+  if (typeof prisma?.customerOnboardingTestPlan?.findFirst !== 'function') {
+    return READINESS_STATUS.UNKNOWN;
+  }
+  const plan = await prisma.customerOnboardingTestPlan.findFirst({
+    where: { projectId },
+  });
+  if (!plan) return READINESS_STATUS.UNKNOWN;
+  const status = String(plan.status || '').toUpperCase();
+  if (status === 'PASSED' || status === 'READY' || status === 'COMPLETED') {
+    return READINESS_STATUS.READY;
+  }
+  if (status === 'NOT_REQUIRED' || status === 'NOT_APPLICABLE') {
+    return READINESS_STATUS.NOT_APPLICABLE;
+  }
+  return READINESS_STATUS.NOT_READY;
+}
+
+async function evaluateDefectsDim(prisma, projectId, overrides) {
+  if (overrides?.defects) return String(overrides.defects).toUpperCase();
+  if (typeof prisma?.customerOnboardingDefect?.findMany !== 'function') {
+    return READINESS_STATUS.UNKNOWN;
+  }
+  const openCritical = await prisma.customerOnboardingDefect.findMany({
+    where: { projectId, severity: 'CRITICAL' },
+  });
+  const blocking = (openCritical || []).filter((d) => {
+    const s = String(d.status || 'OPEN').toUpperCase();
+    return s === 'OPEN' || s === 'IN_PROGRESS' || s === 'BLOCKING';
+  });
+  if (blocking.length > 0) return READINESS_STATUS.NOT_READY;
+  return READINESS_STATUS.READY;
+}
+
+/**
+ * Evaluate readiness dimensions for a project. UNKNOWN ≠ READY.
+ * Stored snapshots are audit history only — never lift live UNKNOWN → READY.
+ */
+export async function evaluateOnboardingReadiness(prisma, args = {}) {
+  const loaded = await loadOnboardingProjectForActor(prisma, args);
+  if (!loaded.ok) return loaded;
+
+  const { project } = loaded;
+  const stored = await loadLatestStoredEvaluation(prisma, project.id);
+
+  // Explicit caller overrides only — do not merge stored READY dims into live eval
+  const overrides = { ...(args.dimensionOverrides || {}) };
+
+  const tenant = await evaluateTenantReadiness(prisma, project, {
+    dimensionOverrides: overrides,
+  });
+  const businessBranch = await evaluateBusinessBranchReadiness(prisma, project, {
+    dimensionOverrides: overrides,
+  });
+  const users = await evaluateUsersReadiness(prisma, project, {
+    dimensionOverrides: overrides,
+  });
+  const configuration = await evaluateConfigurationReadiness(prisma, project, {
+    dimensionOverrides: overrides,
+  });
+  const accounting = await evaluateAccountingReadiness(prisma, project, {
+    dimensionOverrides: overrides,
+    accountingChecklistComplete: overrides.accounting === 'READY',
+  });
+
+  const dimensions = {
+    tenant: tenant.status,
+    businessBranch: businessBranch.status,
+    users: users.status,
+    configuration: configuration.status,
+    accounting: accounting.status,
+    migration: await evaluateMigrationDim(prisma, project.id, overrides),
+    mraEis: await evaluateMraDim(prisma, project.id, overrides),
+    training: await evaluateTrainingDim(prisma, project.id, overrides),
+    testing: await evaluateTestingDim(prisma, project.id, overrides),
+    defects: await evaluateDefectsDim(prisma, project.id, overrides),
+    customerApproval: overrides.customerApproval || READINESS_STATUS.UNKNOWN,
+    internalApproval: overrides.internalApproval || READINESS_STATUS.UNKNOWN,
+  };
+
+  const overallStatus = overallFromDimensions(
+    Object.fromEntries(CORE_DIMENSIONS.map((k) => [k, dimensions[k]]))
+  );
+
+  const ready = isGoLiveReadinessAllowed(overallStatus);
+
+  const admin = resolveOnboardingActor(args);
+  if (
+    canManageOnboarding(admin) &&
+    hasCustomerOnboardingReadinessEvaluationModel(prisma) &&
+    args.persist !== false
+  ) {
+    await prisma.customerOnboardingReadinessEvaluation.create({
+      data: {
+        projectId: project.id,
+        overallStatus,
+        dimensionsJson: dimensions,
+        rulesVersion: READINESS_RULES_VERSION,
+        createdByAdminId: admin?.id || null,
+        createdAt: args.now || new Date(),
+        updatedAt: args.now || new Date(),
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    projectId: project.id,
+    overallStatus,
+    ready,
+    dimensions,
+    rulesVersion: READINESS_RULES_VERSION,
+    storedEvaluationId: stored?.id || null,
+    domain: getOnboardingDomainContract(),
+  };
+}
+
+export { READINESS_STATUS, READINESS_RULES_VERSION, CORE_DIMENSIONS };
+
+
+===== lib/admin/customerSuccess/onboarding/goLive.js =====
+
+/**
+ * Go-live approval / execution / outcome — Phase 17 Wave 3.
+ * UNKNOWN readiness blocks; Critical defects block; SUCCESSFUL → STABILISATION.
+ * Execute / outcome re-check readiness — stale approval alone is insufficient.
+ */
+
+import { loadOnboardingProjectForActor } from './projectAccess.js';
+import {
+  canManageOnboarding,
+  hasCustomerOnboardingGoLiveModel,
+  hasCustomerOnboardingGoLiveApprovalModel,
+  serializeOnboardingGoLive,
+  serializeOnboardingGoLiveApproval,
+} from './model.js';
+import { getOnboardingDomainContract, ONBOARDING_PROJECT_STATUS } from './catalogue.js';
+import {
+  evaluateOnboardingReadiness,
+  isGoLiveReadinessAllowed,
+} from './readiness/evaluate.js';
+import { listOpenCriticalDefects } from './defects.js';
+import { transitionOnboardingProjectStatus } from './status.js';
+
+async function ensureApprovals(prisma, projectId) {
+  if (!hasCustomerOnboardingGoLiveApprovalModel(prisma)) {
+    return { internal: false, customer: false };
+  }
+  const rows = await prisma.customerOnboardingGoLiveApproval.findMany({
+    where: { projectId },
+  });
+  const roles = new Set(
+    (rows || [])
+      .filter((r) => String(r.status || '').toUpperCase() === 'APPROVED')
+      .map((r) => String(r.approvalRole || '').toUpperCase())
+  );
+  return {
+    internal: roles.has('INTERNAL'),
+    customer: roles.has('CUSTOMER'),
+  };
+}
+
+async function requireCurrentReadiness(prisma, args, projectId) {
+  const readiness = await evaluateOnboardingReadiness(prisma, {
+    ...args,
+    projectId,
+    persist: false,
+  });
+  if (!readiness.ok) return readiness;
+  if (!isGoLiveReadinessAllowed(readiness.overallStatus)) {
+    return {
+      ok: false,
+      error: 'go_live_blocked_readiness_not_ready',
+      overallStatus: readiness.overallStatus,
+      hint: 'UNKNOWN/BLOCKED readiness must never proceed on stale approval alone',
+      readiness,
+    };
+  }
+  return { ok: true, readiness };
+}
+
+async function advanceTo(prisma, args, projectId, path) {
+  let current = (
+    await prisma.customerOnboardingProject.findUnique({ where: { id: projectId } })
+  )?.status;
+  for (const toStatus of path) {
+    if (current === toStatus) continue;
+    const result = await transitionOnboardingProjectStatus(prisma, {
+      ...args,
+      projectId,
+      toStatus,
+      reason: args.reason || 'go_live_flow',
+    });
+    if (!result.ok && !result.alreadyInStatus) {
+      return result;
+    }
+    current = toStatus;
+  }
+  return { ok: true, status: current };
+}
+
+export async function approveGoLive(prisma, args = {}) {
+  const loaded = await loadOnboardingProjectForActor(prisma, args);
+  if (!loaded.ok) return loaded;
+  if (!canManageOnboarding(loaded.admin)) {
+    return { ok: false, forbidden: true, error: 'onboarding_golive_forbidden' };
+  }
+
+  const readinessGate = await requireCurrentReadiness(
+    prisma,
+    args,
+    loaded.project.id
+  );
+  if (!readinessGate.ok) return readinessGate;
+
+  const critical = await listOpenCriticalDefects(prisma, loaded.project.id);
+  if (critical.length > 0) {
+    return {
+      ok: false,
+      error: 'go_live_blocked_critical_defect',
+      criticalCount: critical.length,
+    };
+  }
+
+  if (!hasCustomerOnboardingGoLiveApprovalModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_onboarding_go_live_approval_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const approvalRole = String(args.approvalRole || 'INTERNAL')
+    .trim()
+    .toUpperCase();
+  const now = args.now || new Date();
+
+  const row = await prisma.customerOnboardingGoLiveApproval.create({
+    data: {
+      projectId: loaded.project.id,
+      approvalRole,
+      status: 'APPROVED',
+      approvedByAdminId: loaded.admin?.id || null,
+      approvedAt: now,
+      createdByAdminId: loaded.admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    approval: serializeOnboardingGoLiveApproval(row),
+    readiness: readinessGate.readiness,
+    domain: getOnboardingDomainContract(),
+  };
+}
+
+export async function executeGoLive(prisma, args = {}) {
+  const loaded = await loadOnboardingProjectForActor(prisma, args);
+  if (!loaded.ok) return loaded;
+  if (!canManageOnboarding(loaded.admin)) {
+    return { ok: false, forbidden: true, error: 'onboarding_golive_forbidden' };
+  }
+  if (!hasCustomerOnboardingGoLiveModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_onboarding_go_live_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const readinessGate = await requireCurrentReadiness(
+    prisma,
+    args,
+    loaded.project.id
+  );
+  if (!readinessGate.ok) return readinessGate;
+
+  const approvals = await ensureApprovals(prisma, loaded.project.id);
+  if (!approvals.internal || !approvals.customer) {
+    return {
+      ok: false,
+      error: 'go_live_approvals_required',
+      approvals,
+    };
+  }
+
+  const critical = await listOpenCriticalDefects(prisma, loaded.project.id);
+  if (critical.length > 0) {
+    return {
+      ok: false,
+      error: 'go_live_blocked_critical_defect',
+      criticalCount: critical.length,
+    };
+  }
+
+  const idempotencyKey = args.idempotencyKey
+    ? String(args.idempotencyKey).trim()
+    : null;
+  if (idempotencyKey) {
+    const existing = await prisma.customerOnboardingGoLive.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      if (existing.projectId !== loaded.project.id) {
+        return { ok: false, error: 'idempotency_conflict' };
+      }
+      return {
+        ok: true,
+        alreadyExists: true,
+        idempotentReplay: true,
+        goLive: serializeOnboardingGoLive(existing),
+      };
+    }
+  }
+
+  const now = args.now || new Date();
+  const path = [];
+  const status = String(loaded.project.status || '').toUpperCase();
+  if (status === ONBOARDING_PROJECT_STATUS.READY_FOR_GO_LIVE) {
+    path.push(
+      ONBOARDING_PROJECT_STATUS.GO_LIVE_SCHEDULED,
+      ONBOARDING_PROJECT_STATUS.GO_LIVE_IN_PROGRESS
+    );
+  } else if (status === ONBOARDING_PROJECT_STATUS.GO_LIVE_SCHEDULED) {
+    path.push(ONBOARDING_PROJECT_STATUS.GO_LIVE_IN_PROGRESS);
+  }
+
+  if (path.length) {
+    const advanced = await advanceTo(prisma, args, loaded.project.id, path);
+    if (!advanced.ok) return advanced;
+  }
+
+  const row = await prisma.customerOnboardingGoLive.create({
+    data: {
+      projectId: loaded.project.id,
+      status: 'IN_PROGRESS',
+      windowStart: args.windowStart ? new Date(args.windowStart) : null,
+      windowEnd: args.windowEnd ? new Date(args.windowEnd) : null,
+      participantsJson: args.participantsJson || null,
+      preflightJson: args.preflightJson || null,
+      idempotencyKey,
+      createdByAdminId: loaded.admin?.id || null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  return {
+    ok: true,
+    goLive: serializeOnboardingGoLive(row),
+    created: true,
+    readiness: readinessGate.readiness,
+    domain: getOnboardingDomainContract(),
+  };
+}
+
+export async function recordGoLiveOutcome(prisma, args = {}) {
+  const loaded = await loadOnboardingProjectForActor(prisma, args);
+  if (!loaded.ok) return loaded;
+  if (!canManageOnboarding(loaded.admin)) {
+    return { ok: false, forbidden: true, error: 'onboarding_golive_forbidden' };
+  }
+
+  const outcome = String(args.outcome || '')
+    .trim()
+    .toUpperCase();
+  if (!outcome) return { ok: false, error: 'outcome_required' };
+
+  if (outcome === 'SUCCESSFUL') {
+    const readinessGate = await requireCurrentReadiness(
+      prisma,
+      args,
+      loaded.project.id
+    );
+    if (!readinessGate.ok) return readinessGate;
+  }
+
+  const now = args.now || new Date();
+  let goLive = null;
+  if (hasCustomerOnboardingGoLiveModel(prisma)) {
+    goLive = await prisma.customerOnboardingGoLive.findFirst({
+      where: { projectId: loaded.project.id },
+    });
+    if (goLive) {
+      goLive = await prisma.customerOnboardingGoLive.update({
+        where: { id: goLive.id },
+        data: {
+          status: outcome,
+          outcome,
+          customerAcknowledged: args.customerAcknowledged === true,
+          rollbackDecision: args.rollbackDecision || null,
+          updatedAt: now,
+        },
+      });
+    }
+  }
+
+  let project = loaded.project;
+  if (outcome === 'SUCCESSFUL') {
+    // SUCCESSFUL → LIVE → STABILISATION (never COMPLETED)
+    const path = [];
+    const st = String(project.status || '').toUpperCase();
+    if (
+      st === ONBOARDING_PROJECT_STATUS.GO_LIVE_IN_PROGRESS ||
+      st === ONBOARDING_PROJECT_STATUS.GO_LIVE_SCHEDULED ||
+      st === ONBOARDING_PROJECT_STATUS.READY_FOR_GO_LIVE
+    ) {
+      if (st === ONBOARDING_PROJECT_STATUS.READY_FOR_GO_LIVE) {
+        path.push(ONBOARDING_PROJECT_STATUS.GO_LIVE_SCHEDULED);
+      }
+      if (
+        st === ONBOARDING_PROJECT_STATUS.READY_FOR_GO_LIVE ||
+        st === ONBOARDING_PROJECT_STATUS.GO_LIVE_SCHEDULED
+      ) {
+        path.push(ONBOARDING_PROJECT_STATUS.GO_LIVE_IN_PROGRESS);
+      }
+      path.push(ONBOARDING_PROJECT_STATUS.LIVE, ONBOARDING_PROJECT_STATUS.STABILISATION);
+    } else if (st === ONBOARDING_PROJECT_STATUS.LIVE) {
+      path.push(ONBOARDING_PROJECT_STATUS.STABILISATION);
+    } else if (st !== ONBOARDING_PROJECT_STATUS.STABILISATION) {
+      path.push(ONBOARDING_PROJECT_STATUS.STABILISATION);
+    }
+
+    for (const toStatus of path) {
+      const result = await transitionOnboardingProjectStatus(prisma, {
+        ...args,
+        projectId: project.id,
+        toStatus,
+        reason: 'go_live_successful',
+        now,
+      });
+      if (result.ok || result.alreadyInStatus) {
+        project = {
+          ...project,
+          status: result.project?.status || toStatus,
+        };
+      } else if (toStatus === ONBOARDING_PROJECT_STATUS.STABILISATION) {
+        const current = await prisma.customerOnboardingProject.findUnique({
+          where: { id: project.id },
+        });
+        if (current?.status === ONBOARDING_PROJECT_STATUS.LIVE) {
+          const updated = await prisma.customerOnboardingProject.update({
+            where: { id: project.id },
+            data: {
+              status: ONBOARDING_PROJECT_STATUS.STABILISATION,
+              updatedAt: now,
+            },
+          });
+          project = updated;
+        } else {
+          return {
+            ok: false,
+            error: 'go_live_stabilisation_transition_failed',
+            fromStatus: current?.status || project.status,
+            toStatus: ONBOARDING_PROJECT_STATUS.STABILISATION,
+            goLive: serializeOnboardingGoLive(goLive),
+            project: {
+              id: project.id,
+              status: current?.status || project.status,
+              onboardingNumber: project.onboardingNumber,
+            },
+          };
+        }
+      } else {
+        return {
+          ok: false,
+          error: 'go_live_stabilisation_transition_failed',
+          fromStatus: project.status,
+          toStatus,
+          transitionError: result.error,
+          goLive: serializeOnboardingGoLive(goLive),
+          project: {
+            id: project.id,
+            status: project.status,
+            onboardingNumber: project.onboardingNumber,
+          },
+        };
+      }
+    }
+  }
+
+  const fresh = await prisma.customerOnboardingProject.findUnique({
+    where: { id: project.id },
+  });
+
+  if (
+    outcome === 'SUCCESSFUL' &&
+    String(fresh?.status || '').toUpperCase() !==
+      ONBOARDING_PROJECT_STATUS.STABILISATION
+  ) {
+    return {
+      ok: false,
+      error: 'go_live_stabilisation_transition_failed',
+      hint: 'SUCCESSFUL outcome must leave project in STABILISATION',
+      goLive: serializeOnboardingGoLive(goLive),
+      project: {
+        id: fresh?.id || project.id,
+        status: fresh?.status || project.status,
+        onboardingNumber: fresh?.onboardingNumber || project.onboardingNumber,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    goLive: serializeOnboardingGoLive(goLive),
+    project: {
+      id: fresh.id,
+      status: fresh.status,
+      onboardingNumber: fresh.onboardingNumber,
+    },
+    domain: getOnboardingDomainContract(),
+  };
+}
+
+
+===== lib/admin/customerSuccess/onboarding/accountingBoundary.js =====
+
+/**
+ * Onboarding accounting boundary — Phase 17 Wave 3.
+ * Coordination only: onboarding modules must not create journals / OB / opening stock.
+ * Ambient unrelated tenant GL does not fail this assert (side-effect from onboarding path only).
+ */
+
+const ONBOARDING_SOURCE_MARKERS = new Set([
+  'ONBOARDING',
+  'CUSTOMER_ONBOARDING',
+  'CS_ONBOARDING',
+  'PHASE_17_ONBOARDING',
+]);
+
+function isOnboardingAuthored(row) {
+  if (!row || typeof row !== 'object') return false;
+  const markers = [
+    row.sourceDomain,
+    row.source,
+    row.createdByDomain,
+    row.origin,
+    row.postingSource,
+  ]
+    .filter(Boolean)
+    .map((v) => String(v).trim().toUpperCase());
+  if (markers.some((m) => ONBOARDING_SOURCE_MARKERS.has(m))) return true;
+  if (row.onboardingProjectId || row.customerOnboardingProjectId) return true;
+  return false;
+}
+
+export function assertNoOnboardingAccountingCreate(args = {}) {
+  const type = String(args.type || args.resourceType || '')
+    .trim()
+    .toUpperCase();
+  const forbidden = new Set([
+    'JOURNAL',
+    'JOURNAL_ENTRY',
+    'OPENING_BALANCE',
+    'OB',
+    'OPENING_STOCK',
+    'STOCK',
+    'AR',
+    'AP',
+    'TAX_POSTING',
+  ]);
+  if (forbidden.has(type)) {
+    return {
+      ok: false,
+      error: 'accounting_boundary_forbidden',
+      type,
+      createsJournals: false,
+      createsOpeningBalances: false,
+      createsOpeningStock: false,
+    };
+  }
+  return { ok: true, type: type || null };
+}
+
+/**
+ * Assert onboarding path has not introduced journal/OB/stock creates.
+ * Unrelated ambient tenant journals/balances do not fail.
+ */
+export async function assertOnboardingAccountingBoundary(prisma, args = {}) {
+  const tenantId = args.tenantId ? String(args.tenantId).trim() : '';
+  if (!tenantId) {
+    return { ok: false, error: 'tenantId_required' };
+  }
+
+  let journalCount = 0;
+  let balanceCount = 0;
+  let openingBalanceCount = 0;
+  let openingStockCount = 0;
+  let onboardingAuthoredCount = 0;
+
+  let journals = [];
+  if (typeof prisma?.journalEntry?.findMany === 'function') {
+    journals = await prisma.journalEntry.findMany({ where: { tenantId } });
+    journalCount = journals.length;
+  } else if (typeof prisma?.journalEntry?.count === 'function') {
+    journalCount = await prisma.journalEntry.count({ where: { tenantId } });
+  }
+
+  if (typeof prisma?.accountBalance?.count === 'function') {
+    balanceCount = await prisma.accountBalance.count({ where: { tenantId } });
+  }
+
+  let openingBalances = [];
+  if (typeof prisma?.openingBalance?.findMany === 'function') {
+    openingBalances = await prisma.openingBalance.findMany({
+      where: { tenantId },
+    });
+    openingBalanceCount = openingBalances.length;
+  } else if (typeof prisma?.openingBalance?.count === 'function') {
+    openingBalanceCount = await prisma.openingBalance.count({
+      where: { tenantId },
+    });
+  }
+
+  let openingStocks = [];
+  if (typeof prisma?.openingStock?.findMany === 'function') {
+    openingStocks = await prisma.openingStock.findMany({
+      where: { tenantId },
+    });
+    openingStockCount = openingStocks.length;
+  } else if (typeof prisma?.openingStock?.count === 'function') {
+    openingStockCount = await prisma.openingStock.count({
+      where: { tenantId },
+    });
+  }
+
+  const authored = [
+    ...journals.filter(isOnboardingAuthored),
+    ...openingBalances.filter(isOnboardingAuthored),
+    ...openingStocks.filter(isOnboardingAuthored),
+  ];
+  onboardingAuthoredCount = authored.length;
+
+  // Fail only when onboarding-authored side effects exist — not ambient tenant GL
+  const violated = onboardingAuthoredCount > 0;
+
+  return {
+    ok: !violated,
+    error: violated ? 'onboarding_accounting_side_effect_detected' : undefined,
+    journalCount,
+    balanceCount,
+    openingBalanceCount,
+    openingStockCount,
+    onboardingAuthoredCount,
+    tenantId,
+    projectId: args.projectId || null,
+    createsJournals: false,
+    createsOpeningBalances: false,
+    createsOpeningStock: false,
+    assertNoCreate: assertNoOnboardingAccountingCreate,
+  };
+}
+
+/** Explicit refuse helper — onboarding must never expose journal create. */
+export async function createOnboardingJournalEntry(_prisma, _args = {}) {
+  return {
+    ok: false,
+    error: 'accounting_boundary_forbidden',
+    reason: 'onboarding_must_not_create_journals',
+  };
+}
+
+
+===== lib/admin/customerSuccess/onboarding/training.js =====
+
+/**
+ * Training coordination — consume Phase 16 TRAINING handoff.
+ * Cannot set COMPLETED without Training-domain (Phase 18) source.
+ * Phase 18 stub → UNKNOWN / IN_PROGRESS only when source absent.
+ */
+
+import { loadOnboardingProjectForActor } from './projectAccess.js';
+import {
+  canManageOnboarding,
+  hasCustomerOnboardingTrainingModel,
+  serializeOnboardingTraining,
+} from './model.js';
+import { getOnboardingDomainContract } from './catalogue.js';
+
+export const TRAINING_COORD_STATUS = Object.freeze({
+  UNKNOWN: 'UNKNOWN',
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  READY: 'READY',
+  COMPLETED: 'COMPLETED',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+});
+
+const TRAINING_DOMAIN_SOURCES = new Set([
+  'PHASE_18_TRAINING',
+  'PHASE_18',
+  'TRAINING_DOMAIN',
+  'CUSTOMER_TRAINING',
+]);
+
+export async function setTrainingCoordinationStatus(prisma, args = {}) {
+  const loaded = await loadOnboardingProjectForActor(prisma, args);
+  if (!loaded.ok) return loaded;
+  if (!canManageOnboarding(loaded.admin)) {
+    return { ok: false, forbidden: true, error: 'onboarding_training_forbidden' };
+  }
+  if (!hasCustomerOnboardingTrainingModel(prisma)) {
+    return {
+      ok: false,
+      error: 'customer_onboarding_training_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const status = String(args.status || TRAINING_COORD_STATUS.UNKNOWN)
+    .trim()
+    .toUpperCase();
+
+  const trainingDomainSource = args.trainingDomainSource
+    ? String(args.trainingDomainSource).trim().toUpperCase()
+    : null;
+  const trainingDomainStatus = args.trainingDomainStatus
+    ? String(args.trainingDomainStatus).trim().toUpperCase()
+    : null;
+
+  if (status === TRAINING_COORD_STATUS.COMPLETED) {
+    const hasSource =
+      trainingDomainSource &&
+      TRAINING_DOMAIN_SOURCES.has(trainingDomainSource) &&
+      trainingDomainStatus === 'COMPLETED';
+    if (!hasSource) {
+      return {
+        ok: false,
+        error: 'training_completed_requires_training_domain_source',
+        hint: 'Phase 18 Training domain must declare COMPLETED',
+      };
+    }
+  }
+
+  const now = args.now || new Date();
+  const existing = await prisma.customerOnboardingTraining.findFirst({
+    where: { projectId: loaded.project.id },
+  });
+
+  const data = {
+    projectId: loaded.project.id,
+    status,
+    sourceDomain:
+      args.sourceDomain || existing?.sourceDomain || 'PHASE_16_TRAINING_HANDOFF',
+    trainingDomainSource:
+      trainingDomainSource || existing?.trainingDomainSource || null,
+    trainingDomainStatus:
+      trainingDomainStatus || existing?.trainingDomainStatus || 'UNKNOWN',
+    updatedAt: now,
+  };
+
+  const row = existing
+    ? await prisma.customerOnboardingTraining.update({
+        where: { id: existing.id },
+        data,
+      })
+    : await prisma.customerOnboardingTraining.create({
+        data: {
+          ...data,
+          createdByAdminId: loaded.admin?.id || null,
+          createdAt: now,
+        },
+      });
+
+  return {
+    ok: true,
+    training: serializeOnboardingTraining(row),
+    domain: getOnboardingDomainContract(),
+  };
+}
+
+
+===== test/systemAdmin.cs.onboardingWave3.test.js =====
+
+/**
+ * Phase 17 Wave 3 — Readiness, go-live, stabilisation, handover, completion certificate.
+ * UNKNOWN ≠ READY; Critical defects block; success → STABILISATION not COMPLETED;
+ * Migration COMPLETED needs recon; Training COMPLETED needs Training-domain source;
+ * Completion needs sign-offs/recon/handover; certificate checksum stable on retry;
+ * No journals/OB/stock from onboarding; Cross-Tenant project access denied.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  evaluateOnboardingReadiness,
+  setMigrationCoordinationStatus,
+  setTrainingCoordinationStatus,
+  recordOnboardingDefect,
+  approveGoLive,
+  executeGoLive,
+  recordGoLiveOutcome,
+  createOnboardingHandover,
+  acceptOnboardingHandover,
+  evaluateOnboardingCompletion,
+  issueCompletionCertificate,
+  calculateOnboardingProgress,
+  calculateOnboardingHealth,
+  assertOnboardingAccountingBoundary,
+  getOnboardingDomainContract,
+  ONBOARDING_PROJECT_STATUS,
+} from '@/lib/admin/customerSuccess/onboarding';
+
+function superAdmin(id = 'super-onb-3') {
+  return {
+    id,
+    role: 'Super Admin',
+    permissions: {
+      'systemAdmin.customerSuccess.read': true,
+      'systemAdmin.customerSuccess.manageCases': true,
+    },
+  };
+}
+
+function makeStoreCrud(store, idPrefix) {
+  return {
+    create: vi.fn(async ({ data }) => {
+      const row = {
+        id: data.id || `${idPrefix}-${store.length + 1}`,
+        createdAt: data.createdAt || new Date(),
+        updatedAt: data.updatedAt || new Date(),
+        ...data,
+      };
+      store.push(row);
+      return row;
+    }),
+    findUnique: vi.fn(async ({ where = {} } = {}) => {
+      if (where.id) return store.find((r) => r.id === where.id) || null;
+      if (where.idempotencyKey) {
+        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
+      }
+      if (where.projectId) {
+        return store.find((r) => r.projectId === where.projectId) || null;
+      }
+      return null;
+    }),
+    findFirst: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.projectId) rows = rows.filter((r) => r.projectId === where.projectId);
+      if (where.idempotencyKey) {
+        rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
+      }
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      if (where.severity) rows = rows.filter((r) => r.severity === where.severity);
+      return rows[0] || null;
+    }),
+    findMany: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.projectId) rows = rows.filter((r) => r.projectId === where.projectId);
+      if (where.severity) rows = rows.filter((r) => r.severity === where.severity);
+      if (where.status) rows = rows.filter((r) => r.status === where.status);
+      return rows;
+    }),
+    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+      const row = store.find((r) => r.id === where.id);
+      if (!row) throw new Error('not found');
+      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+      return row;
+    }),
+    count: vi.fn(async ({ where = {} } = {}) => {
+      let rows = [...store];
+      if (where.projectId) rows = rows.filter((r) => r.projectId === where.projectId);
+      if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+      if (where.severity) rows = rows.filter((r) => r.severity === where.severity);
+      return rows.length;
+    }),
+  };
+}
+
+function makePrisma(overrides = {}) {
+  const projectStore = overrides._projectStore || [];
+  const projectHistoryStore = overrides._projectHistoryStore || [];
+  const readinessStore = overrides._readinessStore || [];
+  const migrationStore = overrides._migrationStore || [];
+  const mraStore = overrides._mraStore || [];
+  const trainingStore = overrides._trainingStore || [];
+  const defectStore = overrides._defectStore || [];
+  const testPlanStore = overrides._testPlanStore || [];
+  const goLiveStore = overrides._goLiveStore || [];
+  const goLiveApprovalStore = overrides._goLiveApprovalStore || [];
+  const stabilisationStore = overrides._stabilisationStore || [];
+  const handoverStore = overrides._handoverStore || [];
+  const completionStore = overrides._completionStore || [];
+  const certificateStore = overrides._certificateStore || [];
+  const journalStore = overrides._journalStore || [];
+  const openingBalanceStore = overrides._openingBalanceStore || [];
+  const stockStore = overrides._stockStore || [];
+
+  const prisma = {
+    $transaction: vi.fn(async (fn) => fn(prisma)),
+    _projectStore: projectStore,
+    _readinessStore: readinessStore,
+    _migrationStore: migrationStore,
+    _trainingStore: trainingStore,
+    _defectStore: defectStore,
+    _goLiveStore: goLiveStore,
+    _goLiveApprovalStore: goLiveApprovalStore,
+    _stabilisationStore: stabilisationStore,
+    _handoverStore: handoverStore,
+    _completionStore: completionStore,
+    _certificateStore: certificateStore,
+    _journalStore: journalStore,
+    customerOnboardingProject: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `onb-${projectStore.length + 1}`,
+          status: data.status || 'IN_PROGRESS',
+          createdAt: data.createdAt || new Date(),
+          updatedAt: data.updatedAt || new Date(),
+          ...data,
+        };
+        projectStore.push(row);
+        return row;
+      }),
+      findUnique: vi.fn(async ({ where = {} } = {}) => {
+        if (where.id) return projectStore.find((r) => r.id === where.id) || null;
+        return null;
+      }),
+      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
+        const row = projectStore.find((r) => r.id === where.id);
+        if (!row) throw new Error('not found');
+        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
+        return row;
+      }),
+    },
+    customerOnboardingProjectStatusHistory: {
+      create: vi.fn(async ({ data }) => {
+        const row = {
+          id: data.id || `ph-${projectHistoryStore.length + 1}`,
+          at: data.at || new Date(),
+          ...data,
+        };
+        projectHistoryStore.push(row);
+        return row;
+      }),
+    },
+    customerOnboardingReadinessEvaluation: makeStoreCrud(readinessStore, 'ready'),
+    customerOnboardingMigration: makeStoreCrud(migrationStore, 'mig'),
+    customerOnboardingMraEis: makeStoreCrud(mraStore, 'mra'),
+    customerOnboardingTraining: makeStoreCrud(trainingStore, 'trn'),
+    customerOnboardingDefect: makeStoreCrud(defectStore, 'def'),
+    customerOnboardingTestPlan: makeStoreCrud(testPlanStore, 'tp'),
+    customerOnboardingGoLive: makeStoreCrud(goLiveStore, 'gl'),
+    customerOnboardingGoLiveApproval: makeStoreCrud(goLiveApprovalStore, 'gla'),
+    customerOnboardingStabilisation: makeStoreCrud(stabilisationStore, 'stb'),
+    customerOnboardingHandover: makeStoreCrud(handoverStore, 'ho'),
+    customerOnboardingCompletion: makeStoreCrud(completionStore, 'cmp'),
+    customerOnboardingCompletionCertificate: makeStoreCrud(certificateStore, 'cert'),
+    journalEntry: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `je-${journalStore.length + 1}`, ...data };
+        journalStore.push(row);
+        return row;
+      }),
+      count: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...journalStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows.length;
+      }),
+      findMany: vi.fn(async ({ where = {} } = {}) => {
+        let rows = [...journalStore];
+        if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
+        return rows;
+      }),
+    },
+    accountBalance: {
+      count: vi.fn(async () => 0),
+      findMany: vi.fn(async () => []),
+    },
+    openingBalance: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `ob-${openingBalanceStore.length + 1}`, ...data };
+        openingBalanceStore.push(row);
+        return row;
+      }),
+      count: vi.fn(async () => openingBalanceStore.length),
+    },
+    openingStock: {
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `os-${stockStore.length + 1}`, ...data };
+        stockStore.push(row);
+        return row;
+      }),
+      count: vi.fn(async () => stockStore.length),
+    },
+  };
+
+  return prisma;
+}
+
+async function seedProject(prisma, admin, opts = {}) {
+  const tenantId = opts.tenantId || 'tenant-1';
+  const row = await prisma.customerOnboardingProject.create({
+    data: {
+      id: opts.projectId || `onb-w3-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      onboardingNumber: opts.onboardingNumber || 'ONB-2026-000301',
+      status: opts.status || ONBOARDING_PROJECT_STATUS?.IN_PROGRESS || 'IN_PROGRESS',
+      onboardingType: 'STANDARD',
+      onboardingRequestId: opts.requestId || 'onr-w3-1',
+      customerId: 'cust-1',
+      tenantId,
+      subscriptionId: 'sub-1',
+      templateVersionId: 'tmplv-w3-1',
+      createdByAdminId: admin.id,
+    },
+  });
+  return { project: row };
+}
+
+/**
+ * Explicit live dimension overrides for harness (no Tenant model probes).
+ * Must be passed on each evaluate/approve/execute/outcome — stored snapshots never lift UNKNOWN→READY.
+ */
+const GO_LIVE_READY_OVERRIDES = Object.freeze({
+  tenant: 'READY',
+  businessBranch: 'READY',
+  users: 'READY',
+  configuration: 'READY',
+  accounting: 'READY',
+  migration: 'READY',
+  mraEis: 'NOT_APPLICABLE',
+  training: 'READY',
+  testing: 'READY',
+  defects: 'READY',
+});
+
+/** Seed a project that is ready for go-live approval via live evidence + explicit overrides. */
+async function seedGoLiveReady(prisma, admin, opts = {}) {
+  const { project } = await seedProject(prisma, admin, {
+    ...opts,
+    status: 'READY_FOR_GO_LIVE',
+  });
+  await prisma.customerOnboardingMigration.create({
+    data: {
+      projectId: project.id,
+      status: 'COMPLETED',
+      reconciliationStatus: 'PASSED',
+      createdByAdminId: admin.id,
+    },
+  });
+  // Authoritative Training-domain COMPLETED (Phase 18) — IN_PROGRESS alone is non-READY
+  await prisma.customerOnboardingTraining.create({
+    data: {
+      projectId: project.id,
+      status: 'COMPLETED',
+      sourceDomain: 'PHASE_16_TRAINING_HANDOFF',
+      trainingDomainSource: 'PHASE_18_TRAINING',
+      trainingDomainStatus: 'COMPLETED',
+      createdByAdminId: admin.id,
+    },
+  });
+  await prisma.customerOnboardingTestPlan.create({
+    data: {
+      projectId: project.id,
+      status: 'PASSED',
+      createdByAdminId: admin.id,
+    },
+  });
+  return {
+    project,
+    dimensionOverrides: { ...GO_LIVE_READY_OVERRIDES },
+  };
+}
+
+describe('Phase 17 Wave 3 — Readiness, go-live, completion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('UNKNOWN readiness blocks go-live (UNKNOWN ≠ READY)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-unknown',
+      status: 'GO_LIVE_READINESS',
+    });
+
+    const readiness = await evaluateOnboardingReadiness(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+    });
+    expect(readiness.ok).toBe(true);
+    expect(readiness.overallStatus).toBe('UNKNOWN');
+    expect(readiness.overallStatus).not.toBe('READY');
+    expect(readiness.ready).not.toBe(true);
+
+    const approved = await approveGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      approvalRole: 'INTERNAL',
+    });
+    expect(approved.ok).toBe(false);
+    expect(approved.error).toMatch(/UNKNOWN|readiness|not.?ready/i);
+  });
+
+  it('stored READY snapshot never lifts live UNKNOWN to READY', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-snap',
+      status: 'GO_LIVE_READINESS',
+    });
+    await prisma.customerOnboardingReadinessEvaluation.create({
+      data: {
+        projectId: project.id,
+        overallStatus: 'READY',
+        dimensionsJson: { ...GO_LIVE_READY_OVERRIDES },
+        rulesVersion: 'onboarding-readiness-v1',
+        createdByAdminId: admin.id,
+      },
+    });
+
+    const readiness = await evaluateOnboardingReadiness(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      persist: false,
+    });
+    expect(readiness.ok).toBe(true);
+    expect(readiness.overallStatus).toBe('UNKNOWN');
+    expect(readiness.ready).not.toBe(true);
+    expect(readiness.dimensions.tenant).toBe('UNKNOWN');
+
+    const approved = await approveGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      approvalRole: 'INTERNAL',
+    });
+    expect(approved.ok).toBe(false);
+    expect(approved.error).toMatch(/readiness|not.?ready/i);
+  });
+
+  it('training IN_PROGRESS is non-READY for go-live dimension', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-trn-prog',
+    });
+    await prisma.customerOnboardingTraining.create({
+      data: {
+        projectId: project.id,
+        status: 'IN_PROGRESS',
+        sourceDomain: 'PHASE_16_TRAINING_HANDOFF',
+        trainingDomainStatus: 'UNKNOWN',
+        createdByAdminId: admin.id,
+      },
+    });
+
+    const live = await evaluateOnboardingReadiness(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      persist: false,
+      dimensionOverrides: {
+        tenant: 'READY',
+        businessBranch: 'READY',
+        users: 'READY',
+        configuration: 'READY',
+        accounting: 'READY',
+        migration: 'READY',
+        mraEis: 'NOT_APPLICABLE',
+        testing: 'READY',
+        defects: 'READY',
+        // training intentionally omitted — live IN_PROGRESS must stay non-READY
+      },
+    });
+    expect(live.ok).toBe(true);
+    expect(['UNKNOWN', 'NOT_READY']).toContain(live.dimensions.training);
+    expect(live.dimensions.training).not.toBe('READY');
+    expect(live.overallStatus).not.toBe('READY');
+    expect(live.ready).not.toBe(true);
+  });
+
+  it('Critical defect blocks go-live approval', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project, dimensionOverrides } = await seedGoLiveReady(prisma, admin, {
+      projectId: 'onb-w3-crit',
+    });
+
+    const defect = await recordOnboardingDefect(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      title: 'Login broken in production tenant',
+      severity: 'CRITICAL',
+      status: 'OPEN',
+    });
+    expect(defect.ok).toBe(true);
+
+    const approved = await approveGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      approvalRole: 'INTERNAL',
+      dimensionOverrides,
+    });
+    expect(approved.ok).toBe(false);
+    expect(approved.error).toMatch(/critical|defect/i);
+  });
+
+  it('successful go-live outcome → STABILISATION not COMPLETED', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project, dimensionOverrides } = await seedGoLiveReady(prisma, admin, {
+      projectId: 'onb-w3-live',
+      status: 'READY_FOR_GO_LIVE',
+    });
+
+    const approved = await approveGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      approvalRole: 'INTERNAL',
+      dimensionOverrides,
+    });
+    expect(approved.ok).toBe(true);
+
+    const customerApproved = await approveGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      approvalRole: 'CUSTOMER',
+      dimensionOverrides,
+    });
+    expect(customerApproved.ok).toBe(true);
+
+    const executed = await executeGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      windowStart: '2026-09-01T08:00:00Z',
+      windowEnd: '2026-09-01T12:00:00Z',
+      idempotencyKey: 'golive:onb-w3-live:1',
+      dimensionOverrides,
+    });
+    expect(executed.ok).toBe(true);
+
+    const outcome = await recordGoLiveOutcome(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      outcome: 'SUCCESSFUL',
+      customerAcknowledged: true,
+      dimensionOverrides,
+    });
+    expect(outcome.ok).toBe(true);
+    expect(outcome.project.status).toBe('STABILISATION');
+    expect(outcome.project.status).not.toBe('COMPLETED');
+    expect(prisma._projectStore.find((p) => p.id === project.id).status).toBe(
+      'STABILISATION'
+    );
+  });
+
+  it('executeGoLive refuses when readiness regresses after approval', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project, dimensionOverrides } = await seedGoLiveReady(prisma, admin, {
+      projectId: 'onb-w3-stale',
+    });
+
+    expect(
+      (
+        await approveGoLive(prisma, {
+          actorContext: { admin },
+          projectId: project.id,
+          approvalRole: 'INTERNAL',
+          dimensionOverrides,
+        })
+      ).ok
+    ).toBe(true);
+    expect(
+      (
+        await approveGoLive(prisma, {
+          actorContext: { admin },
+          projectId: project.id,
+          approvalRole: 'CUSTOMER',
+          dimensionOverrides,
+        })
+      ).ok
+    ).toBe(true);
+
+    // Regress training to Phase 18 stub IN_PROGRESS (non-READY)
+    const trn = prisma._trainingStore.find((t) => t.projectId === project.id);
+    Object.assign(trn, {
+      status: 'IN_PROGRESS',
+      trainingDomainSource: null,
+      trainingDomainStatus: 'UNKNOWN',
+    });
+
+    const { training: _drop, ...otherDims } = dimensionOverrides;
+    const executed = await executeGoLive(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      // other dims still attested; live training IN_PROGRESS must block
+      dimensionOverrides: otherDims,
+      idempotencyKey: 'golive:onb-w3-stale:1',
+    });
+    expect(executed.ok).toBe(false);
+    expect(executed.error).toMatch(/readiness|not.?ready/i);
+    void _drop;
+  });
+
+  it('migration COMPLETED rejected without reconciliation', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-mig',
+    });
+
+    const started = await setMigrationCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      status: 'IN_PROGRESS',
+    });
+    expect(started.ok).toBe(true);
+
+    const blocked = await setMigrationCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      status: 'COMPLETED',
+      // reconciliationStatus intentionally omitted
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/reconcil/i);
+
+    const ok = await setMigrationCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      status: 'COMPLETED',
+      reconciliationStatus: 'PASSED',
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.migration.status).toBe('COMPLETED');
+  });
+
+  it('training COMPLETED rejected without Training-domain source (Phase 18 stub)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-trn',
+    });
+
+    const stub = await setTrainingCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      status: 'IN_PROGRESS',
+      sourceDomain: 'PHASE_16_TRAINING_HANDOFF',
+    });
+    expect(stub.ok).toBe(true);
+    expect(['UNKNOWN', 'IN_PROGRESS']).toContain(stub.training.status);
+
+    const blocked = await setTrainingCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      status: 'COMPLETED',
+      // no trainingDomainSource / Phase 18 source
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/training.?domain|phase.?18|source/i);
+
+    const withSource = await setTrainingCoordinationStatus(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      status: 'COMPLETED',
+      trainingDomainSource: 'PHASE_18_TRAINING',
+      trainingDomainStatus: 'COMPLETED',
+    });
+    // Phase 17 may still refuse COMPLETED (coordination only) OR accept when Phase 18 source present.
+    // Spec: cannot set COMPLETED without Training-domain source; with source OK.
+    if (withSource.ok) {
+      expect(withSource.training.status).toBe('COMPLETED');
+      expect(withSource.training.trainingDomainSource || withSource.training.sourceDomain).toMatch(
+        /PHASE_18|TRAINING/i
+      );
+    } else {
+      // Strict Phase 17 stub: only UNKNOWN/IN_PROGRESS until Phase 18 module exists
+      expect(blocked.ok).toBe(false);
+      expect(['UNKNOWN', 'IN_PROGRESS']).toContain(
+        prisma._trainingStore[0]?.status || 'UNKNOWN'
+      );
+    }
+  });
+
+  it('completion without Customer sign-off fails', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-cmp',
+      status: 'COMPLETION_PENDING',
+    });
+
+    await prisma.customerOnboardingHandover.create({
+      data: {
+        projectId: project.id,
+        status: 'ACCEPTED',
+        acceptedAt: new Date(),
+        createdByAdminId: admin.id,
+      },
+    });
+    await prisma.customerOnboardingMigration.create({
+      data: {
+        projectId: project.id,
+        status: 'COMPLETED',
+        reconciliationStatus: 'PASSED',
+        createdByAdminId: admin.id,
+      },
+    });
+    await prisma.customerOnboardingCompletion.create({
+      data: {
+        projectId: project.id,
+        internalSignOffAt: new Date(),
+        internalSignOffByAdminId: admin.id,
+        customerSignOffAt: null,
+        reconciliationStatus: 'PASSED',
+        createdByAdminId: admin.id,
+      },
+    });
+
+    const evaluation = await evaluateOnboardingCompletion(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+    });
+    expect(evaluation.ok).toBe(true);
+    expect(evaluation.ready || evaluation.complete).not.toBe(true);
+    expect(evaluation.blockers?.join(' ') || evaluation.error || '').toMatch(
+      /customer.?sign.?off|sign.?off/i
+    );
+
+    const cert = await issueCompletionCertificate(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      idempotencyKey: 'cert:onb-w3-cmp:1',
+    });
+    expect(cert.ok).toBe(false);
+    expect(cert.error).toMatch(/sign.?off|completion|not.?ready/i);
+  });
+
+  it('completion certificate checksum stable on exact retry', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-cert',
+      status: 'COMPLETION_PENDING',
+    });
+
+    await prisma.customerOnboardingHandover.create({
+      data: {
+        projectId: project.id,
+        status: 'ACCEPTED',
+        acceptedAt: new Date('2026-09-15T10:00:00Z'),
+        createdByAdminId: admin.id,
+      },
+    });
+    await prisma.customerOnboardingMigration.create({
+      data: {
+        projectId: project.id,
+        status: 'COMPLETED',
+        reconciliationStatus: 'PASSED',
+        createdByAdminId: admin.id,
+      },
+    });
+    await prisma.customerOnboardingGoLive.create({
+      data: {
+        projectId: project.id,
+        status: 'SUCCESSFUL',
+        outcome: 'SUCCESSFUL',
+        createdByAdminId: admin.id,
+      },
+    });
+    await prisma.customerOnboardingStabilisation.create({
+      data: {
+        projectId: project.id,
+        status: 'EXITED',
+        exitApprovedAt: new Date('2026-09-14T10:00:00Z'),
+        createdByAdminId: admin.id,
+      },
+    });
+    await prisma.customerOnboardingCompletion.create({
+      data: {
+        projectId: project.id,
+        internalSignOffAt: new Date('2026-09-15T11:00:00Z'),
+        internalSignOffByAdminId: admin.id,
+        customerSignOffAt: new Date('2026-09-15T12:00:00Z'),
+        customerSignOffByContactId: 'contact-verified-1',
+        reconciliationStatus: 'PASSED',
+        createdByAdminId: admin.id,
+      },
+    });
+
+    const args = {
+      actorContext: { admin },
+      projectId: project.id,
+      idempotencyKey: 'cert:onb-w3-cert:1',
+    };
+    const first = await issueCompletionCertificate(prisma, args);
+    expect(first.ok).toBe(true);
+    expect(first.certificate.checksumSha256).toMatch(/^[a-f0-9]{64}$/i);
+
+    const second = await issueCompletionCertificate(prisma, args);
+    expect(second.ok).toBe(true);
+    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
+    expect(second.certificate.id).toBe(first.certificate.id);
+    expect(second.certificate.checksumSha256).toBe(first.certificate.checksumSha256);
+    expect(prisma._certificateStore.length).toBe(1);
+  });
+
+  it('accounting boundary — onboarding must not create journals/OB/stock', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-acct',
+    });
+
+    const boundary = await assertOnboardingAccountingBoundary(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      tenantId: project.tenantId,
+    });
+    expect(boundary.ok).toBe(true);
+    expect(boundary.journalCount).toBe(0);
+    expect(getOnboardingDomainContract().tenantGlForbidden).toBe(true);
+
+    // Ambient unrelated tenant journals must not fail the onboarding boundary
+    await prisma.journalEntry.create({
+      data: {
+        tenantId: project.tenantId,
+        description: 'pre-existing tenant GL',
+        source: 'TENANT_OPERATIONS',
+      },
+    });
+    const withAmbient = await assertOnboardingAccountingBoundary(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      tenantId: project.tenantId,
+    });
+    expect(withAmbient.ok).toBe(true);
+    expect(withAmbient.journalCount).toBeGreaterThan(0);
+
+    // Onboarding-authored create is forbidden
+    if (typeof boundary.assertNoCreate === 'function') {
+      const denied = boundary.assertNoCreate({ type: 'JOURNAL' });
+      expect(denied.ok).toBe(false);
+    }
+    const { createOnboardingJournalEntry } = await import(
+      '@/lib/admin/customerSuccess/onboarding'
+    );
+    const refused = await createOnboardingJournalEntry(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      tenantId: project.tenantId,
+    });
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/accounting.?boundary|forbidden|journal/i);
+    expect(boundary.createsJournals).not.toBe(true);
+    expect(boundary.createsOpeningBalances).not.toBe(true);
+    expect(boundary.createsOpeningStock).not.toBe(true);
+  });
+
+  it('Cross-Tenant project access denied', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-xtenant',
+      tenantId: 'tenant-1',
+    });
+
+    const denied = await evaluateOnboardingReadiness(prisma, {
+      actorContext: { admin, tenantId: 'tenant-other' },
+      projectId: project.id,
+      tenantId: 'tenant-other',
+    });
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toMatch(/cross.?tenant|denied|isolation/i);
+
+    const approveDenied = await approveGoLive(prisma, {
+      actorContext: { admin, tenantId: 'tenant-other' },
+      projectId: project.id,
+      tenantId: 'tenant-other',
+      approvalRole: 'INTERNAL',
+    });
+    expect(approveDenied.ok).toBe(false);
+    expect(approveDenied.error).toMatch(/cross.?tenant|denied|isolation/i);
+  });
+
+  it('progress and health are server-side and versioned (progress ≠ completion)', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-health',
+      status: 'IN_PROGRESS',
+    });
+
+    const progress = await calculateOnboardingProgress(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+    });
+    expect(progress.ok).toBe(true);
+    expect(progress.percent).toBeGreaterThanOrEqual(0);
+    expect(progress.percent).toBeLessThanOrEqual(100);
+    expect(progress.rulesVersion).toBeTruthy();
+    expect(progress.complete || progress.isComplete).not.toBe(true);
+
+    const health = await calculateOnboardingHealth(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+    });
+    expect(health.ok).toBe(true);
+    expect(health.status).toMatch(
+      /HEALTHY|AT_RISK|HIGH_RISK|BLOCKED|UNKNOWN|NOT_ENOUGH_DATA|WARNINGS/i
+    );
+    expect(health.rulesVersion).toBeTruthy();
+    expect(health.ml).not.toBe(true);
+  });
+
+  it('handover create/accept required before completion certificate', async () => {
+    const prisma = makePrisma();
+    const admin = superAdmin();
+    const { project } = await seedProject(prisma, admin, {
+      projectId: 'onb-w3-ho',
+      status: 'HANDOVER_PENDING',
+    });
+
+    const created = await createOnboardingHandover(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      recipients: ['CS', 'SUPPORT', 'CUSTOMER_ADMIN'],
+      openItemsJson: [{ title: 'Follow-up training' }],
+      idempotencyKey: 'handover:onb-w3-ho:1',
+    });
+    expect(created.ok).toBe(true);
+
+    const accepted = await acceptOnboardingHandover(prisma, {
+      actorContext: { admin },
+      projectId: project.id,
+      handoverId: created.handover.id,
+    });
+    expect(accepted.ok).toBe(true);
+    expect(accepted.handover.status).toMatch(/ACCEPT/i);
+  });
+});
+

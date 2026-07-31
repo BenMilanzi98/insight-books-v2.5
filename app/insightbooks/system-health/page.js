@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, Database, Mail, RefreshCw, Server } from 'lucide-react';
 import {
@@ -12,6 +15,7 @@ import {
 } from '@/components/admin';
 
 export default function SystemHealthPage() {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -23,7 +27,7 @@ export default function SystemHealthPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/system-health', { credentials: 'include' });
+      const res = await adminFetch('/api/admin/system-health', { credentials: 'include' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Health check failed (${res.status})`);
@@ -47,7 +51,7 @@ export default function SystemHealthPage() {
     setRetryMessage('');
     setRetryError('');
     try {
-      const res = await fetch('/api/admin/system-health/retry', {
+      const res = await adminFetch('/api/admin/system-health/retry', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -75,7 +79,7 @@ export default function SystemHealthPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="System Health"
+        title={t('admin-pages.health.title')}
         description="Platform service status for System Administrators. Secrets and credentials are never shown."
         actions={
           <button

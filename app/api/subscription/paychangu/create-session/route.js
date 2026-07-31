@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
+import {
+  PLAN_CATEGORY,
+  planCodesInCategory,
+  resolveCanonicalPlanPrice,
+} from '@/lib/admin/mraEisPlans';
 
 export async function POST(request) {
   try {
@@ -11,20 +15,33 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { amount, plan } = body;
+    const { amount: clientAmount, plan } = body;
 
-    if (!user.email || !user.name || !user.tenantId || !amount) {
+    if (!user.email || !user.name || !user.tenantId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Normalize plan ID
-    let planId = plan || '1month';
-    const planAliases = {
-      annual: '1year', '1_year': '1year', year: '1year',
-      '3_months': '3months',
-      '1_month': '1month', month: '1month',
-    };
-    planId = planAliases[planId] || planId;
+    const resolved = resolveCanonicalPlanPrice(plan || '1month');
+    if (!resolved.ok) {
+      return NextResponse.json({ error: resolved.error }, { status: 400 });
+    }
+
+    const { planId, amount, currency, label, category } = resolved;
+
+    // Never trust browser price — allow tiny float noise only
+    if (clientAmount != null && clientAmount !== '') {
+      const submitted = Number(clientAmount);
+      if (!Number.isFinite(submitted) || Math.abs(submitted - amount) > 0.009) {
+        return NextResponse.json(
+          {
+            error: 'Price mismatch. Refresh the page and try again.',
+            expectedAmount: amount,
+            currency,
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     const tenantId = user.tenantId;
     const tx_ref = `IB-${tenantId.slice(-6)}-${Date.now()}`;
@@ -41,11 +58,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Application URL not configured' }, { status: 500 });
     }
 
-    const planConfig = Object.values(SUBSCRIPTION_PLANS).find(p => p.id === planId);
-    const planLabel = planConfig?.displayName || planId;
-
     const paychanguPayload = {
-      currency: 'MWK',
+      currency,
       tx_ref,
       amount: String(amount),
       callback_url: `${appUrl}/api/subscription/paychangu/callback`,
@@ -54,12 +68,15 @@ export async function POST(request) {
       first_name: user.name.split(' ')[0] || user.name,
       last_name: user.name.split(' ').slice(1).join(' ') || '',
       customization: {
-        title: 'InsightBooks Subscription',
-        description: `${planLabel} subscription payment`,
+        title:
+          category === PLAN_CATEGORY.MRA_EIS
+            ? 'InsightBooks MRA EIS'
+            : 'InsightBooks Subscription',
+        description: `${label} subscription payment`,
       },
     };
 
-    console.log('[PayChangu] Creating session:', { tx_ref, planId, amount, tenantId });
+    console.log('[PayChangu] Creating session:', { tx_ref, planId, amount, tenantId, category });
 
     const response = await fetch('https://api.paychangu.com/payment', {
       method: 'POST',
@@ -72,80 +89,90 @@ export async function POST(request) {
     });
 
     const data = await response.json();
-    console.log('[PayChangu] API response status:', response.status, 'body:', JSON.stringify(data).slice(0, 500));
+    console.log(
+      '[PayChangu] API response status:',
+      response.status,
+      'body:',
+      JSON.stringify(data).slice(0, 500)
+    );
 
     if (!response.ok || data.status !== 'success') {
       console.error('[PayChangu] API error:', data);
       return NextResponse.json(
         { error: data.message || 'Failed to create checkout session' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
-    // Extract checkout URL and tx_ref from the response (PayChangu nests data)
     const checkoutUrl = data?.data?.checkout_url || data?.data?.link || data?.checkout_url;
     const paychanguTxRef = data?.data?.data?.tx_ref || data?.data?.tx_ref || tx_ref;
 
     if (!checkoutUrl) {
       console.error('[PayChangu] No checkout URL in response:', data);
-      return NextResponse.json({ error: 'Payment gateway did not return a checkout URL' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Payment gateway did not return a checkout URL' },
+        { status: 500 }
+      );
     }
 
-    // Upsert subscription record: update existing trial/pending or create new
+    const familyCodes = planCodesInCategory(category);
+
+    // Coexistence: only reuse pending rows in the same product family
     const existingSubscription = await prisma.accountSubscription.findFirst({
       where: {
         tenantId,
-        OR: [{ isTrial: true }, { isActive: true }, { status: 'Pending' }],
+        plan: { in: familyCodes },
+        OR: [{ status: 'Pending' }, { isTrial: true }, { isActive: false, status: 'Pending' }],
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    if (existingSubscription) {
+    const pendingData = {
+      plan: planId,
+      txRef: paychanguTxRef,
+      amount,
+      currency,
+      status: 'Pending',
+      paymentMethod: 'PayChangu',
+      isActive: false,
+      isTrial: false,
+      paymentDate: new Date(),
+      notes: `Awaiting PayChangu payment for ${label} (${category})`,
+    };
+
+    if (existingSubscription && existingSubscription.status === 'Pending') {
       await prisma.accountSubscription.update({
         where: { id: existingSubscription.id },
-        data: {
-          plan: planId,
-          txRef: paychanguTxRef,
-          amount: Number(amount),
-          currency: 'MWK',
-          status: 'Pending',
-          paymentMethod: 'PayChangu',
-          isActive: false,
-          isTrial: false,
-          paymentDate: new Date(),
-          notes: `Awaiting PayChangu payment for ${planLabel}`,
-        },
+        data: pendingData,
       });
     } else {
       await prisma.accountSubscription.create({
         data: {
           tenantId,
-          plan: planId,
-          txRef: paychanguTxRef,
-          amount: Number(amount),
-          currency: 'MWK',
-          status: 'Pending',
-          paymentMethod: 'PayChangu',
-          isActive: false,
-          isTrial: false,
-          paymentDate: new Date(),
-          notes: `Awaiting PayChangu payment for ${planLabel}`,
+          ...pendingData,
         },
       });
     }
 
-    console.log('[PayChangu] Session created successfully:', { tx_ref: paychanguTxRef, checkoutUrl: checkoutUrl.slice(0, 80) });
+    console.log('[PayChangu] Session created successfully:', {
+      tx_ref: paychanguTxRef,
+      checkoutUrl: checkoutUrl.slice(0, 80),
+    });
 
     return NextResponse.json({
       message: 'Checkout session created successfully',
       checkout_url: checkoutUrl,
       tx_ref: paychanguTxRef,
+      planId,
+      amount,
+      currency,
+      category,
     });
   } catch (error) {
     console.error('[PayChangu] Error creating checkout session:', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session. Please try again.' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

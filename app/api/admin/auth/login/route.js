@@ -96,6 +96,13 @@ export async function POST(request) {
       console.error('Admin login audit log skipped:', e?.message || e);
     }
 
+    try {
+      const { emitAdminLogin } = await import('@/lib/admin/analytics/emit');
+      await emitAdminLogin(prisma, { adminId: admin.id, email: admin.email });
+    } catch (e) {
+      console.warn('Admin login analytics emit skipped:', e?.message || e);
+    }
+
     // Generate JWT token (requires JWT_SECRET in production)
     let secret;
     try {

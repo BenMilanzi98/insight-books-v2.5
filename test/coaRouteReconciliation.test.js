@@ -5,9 +5,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { loadCoaBulkGlAggregates } from '../lib/coaBulkGlAggregation.js';
 
 describe('loadCoaBulkGlAggregates (chart route GL)', () => {
-  it('sums journal + txn for survivor; journal query requires transactionId null; txn includes reversals in aggregate', async () => {
+  it('sums ACCOUNTING_V2 journal lines for survivor; transaction archive is unused', async () => {
     const journalCalls = [];
-    const txnCalls = [];
     const prisma = {
       journalEntryLine: {
         findMany: vi.fn(async (args) => {
@@ -24,24 +23,8 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
         }),
       },
       transactionLine: {
-        findMany: vi.fn(async (args) => {
-          txnCalls.push(args);
-          if (args.where.transaction.isReversal === true) {
-            return [];
-          }
-          return [
-            {
-              id: 'tl1',
-              accountId: 'a1',
-              debitAmount: '0',
-              creditAmount: '40',
-              transaction: {
-                date: new Date(2024, 4, 2),
-                status: 'posted',
-                isReversal: false,
-              },
-            },
-          ];
+        findMany: vi.fn(async () => {
+          throw new Error('Transaction archive must not be queried for CoA GL aggregates');
         }),
       },
     };
@@ -61,18 +44,14 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
       fiscalYearStartMonth: 1,
     });
 
-    expect(journalCalls[0].where.journalEntry.transactionId).toBeNull();
-    expect(txnCalls.length).toBe(2);
-    expect(txnCalls[0].where.transaction.isReversal).toBe(false);
-    expect(txnCalls[1].where.transaction.isReversal).toBe(true);
-    expect(txnCalls[0].where.transaction.branchId).toBe('b1');
+    expect(journalCalls[0].where.journalEntry.architectureVersion).toBe('ACCOUNTING_V2');
+    expect(journalCalls[0].where.journalEntry.branchId).toBe('b1');
+    expect(prisma.transactionLine.findMany).not.toHaveBeenCalled();
 
     const j = r.journalBySurvivor.get('a1');
-    const t = r.txnBySurvivor.get('a1');
     expect(j.debit).toBe(100);
     expect(j.credit).toBe(0);
-    expect(t.debit).toBe(0);
-    expect(t.credit).toBe(40);
+    expect(r.txnBySurvivor.size).toBe(0);
   });
 
   it('dedupes the same journal line id when returned from BS and IS journal chunk queries', async () => {

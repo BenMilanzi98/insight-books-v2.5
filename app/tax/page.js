@@ -139,7 +139,7 @@ export default function TaxManagement() {
       collectedTaxes: {
         byRate: [
           {
-            rate: 16.5,
+            rate: 17.5,
             taxableAmount: 12500,
             taxAmount: 2062.5,
             items: [

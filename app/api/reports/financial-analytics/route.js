@@ -285,7 +285,7 @@ export async function GET(request) {
 
     let activeBudgets = [];
     try {
-      activeBudgets = await prisma.budget.findMany({
+      activeBudgets = await prisma.legacyBudget.findMany({
         where: {
           tenantId: user.tenantId,
           status: { in: ['active', 'draft'] },

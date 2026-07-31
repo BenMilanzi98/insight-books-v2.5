@@ -23,6 +23,7 @@ Future<void> openSaleReceiptThermalPrint(
   String? saleNumberForFilename,
   int paperWidthMm = 80,
 }) async {
+  paperWidthMm = normalizeReceiptPaperWidthMm(paperWidthMm);
   if (saleId.isEmpty || saleId.startsWith('OFFLINE-')) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -132,29 +133,56 @@ Future<void> openSaleReceiptThermalPrint(
   }
 }
 
-Future<int?> chooseReceiptPaperWidthMm(BuildContext context) {
+const _receiptPaperWidthPresetsMm = [58, 70, 72, 76, 80, 88, 90];
+
+int normalizeReceiptPaperWidthMm(dynamic value, {int fallback = 80}) {
+  final parsed = value is int
+      ? value
+      : value is num
+          ? value.round()
+          : int.tryParse('$value');
+  final base = parsed ?? fallback;
+  if (base < 58) return 58;
+  if (base > 90) return 90;
+  return base;
+}
+
+Future<int?> chooseReceiptPaperWidthMm(
+  BuildContext context, {
+  int preferredWidthMm = 80,
+}) {
+  final preferred = normalizeReceiptPaperWidthMm(preferredWidthMm);
   return showDialog<int>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => SimpleDialog(
       title: const Text('Printer paper width'),
-      content: const Text('Choose the paper size loaded in the receipt printer.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(58),
-          child: const Text('58mm'),
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: Text('Choose the paper size loaded in the receipt printer.'),
         ),
-        FilledButton(
-          onPressed: () => Navigator.of(ctx).pop(80),
-          child: const Text('80mm'),
-        ),
+        for (final mm in _receiptPaperWidthPresetsMm)
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(mm),
+            child: Text(
+              '$mm mm${mm == preferred ? ' (preferred)' : mm == 80 ? ' (most common)' : ''}',
+              style: TextStyle(
+                fontWeight: mm == preferred ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
       ],
     ),
   );
 }
 
 PdfPageFormat _rollFormatForWidth(int paperWidthMm) {
-  final width = (paperWidthMm == 58 ? 58 : 80) * PdfPageFormat.mm;
-  return PdfPageFormat(width, 2000 * PdfPageFormat.mm, marginAll: 0);
+  final mm = normalizeReceiptPaperWidthMm(paperWidthMm);
+  return PdfPageFormat(
+    mm * PdfPageFormat.mm,
+    double.infinity,
+    marginAll: 0,
+  );
 }
 
 String _receiptFileName(String? saleNumberForFilename, String saleId) {

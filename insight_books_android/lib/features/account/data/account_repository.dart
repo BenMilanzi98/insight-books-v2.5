@@ -110,6 +110,9 @@ class AccountRepository {
         businessPhone: _toString(tenantData['businessPhone']),
         businessEmail: _toString(tenantData['businessEmail']),
         receiptFooter: _toString(tenantData['receiptFooter']),
+        receiptPaperWidthMm: BusinessSettings.normalizePaperWidthMm(
+          tenantData['receiptPaperWidthMm'],
+        ),
         defaultBankDetails: _toString(tenantData['defaultBankDetails']),
         taxOutflowAccountId: _toString(tenantData['taxOutflowAccountId']),
         emailFooter: _toString(
@@ -186,6 +189,7 @@ class AccountRepository {
         'businessPhone': settings.businessPhone,
         'businessEmail': settings.businessEmail,
         'receiptFooter': settings.receiptFooter,
+        'receiptPaperWidthMm': settings.receiptPaperWidthMm,
         'defaultBankDetails': settings.defaultBankDetails,
         'taxOutflowAccountId': settings.taxOutflowAccountId,
         'emailFooter': settings.emailFooter,

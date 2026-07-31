@@ -1,0 +1,52 @@
+{
+  "errors": {
+    "forbidden": "Mulibe chilolezo chochita izi.",
+    "unauthorized": "Session yanu ya admin yatha. Lowani nawonso.",
+    "network": "Vuto la netiweki. Yesaninso.",
+    "generic": "China chake chalakwika.",
+    "correlation": "Reference: {{id}}"
+  },
+  "loading": "Ikukweza…",
+  "empty": {
+    "title": "Palibe kanthu pano",
+    "description": "Palibe data yosonyeza."
+  },
+  "confirm": {
+    "title": "Tsimikizani",
+    "cancel": "Letsani",
+    "confirm": "Tsimikizani"
+  },
+  "export": {
+    "title": "Export",
+    "description": "Sankhani mtundu wa export. Malamulo a bizinesi adzabwera m'magawo otsatira.",
+    "formatCsv": "CSV",
+    "formatXlsx": "Excel",
+    "start": "Yambitsani export",
+    "notConfigured": "Export sinakonzedwe pa view iyi."
+  },
+  "import": {
+    "title": "Import",
+    "description": "Kwezani fayilo ya dry-run pomwe zilipo.",
+    "chooseFile": "Sankhani fayilo",
+    "start": "Yambitsani import",
+    "notConfigured": "Import sinakonzedwe pa view iyi."
+  },
+  "dateRange": {
+    "from": "Kuyambira",
+    "to": "Mpaka",
+    "apply": "Gwiritsani ntchito",
+    "clear": "Chotsani"
+  },
+  "money": {
+    "missingContext": "Kuwonetsa ndalama kumafuna sourceContext"
+  },
+  "scope": {
+    "label": "Scope: {{scope}}"
+  },
+  "tabs": {
+    "listAria": "Ma tab"
+  },
+  "permission": {
+    "denied": "Chilolezo chikufunika"
+  }
+}

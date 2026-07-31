@@ -5,11 +5,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createSupplierPaymentEntry } from '@/lib/purchaseAccounting';
-import { updateAccountBalance } from '@/lib/core';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
-import { generateReferenceNumber } from '@/lib/journalService';
-import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
-import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 function parsePagination(searchParams) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
@@ -177,6 +173,29 @@ export async function POST(request) {
     const paymentNumber = body.paymentNumber?.trim() || `SP-${Date.now()}`;
     const paymentMethodInput = body.paymentMethod || 'Cash';
 
+    {
+      const { assertPaymentAccountHasFunds } = await import(
+        '@/lib/paymentAccountBalanceResolver'
+      );
+      const funds = await assertPaymentAccountHasFunds(
+        user.tenantId,
+        paymentMethodInput,
+        Number(body.totalAmount)
+      );
+      if (!funds.ok) {
+        return NextResponse.json(
+          {
+            error: funds.message,
+            code: funds.code,
+            available: funds.available,
+            required: funds.required,
+            shortfall: funds.shortfall,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const payment = await tx.supplierPayment.create({
         data: {
@@ -275,115 +294,25 @@ export async function POST(request) {
         throw new Error(`Failed to create journal entry for payment: ${error.message}`);
       }
 
-      // Supplier payment GL via createSupplierPaymentEntry updates Account.balance
+      // Supplier payment GL via V2 adapter inside createSupplierPaymentEntry (JournalEntry).
       await tx.supplierPayment.update({
         where: { id: payment.id },
         data: { journalEntryId: journalEntry?.journalEntryId || journalEntry?.id || null }
       });
 
-      // Post tax entries for bills with tax to the respective tax account
+      // Fresh-books: no separate Tax-SupplierPayment Transaction rows. Input tax is
+      // expected in the main V2 supplier-payment / bill journals; skip with log only.
       for (const { bill, amount } of allocations) {
-        try {
-          const billTax = Number(bill.taxAmount || 0);
-          const billTotal = Number(bill.totalAmount || 0);
-          if (billTax <= 0 || billTotal <= 0) continue;
-
-          // If bill is linked to a PO whose items already track tax via taxTypeId,
-          // skip to avoid double-counting (PO item tax is aggregated separately).
-          if (bill.purchaseOrderId) {
-            const trackedPOItems = await tx.purchaseOrderItem.count({
-              where: {
-                purchaseOrderId: bill.purchaseOrderId,
-                taxTypeId: { not: null },
-                taxAmount: { gt: 0 },
-              },
-            });
-            if (trackedPOItems > 0) continue;
-          }
-
+        const billTax = Number(bill.taxAmount || 0);
+        const billTotal = Number(bill.totalAmount || 0);
+        if (billTax > 0 && billTotal > 0) {
           const proportionalTax = round2((amount / billTotal) * billTax);
-          if (proportionalTax <= 0) continue;
-
-          // Resolve tax type: from bill's PO items, bill item taxRate match, or first active
-          let taxTypeId = null;
-
-          if (bill.purchaseOrderId) {
-            const poItem = await tx.purchaseOrderItem.findFirst({
-              where: { purchaseOrderId: bill.purchaseOrderId, taxTypeId: { not: null } },
-              select: { taxTypeId: true },
-            });
-            taxTypeId = poItem?.taxTypeId || null;
+          if (proportionalTax > 0) {
+            console.info(
+              'Supplier payment: skipping legacy Tax-SupplierPayment Transaction (tax in V2 JE)',
+              { paymentId: payment.id, billId: bill.id, proportionalTax }
+            );
           }
-
-          if (!taxTypeId) {
-            // Try matching by tax rate from bill items
-            const billItem = bill.items?.find((i) => Number(i.taxRate || 0) > 0);
-            if (billItem) {
-              const matchingTaxType = await tx.taxType.findFirst({
-                where: {
-                  tenantId: user.tenantId,
-                  status: 'Active',
-                  taxRate: Number(billItem.taxRate),
-                },
-                select: { id: true },
-              });
-              taxTypeId = matchingTaxType?.id || null;
-            }
-          }
-
-          if (!taxTypeId) {
-            const fallbackTax = await tx.taxType.findFirst({
-              where: { tenantId: user.tenantId, status: 'Active', taxRate: { gt: 0 } },
-              select: { id: true },
-            });
-            taxTypeId = fallbackTax?.id || null;
-          }
-
-          if (!taxTypeId) continue;
-
-          const taxType = await tx.taxType.findUnique({
-            where: { id: taxTypeId },
-            include: { account: true },
-          });
-          if (!taxType?.account) continue;
-
-          const payDate = new Date(body.paymentDate);
-          await assertPeriodOpen(user.tenantId, payDate, tx);
-          const taxRef = await generateReferenceNumber(tx, user.tenantId, payDate);
-
-          // Purchase input tax: Debit Liability (reduces net tax owed) or Credit Asset
-          const isLiability = taxType.account.accountType === 'Liability';
-          const debitAmt = isLiability ? proportionalTax : 0;
-          const creditAmt = isLiability ? 0 : proportionalTax;
-
-          await tx.transaction.create({
-            data: {
-              tenantId: user.tenantId,
-              date: payDate,
-              reference: taxRef,
-              description: `Input tax paid - ${bill.billNumber} - ${supplier.supplierName}`,
-              entryType: 'Regular',
-              status: 'posted',
-              sourceType: 'Tax-SupplierPayment',
-              sourceId: payment.id,
-              createdById: user.id,
-              postedById: user.id,
-              postedDate: new Date(),
-              lines: {
-                create: [{
-                  lineNumber: 1,
-                  accountId: taxType.account.id,
-                  debitAmount: debitAmt,
-                  creditAmount: creditAmt,
-                  description: `Input tax: ${taxType.taxName} - ${bill.billNumber}`,
-                }],
-              },
-            },
-          });
-
-          await updateAccountBalanceOnTransaction(taxType.account.id, debitAmt, creditAmt, tx);
-        } catch (taxErr) {
-          console.error('Supplier payment: tax posting failed for bill', bill.id, taxErr);
         }
       }
 

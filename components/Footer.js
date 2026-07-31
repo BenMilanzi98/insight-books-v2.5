@@ -129,7 +129,7 @@ const Footer = ({ skipPermissions = false }) => {
                 </Link>
               </li>)}
               {pagePermissions.canViewReports &&(   <li>
-                <Link href="/reports" style={{ color: "#6b7280", textDecoration: "none" }}>
+                <Link href="/reports-v2" style={{ color: "#6b7280", textDecoration: "none" }}>
                   Reports
                 </Link>
               </li>)}

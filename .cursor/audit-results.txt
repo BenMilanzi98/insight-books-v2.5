@@ -1,0 +1,269 @@
+﻿=== 1. Trial balance check per tenant (Transaction ledger) ===
+         tenantId          | journals | total_debits | total_credits | difference 
+---------------------------+----------+--------------+---------------+------------
+ cmqhgd27r00088s9so9tzjh7s |       19 |    701000.00 |     701000.00 |       0.00
+(1 row)
+
+=== 2. Per-journal unbalanced check (Transaction ledger) ===
+ id | tenantId | reference | sourceType | sourceId | date | status | dr | cr | diff 
+----+----------+-----------+------------+----------+------+--------+----+----+------
+(0 rows)
+
+=== 3. Journals with no lines / one line ===
+ id | tenantId | reference | sourceType | status | line_count 
+----+----------+-----------+------------+--------+------------
+(0 rows)
+
+=== 4. JournalEntry (secondary ledger) integrity ===
+            id             |         tenantId          |  referenceNumber   |       sourceType        |         sourceId         | status | transactionId | legacy_debit | legacy_credit | line_count |   dr    |   cr    
+---------------------------+---------------------------+--------------------+-------------------------+--------------------------+--------+---------------+--------------+---------------+------------+---------+---------
+ cmqhge287003t8s20nlh7qjjg | cmqhgd27r00088s9so9tzjh7s | QA-S19-LEGACY-CR   | legacy_capital          | QA-legacy-capital-credit | Posted |               |            0 |          5000 |          0 |       0 |       0
+ cmqhge1fb002r8s20l8l3j1i6 | cmqhgd27r00088s9so9tzjh7s | TXN-2026-0001-4725 | manual_journal          | QA-manual-journal        | Draft  |               |            0 |             0 |          2 | 5000.00 | 5000.00
+ cmqhgfbxs000d8sy0ehlf09y2 | cmqhgd27r00088s9so9tzjh7s | QA-S11-JE-REV      | manual_journal_reversal | QA-journal-reversal      | Posted |               |            0 |             0 |          2 | 5000.00 | 5000.00
+ cmqhge282003r8s20gv84dufo | cmqhgd27r00088s9so9tzjh7s | QA-S19-LEGACY      | legacy_capital          | QA-legacy-capital-debit  | Posted |               |         5000 |             0 |          0 |       0 |       0
+ cmqhge17s002k8s20c6cgo8n7 | cmqhgd27r00088s9so9tzjh7s | TXN-2026-0001-4454 | manual_journal          | QA-manual-journal        | Draft  |               |            0 |             0 |          2 | 5000.00 | 5000.00
+ cmqhgfbww00088sy0w0kc72n1 | cmqhgd27r00088s9so9tzjh7s | QA-S10-JE          | manual_journal          | QA-manual-journal        | Posted |               |            0 |             0 |          2 | 5000.00 | 5000.00
+(6 rows)
+
+=== 5. Duplicate posted sources (Transaction) ===
+ tenantId | sourceType | sourceId | postings 
+----------+------------+----------+----------
+(0 rows)
+
+=== 6. Lines with both debit and credit, or neither ===
+ id | transactionId | accountId | debitAmount | creditAmount 
+----+---------------+-----------+-------------+--------------
+(0 rows)
+
+=== 7. Stored Account.balance vs journal-derived balance (top diffs) ===
+            id             |         tenantId          | accountCode |               accountName               | accountType |  stored  |    dr     |    cr     | derived  |  diff   
+---------------------------+---------------------------+-------------+-----------------------------------------+-------------+----------+-----------+-----------+----------+---------
+ cmqhgd2cs000k8s9socyzvkr0 | cmqhgd27r00088s9so9tzjh7s | 1110        | Cash - Main Account                     | Asset       | -4500.00 | 210000.00 | 219500.00 | -9500.00 | 5000.00
+ cmqhge27z003p8s20fn9044v3 | cmqhgd27r00088s9so9tzjh7s | 3102        | Capital contribution ΓÇö QA-Legacy (3102) | Equity      |  5000.00 |         0 |         0 |        0 | 5000.00
+(2 rows)
+
+=== 8. Equity/capital accounts detail ===
+            id             |         tenantId          | accountCode |                 accountName                 | accountType |      parentAccountId      | balance  | isActive | acceptsNewTransactions | visibleInChart 
+---------------------------+---------------------------+-------------+---------------------------------------------+-------------+---------------------------+----------+----------+------------------------+----------------
+ cmqhba9ek000j8s6wkwhb78gm | cmqh9u3ku00048sdoxrglkgev | 1135        | First Capital Bank                          | Asset       | cmqhba9c700098s6wp832v3dw |     0.00 | t        | f                      | t
+ cmqk45mau000v8snoay99hc0f | cmqh9u3ku00048sdoxrglkgev | 2041-07     | Capital Gains Tax                           | Liability   | cmqhba9s400238s6w1tmjymdi |     0.00 | t        | t                      | t
+ cmqhba9xq002t8s6w75jdsj1c | cmqh9u3ku00048sdoxrglkgev | 3000        | Equity                                      | Equity      |                           |     0.00 | t        | f                      | t
+ cmqhba9yb002v8s6wso8qvmsj | cmqh9u3ku00048sdoxrglkgev | 3100        | Owner's Capital                             | Equity      | cmqhba9xq002t8s6w75jdsj1c |     0.00 | t        | t                      | t
+ cmqhba9yw002x8s6w8fi9u41a | cmqh9u3ku00048sdoxrglkgev | 3200        | Retained Earnings                           | Equity      | cmqhba9xq002t8s6w75jdsj1c |     0.00 | t        | t                      | t
+ cmqhba9zh002z8s6wu69r63fb | cmqh9u3ku00048sdoxrglkgev | 3300        | Current Year Earnings                       | Equity      | cmqhba9xq002t8s6w75jdsj1c |     0.00 | t        | t                      | t
+ cmqhbaa0100318s6wjgw8i9x7 | cmqh9u3ku00048sdoxrglkgev | 3999        | Opening Balances Suspense                   | Equity      | cmqhba9xq002t8s6w75jdsj1c |     0.00 | t        | t                      | t
+ cmqhgd2ds000y8s9suky0obvg | cmqhgd27r00088s9so9tzjh7s | 1135        | First Capital Bank                          | Asset       | cmqhgd2d1000o8s9s3sgyb8qc |     0.00 | t        | f                      | t
+ cmqhgd2yd00668s9sry59gnra | cmqhgd27r00088s9so9tzjh7s | 2041-07     | Capital Gains Tax                           | Liability   | cmqhgd2i6002i8s9sglzzy9mi |     0.00 | t        | t                      | t
+ cmqhgd2kc00388s9s2mc247of | cmqhgd27r00088s9so9tzjh7s | 3000        | Equity                                      | Equity      |                           |     0.00 | t        | f                      | t
+ cmqhgd2kg003a8s9snbjkjy57 | cmqhgd27r00088s9so9tzjh7s | 3100        | Owner's Capital                             | Equity      | cmqhgd2kc00388s9s2mc247of |     0.00 | t        | t                      | t
+ cmqhge1ul002y8s202ry74nd7 | cmqhgd27r00088s9so9tzjh7s | 3101        | Capital contribution ΓÇö QA-Owner Cash (3101) | Equity      | cmqhgd2kg003a8s9snbjkjy57 | 85000.00 | t        | t                      | t
+ cmqhge27z003p8s20fn9044v3 | cmqhgd27r00088s9so9tzjh7s | 3102        | Capital contribution ΓÇö QA-Legacy (3102)     | Equity      | cmqhgd2kg003a8s9snbjkjy57 |  5000.00 | t        | t                      | t
+ cmqhgd2km003c8s9skojurdzh | cmqhgd27r00088s9so9tzjh7s | 3200        | Retained Earnings                           | Equity      | cmqhgd2kc00388s9s2mc247of |     0.00 | t        | t                      | t
+ cmqhgd2kq003e8s9s97gk5f39 | cmqhgd27r00088s9so9tzjh7s | 3300        | Current Year Earnings                       | Equity      | cmqhgd2kc00388s9s2mc247of |     0.00 | t        | t                      | t
+ cmqhgd2kv003g8s9s7jydu0xw | cmqhgd27r00088s9so9tzjh7s | 3999        | Opening Balances Suspense                   | Equity      | cmqhgd2kc00388s9s2mc247of |     0.00 | t        | t                      | t
+ cmqkqxixf001a8s4cczdkhhxn | cmqkqxir900028s4c34dy6nzm | 1135        | First Capital Bank                          | Asset       | cmqkqxiws00108s4c4her58z7 |     0.00 | t        | f                      | t
+ cmqkqxjeh006k8s4cz185ap24 | cmqkqxir900028s4c34dy6nzm | 2041-07     | Capital Gains Tax                           | Liability   | cmqkqxj0s002u8s4cmc6ydd2p |     0.00 | t        | t                      | t
+ cmqkqxj25003k8s4ct79feqhg | cmqkqxir900028s4c34dy6nzm | 3000        | Equity                                      | Equity      |                           |     0.00 | t        | f                      | t
+ cmqkqxj28003m8s4cyqm2vr4z | cmqkqxir900028s4c34dy6nzm | 3100        | Owner's Capital                             | Equity      | cmqkqxj25003k8s4ct79feqhg |     0.00 | t        | t                      | t
+ cmqkqxj2b003o8s4c4f8vihjx | cmqkqxir900028s4c34dy6nzm | 3200        | Retained Earnings                           | Equity      | cmqkqxj25003k8s4ct79feqhg |     0.00 | t        | t                      | t
+ cmqkqxj2i003q8s4ca6ss9jto | cmqkqxir900028s4c34dy6nzm | 3300        | Current Year Earnings                       | Equity      | cmqkqxj25003k8s4ct79feqhg |     0.00 | t        | t                      | t
+ cmqkqxj2l003s8s4copmm34wn | cmqkqxir900028s4c34dy6nzm | 3999        | Opening Balances Suspense                   | Equity      | cmqkqxj25003k8s4ct79feqhg |     0.00 | t        | t                      | t
+ cmqkrntok00938s4cne6tx86d | cmqkrntib007v8s4c5m1bh8e7 | 1135        | First Capital Bank                          | Asset       | cmqkrntno008t8s4cz1afxacw |     0.00 | t        | f                      | t
+ cmqkrnu4i00ed8s4ci3ijmi2d | cmqkrntib007v8s4c5m1bh8e7 | 2041-07     | Capital Gains Tax                           | Liability   | cmqkrntsx00an8s4czni6qbtb |     0.00 | t        | t                      | t
+ cmqkrntue00bd8s4c06mfgnry | cmqkrntib007v8s4c5m1bh8e7 | 3000        | Equity                                      | Equity      |                           |     0.00 | t        | f                      | t
+ cmqkrntuj00bf8s4c27b56zyy | cmqkrntib007v8s4c5m1bh8e7 | 3100        | Owner's Capital                             | Equity      | cmqkrntue00bd8s4c06mfgnry |     0.00 | t        | t                      | t
+ cmqkrntum00bh8s4cwm2szcx6 | cmqkrntib007v8s4c5m1bh8e7 | 3200        | Retained Earnings                           | Equity      | cmqkrntue00bd8s4c06mfgnry |     0.00 | t        | t                      | t
+ cmqkrntuq00bj8s4ctaxf31ap | cmqkrntib007v8s4c5m1bh8e7 | 3300        | Current Year Earnings                       | Equity      | cmqkrntue00bd8s4c06mfgnry |     0.00 | t        | t                      | t
+ cmqkrntut00bl8s4cu3fuiqje | cmqkrntib007v8s4c5m1bh8e7 | 3999        | Opening Balances Suspense                   | Equity      | cmqkrntue00bd8s4c06mfgnry |     0.00 | t        | t                      | t
+ cmrsy80ka001d8s0c3e1dub70 | cmrsy80d100038s0c1jvnp6j3 | 1135        | First Capital Bank                          | Asset       | cmrsy80jt00138s0cxghr1h80 |     0.00 | t        | f                      | t
+ cmrsy80y9006n8s0c8zwkrt9m | cmrsy80d100038s0c1jvnp6j3 | 2041-07     | Capital Gains Tax                           | Liability   | cmrsy80n8002x8s0cn6xjiiin |     0.00 | t        | t                      | t
+ cmrsy80op003n8s0cphgwxa8a | cmrsy80d100038s0c1jvnp6j3 | 3000        | Equity                                      | Equity      |                           |     0.00 | t        | f                      | t
+ cmrsy80ou003p8s0cf7ettjax | cmrsy80d100038s0c1jvnp6j3 | 3100        | Owner's Capital                             | Equity      | cmrsy80op003n8s0cphgwxa8a |     0.00 | t        | t                      | t
+ cmrsy80oz003r8s0cy621aghw | cmrsy80d100038s0c1jvnp6j3 | 3200        | Retained Earnings                           | Equity      | cmrsy80op003n8s0cphgwxa8a |     0.00 | t        | t                      | t
+ cmrsy80p2003t8s0c30f6rvo0 | cmrsy80d100038s0c1jvnp6j3 | 3300        | Current Year Earnings                       | Equity      | cmrsy80op003n8s0cphgwxa8a |     0.00 | t        | t                      | t
+ cmrsy80p5003v8s0cqeci8ml6 | cmrsy80d100038s0c1jvnp6j3 | 3999        | Opening Balances Suspense                   | Equity      | cmrsy80op003n8s0cphgwxa8a |     0.00 | t        | t                      | t
+(37 rows)
+
+=== 9. Capital-related transaction lines ===
+         tenantId          |          txn_id           |          date           | reference |      sourceType      |        sourceId         | status | isReversal | accountCode |                 accountName                 | debitAmount | creditAmount 
+---------------------------+---------------------------+-------------------------+-----------+----------------------+-------------------------+--------+------------+-------------+---------------------------------------------+-------------+--------------
+ cmqhgd27r00088s9so9tzjh7s | cmqhge1wu00308s20ypp42jd1 | 2026-06-17 02:30:05.313 | QA-S12-GL | capital_contribution | QA-capital-contribution | posted | f          | 3101        | Capital contribution ΓÇö QA-Owner Cash (3101) |        0.00 |    100000.00
+ cmqhgd27r00088s9so9tzjh7s | cmqhge1zb00358s20yxejgyf4 | 2026-06-17 02:30:05.421 | QA-S13-GL | owner_withdrawal     | QA-owner-withdrawal     | posted | f          | 3101        | Capital contribution ΓÇö QA-Owner Cash (3101) |    15000.00 |         0.00
+(2 rows)
+
+=== 10. Duplicate account codes per tenant ===
+ tenantId | accountCode | count | string_agg 
+----------+-------------+-------+------------
+(0 rows)
+
+=== 11. Accounts with NULL tenantId ===
+ count 
+-------
+     0
+(1 row)
+
+=== 12. Posted transactions in closed periods ===
+ id | tenantId | date | reference | sourceType | period | status 
+----+----------+------+-----------+------------+--------+--------
+(0 rows)
+
+=== 13. Accounting periods inventory ===
+         tenantId          |        name         | periodType | startDate  |  endDate   | status 
+---------------------------+---------------------+------------+------------+------------+--------
+ cmqh9u3ku00048sdoxrglkgev | Jun 2026            | Monthly    | 2026-05-31 | 2026-06-30 | open
+ cmqhgd27r00088s9so9tzjh7s | QA-FY 2025 (closed) | Yearly     | 2024-12-31 | 2025-12-31 | closed
+ cmqhgd27r00088s9so9tzjh7s | QA-FY 2026          | Yearly     | 2025-12-31 | 2026-12-31 | open
+ cmqhgd27r00088s9so9tzjh7s | Jun 2026            | Monthly    | 2026-05-31 | 2026-06-30 | open
+ cmqkqxir900028s4c34dy6nzm | Jun 2026            | Monthly    | 2026-05-31 | 2026-06-30 | open
+ cmqkrntib007v8s4c5m1bh8e7 | Jun 2026            | Monthly    | 2026-05-31 | 2026-06-30 | open
+ cmrsy80d100038s0c1jvnp6j3 | Jul 2026            | Monthly    | 2026-06-30 | 2026-07-31 | open
+(7 rows)
+
+=== 14. Transactions with no period coverage ===
+ id | tenantId | date | reference | sourceType 
+----+----------+------+-----------+------------
+(0 rows)
+
+=== 15. Cross-tenant line references (account tenant <> txn tenant) ===
+ id | txn_tenant | acct_tenant | accountCode | accountName 
+----+------------+-------------+-------------+-------------
+(0 rows)
+
+=== 16. JournalEntryLine cross-tenant ===
+ id | je_tenant | acct_tenant | accountCode 
+----+-----------+-------------+-------------
+(0 rows)
+
+=== 17. AR/AP control accounts and balances ===
+         tenantId          | accountCode |          accountName           | accountType | balance  
+---------------------------+-------------+--------------------------------+-------------+----------
+ cmqh9u3ku00048sdoxrglkgev | 1200        | Accounts Receivable            | Asset       |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 1216        | Salary Advance Receivable      | Asset       |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 1218        | Insurance Receivable ΓÇö Control | Asset       |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 2000        | Liabilities                    | Liability   |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 2100        | Current Liabilities            | Liability   |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 2110        | Accounts Payable               | Liability   |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 2120        | VAT Payable (MRA)              | Liability   |     0.00
+ cmqh9u3ku00048sdoxrglkgev | 2130        | PAYE Payable                   | Liability   |     0.00
+ cmqhgd27r00088s9so9tzjh7s | 1200        | Accounts Receivable            | Asset       | 70000.00
+ cmqhgd27r00088s9so9tzjh7s | 1216        | Salary Advance Receivable      | Asset       |     0.00
+ cmqhgd27r00088s9so9tzjh7s | 1218        | Insurance Receivable ΓÇö Control | Asset       |     0.00
+ cmqhgd27r00088s9so9tzjh7s | 2000        | Liabilities                    | Liability   |     0.00
+ cmqhgd27r00088s9so9tzjh7s | 2100        | Current Liabilities            | Liability   |     0.00
+ cmqhgd27r00088s9so9tzjh7s | 2110        | Accounts Payable               | Liability   | 22000.00
+ cmqhgd27r00088s9so9tzjh7s | 2120        | VAT Payable (MRA)              | Liability   |     0.00
+ cmqhgd27r00088s9so9tzjh7s | 2130        | PAYE Payable                   | Liability   | 18000.00
+ cmqkqxir900028s4c34dy6nzm | 1200        | Accounts Receivable            | Asset       |     0.00
+ cmqkqxir900028s4c34dy6nzm | 1216        | Salary Advance Receivable      | Asset       |     0.00
+ cmqkqxir900028s4c34dy6nzm | 1218        | Insurance Receivable ΓÇö Control | Asset       |     0.00
+ cmqkqxir900028s4c34dy6nzm | 2000        | Liabilities                    | Liability   |     0.00
+ cmqkqxir900028s4c34dy6nzm | 2100        | Current Liabilities            | Liability   |     0.00
+ cmqkqxir900028s4c34dy6nzm | 2110        | Accounts Payable               | Liability   |     0.00
+ cmqkqxir900028s4c34dy6nzm | 2120        | VAT Payable (MRA)              | Liability   |     0.00
+ cmqkqxir900028s4c34dy6nzm | 2130        | PAYE Payable                   | Liability   |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 1200        | Accounts Receivable            | Asset       |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 1216        | Salary Advance Receivable      | Asset       |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 1218        | Insurance Receivable ΓÇö Control | Asset       |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 2000        | Liabilities                    | Liability   |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 2100        | Current Liabilities            | Liability   |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 2110        | Accounts Payable               | Liability   |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 2120        | VAT Payable (MRA)              | Liability   |     0.00
+ cmqkrntib007v8s4c5m1bh8e7 | 2130        | PAYE Payable                   | Liability   |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 1200        | Accounts Receivable            | Asset       |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 1216        | Salary Advance Receivable      | Asset       |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 1218        | Insurance Receivable ΓÇö Control | Asset       |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 2000        | Liabilities                    | Liability   |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 2100        | Current Liabilities            | Liability   |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 2110        | Accounts Payable               | Liability   |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 2120        | VAT Payable (MRA)              | Liability   |     0.00
+ cmrsy80d100038s0c1jvnp6j3 | 2130        | PAYE Payable                   | Liability   |     0.00
+(40 rows)
+
+=== 18. Invoice operational vs GL: invoices posted flag check ===
+            id             |         tenantId          | invoiceNumber |  status   |  total   | totalPaid | remainingBalance | isDeleted | txn_count 
+---------------------------+---------------------------+---------------+-----------+----------+-----------+------------------+-----------+-----------
+ cmqhge0in000l8s206wc905so | cmqhgd27r00088s9so9tzjh7s | QA-S04-INV    | sent      | 50000.00 |      0.00 |             0.00 | f         |         0
+ cmqhge0ke000s8s20yxw23ym5 | cmqhgd27r00088s9so9tzjh7s | QA-S05-INV    | paid      | 80000.00 |      0.00 |             0.00 | f         |         0
+ cmqhge0n3001d8s206trgth4g | cmqhgd27r00088s9so9tzjh7s | QA-S06-INV    | cancelled | 12000.00 |      0.00 |             0.00 | f         |         0
+ cmqhge25p003i8s20f6yx7jtt | cmqhgd27r00088s9so9tzjh7s | QA-S18-INV    | sent      | 35000.00 |      0.00 |             0.00 | f         |         0
+(4 rows)
+
+=== 19. Sales vs GL ===
+            id             |         tenantId          | saleNumber  |  status   |  total   | txn_count 
+---------------------------+---------------------------+-------------+-----------+----------+-----------
+ cmqhge09a00078s20b8i4mv24 | cmqhgd27r00088s9so9tzjh7s | QA-S01-SALE | completed | 25000.00 |         1
+ cmqhge0h2000e8s20l85jl63a | cmqhgd27r00088s9so9tzjh7s | QA-S02-SALE | completed | 18500.00 |         0
+(2 rows)
+
+=== 20. Expenses vs GL ===
+            id             |         tenantId          |         description         |  status  |  amount  | isDeleted | txn_count 
+---------------------------+---------------------------+-----------------------------+----------+----------+-----------+-----------
+ cmqhge0ti001p8s20inzdqejv | cmqhgd27r00088s9so9tzjh7s | QA-Utilities expense (cash) | Approved |  7500.00 | f         |         0
+ cmqhge0xa001w8s20a8juk2h4 | cmqhgd27r00088s9so9tzjh7s | QA-Purchases on AP          | Approved | 22000.00 | f         |         0
+(2 rows)
+
+=== 21. Payments vs GL ===
+            id             |         tenantId          |  amount  |  status   |         invoiceId         | saleId | expenseId | txn_count 
+---------------------------+---------------------------+----------+-----------+---------------------------+--------+-----------+-----------
+ cmqhge0lb000z8s202jxrh1no | cmqhgd27r00088s9so9tzjh7s | 30000.00 | Completed | cmqhge0ke000s8s20yxw23ym5 |        |           |         0
+ cmqhge0m500168s20ollwanit | cmqhgd27r00088s9so9tzjh7s | 50000.00 | Completed | cmqhge0ke000s8s20yxw23ym5 |        |           |         0
+(2 rows)
+
+=== 22. Supplier bills/payments vs GL ===
+            id             |         tenantId          | billNumber  | status | totalAmount | journalEntryId | txn_count 
+---------------------------+---------------------------+-------------+--------+-------------+----------------+-----------
+ cmqhge11g00238s20iyql0jdh | cmqhgd27r00088s9so9tzjh7s | QA-S09-BILL | Paid   |    45000.00 |                |         0
+(1 row)
+
+            id             |         tenantId          | paymentNumber | totalAmount | journalEntryId | txn_count 
+---------------------------+---------------------------+---------------+-------------+----------------+-----------
+ cmqhge145002b8s20rq47mrkt | cmqhgd27r00088s9so9tzjh7s | QA-S09-PAY    |       45000 |                |         0
+(1 row)
+
+=== 23. Full transaction listing (small DB) ===
+            id             |         tenantId          |    date    |     reference     |      sourceType      |         sourceId          | status | entryType | isReversal |    dr     
+---------------------------+---------------------------+------------+-------------------+----------------------+---------------------------+--------+-----------+------------+-----------
+ cmqhge0fx00098s20pkscwtfl | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S01-GL         | sale                 | QA-pos-cash-sale          | posted | Regular   | f          |  25000.00
+ cmqhge0hr000g8s20dr490kfh | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S03-REV        | sale_reversal        | QA-pos-sale-reversal      | posted | Reversal  | t          |  25000.00
+ cmqhge0iz000n8s20k46k68aa | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S04-GL         | invoice              | QA-invoice-create         | posted | Regular   | f          |  50000.00
+ cmqhge0kq000u8s20ef96dayz | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S05-GL-INV     | invoice              | QA-invoice-payments-inv   | posted | Regular   | f          |  80000.00
+ cmqhge0lp00118s203miaw5gj | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S05-GL-PAY1    | invoice_payment      | QA-invoice-payments-pay1  | posted | Regular   | f          |  30000.00
+ cmqhge0mi00188s20hgy1ckfi | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S05-GL-PAY2    | invoice_payment      | QA-invoice-payments-pay2  | posted | Regular   | f          |  50000.00
+ cmqhge0nn001f8s20lalvkcpk | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S06-GL-INV     | invoice              | QA-invoice-void-inv       | posted | Regular   | f          |  12000.00
+ cmqhge0q4001k8s20ht7b5gri | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S06-GL-REV     | invoice_reversal     | QA-invoice-void-rev       | posted | Reversal  | t          |  12000.00
+ cmqhge0ux001r8s20cs7t0mdv | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S07-GL         | expense              | QA-expense-cash           | posted | Regular   | f          |   7500.00
+ cmqhge0yp001y8s20g8km7gka | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S08-GL         | expense              | QA-expense-ap             | posted | Regular   | f          |  22000.00
+ cmqhge12t00268s207x8h843u | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S09-GL-BILL    | supplier_bill        | QA-supplier-bill-bill     | posted | Regular   | f          |  45000.00
+ cmqhge155002f8s20oalasc07 | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S09-GL-PAY     | supplier_payment     | QA-supplier-bill-pay      | posted | Regular   | f          |  45000.00
+ cmqhge1wu00308s20ypp42jd1 | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S12-GL         | capital_contribution | QA-capital-contribution   | posted | Regular   | f          | 100000.00
+ cmqhge1zb00358s20yxejgyf4 | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S13-GL         | owner_withdrawal     | QA-owner-withdrawal       | posted | Regular   | f          |  15000.00
+ cmqhge238003a8s205nzbl5ea | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S15-GL         | payroll              | QA-payroll-run            | posted | Regular   | f          | 120000.00
+ cmqhge266003k8s20eudh4cbu | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S18-GL-PARTIAL | invoice              | QA-ar-mismatch-inv        | posted | Regular   | f          |  20000.00
+ cmqhgfbvo00038sy05htclplh | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S02-GL         | sale                 | QA-pos-mobile-money       | posted | Regular   | f          |  18500.00
+ cmqhgfbyp000k8sy0td3pnkmf | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S14-GL         | bank_transfer        | QA-bank-transfer          | posted | Regular   | f          |  20000.00
+ cmqihlgmc00018saswx9m5zwt | cmqhgd27r00088s9so9tzjh7s | 2026-06-17 | QA-S01-GL-COGS    | Sale-COGS            | cmqhge09a00078s20b8i4mv24 | posted | Regular   | f          |   4000.00
+(19 rows)
+
+=== 24. Duplicate JournalEntry referenceNumbers or duplicate source ===
+         tenantId          |   sourceType   |     sourceId      | count 
+---------------------------+----------------+-------------------+-------
+ cmqhgd27r00088s9so9tzjh7s | manual_journal | QA-manual-journal |     3
+(1 row)
+
+=== 25. JournalEntry linked to Transaction (dual-ledger overlap) ===
+ id | tenantId | referenceNumber | transactionId | status | lines 
+----+----------+-----------------+---------------+--------+-------
+(0 rows)
+
+=== 26. Parent accounts with direct postings ===
+ id | tenantId | accountCode | accountName | children | direct_txn_lines 
+----+----------+-------------+-------------+----------+------------------
+(0 rows)
+
+=== 27. Liability GL support check ===
+         tenantId          | accountCode |   accountName    | balance  | journal_derived 
+---------------------------+-------------+------------------+----------+-----------------
+ cmqhgd27r00088s9so9tzjh7s | 2110        | Accounts Payable | 22000.00 |        22000.00
+ cmqhgd27r00088s9so9tzjh7s | 2130        | PAYE Payable     | 18000.00 |        18000.00
+(2 rows)
+

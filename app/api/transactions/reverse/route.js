@@ -1,29 +1,31 @@
 /**
  * Transaction Reversal API Routes
- * 
- * API endpoints for managing transaction reversals.
- * All endpoints follow accounting-safe practices with:
- * - Mandatory reversal reason
- * - Eligibility validation
- * - Audit trail preservation
+ *
+ * Delegates execute path to the canonical Reversal Engine façade.
+ * GL remains V2-only via reverseSourceJournals inside domain create*Reversal.
  */
 
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
 import {
   validateReversalEligibility,
   validateReversalReason,
-  checkAccountingPeriodLock,
-  createTransactionReversal,
-  createInvoiceReversal,
-  createExpenseReversal,
-  createPaymentReversal,
-  createSaleReversal,
-  createSupplierPaymentReversal,
   getReversalDetails,
   listReversibleTransactions,
-  calculateReversalImpact
+  calculateReversalImpact,
 } from '@/lib/transactionReversalService';
+import {
+  executeTransactionReversal,
+  requestTransactionReversal,
+  approveTransactionReversal,
+  rejectTransactionReversal,
+  previewTransactionReversalImpact,
+  findRegisterRow,
+  listPendingReversalApprovals,
+  resolveReversalSodPolicy,
+} from '@/lib/reversals';
+
+
 
 const normalizeTransactionType = (type) => {
   if (!type) return type;
@@ -42,7 +44,6 @@ const normalizeTransactionType = (type) => {
 
 /**
  * GET /api/transactions/reverse
- * Get reversal details or list reversible transactions
  */
 async function GET(request) {
   try {
@@ -54,10 +55,8 @@ async function GET(request) {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'list';
     const tenantId = user.tenantId;
-    const userId = user.id;
 
     if (action === 'details') {
-      // Get reversal details for a specific transaction
       const transactionId = searchParams.get('transactionId');
       const transactionType = normalizeTransactionType(searchParams.get('transactionType'));
 
@@ -72,16 +71,15 @@ async function GET(request) {
         const details = await getReversalDetails({
           transactionId,
           transactionType,
-          tenantId
+          tenantId,
         });
-
         return NextResponse.json(details);
       } catch (error) {
         console.error('Error in getReversalDetails:', error);
         return NextResponse.json(
-          { 
+          {
             error: error.message || 'Failed to get reversal details',
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
           },
           { status: 500 }
         );
@@ -89,7 +87,6 @@ async function GET(request) {
     }
 
     if (action === 'impact') {
-      // Calculate reversal impact for preview
       const transactionId = searchParams.get('transactionId');
       const transactionType = normalizeTransactionType(searchParams.get('transactionType'));
 
@@ -101,43 +98,105 @@ async function GET(request) {
       }
 
       try {
-        const impact = await calculateReversalImpact({
-          transactionId,
-          transactionType,
-          tenantId
+        const preview = await previewTransactionReversalImpact({
+          tenantId,
+          sourceType: transactionType,
+          sourceId: transactionId,
         });
-
-        return NextResponse.json(impact);
+        // Preserve legacy shape used by TransactionReversal modal (impact fields at root)
+        return NextResponse.json({
+          ...preview.impact,
+          eligibility: preview.eligibility,
+          periodPolicy: preview.periodPolicy,
+        });
       } catch (error) {
         console.error('Error in calculateReversalImpact:', error);
-        console.error('Error stack:', error.stack);
-        return NextResponse.json(
-          { 
-            error: error.message || 'Failed to calculate reversal impact',
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-          },
-          { status: 500 }
-        );
+        try {
+          const impact = await calculateReversalImpact({
+            transactionId,
+            transactionType,
+            tenantId,
+          });
+          return NextResponse.json(impact);
+        } catch (fallbackError) {
+          return NextResponse.json(
+            {
+              error: fallbackError.message || error.message || 'Failed to calculate reversal impact',
+              details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+            },
+            { status: 500 }
+          );
+        }
       }
     }
 
-    // List reversible transactions
-    const transactionType = normalizeTransactionType(searchParams.get('transactionType'));
+    if (action === 'eligibility') {
+      const transactionId = searchParams.get('transactionId');
+      const transactionType = normalizeTransactionType(searchParams.get('transactionType'));
+      if (!transactionId || !transactionType) {
+        return NextResponse.json(
+          { error: 'transactionId and transactionType are required' },
+          { status: 400 }
+        );
+      }
+      const eligibility = await validateReversalEligibility({
+        transactionId,
+        transactionType,
+        tenantId,
+      });
+      return NextResponse.json(eligibility);
+    }
+
+    if (action === 'register') {
+      const transactionId = searchParams.get('transactionId');
+      const transactionType = normalizeTransactionType(searchParams.get('transactionType'));
+      if (!transactionId || !transactionType) {
+        return NextResponse.json(
+          { error: 'transactionId and transactionType are required' },
+          { status: 400 }
+        );
+      }
+      try {
+        const register = await findRegisterRow({
+          tenantId,
+          sourceType: transactionType,
+          sourceId: transactionId,
+        });
+        return NextResponse.json({ register: register || null });
+      } catch {
+        return NextResponse.json({ register: null });
+      }
+    }
+
+    if (action === 'pending') {
+      const pending = await listPendingReversalApprovals({ tenantId });
+      const sod = await resolveReversalSodPolicy({ tenantId });
+      return NextResponse.json({ pending, sod });
+    }
+
+    if (action === 'sod') {
+      const sod = await resolveReversalSodPolicy({ tenantId });
+      return NextResponse.json({ sod });
+    }
+
+    // Default: list reversible transactions
+
+    const type = searchParams.get('type');
+    const status = searchParams.get('status');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const search = searchParams.get('search');
 
-    const result = await listReversibleTransactions({
+    const transactions = await listReversibleTransactions({
       tenantId,
-      transactionType: transactionType || undefined,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      page,
-      limit
+      type,
+      status,
+      startDate,
+      endDate,
+      search,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({ transactions });
   } catch (error) {
     console.error('Error in GET /api/transactions/reverse:', error);
     return NextResponse.json(
@@ -149,7 +208,7 @@ async function GET(request) {
 
 /**
  * POST /api/transactions/reverse
- * Create a new transaction reversal
+ * Body actions: execute (default) | request | approve | reject
  */
 async function POST(request) {
   try {
@@ -158,17 +217,77 @@ async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const perm = await requireAnyPermission(request, [
+      'journal.reverse',
+      'journalEntries.update',
+    ]);
+    if (perm) return perm;
+
     const body = await request.json();
+    const action = body.action || 'execute';
     const {
       transactionId,
-      reversalReason
+      reversalReason,
+      reversalId,
+      idempotencyKey,
+      crossPeriodDisclosure,
+      rejectionReason,
     } = body;
     const transactionType = normalizeTransactionType(body.transactionType);
 
     const tenantId = user.tenantId;
     const userId = user.id;
+    const sod = await resolveReversalSodPolicy({ tenantId });
 
-    // Validate required fields
+    if (action === 'approve') {
+      if (!reversalId) {
+        return NextResponse.json({ error: 'reversalId is required' }, { status: 400 });
+      }
+      const register = await approveTransactionReversal({
+        tenantId,
+        userId,
+        reversalId,
+      });
+      return NextResponse.json({ success: true, register, sod });
+    }
+
+    if (action === 'reject') {
+      if (!reversalId) {
+        return NextResponse.json({ error: 'reversalId is required' }, { status: 400 });
+      }
+      const register = await rejectTransactionReversal({
+        tenantId,
+        userId,
+        reversalId,
+        rejectionReason: rejectionReason || null,
+      });
+      return NextResponse.json({ success: true, register, sod });
+    }
+
+    if (action === 'request') {
+      if (!transactionId || !transactionType) {
+        return NextResponse.json(
+          { error: 'transactionId and transactionType are required' },
+          { status: 400 }
+        );
+      }
+      const reasonValidation = validateReversalReason(reversalReason);
+      if (!reasonValidation.isValid) {
+        return NextResponse.json({ error: reasonValidation.error }, { status: 400 });
+      }
+      const register = await requestTransactionReversal({
+        tenantId,
+        userId,
+        sourceType: transactionType,
+        sourceId: transactionId,
+        reason: reasonValidation.reason,
+        idempotencyKey: idempotencyKey || null,
+        crossPeriodDisclosure: Boolean(crossPeriodDisclosure),
+      });
+      return NextResponse.json({ success: true, register, sod }, { status: 201 });
+    }
+
+    // Default execute
     if (!transactionId || !transactionType) {
       return NextResponse.json(
         { error: 'transactionId and transactionType are required' },
@@ -176,130 +295,89 @@ async function POST(request) {
       );
     }
 
-    // Validate reversal reason
     const reasonValidation = validateReversalReason(reversalReason);
     if (!reasonValidation.isValid) {
+      return NextResponse.json({ error: reasonValidation.error }, { status: 400 });
+    }
+
+    // SoD on + no approved register id → create request only (do not execute).
+    if (sod.requireSeparateApprover && !reversalId) {
+      const register = await requestTransactionReversal({
+        tenantId,
+        userId,
+        sourceType: transactionType,
+        sourceId: transactionId,
+        reason: reasonValidation.reason,
+        idempotencyKey: idempotencyKey || null,
+        crossPeriodDisclosure: Boolean(crossPeriodDisclosure),
+      });
       return NextResponse.json(
-        { error: reasonValidation.error },
-        { status: 400 }
+        {
+          success: true,
+          pendingApproval: true,
+          message:
+            'Reversal submitted for approval. A separate user must approve before it posts.',
+          register,
+          sod,
+        },
+        { status: 202 }
       );
     }
 
-    // Validate eligibility before proceeding
-    const eligibility = await validateReversalEligibility({
-      transactionId,
-      transactionType,
-      tenantId
+    const result = await executeTransactionReversal({
+      tenantId,
+      userId,
+      sourceType: transactionType,
+      sourceId: transactionId,
+      reason: reasonValidation.reason,
+      idempotencyKey: idempotencyKey || null,
+      crossPeriodDisclosure: Boolean(crossPeriodDisclosure),
+      requireApproval: sod.requireSeparateApprover,
+      reversalId: reversalId || null,
     });
 
-    if (!eligibility.isValid) {
-      return NextResponse.json(
-        { error: eligibility.error },
-        { status: 400 }
-      );
-    }
-
-    // Check accounting period lock
-    const transaction = eligibility.transaction;
-    const periodCheck = await checkAccountingPeriodLock(tenantId, transaction.date || transaction.issueDate || transaction.paymentDate);
-    
-    if (periodCheck.isLocked) {
-      return NextResponse.json(
-        { error: periodCheck.error },
-        { status: 400 }
-      );
-    }
-
-    // Create reversal based on transaction type
-    let result;
-
-    switch (transactionType) {
-      case 'Transaction':
-        result = await createTransactionReversal({
-          transactionId,
-          reversalReason: reasonValidation.reason,
-          userId,
-          tenantId
-        });
-        break;
-
-      case 'Invoice':
-        result = await createInvoiceReversal({
-          invoiceId: transactionId,
-          reversalReason: reasonValidation.reason,
-          userId,
-          tenantId
-        });
-        break;
-
-      case 'Expense':
-        result = await createExpenseReversal({
-          expenseId: transactionId,
-          reversalReason: reasonValidation.reason,
-          userId,
-          tenantId
-        });
-        break;
-
-      case 'Payment':
-        result = await createPaymentReversal({
-          paymentId: transactionId,
-          reversalReason: reasonValidation.reason,
-          userId,
-          tenantId
-        });
-        break;
-
-      case 'Sale':
-        result = await createSaleReversal({
-          saleId: transactionId,
-          reversalReason: reasonValidation.reason,
-          userId,
-          tenantId
-        });
-        break;
-
-      case 'SupplierPayment':
-        result = await createSupplierPaymentReversal({
-          supplierPaymentId: transactionId,
-          reversalReason: reasonValidation.reason,
-          userId,
-          tenantId
-        });
-        break;
-
-      default:
-        return NextResponse.json(
-          { error: `Unknown transaction type: ${transactionType}` },
-          { status: 400 }
-        );
-    }
-
-    // Handle different return structures from reversal functions
-    // Some return { reversal, taxReversals, payrollReversalSummary }, others return just the reversal object
-    const reversalData = result.reversal || result;
-    const taxReversals = result.taxReversals || [];
-    const payrollReversalSummary = result.payrollReversalSummary || null;
-    
     const responsePayload = {
       success: true,
-      message: `${transactionType} reversed successfully`,
-      reversal: reversalData,
-      taxReversals,
-      originalTransaction: transaction
+      message: result.alreadyCompleted
+        ? `${transactionType} was already reversed`
+        : `${transactionType} reversed successfully`,
+      reversal: result.reversal,
+      taxReversals: result.taxReversals || [],
+      originalTransaction: result.originalTransaction,
+      register: result.register,
+      sod,
     };
-    if (payrollReversalSummary) {
-      responsePayload.payrollReversalSummary = payrollReversalSummary;
+    if (result.payrollReversalSummary) {
+      responsePayload.payrollReversalSummary = result.payrollReversalSummary;
     }
-    return NextResponse.json(responsePayload, { status: 201 });
-
+    return NextResponse.json(responsePayload, {
+      status: result.alreadyCompleted ? 200 : 201,
+    });
   } catch (error) {
     console.error('Error in POST /api/transactions/reverse:', error);
+    const status =
+      error.code === 'NOT_ELIGIBLE' ||
+      error.code === 'PERIOD_LOCKED' ||
+      error.code === 'INVALID_REASON' ||
+      error.code === 'ALREADY_REVERSED' ||
+      error.code === 'APPROVAL_REQUIRED' ||
+      error.code === 'SOD_SAME_ACTOR' ||
+      error.code === 'INVALID_STATUS' ||
+      error.code === 'UNSUPPORTED_SOURCE_TYPE'
+        ? 400
+        : error.code === 'NOT_FOUND'
+          ? 404
+          : 500;
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
+      {
+        error: error.message || 'Internal server error',
+        code: error.code || undefined,
+        register: error.register || undefined,
+      },
+      { status }
     );
   }
 }
+
 
 export { GET, POST };

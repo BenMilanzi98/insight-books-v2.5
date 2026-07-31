@@ -1,0 +1,2 @@
+tenantId,status,notes,sensitiveValuesIncluded
+*,TEMPLATE,Run /api/financial-planning/readiness per business; do not commit sensitive planning amounts,false

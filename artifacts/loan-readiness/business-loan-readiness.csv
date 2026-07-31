@@ -1,0 +1,2 @@
+tenantId,status,notes,sensitiveValuesIncluded
+*,TEMPLATE,Run assessments via /api/loan-readiness; do not commit sensitive amounts or documents,false

@@ -3,6 +3,8 @@ import { scanReceipt } from "@/lib/receipt-scanner";
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import ExpensePartialPaymentModal from "@/components/ExpensePartialPaymentModal";
 import ExpensePaymentHistory from "@/components/ExpensePaymentHistory";
+import PageHeader from "@/components/shell/PageHeader";
+
 import { 
   PlusCircle, 
   Search, 
@@ -1293,7 +1295,7 @@ const handleFileUpload = async (e) => {
       setIsSubmitting(false);
     }
   };
-  
+
   // Complete the upload process and attach to expense
   const completeUpload = async () => {
     if (uploadedFiles.length === 0) return;
@@ -1338,7 +1340,7 @@ const handleFileUpload = async (e) => {
           date: new Date().toISOString().split('T')[0], // Today's date - CRITICAL field
           expenseAccountId: defaultAccount?.id || "",
           category: defaultAccount?.name || "",
-          status: "Pending" // Default status
+          status: "Approved"
         };
         
         // Create expense with attachments by sending proper JSON for expense data
@@ -1465,7 +1467,16 @@ const handleFileUpload = async (e) => {
         badgeClass = "bg-yellow-100 text-yellow-800";
         icon = <Clock className="w-3.5 h-3.5 mr-1" />;
         break;
+      case "Submitted":
+      case "In review":
+        badgeClass = "bg-blue-100 text-blue-800";
+        icon = <Clock className="w-3.5 h-3.5 mr-1" />;
+        break;
+      case "Draft":
+        badgeClass = "bg-slate-100 text-slate-700";
+        break;
       case "Rejected":
+      case "Reversed":
         badgeClass = "bg-red-100 text-red-800";
         icon = <XCircle className="w-3.5 h-3.5 mr-1" />;
         break;
@@ -1476,7 +1487,7 @@ const handleFileUpload = async (e) => {
     return (
       <span className={`px-2 py-1 rounded-full text-xs flex items-center whitespace-nowrap ${badgeClass}`}>
         {icon}
-        {status}
+        {status || 'Draft'}
       </span>
     );
   };
@@ -1794,40 +1805,40 @@ const handleFileUpload = async (e) => {
         </div>
       )}
 
-      {/* Header Section */}
       <div className="mb-8">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 lg:gap-6 mb-6">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-2">
-          {mainTab === "expenses" ? "Expense Tracking" : "Cost of Goods Sold (COGS) Management"}
-        </h1>
-            <p className="text-gray-600 text-sm sm:text-base">
-              {mainTab === "expenses" 
-                ? "Manage and track all your business expenses efficiently" 
-                : "Monitor and manage your cost of goods sold"}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {pagePermissions.canCreateExpenses && mainTab === "expenses" && (
-              <button 
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 font-medium text-sm sm:text-base"
-              onClick={handleCreateExpense}
-            >
-                <PlusCircle className="w-5 h-5 mr-2" />
-              <span className="whitespace-nowrap">Add Expense</span>
-              </button>
-            )}
-            {pagePermissions.canExportExpenses && mainTab === "expenses" && (
-              <button 
-                className="px-5 py-2.5 border-2 border-gray-300 bg-white hover:bg-gray-50 rounded-lg flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 font-medium text-sm sm:text-base text-gray-700"
-            onClick={() => handleExport('csv')}
-          >
-                <Download className="w-5 h-5 mr-2" />
-            <span className="whitespace-nowrap">Export CSV</span>
-              </button>
-            )}
-        </div>
-      </div>
+        <PageHeader
+          title={mainTab === "expenses" ? "Expense Tracking" : "Cost of Goods Sold (COGS) Management"}
+          description={
+            mainTab === "expenses"
+              ? "Manage and track all your business expenses efficiently"
+              : "Monitor and manage your cost of goods sold"
+          }
+          actions={
+            <>
+              {pagePermissions.canCreateExpenses && mainTab === "expenses" && (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-[var(--radius-sm)] bg-[var(--action-primary)] px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[var(--action-primary-hover)]"
+                  onClick={handleCreateExpense}
+                >
+                  <PlusCircle className="mr-2 h-5 w-5" aria-hidden="true" />
+                  <span className="whitespace-nowrap">Add Expense</span>
+                </button>
+              )}
+              {pagePermissions.canExportExpenses && mainTab === "expenses" && (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-5 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                  onClick={() => handleExport('csv')}
+                >
+                  <Download className="mr-2 h-5 w-5" aria-hidden="true" />
+                  <span className="whitespace-nowrap">Export CSV</span>
+                </button>
+              )}
+            </>
+          }
+        />
+
 
       {/* Main Tab Navigation */}
         <div className="mb-8">
@@ -2265,7 +2276,10 @@ const handleFileUpload = async (e) => {
                     </td>
                     {!showDeletedExpenses && (
                             <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
-                        <ReversalStatusBadge status={expense.status} isReversed={expense.isReversed} reversedAt={expense.reversedAt} />
+                        <div className="flex flex-col items-center gap-1">
+                          <StatusBadge status={expense.status} />
+                          <ReversalStatusBadge status={expense.status} isReversed={expense.isReversed} reversedAt={expense.reversedAt} />
+                        </div>
                       </td>
                     )}
                     {showDeletedExpenses && (

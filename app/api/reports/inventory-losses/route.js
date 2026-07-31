@@ -28,7 +28,7 @@ import {
 
 } from '@/lib/reportRouteBootstrap';
 
-
+import { enrichInventoryLossReport } from '@/lib/accountingReportService';
 
 function getEventTypeFromReference(originalReference = '') {
 
@@ -102,7 +102,7 @@ export async function GET(request) {
 
     if (boot.error) return boot.error;
 
-    const { user, userQ, tw, scope, tenantIds, tenants, reportBranchId } = boot;
+    const { user, userQ, tw, scope, tenantIds, tenants, reportBranchId, primaryTenantId } = boot;
 
 
 
@@ -494,39 +494,32 @@ export async function GET(request) {
 
 
 
-    return NextResponse.json({
-
+    const basePayload = {
       period: { startDate, endDate },
-
       filters: { eventType },
-
       summary,
-
       byMonth: Array.from(byMonthMap.values()).sort((a, b) => a.month.localeCompare(b.month)),
-
       items,
-
       metadata: {
-
         ledgerSource: 'general_ledger',
-
         fromGeneralLedger: Boolean(glTotals?.hasGlActivity),
-
         glInventoryLossTotal: glTotals?.inventoryLoss ?? 0,
-
         glInventoryAssetMovement: glTotals?.inventoryAssetMovement ?? 0,
-
         reconciliation: glTotals
-
           ? buildInventoryLossReconciliation(summary.totalAmount, glTotals)
-
           : null,
-
       },
-
       scope,
+    };
 
+    const enriched = await enrichInventoryLossReport(basePayload, {
+      tenantId: tenantIds.length === 1 ? primaryTenantId : tenantIds[0],
+      startDate,
+      endDate,
+      branchId: reportBranchId,
     });
+
+    return NextResponse.json(enriched);
 
   } catch (error) {
 

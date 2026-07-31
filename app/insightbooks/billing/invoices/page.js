@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileText, RefreshCw } from 'lucide-react';
 import {
@@ -33,6 +36,7 @@ function formatMoney(amount, currency = 'MWK') {
 }
 
 export default function AdminPlatformInvoicesPage() {
+  const { t } = useI18n();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,7 +48,7 @@ export default function AdminPlatformInvoicesPage() {
     setError('');
     try {
       const qs = statusFilter !== 'all' ? `?status=${encodeURIComponent(statusFilter)}` : '';
-      const res = await fetch(`/api/admin/platform-billing/invoices${qs}`, {
+      const res = await adminFetch(`/api/admin/platform-billing/invoices${qs}`, {
         credentials: 'include',
       });
       const body = await res.json().catch(() => ({}));
@@ -141,7 +145,7 @@ export default function AdminPlatformInvoicesPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Platform invoices"
+        title={t('admin-pages.billing.invoices.title')}
         description="SaaS platform invoices for tenant subscriptions. Separate from tenant AR invoices."
         actions={
           <button type="button" onClick={load} className={btnPrimary}>

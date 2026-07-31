@@ -29,7 +29,12 @@ import {
   AlertTriangle,
   Eye
 } from "lucide-react";
-import { fetchSales, exportSales, refundSale } from "@/app/services/salesService";
+import {
+  fetchSales,
+  exportSales,
+  exportSaleReceiptsPdf,
+  refundSale,
+} from "@/app/services/salesService";
 import { getPermission, getCurrentUser } from "@/lib/permissions";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 import RefundSaleModal from "@/components/RefundSaleModal";
@@ -66,6 +71,7 @@ const SalesListPage = () => {
   
   // State for export
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingReceiptsPdf, setIsExportingReceiptsPdf] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [clearHistoryReason, setClearHistoryReason] = useState('');
@@ -200,6 +206,28 @@ const SalesListPage = () => {
       alert("Failed to export sales. Please try again.");
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportReceiptsPdf = async () => {
+    if (!filters.dateFrom && !filters.dateTo) {
+      const ok = window.confirm(
+        "No date filter is set. Export all matching receipts (up to 5,000)? Prefer setting From/To dates under Filters."
+      );
+      if (!ok) return;
+    }
+    try {
+      setIsExportingReceiptsPdf(true);
+      await exportSaleReceiptsPdf({
+        preset: "custom",
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+      });
+    } catch (error) {
+      console.error("Error exporting receipts PDF:", error);
+      alert(error?.message || "Failed to export receipts PDF. Please try again.");
+    } finally {
+      setIsExportingReceiptsPdf(false);
     }
   };
 
@@ -394,23 +422,46 @@ const SalesListPage = () => {
             <span className="hidden sm:inline">Filters</span>
           </button>
           
-          {pagePermissions.canExportSales &&( <button 
-            className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center"
-            onClick={() => handleExport('csv')}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <>
-                <Loader className="w-4 h-4 mr-2 animate-spin" />
-                <span className="hidden sm:inline">Exporting...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Export</span>
-              </>
-            )}
-          </button>)}
+          {pagePermissions.canExportSales && (
+            <button 
+              className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center"
+              onClick={() => handleExport('csv')}
+              disabled={isExporting || isExportingReceiptsPdf}
+            >
+              {isExporting ? (
+                <>
+                  <Loader className="w-4 h-4 mr-2 animate-spin" />
+                  <span className="hidden sm:inline">Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {pagePermissions.canExportSales && (
+            <button
+              className="px-4 py-2 border border-emerald-300 bg-emerald-50 text-emerald-900 rounded-md flex items-center"
+              onClick={handleExportReceiptsPdf}
+              disabled={isExporting || isExportingReceiptsPdf}
+              title="Download all receipts in the selected date range as one PDF"
+            >
+              {isExportingReceiptsPdf ? (
+                <>
+                  <Loader className="w-4 h-4 mr-2 animate-spin" />
+                  <span className="hidden sm:inline">Receipts PDF…</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Receipts PDF</span>
+                </>
+              )}
+            </button>
+          )}
           
           {pagePermissions.canCreateSales &&( <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"

@@ -22,13 +22,19 @@ import {
 } from 'lucide-react';
 import PermissionGuard from '@/components/PermissionGuard';
 import { getPermission } from '@/lib/permissions';
+import ReversalDetailDrawer from '@/components/TransactionReversal/ReversalDetailDrawer';
+import ReversalPendingApprovals from '@/components/TransactionReversal/ReversalPendingApprovals';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 const ReversalsPage = () => {
+  const { t } = useI18n();
   const [reversals, setReversals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totals, setTotals] = useState({ count: 0, totalAmount: 0, byType: {} });
   const [pagination, setPagination] = useState({ page: 1, limit: 20, totalCount: 0, totalPages: 1 });
+  const [selectedReversal, setSelectedReversal] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   
   // Filters
   const [typeFilter, setTypeFilter] = useState('all');
@@ -39,27 +45,33 @@ const ReversalsPage = () => {
     canExportReversals: false
   });
 
-  // Fetch permissions on mount
+
+  // Fetch permissions on mount — align with page middleware (journalEntries.view)
   useEffect(() => {
     const fetchPermissions = async () => {
-      // Check for accounting or reports view permissions
+      const canViewJournals = await getPermission("journalEntries.view");
+      const canViewJournalV2 = await getPermission("journal.view");
       const canViewAccounting = await getPermission("accounting.view");
-      const canViewReports = await getPermission("reports.view");
-      const canViewExpenses = await getPermission("expenses.view");
-      const canViewInvoices = await getPermission("invoices.view");
-      
-      const canExport = await getPermission("reports.export");
-      
-      // Allow access if user has any relevant permission
-      const canView = canViewAccounting || canViewReports || canViewExpenses || canViewInvoices;
-      
-      setPagePermissions({ 
-        canViewReversals: canView, 
-        canExportReversals: canExport 
+      const canExport =
+        (await getPermission("journalEntries.export")) ||
+        (await getPermission("reports.export"));
+
+      const canView = canViewJournals || canViewJournalV2 || canViewAccounting;
+
+      setPagePermissions({
+        canViewReversals: canView,
+        canExportReversals: canExport,
       });
     };
     fetchPermissions();
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.id) setCurrentUserId(data.id);
+      })
+      .catch(() => {});
   }, []);
+
 
   // Fetch reversals when filters change
   useEffect(() => {
@@ -264,12 +276,13 @@ const ReversalsPage = () => {
   // If user doesn't have permission, show access denied
   if (!pagePermissions.canViewReversals) {
     return (
-      <PermissionGuard permission="reports.view">
+      <PermissionGuard permission="journalEntries.view">
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 flex items-center justify-center">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600">
+
               You don't have permission to view reversed transactions. 
               Please contact your administrator if you believe this is an error.
             </p>
@@ -290,8 +303,8 @@ const ReversalsPage = () => {
                 <RotateCcw className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Reversed Transactions</h1>
-                <p className="text-indigo-100 text-sm mt-0.5">View and track all reversed transactions with full audit trail</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{t('navigation.reversals')}</h1>
+                <p className="text-indigo-100 text-sm mt-0.5">{t('common.empty.noRecords')}</p>
               </div>
             </div>
             {pagePermissions.canExportReversals && reversals.length > 0 && (
@@ -306,6 +319,8 @@ const ReversalsPage = () => {
             )}
           </div>
         </div>
+
+        <ReversalPendingApprovals currentUserId={currentUserId} />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
@@ -504,8 +519,10 @@ const ReversalsPage = () => {
                   {reversals.map((reversal) => (
                     <tr 
                       key={`${reversal.type}-${reversal.id}`}
-                      className="hover:bg-gray-50 transition-colors"
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedReversal(reversal)}
                     >
+
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getTypeColor(reversal.type)}`}>
                           {getTypeIcon(reversal.type)}
@@ -609,9 +626,15 @@ const ReversalsPage = () => {
           )}
         </div>
 
+        <ReversalDetailDrawer
+          open={Boolean(selectedReversal)}
+          reversal={selectedReversal}
+          onClose={() => setSelectedReversal(null)}
+        />
       </div>
     </div>
   );
 };
 
 export default ReversalsPage;
+

@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   Activity,
@@ -64,6 +67,7 @@ function eventStatus(event) {
 }
 
 export default function SecurityMonitoringPage() {
+  const { t } = useI18n();
   const [securityEvents, setSecurityEvents] = useState([]);
   const [threatMetrics, setThreatMetrics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,8 +81,8 @@ export default function SecurityMonitoringPage() {
       setError('');
       const qs = new URLSearchParams({ timeframe: selectedTimeframe });
       const [eventsResponse, metricsResponse] = await Promise.all([
-        fetch(`/api/admin/security/monitoring/events?${qs}`, { credentials: 'include' }),
-        fetch(`/api/admin/security/monitoring/metrics?${qs}`, { credentials: 'include' }),
+        adminFetch(`/api/admin/security/monitoring/events?${qs}`, { credentials: 'include' }),
+        adminFetch(`/api/admin/security/monitoring/metrics?${qs}`, { credentials: 'include' }),
       ]);
 
       const eventsBody = await eventsResponse.json().catch(() => ({}));
@@ -123,7 +127,7 @@ export default function SecurityMonitoringPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Security Monitoring"
+        title={t('admin-pages.security.monitoring.title')}
         description="Security events and threat signals from platform monitoring APIs. Values shown only when the API returns them."
         actions={
           <div className="flex flex-wrap items-center gap-2">

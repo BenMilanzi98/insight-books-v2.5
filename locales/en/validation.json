@@ -1,0 +1,10 @@
+{
+  "required": "This field is required",
+  "invalidEmail": "Enter a valid email address",
+  "invalidNumber": "Enter a valid number",
+  "amountGreaterThanZero": "Amount must be greater than zero",
+  "passwordsDoNotMatch": "Passwords do not match",
+  "invalidDate": "Enter a valid date",
+  "permissionDenied": "You do not have permission to perform this action",
+  "periodClosed": "This accounting period is closed"
+}

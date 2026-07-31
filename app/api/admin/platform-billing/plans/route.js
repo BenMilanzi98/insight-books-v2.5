@@ -6,6 +6,7 @@ import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
 import {
   assertPlanPriceChangeCreatesVersion,
 } from '@/lib/admin/platformBilling';
+import { seedDataFromCatalogPlan, serializePlanVersion } from '@/lib/admin/mraEisPlans';
 
 function toNumber(v, fallback = 0) {
   const n = Number(v);
@@ -13,10 +14,7 @@ function toNumber(v, fallback = 0) {
 }
 
 function serializePlan(p) {
-  return {
-    ...p,
-    basePrice: toNumber(p.basePrice),
-  };
+  return serializePlanVersion(p);
 }
 
 /**
@@ -35,6 +33,19 @@ export async function GET(request) {
       );
     }
 
+    if (typeof prisma.platformPlanVersion?.findMany !== 'function') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Platform plan model unavailable. Stop the Next.js server, run `npx prisma generate`, then start it again.',
+          plans: [],
+          latest: [],
+        },
+        { status: 500 }
+      );
+    }
+
     let plans = await prisma.platformPlanVersion.findMany({
       orderBy: [{ planCode: 'asc' }, { version: 'desc' }],
       take: 200,
@@ -45,18 +56,7 @@ export async function GET(request) {
       const catalog = Object.values(SUBSCRIPTION_PLANS || {});
       for (const plan of catalog) {
         await prisma.platformPlanVersion.create({
-          data: {
-            planCode: plan.id,
-            version: 1,
-            name: plan.displayName || plan.name,
-            description: plan.savings || null,
-            currency: plan.currency || 'MWK',
-            basePrice: plan.price ?? 0,
-            billingFrequency: plan.period || 'month',
-            featuresJson: plan.features || [],
-            status: 'ACTIVE',
-            createdBy: admin.id,
-          },
+          data: seedDataFromCatalogPlan(plan, admin.id),
         });
       }
       plans = await prisma.platformPlanVersion.findMany({
@@ -77,8 +77,22 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('platform plans GET error:', error);
+    const message = error?.message || 'Failed to load plans';
+    const code = error?.code;
+    const missingDelegate =
+      typeof message === 'string' &&
+      (message.includes('platformPlanVersion') ||
+        message.includes('is not a function') ||
+        code === 'P2021');
     return NextResponse.json(
-      { success: false, error: 'Failed to load plans' },
+      {
+        success: false,
+        error: missingDelegate
+          ? 'Platform plan tables/client unavailable. Run migrations and restart the Next.js server after `npx prisma generate`.'
+          : 'Failed to load plans',
+        details: process.env.NODE_ENV === 'development' ? message : undefined,
+        code: process.env.NODE_ENV === 'development' ? code : undefined,
+      },
       { status: 500 }
     );
   }

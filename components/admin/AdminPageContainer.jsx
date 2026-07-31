@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import AdminPageEnter from './AdminPageEnter';
 
 export default function AdminPageContainer({ children, className, maxWidth = 'default' }) {
   const max =
@@ -11,6 +12,8 @@ export default function AdminPageContainer({ children, className, maxWidth = 'de
         : 'max-w-[var(--admin-content-max)]';
 
   return (
-    <div className={cn('mx-auto w-full min-w-0', max, className)}>{children}</div>
+    <AdminPageEnter className={cn('mx-auto w-full min-w-0', max, className)}>
+      {children}
+    </AdminPageEnter>
   );
 }

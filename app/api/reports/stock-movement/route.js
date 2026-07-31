@@ -7,6 +7,7 @@
  */
 import { NextResponse } from 'next/server';
 import { generateStockMovementReport } from '@/lib/stockMovementService';
+import { getStockMovementReport } from '@/lib/accountingReportService';
 import { bootstrapReportRoute, auditReportAccess } from '@/lib/reportRouteBootstrap';
 
 export async function GET(request) {
@@ -57,13 +58,13 @@ export async function GET(request) {
         totalClosingQuantity: r.metadata?.totalClosingQuantity ?? 0,
       }));
     } else {
-      report = await generateStockMovementReport(
-        primaryTenantId,
+      report = await getStockMovementReport({
+        tenantId: primaryTenantId,
         startDate,
         endDate,
         productId,
-        branchId
-      );
+        branchId,
+      });
     }
 
     await auditReportAccess({

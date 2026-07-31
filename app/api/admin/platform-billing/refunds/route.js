@@ -22,6 +22,18 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
+    if (typeof prisma.platformRefund?.findMany !== 'function') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Platform refund model unavailable. Stop the Next.js server, run `npx prisma generate`, then start it again.',
+          refunds: [],
+        },
+        { status: 500 }
+      );
+    }
+
     const refunds = await prisma.platformRefund.findMany({
       orderBy: { createdAt: 'desc' },
       take: 100,
@@ -33,7 +45,14 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('refunds GET error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to list refunds' }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to list refunds',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+      },
+      { status: 500 }
+    );
   }
 }
 

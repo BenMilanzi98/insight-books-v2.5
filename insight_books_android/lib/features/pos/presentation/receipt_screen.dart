@@ -7,6 +7,7 @@ import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
+import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
 import 'package:insightbooks_android/features/pos/presentation/sale_receipt_print.dart';
 import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
 import 'package:insightbooks_android/shared/server_pdf_preview_screen.dart';
@@ -524,7 +525,13 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                   );
                   return;
                 }
-                final paperWidthMm = await chooseReceiptPaperWidthMm(context);
+                final preferred = normalizeReceiptPaperWidthMm(
+                  ref.read(accountProvider).settings?.receiptPaperWidthMm,
+                );
+                final paperWidthMm = await chooseReceiptPaperWidthMm(
+                  context,
+                  preferredWidthMm: preferred,
+                );
                 if (paperWidthMm == null) return;
                 if (!context.mounted) return;
                 openSaleReceiptThermalPrint(

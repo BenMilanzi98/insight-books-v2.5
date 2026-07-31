@@ -70,12 +70,10 @@ async function initializeTenantPaymentAccounts(tenantId, tenantName) {
   for (const account of DEFAULT_PAYMENT_ACCOUNTS) {
     try {
       // Check if account already exists
-      const existing = await prisma.paymentAccount.findUnique({
+      const existing = await prisma.paymentAccount.findFirst({
         where: {
-          tenantId_name: {
-            tenantId: tenantId,
-            name: account.name
-          }
+          tenantId: tenantId,
+          name: account.name,
         }
       });
 

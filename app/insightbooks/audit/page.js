@@ -1,5 +1,8 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, Download, RefreshCw, Shield, Users,
@@ -30,6 +33,7 @@ function fmtDateTime(v) {
 const btnGhost = 'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
 
 export default function AuditPage() {
+  const { t } = useI18n();
   const [auditLogs, setAuditLogs] = useState([]);
   const [adminAuditLogs, setAdminAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,8 +51,8 @@ export default function AuditPage() {
     setFetchFailed(false);
     try {
       const [auditRes, adminRes] = await Promise.all([
-        fetch('/api/admin/audit/logs', { credentials: 'include' }),
-        fetch('/api/admin/audit/admin-logs', { credentials: 'include' }),
+        adminFetch('/api/admin/audit/logs', { credentials: 'include' }),
+        adminFetch('/api/admin/audit/admin-logs', { credentials: 'include' }),
       ]);
 
       let userLogs = [];
@@ -209,7 +213,7 @@ export default function AuditPage() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Audit & security"
+        title={t('admin-pages.audit.title')}
         description="Monitor platform activity and security events from real audit APIs."
         actions={
           <>

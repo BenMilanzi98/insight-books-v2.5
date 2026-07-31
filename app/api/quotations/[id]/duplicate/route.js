@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { allocateNextQuoNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
+import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
+import { toItemTaxCreateRows } from '@/lib/documentLineTaxes';
 
 // POST - Duplicate a quotation
 export async function POST(request, { params }) {
@@ -25,7 +27,7 @@ export async function POST(request, { params }) {
         tenantId: user.tenantId
       },
       include: {
-        items: true,
+        items: { include: { itemTaxes: true } },
         client: true
       }
     });
@@ -39,6 +41,18 @@ export async function POST(request, { params }) {
     
     const quotationPrefix = 'QUO';
     const issueDate = new Date();
+    const calculations = calculateInvoiceTotals(
+      existingQuotation.items.map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.discountAmount,
+        productId: item.productId,
+        taxes: item.itemTaxes?.length ? item.itemTaxes : undefined,
+        taxRate: item.taxRate,
+      })),
+      existingQuotation.discount || 0
+    );
 
     const newQuotation = await prisma.$transaction(async (tx) => {
       const seq = await allocateNextQuoNumberReliable(tx, user.tenantId, {
@@ -55,26 +69,33 @@ export async function POST(request, { params }) {
           createdById: user.id,
           issueDate,
           validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          subtotal: existingQuotation.subtotal,
-          taxAmount: existingQuotation.taxAmount,
-          total: existingQuotation.total,
+          discount: calculations.globalDiscount,
+          subtotal: calculations.subtotal,
+          taxAmount: calculations.taxAmount,
+          totalDiscountAmount: calculations.totalDiscountAmount || 0,
+          total: calculations.total,
           status: 'Draft',
           notes: existingQuotation.notes,
           tenantId: user.tenantId,
           items: {
-            create: existingQuotation.items.map(item => ({
+            create: calculations.processedItems.map((item) => ({
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
-              taxRate: item.taxRate,
+              taxRate: Number(item.taxRate || 0),
+              discountAmount: item.discountAmount || 0,
+              netAmount: item.netAmount || 0,
               amount: item.amount,
-              productId: item.productId
-            }))
+              productId: item.productId || null,
+              itemTaxes: {
+                create: toItemTaxCreateRows(item.itemTaxes).filter((r) => r.taxTypeId),
+              },
+            })),
           }
         },
         include: {
           client: true,
-          items: true
+          items: { include: { itemTaxes: true } },
         }
       });
     });
@@ -116,7 +137,9 @@ export async function POST(request, { params }) {
         unitPrice: item.unitPrice,
         taxRate: item.taxRate,
         amount: item.amount,
-        productId: item.productId
+        productId: item.productId,
+        itemTaxes: item.itemTaxes || [],
+        taxes: item.itemTaxes || [],
       }))
     };
     

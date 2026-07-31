@@ -1,0 +1,130 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { adminFetch } from '@/lib/admin/adminApi';
+import AdminPageContainer from '@/components/admin/AdminPageContainer';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
+import AdminLoadingState from '@/components/admin/AdminLoadingState';
+import AdminErrorState from '@/components/admin/AdminErrorState';
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge';
+import CustomerSectionNav from './CustomerSectionNav';
+
+const btnGhost =
+  'inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:opacity-50';
+
+function statusTone(status) {
+  if (status === 'READY') return 'success';
+  if (status === 'READY_WITH_LIMITATIONS') return 'warning';
+  if (status === 'UNAVAILABLE' || status === 'FORBIDDEN') return 'danger';
+  return 'neutral';
+}
+
+function formatValue(card) {
+  if (card.value == null) return '—';
+  if (card.unit === 'percent') return `${card.value}%`;
+  return String(card.value);
+}
+
+export default function CustomerReconciliationView() {
+  const { t } = useI18n();
+  const [pack, setPack] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await adminFetch('/api/admin/intelligence/customers/reconciliation', {
+        credentials: 'include',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        throw new Error(body.error || t('admin-pages.customers.forbidden'));
+      }
+      if (!res.ok) {
+        throw new Error(body.error || t('admin-pages.customers.reconciliation.loadFailed'));
+      }
+      setPack(body);
+    } catch (e) {
+      setError(e.message || t('admin-pages.customers.reconciliation.loadFailed'));
+      setPack(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const cards = Array.isArray(pack?.cards) ? pack.cards : [];
+
+  return (
+    <AdminPageContainer>
+      <AdminPageHeader
+        title={t('admin-pages.customers.sections.reconciliation')}
+        description={t('admin-pages.customers.sectionHints.reconciliation')}
+        actions={
+          <button type="button" className={btnGhost} onClick={load} disabled={loading}>
+            {t('admin-pages.common.refresh')}
+          </button>
+        }
+      />
+
+      <CustomerSectionNav />
+
+      {loading ? <AdminLoadingState label={t('admin-pages.common.loading')} /> : null}
+      {error ? (
+        <AdminErrorState title={t('admin-pages.common.unavailable')} message={error} />
+      ) : null}
+
+      {!loading && !error && pack ? (
+        <div className="space-y-6">
+          <p className="text-xs text-[var(--admin-text-muted)]">
+            {pack.catalogueVersion ? `${t('admin-pages.customers.catalogue')}: ${pack.catalogueVersion}` : ''}
+            {pack.scope?.mode ? ` · scope: ${pack.scope.mode}` : ''}
+            {pack.generatedAt
+              ? ` · ${t('admin-pages.customers.generated')} ${new Date(pack.generatedAt).toLocaleString()}`
+              : ''}
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {cards.map((card) => (
+              <div
+                key={card.id}
+                className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 shadow-[var(--admin-shadow-card)]"
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-[var(--admin-text)]">{card.label}</h2>
+                  <AdminStatusBadge tone={statusTone(card.status)}>{card.status}</AdminStatusBadge>
+                </div>
+                <p className="text-2xl font-semibold text-[var(--admin-text)]">{formatValue(card)}</p>
+                {card.source ? (
+                  <p className="mt-1 text-xs text-[var(--admin-text-muted)]">{card.source}</p>
+                ) : null}
+                {card.note ? (
+                  <p className="mt-2 text-xs text-[var(--admin-text-muted)]">{card.note}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          {pack.limitations?.length ? (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold text-[var(--admin-text)]">
+                {t('admin-pages.customers.limitations')}
+              </h2>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--admin-text-muted)]">
+                {pack.limitations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+    </AdminPageContainer>
+  );
+}

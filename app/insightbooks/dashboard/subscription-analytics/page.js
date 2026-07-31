@@ -1,14 +1,16 @@
 'use client';
 
+import { useI18n } from '@/components/i18n/I18nProvider';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AdminPageContainer, AdminPageHeader } from '@/components/admin';
 
 export default function SubscriptionAnalyticsPage() {
+  const { t } = useI18n();
   return (
     <AdminPageContainer maxWidth="narrow">
       <AdminPageHeader
-        title="Subscription analytics"
+        title={t('admin-pages.stubs.subscriptionAnalytics.title')}
         description="Standalone subscription analytics for this route are not maintained separately. Live metrics live on the main System Administration dashboard and Billing."
         actions={
           <div className="flex flex-wrap gap-2">

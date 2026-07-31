@@ -1,0 +1,7 @@
+{
+  "title": "Stock Management",
+  "products": "Products",
+  "warehouse": "Warehouse",
+  "quantityOnHand": "Quantity on hand",
+  "stockMovement": "Stock movement"
+}

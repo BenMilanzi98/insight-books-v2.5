@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
 import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
+import {
+  activeCommercialSubscriptionWhere,
+  activePaidSubscriptionWhere,
+  computeSaasBillingKpis,
+} from '@/lib/admin/saasBillingKpis';
 
 function toNumber(v) {
   const n = Number(v);
@@ -31,6 +36,8 @@ export async function GET(request) {
 
     const [
       activeSubscriptions,
+      activePaidSubscriptions,
+      saasKpis,
       platformInvoices,
       paidPayments,
       outstandingInvoices,
@@ -38,9 +45,14 @@ export async function GET(request) {
       openCredits,
       refundsThisPeriod,
     ] = await Promise.all([
+      // Includes Completed + trial — not only status='active'
       prisma.accountSubscription.count({
-        where: { isActive: true, status: { in: ['active', 'ACTIVE', 'trial', 'TRIAL'] } },
+        where: activeCommercialSubscriptionWhere(now),
       }),
+      prisma.accountSubscription.count({
+        where: activePaidSubscriptionWhere(now),
+      }),
+      computeSaasBillingKpis(prisma, { periodStart }),
       prisma.platformInvoice.findMany({
         select: {
           total: true,
@@ -102,6 +114,10 @@ export async function GET(request) {
     }
 
     const paymentsThisPeriod = paidPayments.reduce((s, p) => s + toNumber(p.amount), 0);
+    // Prefer PlatformPayment cash when invoice ledger is sparse (PayChangu path)
+    const collectedFromPayments = toNumber(saasKpis.paymentsCollectedAllTime);
+    const collectedEffective =
+      collectedFromPayments > 0 ? collectedFromPayments : collectedAllTime;
 
     return NextResponse.json({
       success: true,
@@ -111,17 +127,25 @@ export async function GET(request) {
       periodStart: periodStart.toISOString(),
       stats: {
         activeSubscriptions,
+        activePaidSubscriptions,
+        distinctActivePaidTenants: saasKpis.distinctActivePaidTenants,
+        estimatedMrr: saasKpis.estimatedMrr,
         invoicesCount: platformInvoices.length,
         billedTotal,
-        collectedAllTime,
+        collectedAllTime: collectedEffective,
+        collectedFromInvoices: collectedAllTime,
+        collectedFromPayments,
         outstandingTotal,
         outstandingInvoiceCount: outstandingInvoices,
         overdueInvoiceCount: overdueInvoices,
-        paymentsThisPeriod,
+        paymentsThisPeriod:
+          paymentsThisPeriod || toNumber(saasKpis.paymentsCollectedThisPeriod),
         openCredits,
         refundsThisPeriod: toNumber(refundsThisPeriod._sum.amount),
       },
+      saasKpis,
       note: 'Amounts are InsightBooks platform SaaS billing, not tenant customer AR.',
+      caveats: saasKpis.caveats,
     });
   } catch (error) {
     console.error('platform-billing overview error:', error);

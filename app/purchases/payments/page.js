@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
+import AddTransferFundsPanel from "@/components/payments/AddTransferFundsPanel";
+import {
+  checkPaymentAccountFunds,
+  formatPaymentAccountOptionLabel,
+} from "@/lib/paymentAccountFunds";
 
 async function fetchPayments(params = {}) {
   const searchParams = new URLSearchParams();
@@ -63,7 +68,11 @@ function PaymentFormSection({ title, description, children }) {
 }
 
 function PaymentForm({ suppliers, bills, onSave, onCancel }) {
-  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+  const {
+    paymentAccounts,
+    isLoading: isLoadingPaymentAccounts,
+    refresh: refreshPaymentAccounts,
+  } = usePaymentAccounts();
   const [form, setForm] = useState({
     supplierId: "",
     paymentDate: format(new Date(), "yyyy-MM-dd"),
@@ -74,6 +83,8 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
   const [allocations, setAllocations] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [fundsCheck, setFundsCheck] = useState(null);
+  const [showFundPanel, setShowFundPanel] = useState(false);
 
   // Set default payment method when accounts load
   useEffect(() => {
@@ -112,8 +123,23 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setSaving(true);
     setError(null);
+
+    const check = checkPaymentAccountFunds({
+      paymentAccounts,
+      paymentAccountId: form.paymentMethod,
+      requiredAmount: totalAllocations,
+    });
+    if (!check.ok) {
+      setFundsCheck(check);
+      setShowFundPanel(true);
+      setError(
+        `Insufficient funds. Available MWK ${Number(check.available).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, required MWK ${Number(check.required).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+      );
+      return;
+    }
+
+    setSaving(true);
     try {
       await onSave({
         ...form,
@@ -122,6 +148,9 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
       });
     } catch (err) {
       setError(err.message);
+      if (err.message?.includes?.('Insufficient funds')) {
+        setShowFundPanel(true);
+      }
     } finally {
       setSaving(false);
     }
@@ -183,10 +212,29 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
               <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
               {paymentAccounts.map(account => (
                 <option key={account.id} value={account.id}>
-                  {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                  {formatPaymentAccountOptionLabel(account)}
                 </option>
               ))}
             </select>
+            {showFundPanel && fundsCheck && !fundsCheck.ok && (
+              <AddTransferFundsPanel
+                destinationAccountId={form.paymentMethod}
+                destinationAccountName={
+                  paymentAccounts.find((a) => a.id === form.paymentMethod)?.name || ""
+                }
+                shortfall={fundsCheck.shortfall}
+                requiredAmount={fundsCheck.required}
+                availableAmount={fundsCheck.available}
+                paymentAccounts={paymentAccounts}
+                onCancel={() => setShowFundPanel(false)}
+                onSuccess={async () => {
+                  setShowFundPanel(false);
+                  setFundsCheck(null);
+                  setError(null);
+                  await refreshPaymentAccounts();
+                }}
+              />
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Reference</label>

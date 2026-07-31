@@ -50,10 +50,11 @@ class MainActivity : FlutterActivity() {
                 }
                 val authorization = call.argument<String>("authorization")
                 val cookie = call.argument<String>("cookie")
-                val paperWidthMm = when (call.argument<Int>("paperWidthMm")) {
-                    58 -> 58
-                    else -> 80
-                }
+                val paperWidthMm = when (val raw = call.argument<Any>("paperWidthMm")) {
+                    is Number -> raw.toDouble()
+                    is String -> raw.toDoubleOrNull() ?: 80.0
+                    else -> 80.0
+                }.coerceIn(58.0, 90.0).toInt()
                 runOnUiThread {
                     startThermalReceiptPrint(url, authorization, cookie, paperWidthMm, result)
                 }

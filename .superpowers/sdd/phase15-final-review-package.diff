@@ -1,0 +1,637 @@
+﻿# Phase 15 final review package (WORKING_TREE; no commits since 7d9709a)
+# Controller Vitest: 35/35 commercialWave{1,2,3,4} PASS (2026-07-31)
+
+## Commercial lib inventory
+8610	acceptance.js
+12985	approvals.js
+4210	artifacts.js
+13627	catalogue.js
+764	checksum.js
+2064	clauses.js
+4305	currencyFx.js
+2516	customerComments.js
+4119	dataQuality.js
+3856	delivery.js
+7101	discounts.js
+12150	documents.js
+5153	exceptions.js
+3017	expiry.js
+1843	hubKeys.js
+8715	index.js
+10601	issue.js
+1450	lineItems.js
+3097	metrics.js
+13339	model.js
+1429	numbering.js
+8435	phase16Handoff.js
+11481	priceBooks.js
+8978	pricing.js
+2801	pricingSnapshot.js
+1394	productConfig.js
+879	proposals.js
+1119	quotations.js
+6455	readiness.js
+4547	reconciliation.js
+5731	rejection.js
+1728	reliabilityGate.js
+9361	render.js
+7436	reports.js
+5647	reportSchedules.js
+20824	requests.js
+7788	reviewAccess.js
+3117	revisionRequests.js
+1550	signatureBoundary.js
+5878	status.js
+3129	storage.js
+1975	tax.js
+6553	templates.js
+2030	terms.js
+5255	versions.js
+
+## SQL scripts
+
+7551	crm-commercial-phase15-wave1.sql
+10758	crm-commercial-phase15-wave2.sql
+11234	crm-commercial-phase15-wave3.sql
+3908	crm-commercial-phase15-wave4.sql
+
+## Tests
+
+19661	systemAdmin.crm.commercialWave1.test.js
+25961	systemAdmin.crm.commercialWave2.test.js
+28672	systemAdmin.crm.commercialWave3.test.js
+16231	systemAdmin.crm.commercialWave4.test.js
+
+## Exit docs
+
+5257	FINAL_PHASE_15_REPORT.md
+2313	FINAL_READINESS_DECISION.md
+3909	PHASE_16_INPUTS.md
+2480	PHASE_16_READINESS_CHECKLIST.md
+
+## Progress ledger
+
+# Phase 15 SDD Progress Ledger
+
+**Plan:** `docs/superpowers/plans/2026-07-31-commercial-documents-phase-15.md`  
+**Spec:** `docs/superpowers/specs/2026-07-31-commercial-documents-phase-15-design.md`  
+**Branch work:** WORKING_TREE (in-place; commits only when user asks)  
+**Started:** 2026-07-31  
+**BASE (no commits):** `7d9709a897bc0d4609ce8a6725aad7d9cf1cb835`  
+**Exit readiness:** `READY_FOR_PHASE_16_WITH_BLOCKERS`
+
+## Tasks
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 0 Wave 0 forensic | complete | CONDITIONAL GO; MinorÃ—3 |
+| 1 Wave 1 spine | complete | Vitest 7/7; Approved after Important fix; MinorÃ—6 |
+| 2 Wave 2 pricing | complete | Vitest 11/11; Approved after ImportantÃ—3; MinorÃ—7 |
+| 3 Wave 3 issue/accept | complete | Vitest 10/10; Approved after ImportantÃ—3; MinorÃ—5 |
+| 4 Wave 4 hubs/handoff | complete | Vitest 7/7; Approved; MinorÃ—4; READY_FOR_PHASE_16_WITH_BLOCKERS |
+
+## Completions
+
+- Task 0: complete (docs; C0/I0/M3)
+- Task 1: complete (Vitest 7/7; C0/I0/M6 after fix)
+- Task 2: complete (Vitest 11/11; C0/I0/M7 after fix)
+- Task 3: complete (Vitest 10/10; C0/I0/M5 after fix)
+- Task 4: complete (Vitest 7/7; C0/I0/M4; exit READY_FOR_PHASE_16_WITH_BLOCKERS)
+
+## Minor carry (for final review)
+
+- Task 0: thin matrices, package mojibake, dirty-tree note
+- Task 1: multi-create txn; seed catch; BOTH asymmetry; Prisma generate; i18n; schema diff noise
+- Task 2: material invalidation opt-in; tax rate from context; override boolean; Prisma generate; i18n; policy seed/TCV; annual recurring label
+- Task 3: residual minors per task-p15-3-review.md
+- Task 4: acceptanceId uniqueness; thin hubs; Prisma EPERM; scope stub
+
+## FINAL_READINESS_DECISION
+
+# Final Readiness Decision â€” Exit Phase 15 / Enter Phase 16
+
+**Decision:** **READY_FOR_PHASE_16_WITH_BLOCKERS**
+
+**Date:** 2026-07-31
+
+## Rationale
+
+Phase 15 Waves 0â€“4 deliver a trustworthy commercial-document plane:
+
+- Wave 0 forensic pack + CONDITIONAL GO consumable.
+- Waves 1â€“3: Proposal Request + CrmCommercialDocument spine, Price Books/pricing/approvals, PDF/issue/delivery/acceptance with e-sign **NOT_CONFIGURED**.
+- Wave 4: commercial hubs (thin), honesty-gated metrics/reports (currency-separated), DQ/recon runners, Closed-Won readiness, Phase 16 conversion handoff payloads only.
+- Core truth solid: acceptance evidence required; handoff idempotent; zero provisioning side effects; Opp stage/probability/close date never auto-mutated; gate fail â‰  fabricated zero.
+
+No contradiction with Phase 14 exit. E-sign remains an explicit blocker (`NOT_CONFIGURED`) and does not undermine commercial truth for Phase 16 consumption of handoff payloads.
+
+## Conditions for Phase 16
+
+1. Consume `createClosedWonConversionHandoff` / `evaluateClosedWonReadiness` as conversion inputs â€” handoff â‰  create until human-gated conversion runs.
+2. Never treat acceptance as Closed Won or as Tenant provision.
+3. Never invent commercial KPI zeroes when reliability gate fails.
+4. Keep currency separation; no silent multi-currency totals.
+5. E-sign stays `NOT_CONFIGURED` until a real provider wave; never fabricate.
+6. Weighted Pipeline UI may be enabled in Phase 16 only behind honesty gates.
+7. SQL + `hasCrm*Model` guards if Prisma EPERM on Windows.
+8. Commits only when user asks; WORKING_TREE OK.
+
+## Wave / pack completion
+
+- [x] Phase input validation PASS (Wave 0)
+- [x] CURRENT_* + COMMERCIAL_* audits + matrices
+- [x] Gap register + IMPLEMENTATION_PLAN Waves 1â€“4
+- [x] Waves 1â€“4 application code + Vitest
+- [x] `FINAL_PHASE_15_REPORT.md` + `PHASE_16_INPUTS.md` + `PHASE_16_READINESS_CHECKLIST.md`
+- [x] **READY_FOR_PHASE_16_WITH_BLOCKERS** recorded
+
+**Next:** Phase 16 may begin human-gated conversion / weighted Pipeline work consuming commercial handoffs â€” without assuming e-sign or provision already happened.
+
+**Stop:** Do not invent Customer/Tenant/Subscription/Invoice from handoff emission; do not auto-Closed-Won from acceptance; do not fabricate e-sign or false-zero commercial KPIs.
+
+## PHASE_16_INPUTS (first 80)
+
+# Phase 16 Inputs â€” from Commercial Documents Phase 15
+
+**Source exit:** `READY_FOR_PHASE_16_WITH_BLOCKERS` (see `FINAL_PHASE_15_REPORT.md`)  
+**Date:** 2026-07-31
+
+## What Phase 16 may consume
+
+| Input | Location / contract | Notes |
+|-------|---------------------|-------|
+| CrmProposalRequest / CrmCommercialDocument spine | `lib/admin/crm/commercial/*` | PRQ + Proposal/Quotation families; Tenant Quotation = WRONG_DOMAIN |
+| Price Books + pricing snapshot | `priceBooks.js`, `pricing.js`, `pricingSnapshot.js` | Explicit FX; no silent rate=1 |
+| Issued artifacts + checksums | `artifacts.js`, `checksum.js`, `render.js` | Append-only; customer-safe projections |
+| Acceptance evidence | `acceptance.js` | Version + checksum + authority; â‰  Closed Won |
+| Closed-Won readiness | `readiness.js` `evaluateClosedWonReadiness` | READY when evidence complete; HANDED_OFF after emit |
+| Phase 16 conversion handoff | `phase16Handoff.js` `createClosedWonConversionHandoff` | Idempotent payload; `customerCreated/tenantCreated/â€¦: false` |
+| Commercial reports + schedules | `reports.js`, `reportSchedules.js` | EMPTY/UNAVAILABLE on gate fail; currency-separated |
+| DQ + recon runners | `dataQuality.js`, `reconciliation.js` | Never invent zeroes |
+| Opp conversion readiness (extended) | `opportunities/conversionReadiness.js` | Soft commercial acceptance + handoff checklist |
+| Demo proposal handoff (prior) | `demos/handoffs.js` | Still payload â†’ PRQ; orthogonal to Closed-Won handoff |
+| E-sign status | `signatureBoundary.js` | Explicitly `NOT_CONFIGURED` |
+
+## What Phase 16 must not assume
+
+- E-sign provider is configured or signatures exist
+- Customer / Tenant / Subscription / Invoice already created from Closed-Won or acceptance
+- Acceptance already moved Opportunity to Closed Won / changed probability / close date
+- Silent multi-currency commercial KPI totals exist
+- Weighted Pipeline UI/report totals are enabled (Phase 16 may own enabling them)
+- Owner/team/territory scope filtering is fully implemented
+- Rich commercial UI hubs beyond thin stubs
+- Demo recording media / cloud Demo infra available
+
+## Suggested Phase 16 scope seeds
+
+1. **Human-gated conversion transaction** consuming READY/HANDED_OFF Closed-Won handoff (SoD; never silent)
+2. Optional: enable weighted Pipeline UI with honesty gates (currency + reliability)
+3. Optional: Tenant / Subscription / Invoice create from approved conversion (never from acceptance alone)
+4. Harden owner/team/territory scope filtering across commercial + Opportunity lists
+5. Optional: e-sign provider integration without fabricating interim signatures
+6. Deepen commercial report centre + exports under privacy projections
+7. Keep invent-zeroes / currency-separation / acceptanceâ‰ Closed-Won invariants
+
+## Carry gaps (from Phase 15 + earlier)
+
+- E-sign provider â†’ `NOT_CONFIGURED`
+- Tenant / Subscription / Invoice / Payment provision â†’ human-gated conversion later
+- Weighted Pipeline UI â†’ Phase 16
+- Scope filtering stub â†’ harden in ops waves
+- Telephony + Call recording â†’ later / provider wave
+- Google/Outlook sync â†’ later / provider wave
+- Email/WhatsApp Lead ingest â†’ later
+- Demo recording media + cloud Demo infra â†’ later
+- Prisma EPERM on Windows generate/push â†’ SQL fallback available
+- Rich commercial UI hubs â†’ product polish waves
+- AI commercial automation â†’ out of foundation scope
+
+## Honesty gates to preserve
+
+- Empty commercial report â‰  invent zeroes
+- Gate fail â†’ UNAVAILABLE with `value: null` â€” never false zero
+- Currency-separated overview â€” no silent ZAR+USD sum
+- Acceptance â‰  Closed Won; never auto Opportunity mutation
+- Phase 16 handoff â‰  create Customer/Tenant/Subscription/Invoice
+- Closed Won â‰  provision
+- E-sign NOT_CONFIGURED â€” never fabricate signatures
+- Tenant Quotation remains WRONG_DOMAIN
+
+## Key modules
+
+
+===== lib/admin/crm/commercial/index.js =====
+
+/**
+
+ * CRM Commercial Documents â€” Phase 15 Wave 1â€“3 public surface.
+
+ * Wave 1: Proposal Request + CrmCommercialDocument spine.
+
+ * Wave 2: Price Books, pricing, tax/FX, discounts, approvals.
+
+ * Wave 3: Templates, PDF, issue, delivery, review, acceptance.
+
+ * Wave 4: Hubs, reports/DQ/recon, Closed-Won readiness, Phase 16 handoff.
+
+ * Tenant Quotation = WRONG_DOMAIN. No Opp auto-mutation. E-sign NOT_CONFIGURED.
+
+ */
+
+
+
+export {
+
+  CRM_PROPOSAL_REQUEST_STATUS,
+
+  CRM_PROPOSAL_REQUEST_STATUSES,
+
+  CRM_PROPOSAL_REQUEST_TRANSITION_TABLE,
+
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+
+  CRM_COMMERCIAL_DOCUMENT_STATUSES,
+
+  CRM_COMMERCIAL_DOCUMENT_TRANSITION_TABLE,
+
+  CRM_COMMERCIAL_DOCUMENT_FAMILY,
+
+  CRM_COMMERCIAL_DOCUMENT_FAMILIES,
+
+  CRM_REQUESTED_DOCUMENT_TYPE,
+
+  CRM_PROPOSAL_REQUEST_SOURCE,
+
+  CRM_PRICE_BOOK_TYPE,
+
+  CRM_PRICE_BOOK_VERSION_STATUS,
+
+  CRM_FX_RELIABILITY,
+
+  CRM_DISCOUNT_REQUEST_STATUS,
+
+  CRM_APPROVAL_REQUEST_STATUS,
+
+  CRM_APPROVAL_STEP_STATUS,
+
+  CRM_DEFAULT_SALESPERSON_DISCOUNT_MAX_PERCENT,
+
+  isValidCommercialDocumentStatus,
+
+  isValidProposalRequestStatus,
+
+  canTransitionCommercialDocumentStatus,
+
+  canTransitionProposalRequestStatus,
+
+  isIssuedOrBeyond,
+
+  getCommercialDomainContract,
+
+} from './catalogue.js';
+
+
+
+export {
+
+  allocateProposalRequestNumber,
+
+  allocateProposalNumber,
+
+  allocateQuotationNumber,
+
+  allocatePriceBookNumber,
+
+
+===== lib/admin/crm/commercial/phase16Handoff.js =====
+
+/**
+ * Phase 16 Closed-Won conversion handoff â€” Phase 15 Wave 4.
+ * Payload only. NEVER creates Customer / Tenant / Subscription / Invoice.
+ * NEVER mutates Opportunity stage / probability / close date.
+ */
+
+import { CRM_READINESS_STATUS, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { getCommercialDomainContract } from './catalogue.js';
+import { hasCrmCommercialAcceptanceModel } from './model.js';
+import {
+  evaluateClosedWonReadiness,
+  hasCrmClosedWonConversionHandoffModel,
+  CLOSED_WON_READINESS_VERSION,
+} from './readiness.js';
+
+export const PHASE16_CONVERSION_HANDOFF_TYPE = 'CRM_CLOSED_WON_CONVERSION_HANDOFF';
+export const PHASE16_CONVERSION_HANDOFF_VERSION =
+  'crm-closed-won-conversion-handoff-v1-2026-07-31';
+
+export function serializeClosedWonHandoff(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    acceptanceId: row.acceptanceId,
+    documentVersionId: row.documentVersionId || null,
+    opportunityId: row.opportunityId || null,
+    payloadJson: row.payloadJson ?? null,
+    idempotencyKey: row.idempotencyKey || null,
+    createdByAdminId: row.createdByAdminId || null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+    customerCreated: false,
+    tenantCreated: false,
+    subscriptionCreated: false,
+    invoiceCreated: false,
+    paymentCreated: false,
+  };
+}
+
+function rejectProvisionFlags(args) {
+  if (
+    args.createCustomer === true ||
+    args.createTenant === true ||
+    args.createSubscription === true ||
+    args.createInvoice === true ||
+    args.provisionTenant === true ||
+    args.executeConversion === true
+  ) {
+    return {
+      ok: false,
+      error: 'handoff_create_forbidden',
+      domain: getCommercialDomainContract(),
+    };
+  }
+  return null;
+}
+
+/**
+ * Create Closed-Won â†’ Phase 16 conversion handoff (payload only).
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ actorContext?: { admin?: object }, admin?: object, acceptanceId: string, idempotencyKey?: string }} args
+ */
+export async function createClosedWonConversionHandoff(prisma, args = {}) {
+  const admin = args.actorContext?.admin || args.admin || null;
+  const access = resolveCrmAccess(admin);
+  if (!access.canEditOpportunities && !access.isSuperAdmin) {
+    return {
+      ok: false,
+      forbidden: true,
+      reason: 'crm_closed_won_handoff_forbidden',
+    };
+  }
+
+  const provisionReject = rejectProvisionFlags(args);
+  if (provisionReject) return provisionReject;
+
+  if (!hasCrmCommercialAcceptanceModel(prisma)) {
+    return {
+      ok: false,
+
+===== lib/admin/crm/commercial/acceptance.js =====
+
+/**
+ * Commercial document acceptance â€” Phase 15 Wave 3.
+ * Requires exact version + artifact + checksum + recipient + authority.
+ * Idempotent. Never fabricates. Acceptance â‰  Closed Won.
+ */
+
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { loadArtifactChecksum } from './artifacts.js';
+import { resolveReviewAccessByToken } from './reviewAccess.js';
+
+export function hasCrmCommercialAcceptanceModel(prisma) {
+  return typeof prisma?.crmCommercialAcceptance?.create === 'function';
+}
+
+export function serializeAcceptance(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    documentVersionId: row.documentVersionId,
+    artifactId: row.artifactId,
+    checksumSha256: row.checksumSha256,
+    recipientId: row.recipientId,
+    authorityRole: row.authorityRole,
+    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
+    idempotencyKey: row.idempotencyKey || null,
+  };
+}
+
+const ACCEPTABLE = new Set([
+  CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+  CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+]);
+
+/**
+ * Authority for protected acceptance must come from the verified recipient role.
+ * Empty / missing role is UNVERIFIED and never satisfies acceptance.
+ */
+export function evaluateAcceptanceAuthority(recipient, claimedRole = '') {
+  const verifiedRole = String(recipient?.authorityRole || '')
+    .trim()
+    .toUpperCase();
+  if (!verifiedRole) {
+    return {
+      ok: false,
+      error: 'authority_unverified',
+      status: 'UNVERIFIED',
+    };
+  }
+  const claimed = claimedRole ? String(claimedRole).trim().toUpperCase() : '';
+  if (claimed && claimed !== verifiedRole) {
+    return { ok: false, error: 'authority_mismatch' };
+  }
+  return { ok: true, authorityRole: verifiedRole };
+}
+
+export async function acceptCommercialDocument(prisma, args = {}) {
+  if (!hasCrmCommercialAcceptanceModel(prisma)) {
+    return {
+      ok: false,
+      error: 'crm_commercial_acceptance_model_unavailable',
+      status: 'UNAVAILABLE',
+    };
+  }
+
+  const now = args.now || new Date();
+  let documentVersionId = args.documentVersionId || args.commercialDocumentVersionId || null;
+  let artifactId = args.artifactId || null;
+  let checksumSha256 = args.checksumSha256
+    ? String(args.checksumSha256).trim().toLowerCase()
+    : '';
+  let recipientId = args.recipientId || null;
+  const claimedAuthorityRole = args.authorityRole
+    ? String(args.authorityRole).trim().toUpperCase()
+    : '';
+
+
+===== lib/admin/crm/commercial/pricing.js =====
+
+/**
+ * Deterministic calculateCommercialDocument â€” Phase 15 Wave 2.
+ * Immutable pricing snapshots; currency-explicit totals; idempotent by key.
+ * No silent FX; no Tenant tax posting; no MRA EIS fiscal; Opp estimates unused.
+ */
+
+import { CRM_SUBJECT_TYPE, CRM_TIMELINE_EVENT_TYPE } from '../catalogue.js';
+import { resolveCrmAccess } from '../authz.js';
+import { appendTimelineEvent } from '../timeline.js';
+import {
+  assertCurrencyPricingGate,
+  convertAmount,
+  resolveFxContext,
+  roundMoney,
+} from './currencyFx.js';
+import { resolveDiscountApplication } from './discounts.js';
+import { filterApprovedExceptions } from './exceptions.js';
+import { collectLineCurrencies, normalizeLineItems } from './lineItems.js';
+import {
+  hasCrmPriceBookEntryModel,
+  hasCrmPriceBookVersionModel,
+  hasCrmPricingSnapshotModel,
+  resolveCommercialActor,
+} from './model.js';
+import { findPriceBookEntryForProduct } from './productConfig.js';
+import {
+  buildCurrencyExplicitTotals,
+  buildPricingSnapshotPayload,
+} from './pricingSnapshot.js';
+import { computeTaxTotal, resolveTaxContext } from './tax.js';
+
+function canEdit(access) {
+  return (
+    access.canEditOpportunities ||
+    access.canEditLeads ||
+    access.canCreateLeads ||
+    access.isSuperAdmin
+  );
+}
+
+async function loadPriceBookEntries(prisma, priceBookVersionId) {
+  if (!hasCrmPriceBookEntryModel(prisma)) return [];
+  return prisma.crmPriceBookEntry.findMany({
+    where: { priceBookVersionId: String(priceBookVersionId) },
+  });
+}
+
+/**
+ * calculateCommercialDocument({
+ *   actorContext, commercialDocumentVersionId, priceBookVersionId, currency,
+ *   lineItems, taxContext, discountRequests, pricingExceptions,
+ *   calculationDate, idempotencyKey, fxContext
+ * }) â†’ { calculationId, snapshot, totals }
+ */
+export async function calculateCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEdit(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_pricing_calculate_forbidden' };
+  }
+  if (!hasCrmPricingSnapshotModel(prisma) || !hasCrmPriceBookVersionModel(prisma)) {
+    return { ok: false, error: 'crm_pricing_snapshot_model_unavailable', status: 'UNAVAILABLE' };
+  }
+
+  const documentVersionId = String(args.commercialDocumentVersionId || '').trim();
+  const priceBookVersionId = String(args.priceBookVersionId || '').trim();
+  const currency = args.currency ? String(args.currency).trim().toUpperCase() : null;
+  const idempotencyKey = args.idempotencyKey != null ? String(args.idempotencyKey).trim() : '';
+
+  if (!documentVersionId || !priceBookVersionId || !currency) {
+    return { ok: false, error: 'pricing_required_fields_missing' };
+  }
+
+  if (idempotencyKey) {
+    const existing = await prisma.crmPricingSnapshot.findUnique({
+      where: {
+        documentVersionId_idempotencyKey: {
+          documentVersionId,
+          idempotencyKey,
+        },
+
+===== lib/admin/crm/commercial/issue.js =====
+
+/**
+ * Issue commercial document â€” Phase 15 Wave 3.
+ * Issue binds artifact + recipients + delivery; idempotent by key.
+ * Supersedes prior issued versions on the same document.
+ */
+
+import { resolveCrmAccess } from '../authz.js';
+import {
+  CRM_COMMERCIAL_DOCUMENT_STATUS,
+  getCommercialDomainContract,
+} from './catalogue.js';
+import { CRM_DELIVERY_METHOD, recordCommercialDelivery } from './delivery.js';
+import { canEditCommercial, loadCommercialDocument } from './documents.js';
+import { loadArtifactChecksum } from './artifacts.js';
+import { resolveCommercialActor } from './model.js';
+import { createReviewAccess, revokeReviewAccessForVersion } from './reviewAccess.js';
+import { loadDocumentVersion } from './versions.js';
+
+export function hasCrmCommercialIssueIdempotency(prisma) {
+  return typeof prisma?.crmCommercialDelivery?.findUnique === 'function';
+}
+
+async function supersedePriorVersions(prisma, documentId, keepVersionId, now) {
+  const priorStatuses = [
+    CRM_COMMERCIAL_DOCUMENT_STATUS.ISSUED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.DELIVERED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.VIEWED,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.CUSTOMER_REVIEW,
+    CRM_COMMERCIAL_DOCUMENT_STATUS.REVISION_REQUESTED,
+  ];
+
+  const priors = await prisma.crmCommercialDocumentVersion.findMany({
+    where: {
+      documentId,
+      status: { in: priorStatuses },
+    },
+  });
+
+  for (const prior of priors) {
+    if (prior.id === keepVersionId) continue;
+    await prisma.crmCommercialDocumentVersion.update({
+      where: { id: prior.id },
+      data: {
+        status: CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED,
+        immutable: true,
+        updatedAt: now,
+      },
+    });
+    await revokeReviewAccessForVersion(prisma, prior.id, { now });
+    if (typeof prisma.crmCommercialDocumentVersionStatusHistory?.create === 'function') {
+      await prisma.crmCommercialDocumentVersionStatusHistory.create({
+        data: {
+          versionId: prior.id,
+          fromStatus: prior.status,
+          toStatus: CRM_COMMERCIAL_DOCUMENT_STATUS.SUPERSEDED,
+          reason: 'superseded_by_new_issue',
+          at: now,
+        },
+      });
+    }
+  }
+}
+
+/**
+ * Issue a commercial document version with checksummed artifact + delivery.
+ */
+export async function issueCommercialDocument(prisma, args = {}) {
+  const admin = resolveCommercialActor(args);
+  const access = resolveCrmAccess(admin);
+  if (!canEditCommercial(access)) {
+    return { ok: false, forbidden: true, reason: 'crm_commercial_issue_forbidden' };
+  }
+
+  const versionId =
+    args.commercialDocumentVersionId || args.documentVersionId || args.versionId;
+  if (!versionId) return { ok: false, error: 'commercialDocumentVersionId_required' };
+  if (!args.artifactId) return { ok: false, error: 'artifactId_required' };
+
+  const idempotencyKey = args.idempotencyKey ? String(args.idempotencyKey).trim() : '';
+  if (idempotencyKey && typeof prisma.crmCommercialDelivery?.findUnique === 'function') {
