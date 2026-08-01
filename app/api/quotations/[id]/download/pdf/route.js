@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateQuotationPdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
+import { shouldDisplayDocumentTax } from '@/lib/documentTaxDisplay';
 
 function findPreRenderedPdf(quotationId, quotationNumber) {
   try {
@@ -193,7 +194,12 @@ export async function GET(request, { params }) {
         }
         lines.push('');
         lines.push(`Subtotal: ${preparedQuotation.subtotal}`);
-        lines.push(`Tax: ${preparedQuotation.taxAmount}`);
+        if (shouldDisplayDocumentTax({
+          taxAmount: preparedQuotation.taxAmount,
+          taxLines: (preparedQuotation.items || []).flatMap((item) => item.itemTaxes || []),
+        })) {
+          lines.push(`Tax: ${preparedQuotation.taxAmount}`);
+        }
         lines.push(`TOTAL: ${preparedQuotation.total}`);
         lines.push('');
         lines.push(`[Fallback PDF — jsPDF error: ${jspdfErr?.message}]`);

@@ -1,6 +1,7 @@
 // components/QuotationTemplatePreview.jsx
 import React, { forwardRef, useState } from 'react';
 import { addMoney, multiplyMoney, percentOfMoney, subtractMoney } from '@/lib/money';
+import { shouldDisplayDocumentTax, documentHasLineTax } from '@/lib/documentTaxDisplay';
 
 const QuotationTemplatePreview = forwardRef(({
   quotation,
@@ -64,6 +65,11 @@ const QuotationTemplatePreview = forwardRef(({
     return addMoney(sum, percentOfMoney(subtractMoney(lt, da), item.taxRate || 0));
   }, 0) ?? 0;
   const total = quotation?.total ?? addMoney(netSubtotal, taxAmount);
+  const showLineTax = documentHasLineTax(quotation?.items);
+  const showDocumentTax = shouldDisplayDocumentTax({
+    taxAmount,
+    taxLines: (quotation?.items || []).flatMap((item) => item.itemTaxes || item.taxes || []),
+  });
 
   return (
     <div ref={ref} className={`bg-white ${isPrint ? 'print:shadow-none' : 'border border-gray-200 rounded-xl shadow-sm'} max-w-3xl mx-auto overflow-hidden`} style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -142,7 +148,7 @@ const QuotationTemplatePreview = forwardRef(({
               <th className="text-right py-3 font-semibold text-gray-700 w-16">Qty</th>
               <th className="text-right py-3 font-semibold text-gray-700">Selling Price</th>
               <th className="text-right py-3 font-semibold text-gray-700">Discount</th>
-              <th className="text-right py-3 font-semibold text-gray-700">Tax</th>
+              {showLineTax && <th className="text-right py-3 font-semibold text-gray-700">Tax</th>}
               <th className="text-right py-3 font-semibold text-gray-700">Total</th>
             </tr>
           </thead>
@@ -166,6 +172,7 @@ const QuotationTemplatePreview = forwardRef(({
                   <td className="py-3.5 text-right text-gray-600">{item.quantity}</td>
                   <td className="py-3.5 text-right text-gray-600">{formatAmount(item.unitPrice)}</td>
                   <td className="py-3.5 text-right">{lineDiscount > 0 ? <span className="text-red-600">-{formatAmount(lineDiscount)}</span> : <span className="text-gray-400">—</span>}</td>
+                  {showLineTax && (
                   <td className="py-3.5 text-right text-gray-600">
                     {itemTaxes.length > 0
                       ? itemTaxes.map((t) => `${t.taxName}: ${formatAmount(t.taxAmount)}`).join(' · ')
@@ -173,6 +180,7 @@ const QuotationTemplatePreview = forwardRef(({
                         ? `${item.taxRate}% · ${formatAmount(taxAmountItem)}`
                         : '—'}
                   </td>
+                  )}
                   <td className="py-3.5 text-right font-medium text-gray-900">{formatAmount(finalAmount)}</td>
                 </tr>
               );
@@ -187,7 +195,9 @@ const QuotationTemplatePreview = forwardRef(({
             {(quotation?.totalDiscountAmount || 0) > 0 && <div className="flex justify-between py-1.5 text-gray-600"><span>Line discounts</span><span className="text-red-600 font-medium">-{formatCurrency(quotation.totalDiscountAmount)}</span></div>}
             {(quotation?.discount || 0) > 0 && <div className="flex justify-between py-1.5 text-gray-600"><span>Discount</span><span className="text-red-600 font-medium">-{formatCurrency(quotation.discount)}</span></div>}
             <div className="flex justify-between py-1.5 text-gray-600"><span>Net subtotal</span><span className="font-medium text-gray-900">{formatCurrency(netSubtotal)}</span></div>
+            {showDocumentTax && (
             <div className="flex justify-between py-1.5 text-gray-600"><span>Tax</span><span className="font-medium text-gray-900">{formatCurrency(taxAmount)}</span></div>
+            )}
             <div className="flex justify-between py-3 mt-1 border-t-2 border-gray-200" style={{ color: primaryColor }}>
               <span className="font-bold">Total</span>
               <span className="font-bold">{formatCurrency(total)}</span>

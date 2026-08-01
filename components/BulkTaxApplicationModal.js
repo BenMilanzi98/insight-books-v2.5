@@ -193,7 +193,7 @@ const BulkTaxApplicationModal = ({
               ) : taxTypes.length === 0 ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm text-yellow-800">
-                    No active tax types available. <a href="/tax-management/tax-codes" className="text-blue-600 hover:underline">Create tax types</a> first.
+                    No active tax types available. <a href="/tax-management/accounts" className="text-blue-600 hover:underline">Create tax types</a> first.
                   </p>
                 </div>
               ) : (

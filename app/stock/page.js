@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import ClickableStatCard from "@/components/ui/ClickableStatCard";
 import { format } from "date-fns";
 import { 
   Search, 
@@ -75,6 +76,7 @@ function stockLineValue(quantity, unitCost) {
 
 // Main Stock Management Component
 const StockManagement = () => {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const setupOpeningStock = searchParams.get("setup") === "openingStock";
 
@@ -2455,7 +2457,7 @@ const StockManagement = () => {
         <div className="w-full min-w-0 lg:w-auto">
           <PageHeader
             className="mb-0 border-b-0 pb-0"
-            title="Stock Management"
+            title="Stock/Inventory management"
             description={
               stockCatalog === "services"
                 ? "Billable services — pricing and tax only; no inventory or stock movements."
@@ -2664,140 +2666,102 @@ const StockManagement = () => {
         </div>
       </div>
 
-      {/* Statistics Cards */}
+      {/* Statistics Cards — click to filter list or open related view */}
       <div className={`grid grid-cols-1 gap-4 lg:gap-6 mb-6 lg:mb-8 ${stockCatalog === "services" ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
-        {/* Total Products Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">
-                {stockCatalog === "services" ? "Services" : "Total products"}
-              </p>
-              <div className="mt-2">
-                {statisticsLoading ? (
-                  <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
-                ) : (
-                  <p className="text-3xl font-bold text-gray-900">
-                    {stockCatalog === "services"
-                      ? statistics.serviceCount ?? 0
-                      : statistics.totalItems}
-                  </p>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {stockCatalog === "services"
-                  ? "Billable services in this business"
-                  : "Physical SKUs in stock"}
-              </p>
-            </div>
-            <div className={`p-3 rounded-xl ${stockCatalog === "services" ? "bg-violet-50" : "bg-blue-50"}`}>
-              {stockCatalog === "services" ? (
-                <Briefcase size={24} className="text-violet-600" />
-              ) : (
-                <Package size={24} className="text-blue-600" />
-              )}
-            </div>
-          </div>
-        </div>
+        <ClickableStatCard
+          label={stockCatalog === "services" ? "Services" : "Total products"}
+          value={
+            statisticsLoading
+              ? "…"
+              : stockCatalog === "services"
+                ? statistics.serviceCount ?? 0
+                : statistics.totalItems
+          }
+          countLabel={
+            stockCatalog === "services"
+              ? "billable services in this business"
+              : "physical SKUs — show all"
+          }
+          icon={stockCatalog === "services" ? Briefcase : Package}
+          active={stockCatalog === "products" && statusFilter === "All"}
+          iconWrapClassName={stockCatalog === "services" ? "bg-violet-50 text-violet-600" : "bg-blue-50 text-blue-600"}
+          barClassName={
+            stockCatalog === "services"
+              ? "from-violet-400 via-purple-500 to-indigo-500"
+              : "from-[var(--brand-blue-light)] via-[var(--brand-blue)] to-[var(--brand-blue-dark)]"
+          }
+          onClick={() => {
+            if (stockCatalog === "services") {
+              setStockCatalog("services");
+              return;
+            }
+            setStatusFilter("All");
+            setCategoryFilter("All");
+            setShowDeletedItems(false);
+          }}
+        />
 
         {stockCatalog === "services" && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Physical products</p>
-              <div className="mt-2">
-                {statisticsLoading ? (
-                  <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
-                ) : (
-                  <p className="text-3xl font-bold text-gray-900">{statistics.totalItems}</p>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Switch to Products to manage inventory</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-xl">
-              <Package size={24} className="text-blue-600" />
-            </div>
-          </div>
-        </div>
+          <ClickableStatCard
+            label="Physical products"
+            value={statisticsLoading ? "…" : statistics.totalItems}
+            countLabel="switch to Products inventory"
+            icon={Package}
+            iconWrapClassName="bg-blue-50 text-blue-600"
+            barClassName="from-[var(--brand-blue-light)] via-[var(--brand-blue)] to-[var(--brand-blue-dark)]"
+            onClick={() => {
+              setStockCatalog("products");
+              setStatusFilter("All");
+            }}
+          />
         )}
-        
+
         {stockCatalog === "products" && (
-        <>
-        {/* Stock value card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-500">Stock value</p>
-              <div className="mt-2">
-                {statisticsLoading ? (
-                  <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
-                ) : (
-                  <p className="text-3xl font-bold text-gray-900">{formatCurrency(statistics.totalValue)}</p>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Linked to GL{" "}
-                <a
-                  href={`/chart-of-accounts?search=${encodeURIComponent(statistics.glAccount?.code || "1310")}`}
-                  className="font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
-                >
-                  {statistics.glAccount?.code || "1310"}
-                </a>
-                {" — "}
-                {statistics.glAccount?.name || "Stock on Hand"}
-              </p>
-              {!statisticsLoading && statistics.glAccount?.postedBalance != null ? (
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  Posted GL balance: {formatCurrency(statistics.glAccount.postedBalance)}
-                </p>
-              ) : null}
-            </div>
-            <div className="p-3 bg-purple-50 rounded-xl shrink-0">
-              <BarChart2 size={24} className="text-purple-600" />
-            </div>
-          </div>
-        </div>
-        
-        {/* Low Stock Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Low Stock Items</p>
-              <div className="mt-2">
-                {statisticsLoading ? (
-                  <div className="h-8 w-12 bg-gray-200 rounded animate-pulse"></div>
-                ) : (
-                  <p className="text-3xl font-bold text-amber-600">{statistics.lowStock}</p>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Needs attention</p>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-xl">
-              <AlertTriangle size={24} className="text-amber-600" />
-            </div>
-          </div>
-        </div>
-        
-        {/* Out of Stock Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Out of Stock</p>
-              <div className="mt-2">
-                {statisticsLoading ? (
-                  <div className="h-8 w-12 bg-gray-200 rounded animate-pulse"></div>
-                ) : (
-                  <p className="text-3xl font-bold text-red-600">{statistics.outOfStock}</p>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Needs restocking</p>
-            </div>
-            <div className="p-3 bg-red-50 rounded-xl">
-              <AlertTriangle size={24} className="text-red-600" />
-            </div>
-          </div>
-        </div>
-        </>
+          <>
+            <ClickableStatCard
+              label="Stock value"
+              value={statisticsLoading ? "…" : formatCurrency(statistics.totalValue)}
+              countLabel={`GL ${statistics.glAccount?.code || "1310"} — ${statistics.glAccount?.name || "Stock on Hand"}`}
+              icon={BarChart2}
+              iconWrapClassName="bg-purple-50 text-purple-600"
+              barClassName="from-purple-400 via-violet-500 to-indigo-500"
+              title="Open Chart of Accounts inventory account"
+              onClick={() => {
+                const code = statistics.glAccount?.code || "1310";
+                router.push(`/chart-of-accounts?search=${encodeURIComponent(code)}`);
+              }}
+            />
+
+            <ClickableStatCard
+              label="Low Stock Items"
+              value={statisticsLoading ? "…" : statistics.lowStock}
+              countLabel="needs attention"
+              icon={AlertTriangle}
+              active={statusFilter === "Low Stock"}
+              valueClassName="text-amber-600"
+              iconWrapClassName="bg-amber-50 text-amber-600"
+              barClassName="from-amber-400 via-yellow-500 to-orange-500"
+              onClick={() => {
+                setShowDeletedItems(false);
+                setStatusFilter((prev) => (prev === "Low Stock" ? "All" : "Low Stock"));
+              }}
+            />
+
+            <ClickableStatCard
+              label="Out of Stock"
+              value={statisticsLoading ? "…" : statistics.outOfStock}
+              countLabel="needs restocking"
+              icon={AlertTriangle}
+              active={statusFilter === "Out of Stock"}
+              valueClassName="text-red-600"
+              iconWrapClassName="bg-red-50 text-red-600"
+              barClassName="from-red-400 via-rose-500 to-orange-500"
+              onClick={() => {
+                setShowDeletedItems(false);
+                setStatusFilter((prev) => (prev === "Out of Stock" ? "All" : "Out of Stock"));
+              }}
+            />
+          </>
         )}
       </div>
 
@@ -6240,7 +6204,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   <div className="text-sm text-gray-500">Loading taxes...</div>
                 ) : !Array.isArray(taxTypes) || taxTypes.length === 0 ? (
                   <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-md">
-                    No active tax types available. <a href="/tax-management/tax-codes" className="text-blue-600 hover:underline">Create tax types</a> first.
+                    No active tax types available. <a href="/tax-management/accounts" className="text-blue-600 hover:underline">Create tax types</a> first.
 
                   </div>
                 ) : (

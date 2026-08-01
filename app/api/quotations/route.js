@@ -5,6 +5,10 @@ import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { allocateNextQuoNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { toItemTaxCreateRows } from '@/lib/documentLineTaxes';
+import {
+  assertActiveTaxTypeIds,
+  collectTaxTypeIdsFromItems,
+} from '@/lib/taxManagement/assertActiveTaxTypes';
 
 // Enhanced helper function to calculate quotation totals with discounts
 function calculateQuotationTotals(items, globalDiscount = 0) {
@@ -270,6 +274,19 @@ export async function POST(request) {
           { status: 400 }
         );
       }
+    }
+
+    try {
+      await assertActiveTaxTypeIds(
+        prisma,
+        user.tenantId,
+        collectTaxTypeIdsFromItems(body.items)
+      );
+    } catch (e) {
+      if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
+        return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+      }
+      throw e;
     }
     
     // Enhanced calculation using the new function

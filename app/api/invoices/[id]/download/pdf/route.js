@@ -6,6 +6,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { generatePdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { shouldDisplayDocumentTax } from '@/lib/documentTaxDisplay';
 
 function findPreRenderedPdf(invoiceId, invoiceNumber) {
   try {
@@ -203,7 +204,12 @@ export async function GET(request, { params }) {
         }
         lines.push('');
         lines.push(`Subtotal: ${inv.subtotal}`);
-        lines.push(`Tax: ${inv.taxAmount}`);
+        if (shouldDisplayDocumentTax({
+          taxAmount: inv.taxAmount,
+          taxLines: (inv.items || []).flatMap((item) => item.itemTaxes || []),
+        })) {
+          lines.push(`Tax: ${inv.taxAmount}`);
+        }
         lines.push(`TOTAL: ${inv.total}`);
         lines.push('');
         lines.push(`[Fallback PDF — jsPDF error: ${jspdfErr?.message}]`);

@@ -48,22 +48,10 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import QuotationTemplateCapture from "@/components/QuotationTemplateCapture";
 import { formatDate } from "@/lib/dateUtils";
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
 
-// Statistics card component
-const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColor }) => (
-  <div className={`${bgColor} border ${borderColor} rounded-xl p-5 transition-all duration-200 hover:shadow-md`}>
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-        <p className="text-2xl font-bold text-gray-900">MWK {parseFloat(amount || 0).toLocaleString()}</p>
-        <p className="text-xs text-gray-500 mt-1">{count || 0} quotation{count !== 1 ? 's' : ''}</p>
-      </div>
-      <div className={`p-3 rounded-full ${color === 'green' ? 'bg-emerald-100' : color === 'yellow' ? 'bg-amber-100' : color === 'red' ? 'bg-red-100' : color === 'blue' ? 'bg-blue-100' : 'bg-purple-100'}`}>
-        <Icon className={`w-6 h-6 ${color === 'green' ? 'text-emerald-600' : color === 'yellow' ? 'text-amber-600' : color === 'red' ? 'text-red-600' : color === 'blue' ? 'text-blue-600' : 'text-purple-600'}`} />
-      </div>
-    </div>
-  </div>
-);
+const formatQuotationMoney = (amount) =>
+  parseFloat(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 // Status badge component with improved styling
 const StatusBadge = ({ status }) => {
@@ -567,11 +555,16 @@ const QuotationsPage = () => {
 
   // Statistics cards configuration
   const statCards = [
-    { key: 'pending', label: 'Pending', icon: Clock, color: 'yellow', bgColor: 'bg-white', borderColor: 'border-amber-200' },
-    { key: 'approved', label: 'Approved', icon: CheckCircle, color: 'green', bgColor: 'bg-white', borderColor: 'border-emerald-200' },
-    { key: 'converted', label: 'Converted', icon: CornerDownRight, color: 'blue', bgColor: 'bg-white', borderColor: 'border-blue-200' },
-    { key: 'expired', label: 'Expired', icon: AlertCircle, color: 'red', bgColor: 'bg-white', borderColor: 'border-red-200' }
+    { key: 'pending', label: 'Pending', icon: Clock, barClassName: 'from-amber-400 via-yellow-500 to-orange-500', valueClassName: 'text-amber-700', iconWrapClassName: 'bg-amber-100 text-amber-600' },
+    { key: 'approved', label: 'Approved', icon: CheckCircle, barClassName: 'from-emerald-400 via-green-500 to-teal-500', valueClassName: 'text-emerald-700', iconWrapClassName: 'bg-emerald-100 text-emerald-600' },
+    { key: 'converted', label: 'Converted', icon: CornerDownRight, barClassName: 'from-blue-400 via-indigo-500 to-blue-600', valueClassName: 'text-blue-700', iconWrapClassName: 'bg-blue-100 text-blue-600' },
+    { key: 'expired', label: 'Expired', icon: AlertCircle, barClassName: 'from-slate-400 via-gray-500 to-slate-600', valueClassName: 'text-slate-700', iconWrapClassName: 'bg-slate-100 text-slate-600' },
   ];
+
+  const handleStatCardClick = (key) => {
+    setActiveTab((prev) => (prev === key ? 'all' : key));
+    setCurrentPage(1);
+  };
 
   // Filter refs for click outside handling
   const filterRef = useRef(null);
@@ -704,15 +697,18 @@ const QuotationsPage = () => {
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {statCards.map((stat) => (
-            <StatCard
+            <ClickableStatCard
               key={stat.key}
               label={stat.label}
-              amount={statistics[stat.key]?.total || '0'}
+              value={`MWK ${formatQuotationMoney(statistics[stat.key]?.total || '0')}`}
               count={statistics[stat.key]?.count || 0}
+              countLabel={`quotation${statistics[stat.key]?.count !== 1 ? 's' : ''}`}
               icon={stat.icon}
-              color={stat.color}
-              bgColor={stat.bgColor}
-              borderColor={stat.borderColor}
+              active={activeTab === stat.key}
+              onClick={() => handleStatCardClick(stat.key)}
+              valueClassName={stat.valueClassName}
+              iconWrapClassName={stat.iconWrapClassName}
+              barClassName={stat.barClassName}
             />
           ))}
         </div>

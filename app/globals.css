@@ -2,42 +2,47 @@
 @import "../node_modules/tailwindcss/index.css";
 
 :root {
-  /* Brand (preserved) */
-  --primary-color: #6366f1;
-  --primary-hover: #4f46e5;
-  --primary-light: #818cf8;
-  --badge-color: #f43f5e;
+  /* Brand — InsightBooks logo palette */
+  --brand-blue: #0075be;
+  --brand-blue-dark: #005ba1;
+  --brand-blue-light: #009dd7;
+  --brand-orange: #f58600;
+  --brand-orange-light: #ffa452;
+  --primary-color: var(--brand-blue);
+  --primary-hover: var(--brand-blue-dark);
+  --primary-light: var(--brand-blue-light);
+  --badge-color: var(--brand-orange);
 
   /* Semantic surfaces */
   --background: #ffffff;
   --background-primary: #ffffff;
-  --background-secondary: #f8fafc;
+  --background-secondary: #f5f9fc;
   --foreground: #171717;
   --surface-primary: #ffffff;
   --surface-elevated: #ffffff;
-  --surface-muted: #f1f5f9;
+  --surface-muted: #eef6fb;
   --text-primary: #0f172a;
   --text-secondary: #334155;
   --text-muted: #64748b;
-  --border-default: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border-default: #d7e5f0;
+  --border-strong: #b7c9d9;
   --action-primary: var(--primary-color);
   --action-primary-hover: var(--primary-hover);
   --status-success: #059669;
-  --status-warning: #d97706;
+  --status-warning: var(--brand-orange);
   --status-danger: #dc2626;
-  --status-info: #2563eb;
-  --focus-ring: rgba(99, 102, 241, 0.45);
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-modal: 0 20px 40px rgba(15, 23, 42, 0.16);
+  --status-info: var(--brand-blue-light);
+  --focus-ring: rgba(0, 117, 190, 0.45);
+  --shadow-card: 0 1px 3px rgba(0, 91, 161, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-modal: 0 20px 40px rgba(0, 91, 161, 0.16);
 
   /* Sidebar chrome */
-  --dark-bg: #1e293b;
-  --dark-bg-lighter: #334155;
-  --dark-border: #475569;
+  --dark-bg: #0b2540;
+  --dark-bg-lighter: #0f3d5c;
+  --dark-border: #1e4a6e;
   --dark-text: #f8fafc;
-  --dark-text-muted: #94a3b8;
-  --dark-active-bg: rgba(99, 102, 241, 0.2);
+  --dark-text-muted: #9eb6c9;
+  --dark-active-bg: rgba(0, 157, 215, 0.22);
   --dark-hover-bg: rgba(255, 255, 255, 0.05);
   --sidebar-width: 280px;
   --sidebar-collapsed-width: 80px;
@@ -67,34 +72,34 @@
   --z-toast: 600;
   --z-critical: 700;
 
-  /* System Administration — vivid ops console */
-  --admin-bg: #eef4ff;
-  --admin-bg-glow-a: rgba(14, 165, 233, 0.16);
-  --admin-bg-glow-b: rgba(16, 185, 129, 0.12);
-  --admin-bg-glow-c: rgba(245, 158, 11, 0.10);
+  /* System Administration — logo-aligned ops console */
+  --admin-bg: #f5f9fc;
+  --admin-bg-glow-a: rgba(0, 157, 215, 0.14);
+  --admin-bg-glow-b: rgba(0, 117, 190, 0.10);
+  --admin-bg-glow-c: rgba(245, 134, 0, 0.10);
   --admin-surface: #ffffff;
   --admin-surface-elevated: #ffffff;
-  --admin-surface-muted: #f0f7ff;
-  --admin-border: #d7e3f4;
+  --admin-surface-muted: #eef6fb;
+  --admin-border: #d7e5f0;
   --admin-text: #0b1f33;
   --admin-text-muted: #5b6b7c;
-  --admin-accent: #0ea5e9;
-  --admin-accent-strong: #0284c7;
-  --admin-accent-soft: #e0f2fe;
+  --admin-accent: var(--brand-blue-light);
+  --admin-accent-strong: var(--brand-blue);
+  --admin-accent-soft: #e0f4fb;
   --admin-sidebar-bg: #0b2540;
   --admin-sidebar-bg-end: #0f3d5c;
   --admin-sidebar-text: #f8fafc;
   --admin-sidebar-muted: #9eb6c9;
-  --admin-sidebar-active: rgba(56, 189, 248, 0.22);
-  --admin-sidebar-accent: #38bdf8;
+  --admin-sidebar-active: rgba(0, 157, 215, 0.22);
+  --admin-sidebar-accent: var(--brand-blue-light);
   --admin-header-bg: rgba(255, 255, 255, 0.86);
   --admin-header-height: 3.5rem;
-  --admin-content-max: 1600px;
-  --admin-focus-ring: #0284c7;
+  --admin-content-max: none;
+  --admin-focus-ring: var(--brand-blue);
   --admin-danger: #e11d48;
-  --admin-warning: #d97706;
+  --admin-warning: var(--brand-orange);
   --admin-success: #059669;
-  --admin-info: #0284c7;
+  --admin-info: var(--brand-blue);
   --admin-row-height: 2.75rem;
   --admin-space-1: 0.25rem;
   --admin-space-2: 0.5rem;
@@ -102,12 +107,12 @@
   --admin-space-4: 1rem;
   --admin-space-6: 1.5rem;
   --admin-radius: 0.75rem;
-  --admin-chart-1: #0284c7;
-  --admin-chart-2: #06b6d4;
+  --admin-chart-1: var(--brand-blue);
+  --admin-chart-2: var(--brand-blue-light);
   --admin-chart-3: #10b981;
-  --admin-chart-4: #f59e0b;
-  --admin-chart-5: #f43f5e;
-  --admin-chart-6: #6366f1;
+  --admin-chart-4: var(--brand-orange);
+  --admin-chart-5: var(--brand-orange-light);
+  --admin-chart-6: var(--brand-blue-dark);
   --admin-tone-sky: #e0f2fe;
   --admin-tone-emerald: #d1fae5;
   --admin-tone-amber: #fef3c7;
@@ -319,10 +324,69 @@ body {
   }
 }
 
-/* Full-width main content when sidebar is closed (e.g. dashboard fills the page) */
-main.main-content-full-width .max-w-7xl {
+/*
+ * Full-width page shells — all modules use the available viewport width.
+ * Modal/dialog max-widths (portaled outside main) are unaffected.
+ */
+main.main-content-full-width .mx-auto.max-w-7xl,
+main.main-content-full-width .mx-auto.max-w-6xl,
+main.main-content-full-width .mx-auto.max-w-5xl,
+main.main-content-full-width .mx-auto.max-w-4xl,
+main.main-content-full-width .mx-auto.max-w-\[90rem\],
+main.main-content-full-width .mx-auto.max-w-\[var\(--admin-content-max\)\],
+main .mx-auto.max-w-7xl,
+main .mx-auto.max-w-6xl,
+main .mx-auto.max-w-5xl,
+main .mx-auto.max-w-\[90rem\],
+main .mx-auto.max-w-\[var\(--admin-content-max\)\] {
   max-width: none;
   width: 100%;
+}
+
+/*
+ * Legacy indigo utility classes used as “primary” → logo blues.
+ * Prefer var(--primary-*) / var(--brand-*) for new UI.
+ */
+.bg-indigo-500,
+.bg-indigo-600 {
+  background-color: var(--primary-color) !important;
+}
+.hover\:bg-indigo-600:hover,
+.hover\:bg-indigo-700:hover {
+  background-color: var(--primary-hover) !important;
+}
+.text-indigo-500,
+.text-indigo-600,
+.text-indigo-700 {
+  color: var(--primary-color) !important;
+}
+.border-indigo-500,
+.border-indigo-600 {
+  border-color: var(--primary-color) !important;
+}
+.ring-indigo-500,
+.ring-indigo-200 {
+  --tw-ring-color: var(--focus-ring) !important;
+}
+.from-indigo-500,
+.from-indigo-600 {
+  --tw-gradient-from: var(--primary-color) !important;
+  --tw-gradient-to: color-mix(in srgb, var(--primary-color) 0%, transparent) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.via-indigo-500 {
+  --tw-gradient-via: var(--primary-light) !important;
+}
+.to-indigo-500,
+.to-indigo-600,
+.to-purple-500,
+.to-purple-600 {
+  --tw-gradient-to: var(--brand-blue-dark) !important;
+}
+.focus\:border-indigo-500:focus,
+.focus\:ring-indigo-200:focus {
+  border-color: var(--primary-color) !important;
+  --tw-ring-color: var(--focus-ring) !important;
 }
 
 /* Sidebar Styles */
@@ -830,7 +894,7 @@ main.main-content-full-width .max-w-7xl {
 
 .search-input:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
@@ -1367,7 +1431,7 @@ main.main-content-full-width .max-w-7xl {
   align-items: center;
   gap: 8px;
   background: none;
-  color: #4f46e5;
+  color: var(--primary-hover);
   padding: 4px 8px;
   border-radius: 4px;
   font-weight: 500;
@@ -1409,7 +1473,7 @@ main.main-content-full-width .max-w-7xl {
 }
 
 .stat-icon.employees {
-  background-color: #4f46e5;
+  background-color: var(--primary-hover);
 }
 
 .stat-icon.active {
@@ -1465,12 +1529,12 @@ main.main-content-full-width .max-w-7xl {
 }
 
 .tab-btn:hover {
-  color: #4f46e5;
+  color: var(--primary-hover);
 }
 
 .tab-btn.active {
-  color: #4f46e5;
-  border-bottom-color: #4f46e5;
+  color: var(--primary-hover);
+  border-bottom-color: var(--primary-hover);
 }
 
 /* Filter Section */
@@ -1504,8 +1568,8 @@ main.main-content-full-width .max-w-7xl {
 
 .search-input:focus {
   outline: none;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 1px #4f46e5;
+  border-color: var(--primary-hover);
+  box-shadow: 0 0 0 1px var(--primary-hover);
 }
 
 .filters {
@@ -1543,8 +1607,8 @@ main.main-content-full-width .max-w-7xl {
 
 .filter-select:focus {
   outline: none;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 1px #4f46e5;
+  border-color: var(--primary-hover);
+  box-shadow: 0 0 0 1px var(--primary-hover);
 }
 
 /* Tables */
@@ -1963,7 +2027,7 @@ main.main-content-full-width .max-w-7xl {
 }
 
 .upcoming-icon {
-  color: #4f46e5;
+  color: var(--primary-hover);
 }
 
 .upcoming-info h3 {
@@ -2039,7 +2103,7 @@ main.main-content-full-width .max-w-7xl {
 }
 
 .current-leaves .card-icon {
-  background-color: #4f46e5;
+  background-color: var(--primary-hover);
 }
 
 .card-content {
@@ -2066,7 +2130,7 @@ main.main-content-full-width .max-w-7xl {
   gap: 4px;
   background: none;
   border: none;
-  color: #4f46e5;
+  color: var(--primary-hover);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -2141,7 +2205,7 @@ main.main-content-full-width .max-w-7xl {
   height: 32px;
   border-radius: 6px;
   color: white;
-  background-color: #4f46e5;
+  background-color: var(--primary-hover);
 }
 
 .policy-icon.sick {
@@ -2215,7 +2279,7 @@ main.main-content-full-width .max-w-7xl {
   height: 40px;
   border-radius: 8px;
   margin-bottom: 16px;
-  color: #4f46e5;
+  color: var(--primary-hover);
   background-color: rgba(79, 70, 229, 0.1);
 }
 
@@ -2327,7 +2391,7 @@ main.main-content-full-width .max-w-7xl {
 }
 
 .processing-icon {
-  color: #4f46e5;
+  color: var(--primary-hover);
   opacity: 0.2;
 }
 
@@ -2338,7 +2402,7 @@ main.main-content-full-width .max-w-7xl {
   right: 0;
   bottom: 0;
   border: 3px solid transparent;
-  border-top-color: #4f46e5;
+  border-top-color: var(--primary-hover);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -2563,7 +2627,7 @@ main.main-content-full-width .max-w-7xl {
 .net-pay-amount {
   font-size: 16px;
   font-weight: 600;
-  color: #4f46e5;
+  color: var(--primary-hover);
 }
 
 .ytd-section {
@@ -2914,7 +2978,7 @@ main.main-content-full-width .max-w-7xl {
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 }
 
@@ -3046,7 +3110,7 @@ main.main-content-full-width .max-w-7xl {
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 }
 
@@ -3113,7 +3177,7 @@ main.main-content-full-width .max-w-7xl {
 
 .color-option.selected {
   border-color: #4b5563;
-  box-shadow: 0 0 0 2px white, 0 0 0 4px #6366f1;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--primary-color);
 }
 
 .department-list {

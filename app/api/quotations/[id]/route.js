@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { toItemTaxCreateRows } from '@/lib/documentLineTaxes';
+import {
+  assertActiveTaxTypeIds,
+  collectTaxTypeIdsFromItems,
+} from '@/lib/taxManagement/assertActiveTaxTypes';
 
 // Enhanced helper function to calculate quotation totals with discounts
 function calculateQuotationTotals(items, globalDiscount = 0) {
@@ -170,6 +174,32 @@ export async function PUT(request, { params }) {
     
     // Calculate totals
     const { processedItems, subtotal, totalDiscountAmount, globalDiscount, taxAmount, total } = calculateQuotationTotals(body.items, body.discount);
+
+    // Historical lines may keep Inactive taxes; new taxTypeIds must still be Active
+    const existingItemTaxes = await prisma.quotationItemTax.findMany({
+      where: {
+        quotationItem: {
+          quotationId,
+          quotation: { tenantId: user.tenantId },
+        },
+      },
+      select: { taxTypeId: true },
+    });
+    const allowInactiveIds = existingItemTaxes.map((r) => r.taxTypeId);
+
+    try {
+      await assertActiveTaxTypeIds(
+        prisma,
+        user.tenantId,
+        collectTaxTypeIdsFromItems(body.items),
+        allowInactiveIds
+      );
+    } catch (e) {
+      if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
+        return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+      }
+      throw e;
+    }
     
     // Update the quotation
     const updatedQuotation = await prisma.$transaction(async (prisma) => {

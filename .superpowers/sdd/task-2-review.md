@@ -1,44 +1,57 @@
-# Task 2 Review — Phase 17 Wave 2 (re-review after Important fixes)
+# Task 2 Review — Client helper + Quotation/Invoice/POS pickers
 
-**Base:** WORKING_TREE · **Head:** WORKING_TREE · **Package:** `task-2-review-package.diff`  
-**Suite:** `test/systemAdmin.cs.onboardingWave1.test.js` + `onboardingWave2.test.js` → **23/23 passed**
+**Feature:** Tax Activation (Active-only)  
+**Sources:** `task-2-brief.md`, `task-2-report.md`, working-tree files (verified via `git diff` + Grep)  
+**Note:** `task-2-review-package.diff` does **not** contain Task 2 tax changes — it is unrelated onboarding (materialise/kickoff/scope) content. Review based on working tree, not that package.
 
 ## Verdicts
-- **Spec compliance:** ✅
-- **Task quality:** Approved
 
-## Prior Important — resolution
-
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | materialise/kickoff `idempotency_conflict` on key payload disagree | **Resolved** — `materialise.js` compares `projectId` + `templateVersionId`; `kickoff.js` compares `projectId`; tests cover both |
-| 2 | project materialise `templateVersion` mismatch | **Resolved** — pin check + existing-by-project check return `template_version_mismatch`; test covers |
-| 3 | omitted `requestedScope` must not open CR | **Resolved** — `scope.js` early-returns when `requestedScope == null` (`skipped: true`, no CR); omitted + null tested |
+1. **Spec compliance:** ✅  
+2. **Task quality:** **Approved**
 
 ## Critical
+
 None.
 
 ## Important
-None remaining.
 
-## Minor (carry-forward, non-blocking)
-- ACTIVE immutability is soft (flag + activate contentJson reject); no domain content-update API.
-- Materialise does not require template version `ACTIVE`/`APPROVED`.
-- Scope CR not de-duped on repeat `detectScopeMismatch`.
-- Kick-off Meeting create then Kickoff row are not one DB transaction.
+None.
+
+## Minor (non-blocking)
+
+1. **Review package mismatch** — `task-2-review-package.diff` is wrong content (Phase 17 onboarding). Do not treat it as evidence for this task; working-tree audit is authoritative.
+2. **Manual UI check not run** — Step 5 (Inactive tax absent from Quotation checkboxes) not executed in-session; relies on API honoring `?status=Active` (pre-existing). Call-site wiring is correct.
+3. **No unit test for helper** — brief did not require one; optional fetch-mock coverage for response-shape parsing.
 
 ## Spec checklist
-| Acceptance | Status |
-|---|---|
-| Materialise once on exact retry; key conflict on payload disagree | ✅ |
-| Project replay rejects different templateVersionId | ✅ |
-| Kick-off Meeting once; RSVP ≠ attendance; Meeting unavailable typed | ✅ |
-| Customer Task complete needs evidence/waiver | ✅ |
-| Evidence reject retains reason; portal not configured | ✅ |
-| Scope mismatch → CR; omit/null requestedScope skips; no entitlement mutation | ✅ |
-| Circular dependency rejected | ✅ |
-| ACTIVE version immutable (domain path); stakeholder verified Contact | ✅ |
-| No Tenant GL / WORKING_TREE OK | ✅ |
+
+| Requirement | Status |
+|-------------|--------|
+| Create `lib/taxTypesClient.js` with `fetchActiveTaxTypes()` as specified | ✅ Matches brief verbatim |
+| QuotationModal picker GET → helper; no unfiltered GET | ✅ `fetchActiveTaxTypes()` only; Grep clean |
+| InvoiceModal picker GET → helper; no unfiltered GET | ✅ Same |
+| POS Active list → helper | ✅ Replaces bare `fetch('/api/tax-types?status=Active')` |
+| Leave POST create tax unchanged | ✅ All three files keep `method: 'POST'` to `/api/tax-types` |
+| No new Prisma column | ✅ Client-only |
+| Do not commit | ✅ Untracked helper + modified modals/POS in working tree |
+
+## Call-site audit (Grep)
+
+| File | Picker load | Create POST | Other |
+|------|-------------|-------------|-------|
+| `QuotationModal.js` | `fetchActiveTaxTypes()` | `POST /api/tax-types` kept | — |
+| `InvoiceModal.js` | `fetchActiveTaxTypes()` | POST kept | Default-inflow fallback uses returned Active array |
+| `app/pos/page.js` | `fetchActiveTaxTypes()` | POST kept | `GET /api/tax-types/accounts` unchanged (not picker list) |
+
+No unfiltered picker `GET /api/tax-types` remains in the three target files.
 
 ## Strengths
-Focused fix wave; Wave 1-aligned `idempotency_conflict` shape; Vitest coverage for all three Important paths.
+
+- Helper contract matches plan/brief exactly.
+- Scope limited to picker loads; create paths untouched.
+- Response normalization keeps `setTaxTypes` / `setPosTaxTypes` as arrays; existing try/catch handles helper throws.
+- POS already Active-filtered; helper consolidates without behavior change beyond shared parsing.
+
+## Residual risk
+
+Inactive exclusion depends on existing API `?status=Active` filter (out of Task 2 scope). Server assert (Task 1 / later write tasks) remains the hard backstop for stale tabs.

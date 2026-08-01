@@ -31,6 +31,7 @@ import InvoiceModal from "@/components/InvoiceModal";
 import PaymentModal from "@/components/PaymentModal";
 import PageHeader from "@/components/shell/PageHeader";
 import Button from "@/components/ui/Button";
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
 
 
 // Client service functions for API interaction
@@ -435,6 +436,7 @@ const ClientManagement = () => {
   const [clients, setClients] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [outstandingFilter, setOutstandingFilter] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -523,7 +525,7 @@ const ClientManagement = () => {
   // Reload clients when pagination changes
   useEffect(() => {
     loadClients();
-  }, [pagination.currentPage, pagination.pageSize, searchTerm, statusFilter, sortBy, sortOrder]);
+  }, [pagination.currentPage, pagination.pageSize, searchTerm, statusFilter, outstandingFilter, sortBy, sortOrder]);
   
   // Handle search and filter changes
   useEffect(() => {
@@ -542,7 +544,7 @@ const ClientManagement = () => {
         clearTimeout(searchTimeout);
       }
     };
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, outstandingFilter]);
   
   // Load client data with pagination
   const loadClients = async () => {
@@ -589,7 +591,11 @@ const ClientManagement = () => {
         };
       });
       
-      setClients(data.clients || []);
+      setClients(
+        outstandingFilter
+          ? (data.clients || []).filter((client) => (client.outstandingAmount || 0) > 0)
+          : (data.clients || [])
+      );
       
       // Update pagination state (matching inventory structure)
       if (data.pagination) {
@@ -1243,46 +1249,67 @@ const ClientManagement = () => {
 
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-green-100 p-3 rounded-full mr-4">
-            <CheckCircle size={20} className="text-green-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{statistics.activeCount}</span>
-            <span className="text-gray-600 text-sm">Active Clients</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-red-100 p-3 rounded-full mr-4">
-            <AlertCircle size={20} className="text-red-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{statistics.inactiveCount}</span>
-            <span className="text-gray-600 text-sm">Inactive Clients</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-yellow-100 p-3 rounded-full mr-4">
-            <DollarSign size={20} className="text-yellow-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">
-              {formatCurrency(statistics.totalOutstanding)}
-            </span>
-            <span className="text-gray-600 text-sm">Outstanding Amount</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-blue-100 p-3 rounded-full mr-4">
-            <Briefcase size={20} className="text-blue-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">
-              {formatCurrency(statistics.totalBilled)}
-            </span>
-            <span className="text-gray-600 text-sm">Total Billed</span>
-          </div>
-        </div>
+        <ClickableStatCard
+          label="Active Clients"
+          value={statistics.activeCount}
+          icon={CheckCircle}
+          active={statusFilter === 'Active' && !outstandingFilter}
+          onClick={() => {
+            if (statusFilter === 'Active' && !outstandingFilter) {
+              setStatusFilter('All');
+            } else {
+              setStatusFilter('Active');
+              setOutstandingFilter(false);
+            }
+            setPagination((prev) => ({ ...prev, currentPage: 1 }));
+          }}
+          iconWrapClassName="bg-green-100 text-green-600"
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+        />
+        <ClickableStatCard
+          label="Inactive Clients"
+          value={statistics.inactiveCount}
+          icon={AlertCircle}
+          active={statusFilter === 'Inactive' && !outstandingFilter}
+          onClick={() => {
+            if (statusFilter === 'Inactive' && !outstandingFilter) {
+              setStatusFilter('All');
+            } else {
+              setStatusFilter('Inactive');
+              setOutstandingFilter(false);
+            }
+            setPagination((prev) => ({ ...prev, currentPage: 1 }));
+          }}
+          iconWrapClassName="bg-red-100 text-red-600"
+          barClassName="from-red-400 via-rose-500 to-red-600"
+        />
+        <ClickableStatCard
+          label="Outstanding Amount"
+          value={formatCurrency(statistics.totalOutstanding)}
+          icon={DollarSign}
+          active={outstandingFilter}
+          onClick={() => {
+            setOutstandingFilter((prev) => !prev);
+            setPagination((prev) => ({ ...prev, currentPage: 1 }));
+          }}
+          valueClassName="text-amber-700"
+          iconWrapClassName="bg-yellow-100 text-yellow-600"
+          barClassName="from-amber-400 via-yellow-500 to-orange-500"
+        />
+        <ClickableStatCard
+          label="Total Billed"
+          value={formatCurrency(statistics.totalBilled)}
+          icon={Briefcase}
+          active={statusFilter === 'All' && !outstandingFilter}
+          onClick={() => {
+            setStatusFilter('All');
+            setOutstandingFilter(false);
+            setPagination((prev) => ({ ...prev, currentPage: 1 }));
+          }}
+          valueClassName="text-blue-700"
+          iconWrapClassName="bg-blue-100 text-blue-600"
+          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+        />
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">

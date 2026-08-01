@@ -97,3 +97,9 @@ export { default as ProductAnalyticsCatalogueView } from './productAnalytics/Pro
 export { default as ProductAnalyticsInspectView } from './productAnalytics/ProductAnalyticsInspectView';
 export { default as ProductAnalyticsStubView } from './productAnalytics/ProductAnalyticsStubView';
 export { default as ProductAnalyticsWave4View } from './productAnalytics/ProductAnalyticsWave4View';
+export { default as MarketingSectionNav } from './marketing/MarketingSectionNav';
+export { default as MarketingOverviewView } from './marketing/MarketingOverviewView';
+export { default as MarketingCampaignsView } from './marketing/MarketingCampaignsView';
+export { default as MarketingTaxonomyView } from './marketing/MarketingTaxonomyView';
+export { default as MarketingNormalisationView } from './marketing/MarketingNormalisationView';
+export { default as MarketingLeadSourcesView } from './marketing/MarketingLeadSourcesView';

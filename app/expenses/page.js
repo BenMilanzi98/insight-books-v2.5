@@ -240,6 +240,8 @@ const ExpensesPage = () => {
   // State management
   const [mainTab, setMainTab] = useState("expenses"); // Main tab: "expenses" or "cogs"
   const [activeTab, setActiveTab] = useState("all");
+  /** Card filter: null | 'partially' | 'pending' | 'fullyPaid' | 'historical' */
+  const [cardFilter, setCardFilter] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [expenses, setExpenses] = useState([]);
   const [recurringExpenseModalOpen, setRecurringExpenseModalOpen] = useState(false);
@@ -272,7 +274,10 @@ const ExpensesPage = () => {
     approved: { count: 0, amount: '0' },
     pending: { count: 0, amount: '0' },
     pendingApproval: { count: 0, amount: '0' },
-    outstandingPayment: { count: 0, amount: '0' },
+    paymentPending: { count: 0, amount: '0' },
+    partiallyPaid: { count: 0, amount: '0' },
+    fullyPaid: { count: 0, amount: '0' },
+    historical: { count: 0, amount: '0' },
     rejected: { count: 0, amount: '0' },
     draft: { count: 0, amount: '0' },
     otherStatuses: { count: 0, amount: '0' },
@@ -429,13 +434,13 @@ const ExpensesPage = () => {
   // Load expenses and statistics on initial render and when filters change
   useLayoutEffect(() => {
     setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
-  }, [activeTab, selectedCategory, showDeletedExpenses]);
+  }, [activeTab, selectedCategory, showDeletedExpenses, cardFilter]);
 
   useEffect(() => {
     loadExpenses();
     loadStatistics(true);
     loadRecurringExpenses();
-  }, [activeTab, selectedCategory, pagination.page, showDeletedExpenses]);
+  }, [activeTab, selectedCategory, pagination.page, showDeletedExpenses, cardFilter]);
 
   // Debounced search: reset to page 1 and reload (server merges search with branch OR correctly)
   useEffect(() => {
@@ -506,6 +511,12 @@ const ExpensesPage = () => {
         if (activeTab === 'pending') statusFilter = 'Pending';
         if (activeTab === 'approved') statusFilter = 'Approved';
         if (activeTab === 'rejected') statusFilter = 'Rejected';
+
+        const paymentStatusByCard = {
+          partially: 'Partially',
+          pending: 'Pending',
+          fullyPaid: 'Fully paid',
+        };
         
         const params = {
           page: pagination.page,
@@ -516,7 +527,9 @@ const ExpensesPage = () => {
           accountId: selectedCategory !== 'all' && selectedCategory !== 'salary-advance' ? selectedCategory : null,
           category: selectedCategory === 'salary-advance' ? 'Salary Advance' : null,
           search: searchQuery || null,
-          includeDeleted: false // Explicitly exclude deleted expenses
+          includeDeleted: false, // Explicitly exclude deleted expenses
+          paymentStatus: paymentStatusByCard[cardFilter] || null,
+          isHistorical: cardFilter === 'historical' ? true : null,
         };
         
         const response = await fetchExpenses(params);
@@ -1873,104 +1886,95 @@ const handleFileUpload = async (e) => {
       {/* Tab Content */}
       {mainTab === "expenses" && (
         <>
-            {/* Statistics Cards — amounts align with the table (branch + non-deleted); COGS is called out separately */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-8">
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"></div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total (expense records)</div>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expense rows
-                  </div>
-                  {(statistics.total?.cogsIncluded ||
-                    Number(statistics.total?.salaryAdvanceAmount || 0) !== 0) ? (
-                    <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                      {statistics.total?.cogsIncluded ? (
-                        <div>
-                          COGS (from GL, net): MK{' '}
-                          {Number(statistics.total.cogsAmount || 0).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          })}
-                        </div>
-                      ) : null}
-                      {Number(statistics.total?.salaryAdvanceAmount || 0) !== 0 ? (
-                        <div>
-                          Salary advances: MK{' '}
-                          {Number(statistics.total.salaryAdvanceAmount).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          })}
-                        </div>
-                      ) : null}
-                      <div className="font-medium text-gray-700">
-                        Combined (expenses + net COGS + salary advances): MK {statistics.total.grandTotalAmount}
+            {/* Statistics Cards — click to filter the expense list */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
+              {[
+                {
+                  key: 'partially',
+                  label: 'Partially Paid',
+                  amount: statistics.partiallyPaid?.amount ?? '0.00',
+                  count: statistics.partiallyPaid?.count ?? 0,
+                  countLabel: 'partially paid',
+                  amountClass: 'text-amber-700',
+                  barClass: 'from-amber-400 via-yellow-500 to-orange-500',
+                  shadowClass: 'shadow-amber-200/50 hover:shadow-amber-200/60',
+                  activeRing: 'ring-2 ring-amber-400 ring-offset-2',
+                },
+                {
+                  key: 'pending',
+                  label: 'Pending',
+                  amount: statistics.paymentPending?.amount ?? '0.00',
+                  count: statistics.paymentPending?.count ?? 0,
+                  countLabel: 'awaiting payment',
+                  amountClass: 'text-orange-700',
+                  barClass: 'from-orange-400 via-amber-500 to-red-400',
+                  shadowClass: 'shadow-orange-200/50 hover:shadow-orange-200/60',
+                  activeRing: 'ring-2 ring-orange-400 ring-offset-2',
+                },
+                {
+                  key: 'fullyPaid',
+                  label: 'Fully Paid',
+                  amount: statistics.fullyPaid?.amount ?? '0.00',
+                  count: statistics.fullyPaid?.count ?? 0,
+                  countLabel: 'fully paid',
+                  amountClass: 'text-green-700',
+                  barClass: 'from-green-400 via-emerald-500 to-teal-500',
+                  shadowClass: 'shadow-green-200/50 hover:shadow-green-200/60',
+                  activeRing: 'ring-2 ring-green-400 ring-offset-2',
+                },
+                {
+                  key: 'historical',
+                  label: 'Historical Expenses',
+                  amount: statistics.historical?.amount ?? '0.00',
+                  count: statistics.historical?.count ?? 0,
+                  countLabel: 'historical records',
+                  amountClass: 'text-violet-700',
+                  barClass: 'from-violet-400 via-purple-500 to-indigo-500',
+                  shadowClass: 'shadow-violet-200/50 hover:shadow-violet-200/60',
+                  activeRing: 'ring-2 ring-violet-400 ring-offset-2',
+                },
+              ].map((card) => {
+                const isActive = cardFilter === card.key;
+                return (
+                  <button
+                    key={card.key}
+                    type="button"
+                    onClick={() => {
+                      const next = isActive ? null : card.key;
+                      setCardFilter(next);
+                      if (activeTab === 'historical') setActiveTab('all');
+                      setShowDeletedExpenses(false);
+                      setSelectedExpenses([]);
+                    }}
+                    aria-pressed={isActive}
+                    title={isActive ? `Clear ${card.label} filter` : `Show ${card.label} expenses`}
+                    className={`group w-full text-left bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg ${card.shadowClass} border border-white/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                      isActive ? card.activeRing : ''
+                    }`}
+                  >
+                    <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${card.barClass}`}></div>
+                    <div className="p-6">
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">{card.label}</div>
+                        {isActive ? (
+                          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                            Active
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className={`text-xl sm:text-2xl font-bold ${card.amountClass} truncate`} title={`MK ${card.amount}`}>
+                        MK {card.amount}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">
+                        <span className="font-semibold text-gray-700">{card.count}</span> {card.countLabel}
+                        <span className="block mt-1 text-[11px] text-gray-400">
+                          {isActive ? 'Click again to show all expenses' : 'Click to view these expenses'}
+                        </span>
                       </div>
                     </div>
-                  ) : null}
-                  {statistics.reconciliation && statistics.reconciliation.matches === false ? (
-                    <p className="text-xs text-amber-700 mt-2">Some expenses use non-standard approval statuses; approved + pending + rejected + draft may not equal the total above.</p>
-                  ) : null}
-                </div>
-              </div>
-              
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-green-200/50 border border-white/50 hover:shadow-xl hover:shadow-green-200/60 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500"></div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Approved</div>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-bold text-green-700 truncate" title={`MK ${statistics.approved.amount}`}>MK {statistics.approved.amount}</div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.approved.count}</span> approved
-                    <span className="block mt-1 text-[11px] text-gray-400">Sub-ledger (Expense rows); should match posted GL for those rows.</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-orange-200/50 border border-white/50 hover:shadow-xl hover:shadow-orange-200/60 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 via-amber-500 to-yellow-500"></div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Outstanding payment</div>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-bold text-orange-700 truncate" title={`MK ${statistics.outstandingPayment?.amount ?? '0.00'}`}>
-                    MK {statistics.outstandingPayment?.amount ?? '0.00'}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.outstandingPayment?.count ?? 0}</span> approved, not fully paid (remaining balance)
-                  </div>
-                </div>
-              </div>
-
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-yellow-200/50 border border-white/50 hover:shadow-xl hover:shadow-yellow-200/60 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500"></div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Awaiting approval</div>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-bold text-yellow-700 truncate" title={`MK ${statistics.pending?.amount}`}>MK {statistics.pending?.amount ?? '0.00'}</div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.pending?.count ?? 0}</span> not yet approved
-                  </div>
-                </div>
-              </div>
-
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-red-200/50 border border-white/50 hover:shadow-xl hover:shadow-red-200/60 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 via-rose-500 to-pink-500"></div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Rejected</div>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={`MK ${statistics.rejected.amount}`}>MK {statistics.rejected.amount}</div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.rejected.count}</span> rejected
-                  </div>
-                </div>
-              </div>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Main Content Card */}
@@ -2142,7 +2146,7 @@ const handleFileUpload = async (e) => {
             <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-gray-900 mb-1">No expenses found</h3>
             <p className="text-gray-500 mb-4">
-              {activeTab !== "all" || selectedCategory !== "all" || searchQuery 
+              {activeTab !== "all" || selectedCategory !== "all" || searchQuery || cardFilter
                 ? "Try changing your filters or search query"
                 : "Get started by adding your first expense"}
             </p>

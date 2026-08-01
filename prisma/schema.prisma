@@ -634,6 +634,8 @@ model Admin {
   crmDemoChecklistExecutions  CrmDemoChecklistExecution[] @relation("CrmDemoChecklistExecutionBy")
   crmDemoRehearsals           CrmDemoRehearsal[]       @relation("CrmDemoRehearsalBy")
   crmDemoDeliverySessionsStarted CrmDemoDeliverySession[] @relation("CrmDemoDeliveryStartedBy")
+  marketingCampaignsOwned     MarketingCampaign[]      @relation("MarketingCampaignOwner")
+  marketingCampaignsCreated   MarketingCampaign[]      @relation("MarketingCampaignCreatedBy")
   crmDemoDeliverySessionsEnded   CrmDemoDeliverySession[] @relation("CrmDemoDeliveryEndedBy")
   crmDemoLiveIssues           CrmDemoLiveIssue[]       @relation("CrmDemoLiveIssueBy")
   crmDemoCustomerQuestions    CrmDemoCustomerQuestion[] @relation("CrmDemoCustomerQuestionBy")
@@ -3314,7 +3316,7 @@ model TaxType {
   taxRate            Float
   calculationType    String              @default("Percentage")
   accountId          String
-  status             String              @default("Active")
+  status             String              @default("Inactive")
   /// Wave 3 — optional versioning window (null = always effective while Active)
   effectiveFrom      DateTime?
   effectiveTo        DateTime?
@@ -16489,4 +16491,135 @@ model CustomerAdoptionExpansionHandoff {
   @@index([planId, status])
   @@index([tenantId, status])
   @@index([targetQueue])
+}
+
+
+/// Phase 23 Wave 1 — Marketing number sequences (MKT-YYYY-######), CAS like CrmNumberSeq.
+model MarketingNumberSeq {
+  prefix     String
+  year       Int
+  lastIssued Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([prefix, year])
+}
+
+/// Phase 23 Wave 1 — governed Channel taxonomy.
+model MarketingChannel {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  status      String   @default("ACTIVE")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  campaigns   MarketingCampaign[]
+  sources     MarketingSource[]
+
+  @@index([status, sortOrder])
+}
+
+/// Phase 23 Wave 1 — governed Source taxonomy.
+model MarketingSource {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  channelId   String?
+  status      String   @default("ACTIVE")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  channel     MarketingChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  campaigns   MarketingCampaign[]
+  mediums     MarketingMedium[]
+
+  @@index([status, sortOrder])
+  @@index([channelId])
+}
+
+/// Phase 23 Wave 1 — governed Medium taxonomy.
+model MarketingMedium {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  sourceId    String?
+  status      String   @default("ACTIVE")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  source      MarketingSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  campaigns   MarketingCampaign[]
+
+  @@index([status, sortOrder])
+  @@index([sourceId])
+}
+
+/// Phase 23 Wave 1 — versioned raw→normalised source rules (immutable once ACTIVE).
+model MarketingSourceNormalisationRule {
+  id               String    @id @default(cuid())
+  ruleCode         String
+  version          Int       @default(1)
+  status           String    @default("DRAFT")
+  rawSourcePattern String
+  rawMediumPattern String?
+  channelCode      String
+  sourceCode       String
+  mediumCode       String
+  priority         Int       @default(100)
+  effectiveFrom    DateTime  @default(now())
+  effectiveTo      DateTime?
+  createdByAdminId String?
+  approvedByAdminId String?
+  approvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([ruleCode, version])
+  @@index([status, priority])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+/// Phase 23 Wave 1 — Marketing Campaign (≠ Affiliate ≠ Product Analytics).
+model MarketingCampaign {
+  id               String    @id @default(cuid())
+  campaignNumber   String    @unique
+  campaignCode     String?
+  name             String
+  description      String?   @db.Text
+  objective        String?
+  campaignType     String    @default("LEAD_GENERATION")
+  parentCampaignId String?
+  channelId        String?
+  sourceId         String?
+  mediumId         String?
+  status           String    @default("DRAFT")
+  startDate        DateTime?
+  endDate          DateTime?
+  timezone         String?   @default("Africa/Blantyre")
+  ownerAdminId     String?
+  teamId           String?
+  territoryId      String?
+  createdByAdminId String?
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  parentCampaign   MarketingCampaign?  @relation("MarketingCampaignHierarchy", fields: [parentCampaignId], references: [id], onDelete: SetNull)
+  childCampaigns   MarketingCampaign[] @relation("MarketingCampaignHierarchy")
+  channel          MarketingChannel?   @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  source           MarketingSource?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  medium           MarketingMedium?    @relation(fields: [mediumId], references: [id], onDelete: SetNull)
+  ownerAdmin       Admin?              @relation("MarketingCampaignOwner", fields: [ownerAdminId], references: [id], onDelete: SetNull)
+  createdByAdmin   Admin?              @relation("MarketingCampaignCreatedBy", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([ownerAdminId, status])
+  @@index([channelId])
+  @@index([sourceId])
+  @@index([mediumId])
+  @@index([parentCampaignId])
+  @@index([campaignType, status])
+  @@index([startDate, endDate])
 }

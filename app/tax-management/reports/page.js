@@ -85,7 +85,7 @@ export default function TaxReportsPage() {
             Per-type reports live on the tax codes screen.
           </p>
           <Link
-            href="/tax-management/tax-codes"
+            href="/tax-management/accounts"
             className="text-sm text-[var(--brand-primary)] hover:underline"
           >
             Open tax codes →
@@ -97,7 +97,7 @@ export default function TaxReportsPage() {
             Reversed tax lines export from tax codes / reversed-taxes APIs.
           </p>
           <Link
-            href="/tax-management/tax-codes"
+            href="/tax-management/accounts"
             className="text-sm text-[var(--brand-primary)] hover:underline"
           >
             Open tax codes →

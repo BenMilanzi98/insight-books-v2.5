@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForExport, formatDate } from '@/lib/invoiceCalculations';
 import { addMoney, multiplyMoney, percentOfMoney, subtractMoney } from '@/lib/money';
+import { shouldDisplayDocumentTax, documentHasLineTax } from '@/lib/documentTaxDisplay';
 
 /**
  * Component to preview an invoice template
@@ -163,6 +164,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       paymentCount: 0
     }
   } : sampleData;
+
+  const showLineTax = documentHasLineTax(displayData.items);
+  const showDocumentTax = shouldDisplayDocumentTax({
+    taxAmount: displayData.taxAmount,
+    taxLines: (displayData.items || []).flatMap((item) => item.itemTaxes || []),
+  });
   
   // Debug: Log display data when in development
   if (invoice && process.env.NODE_ENV !== 'production') {
@@ -253,7 +260,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               <th className="text-right py-3 font-semibold text-gray-700 w-16">Qty</th>
               <th className="text-right py-3 font-semibold text-gray-700">Rate</th>
               <th className="text-right py-3 font-semibold text-gray-700">Discount</th>
-              <th className="text-right py-3 font-semibold text-gray-700">Tax</th>
+              {showLineTax && <th className="text-right py-3 font-semibold text-gray-700">Tax</th>}
               <th className="text-right py-3 font-semibold text-gray-700">Amount</th>
             </tr>
           </thead>
@@ -264,6 +271,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                 <td className="py-3.5 text-right text-gray-600">{item.quantity}</td>
                 <td className="py-3.5 text-right text-gray-600">{formatAmountDisplay(item.unitPrice)}</td>
                 <td className="py-3.5 text-right">{item.discountAmount > 0 ? <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span> : <span className="text-gray-400">—</span>}</td>
+                {showLineTax && (
                 <td className="py-3.5 text-right text-gray-600" title={item.itemTaxes?.length ? item.itemTaxes.map((t) => t.taxName).join(', ') : (item.taxRate > 0 ? `VAT ${item.taxRate}%` : null)}>
                   {item.itemTaxes?.length > 0
                     ? item.itemTaxes.map((t) => `${t.taxName}: ${formatAmountDisplay(t.taxAmount)}`).join(' · ')
@@ -271,6 +279,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                       ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}`
                       : '—'}
                 </td>
+                )}
                 <td className="py-3.5 text-right font-medium text-gray-900">{formatAmountDisplay(item.amount)}</td>
               </tr>
             ))}
@@ -287,7 +296,9 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               <div className="flex justify-between py-1.5 text-gray-600"><span>Discount</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.discount)}</span></div>
             )}
             <div className="flex justify-between py-1.5 text-gray-600"><span>Subtotal</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.subtotal)}</span></div>
+            {showDocumentTax && (
             <div className="flex justify-between py-1.5 text-gray-600"><span>Tax</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.taxAmount)}</span></div>
+            )}
             <div className="flex justify-between py-3 mt-1 border-t-2 border-gray-200" style={{ color: primaryColor }}>
               <span className="font-bold">Total</span>
               <span className="font-bold">{formatCurrencyDisplay(displayData.total)}</span>
@@ -408,7 +419,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Quantity</th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Rate (MWK)</th>
               <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Discount (MWK)</th>
-              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Tax (MWK)</th>
+              {showLineTax && <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Tax (MWK)</th>}
               <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Amount (MWK)</th>
             </tr>
           </thead>
@@ -425,6 +436,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                     <span className="text-gray-400">-</span>
                   )}
                 </td>
+                {showLineTax && (
                 <td className="px-6 py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
                   {item.itemTaxes?.length > 0
                     ? item.itemTaxes.map((t) => `${t.taxName}: ${formatAmountDisplay(t.taxAmount)}`).join(' · ')
@@ -432,6 +444,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                       ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}`
                       : '—'}
                 </td>
+                )}
                 <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
               </tr>
             ))}
@@ -460,10 +473,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <span className="text-gray-600">Subtotal:</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
+          {showDocumentTax && (
           <div className="flex justify-between py-2">
             <span className="text-gray-600">Tax:</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
+          )}
           <div className="flex justify-between py-2 text-lg font-bold mt-2 pt-2 border-t border-gray-300" style={{ color: primaryColor }}>
             <span>Total:</span>
             <span>{formatCurrencyDisplay(displayData.total)}</span>
@@ -611,7 +626,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Qty</th>
             <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Rate (MWK)</th>
             <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Discount (MWK)</th>
-            <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Tax (MWK)</th>
+            {showLineTax && <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Tax (MWK)</th>}
             <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Amount (MWK)</th>
           </tr>
         </thead>
@@ -628,6 +643,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   <span className="text-gray-400">-</span>
                 )}
               </td>
+              {showLineTax && (
               <td className="py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
                 {item.itemTaxes?.length > 0
                     ? item.itemTaxes.map((t) => `${t.taxName}: ${formatAmountDisplay(t.taxAmount)}`).join(' · ')
@@ -635,6 +651,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                       ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? percentOfMoney(item.netAmount ?? subtractMoney(multiplyMoney(item.quantity, item.unitPrice), item.discountAmount || 0), item.taxRate || 0))}`
                       : '—'}
               </td>
+              )}
               <td className="py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
             </tr>
           ))}
@@ -662,10 +679,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <span className="text-gray-600">Subtotal</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
+          {showDocumentTax && (
           <div className="flex justify-between py-2">
             <span className="text-gray-600">Tax</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
+          )}
           <div className="flex justify-between py-2 text-lg" style={{ color: primaryColor }}>
             <span>Total</span>
             <span>{formatCurrencyDisplay(displayData.total)}</span>

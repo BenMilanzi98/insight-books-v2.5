@@ -34,6 +34,7 @@ import PartialPaymentModal from "@/components/PartialPaymentModal";
 import PaymentHistory from "@/components/PaymentHistory";
 import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
 import PageHeader from "@/components/shell/PageHeader";
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
 
 import { 
   fetchInvoices, 
@@ -48,25 +49,6 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/dateUtils";
 import { parseMoney } from "@/lib/money";
-
-// Statistics card component — amount is numeric from API (sum of invoice totals)
-const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColor }) => {
-  const value = parseMoney(amount);
-  return (
-  <div className={`${bgColor} border ${borderColor} rounded-xl p-5 transition-all duration-200 hover:shadow-md`}>
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-        <p className="text-2xl font-bold text-gray-900">MWK {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-        <p className="text-xs text-gray-500 mt-1">{count || 0} invoice{count !== 1 ? 's' : ''}</p>
-      </div>
-      <div className={`p-3 rounded-full ${color === 'green' ? 'bg-emerald-100' : color === 'yellow' ? 'bg-amber-100' : color === 'red' ? 'bg-red-100' : 'bg-blue-100'}`}>
-        <Icon className={`w-6 h-6 ${color === 'green' ? 'text-emerald-600' : color === 'yellow' ? 'text-amber-600' : color === 'red' ? 'text-red-600' : 'text-blue-600'}`} />
-      </div>
-    </div>
-  </div>
-  );
-};
 
 const formatInvoiceMoney = (amount) =>
   parseMoney(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -199,11 +181,16 @@ const InvoicingPage = () => {
 
   // Statistics cards configuration
   const statCards = [
-    { key: 'paid', label: 'Paid Invoices', icon: CheckCircle, color: 'green', bgColor: 'bg-white', borderColor: 'border-emerald-200' },
-    { key: 'pending', label: 'Pending', icon: Clock, color: 'yellow', bgColor: 'bg-white', borderColor: 'border-amber-200' },
-    { key: 'overdue', label: 'Overdue', icon: AlertCircle, color: 'red', bgColor: 'bg-white', borderColor: 'border-red-200' },
-    { key: 'partial', label: 'Partial', icon: CreditCard, color: 'blue', bgColor: 'bg-white', borderColor: 'border-blue-200' }
+    { key: 'paid', label: 'Paid Invoices', icon: CheckCircle, barClassName: 'from-emerald-400 via-green-500 to-teal-500', valueClassName: 'text-emerald-700', iconWrapClassName: 'bg-emerald-100 text-emerald-600' },
+    { key: 'pending', label: 'Pending', icon: Clock, barClassName: 'from-amber-400 via-yellow-500 to-orange-500', valueClassName: 'text-amber-700', iconWrapClassName: 'bg-amber-100 text-amber-600' },
+    { key: 'overdue', label: 'Overdue', icon: AlertCircle, barClassName: 'from-red-400 via-rose-500 to-red-600', valueClassName: 'text-red-700', iconWrapClassName: 'bg-red-100 text-red-600' },
+    { key: 'partial', label: 'Partial', icon: CreditCard, barClassName: 'from-blue-400 via-indigo-500 to-blue-600', valueClassName: 'text-blue-700', iconWrapClassName: 'bg-blue-100 text-blue-600' },
   ];
+
+  const handleStatCardClick = (key) => {
+    setActiveTab((prev) => (prev === key ? 'all' : key));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
 
   // Permission check
   useEffect(() => {
@@ -555,6 +542,7 @@ const InvoicingPage = () => {
       if (activeTab === 'pending') statusFilter = 'Pending';
       if (activeTab === 'paid') statusFilter = 'Paid';
       if (activeTab === 'overdue') statusFilter = 'Overdue';
+      if (activeTab === 'partial') statusFilter = 'Partial';
       
       const params = {
         page: pagination.page,
@@ -782,15 +770,18 @@ const InvoicingPage = () => {
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {statCards.map((stat) => (
-            <StatCard
+            <ClickableStatCard
               key={stat.key}
               label={stat.label}
-              amount={statistics[stat.key]?.amount || '0'}
+              value={`MWK ${formatInvoiceMoney(statistics[stat.key]?.amount || '0')}`}
               count={statistics[stat.key]?.count || 0}
+              countLabel={`invoice${statistics[stat.key]?.count !== 1 ? 's' : ''}`}
               icon={stat.icon}
-              color={stat.color}
-              bgColor={stat.bgColor}
-              borderColor={stat.borderColor}
+              active={activeTab === stat.key}
+              onClick={() => handleStatCardClick(stat.key)}
+              valueClassName={stat.valueClassName}
+              iconWrapClassName={stat.iconWrapClassName}
+              barClassName={stat.barClassName}
             />
           ))}
         </div>

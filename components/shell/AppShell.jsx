@@ -127,9 +127,8 @@ export default function AppShell({ children }) {
         )}
         <main
           className={cn(
-            'flex-1',
-            !hide && 'px-4 py-4 sm:px-6 sm:py-6 lg:px-8',
-            !hide && !sidebarOpen && 'main-content-full-width'
+            'main-content-full-width flex-1',
+            !hide && 'px-4 py-4 sm:px-6 sm:py-6 lg:px-8'
           )}
         >
           {hide ? children : <OnboardingGate>{children}</OnboardingGate>}

@@ -466,7 +466,7 @@ export default function RentalsClient({ mode }) {
           taxRate: rate,
           calculationType: "Percentage",
           accountId: createTaxForm.accountId || null,
-          status: "Active",
+          status: "Inactive",
         }),
       });
       const data = await res.json();
@@ -480,14 +480,7 @@ export default function RentalsClient({ mode }) {
           !/paye/i.test(String(t.taxName || ""))
       );
       setTaxTypes(usable);
-      const created = data.id ? data : usable.find((t) => t.taxId === taxId);
-      if (created?.id) {
-        setBookForm((f) => ({
-          ...f,
-          selectedTaxTypeId: created.id,
-          taxRate: Number(created.taxRate) || rate,
-        }));
-      }
+      alert("Tax created as Inactive. Activate it under Tax Management → Tax accounts before using it.");
       setShowCreateTax(false);
       setCreateTaxForm({ taxId: "", taxName: "", taxCode: "", taxRate: "", accountId: "" });
     } catch (e) {

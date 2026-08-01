@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { formatCurrency, formatDate } from '@/lib/invoiceCalculations';
 import { multiplyMoney, percentOfMoney } from '@/lib/money';
+import { shouldDisplayDocumentTax, documentHasLineTax } from '@/lib/documentTaxDisplay';
 import {
   createTransport,
   getSmtpFromAddress,
@@ -340,6 +341,11 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
     logoUrl = `${baseUrl}${logoUrl}`;
   }
+  const showLineTax = documentHasLineTax(invoice.items);
+  const showDocumentTax = shouldDisplayDocumentTax({
+    taxAmount: invoice.taxAmount,
+    taxLines: (invoice.items || []).flatMap((item) => item.itemTaxes || []),
+  });
   // Generate HTML for invoice items with per-line tax breakdown (VAT, withholding, etc. visible)
   const itemsHtml = invoice.items.map(item => {
     const lineTotal = multiplyMoney(item.quantity, item.unitPrice);
@@ -352,7 +358,7 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
         <td style="padding: 10px;">${title}</td>
         <td style="padding: 10px; text-align: center;">${item.quantity}</td>
         <td style="padding: 10px; text-align: right;">${formatCurrency(item.unitPrice)}</td>
-        <td style="padding: 10px; text-align: right; font-size: 11px; color: #4b5563;">${taxLabel}</td>
+        ${showLineTax ? `<td style="padding: 10px; text-align: right; font-size: 11px; color: #4b5563;">${taxLabel}</td>` : ''}
         <td style="padding: 10px; text-align: right;">${formatCurrency(lineTotal)}</td>
       </tr>
     `;
@@ -430,7 +436,7 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
               <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase; color: #6b7280;">Description</th>
               <th style="padding: 10px; text-align: center; font-size: 12px; text-transform: uppercase; color: #6b7280;">Qty</th>
               <th style="padding: 10px; text-align: right; font-size: 12px; text-transform: uppercase; color: #6b7280;">Rate</th>
-              <th style="padding: 10px; text-align: center; font-size: 12px; text-transform: uppercase; color: #6b7280;">Tax</th>
+              ${showLineTax ? '<th style="padding: 10px; text-align: center; font-size: 12px; text-transform: uppercase; color: #6b7280;">Tax</th>' : ''}
               <th style="padding: 10px; text-align: right; font-size: 12px; text-transform: uppercase; color: #6b7280;">Amount</th>
             </tr>
           </thead>
@@ -447,10 +453,11 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
             <td style="padding: 5px 0;"><span style="color: #6b7280;">Subtotal:</span></td>
             <td style="padding: 5px 0; text-align: right;">${formatCurrency(invoice.subtotal)}</td>
           </tr>
+          ${showDocumentTax ? `
           <tr>
             <td style="padding: 5px 0;"><span style="color: #6b7280;">Tax:</span></td>
             <td style="padding: 5px 0; text-align: right;">${formatCurrency(invoice.taxAmount)}</td>
-          </tr>
+          </tr>` : ''}
           <tr style="border-top: 2px solid #e5e7eb;">
             <td style="padding: 10px 0; font-weight: bold; font-size: 18px; color: ${primaryColor};">Total:</td>
             <td style="padding: 10px 0; font-weight: bold; font-size: 18px; text-align: right; color: ${primaryColor};">${formatCurrency(invoice.total)}</td>

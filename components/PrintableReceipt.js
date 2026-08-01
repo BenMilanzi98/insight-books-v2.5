@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { isMalawiStandardVatRate } from '@/lib/malawiTaxCatalog';
+import { taxLineAmount } from '@/lib/documentTaxDisplay';
 
 const QRCodeSVG = dynamic(
   () => import('qrcode.react').then((mod) => mod.QRCodeSVG),
@@ -238,11 +239,16 @@ const PrintableReceipt = ({ receiptData }) => {
       )}
 
       {/* MRA Tax Breakdown by Group (A/B/E) - TC-INV-003, TC-TAX-005/006 */}
-      {receiptData.taxBreakdown && receiptData.taxBreakdown.length > 0 && (
+      {(() => {
+        const positiveTaxBreakdown = (receiptData.taxBreakdown || []).filter(
+          (tax) => taxLineAmount(tax) > 0 || Number(tax.totalVAT || 0) > 0,
+        );
+        if (!positiveTaxBreakdown.length) return null;
+        return (
         <div className="mt-6 bg-gray-50 border border-gray-200 p-4 rounded-lg">
           <h4 className="font-semibold text-sm text-gray-700 mb-2">Tax Summary</h4>
           <div className="space-y-1">
-            {receiptData.taxBreakdown.map((tax, idx) => (
+            {positiveTaxBreakdown.map((tax, idx) => (
               <div key={idx} className="flex justify-between text-sm">
                 <span className="text-gray-600">
                   <span className="inline-block w-6 text-center font-bold text-xs rounded bg-blue-100 text-blue-700 mr-2">
@@ -255,7 +261,8 @@ const PrintableReceipt = ({ receiptData }) => {
             ))}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Tourism Levy - TC-TAX-006 */}
       {receiptData.levyBreakdown && receiptData.levyBreakdown.length > 0 && (

@@ -23,6 +23,10 @@ import {
   sumMoney,
 } from '@/lib/money';
 import { emitPosTransactionCompleted } from '@/lib/admin/productAnalytics/producers';
+import {
+  assertActiveTaxTypeIds,
+  collectTaxTypeIdsFromItems,
+} from '@/lib/taxManagement/assertActiveTaxTypes';
 
 function resolveCustomItemOrderPrice(customProductData) {
   if (!customProductData || typeof customProductData !== 'object') return 0;
@@ -578,6 +582,19 @@ export async function POST(request) {
           );
         }
       }
+    }
+
+    try {
+      await assertActiveTaxTypeIds(
+        prisma,
+        user.tenantId,
+        collectTaxTypeIdsFromItems(data.items)
+      );
+    } catch (e) {
+      if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
+        return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+      }
+      throw e;
     }
     
     // Line subtotals: flexible-unit products use per-unit sell prices × unitQuantities (not cart quantity × one price)

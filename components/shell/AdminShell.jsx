@@ -135,8 +135,8 @@ export default function AdminShell({ children, admin }) {
           </div>
         ) : null}
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="mx-auto w-full max-w-[var(--admin-content-max)] px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <main className="main-content-full-width min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="mx-auto w-full max-w-none px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
             <Suspense fallback={null}>
               <AdminNoticeBanner />
             </Suspense>

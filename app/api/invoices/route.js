@@ -22,6 +22,10 @@ import {
   requireInvoiceItemAccountIdColumn,
   buildInvoiceItemCreateData,
 } from '@/lib/ensureInvoiceItemAccountId';
+import {
+  assertActiveTaxTypeIds,
+  collectTaxTypeIdsFromItems,
+} from '@/lib/taxManagement/assertActiveTaxTypes';
 
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {
@@ -393,6 +397,19 @@ export async function POST(request) {
           { status: 400 }
         );
       }
+    }
+
+    try {
+      await assertActiveTaxTypeIds(
+        prisma,
+        user.tenantId,
+        collectTaxTypeIdsFromItems(body.items)
+      );
+    } catch (e) {
+      if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
+        return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+      }
+      throw e;
     }
     
     const incomeAccountIds = body.items.map(item => item.accountId).filter(Boolean);

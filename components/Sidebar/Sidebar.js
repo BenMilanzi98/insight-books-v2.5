@@ -36,6 +36,18 @@ import {
   PieChart,
   KeyRound,
   Wrench,
+  BadgePercent,
+  ArrowLeftRight,
+  Undo2,
+  Gift,
+  HandCoins,
+  Download,
+  Truck,
+  ClipboardList,
+  Banknote,
+  Target,
+  Calculator,
+  CalendarRange,
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { userHasPermission } from "@/lib/permissions";
@@ -123,7 +135,36 @@ const iconMap = {
   pension: Landmark,
   reversals: RotateCcw,
   accountingPeriods: CalendarDays,
-  // Sub-item icons
+  taxCodes: BadgePercent,
+  taxAccounts: Landmark,
+  taxTransactions: ArrowLeftRight,
+  taxPeriods: CalendarRange,
+  taxReturns: FileCheck,
+  fileCheck: FileCheck,
+  taxPayments: Banknote,
+  taxRefunds: Undo2,
+  taxCredits: Gift,
+  taxWithholding: HandCoins,
+  taxReconciliation: Scale,
+  importExport: Download,
+  suppliers: Truck,
+  orders: ClipboardList,
+  receipts: Package,
+  bills: FileText,
+  budgets: PieChart,
+  forecasts: TrendingUp,
+  receivables: ScrollText,
+  payables: Receipt,
+  financialCalendar: CalendarDays,
+  bankReconciliation: Landmark,
+  equity: Handshake,
+  yearEndClose: FileCheck,
+  financialPlanning: Target,
+  loanReadiness: Calculator,
+  benefits: Gift,
+  payeSummary: FileText,
+  payrollWorkbench: Briefcase,
+  // Sub-item icons (by label fallback)
   "Employee Management": Users,
   "Leave Management": CalendarDays,
   "Attendance Tracking": Clock,
@@ -133,14 +174,67 @@ const iconMap = {
   "Gratuity Management": Wallet,
   "Salary Advances": CreditCard,
   "HR Reports": BarChart3,
+  "Benefits & Allowances": Gift,
+  "PAYE Summary": FileText,
+  "Payroll Workbench (V2)": Briefcase,
   "General Ledger": BookText,
   "Chart of Accounts": BookText,
   "Accounting Periods": CalendarDays,
   "Journal Entries": BookOpen,
   "Capital Account": Wallet,
   "Trial Balance": Scale,
-  "Reversals": RotateCcw,
+  Reversals: RotateCcw,
+  Receivables: ScrollText,
+  Payables: Receipt,
+  "Financial Calendar": CalendarDays,
+  "Bank Reconciliation": Landmark,
+  "Equity Management": Handshake,
+  "Year-End Close": FileCheck,
+  "Financial Planning": Target,
+  "Loan Readiness": Calculator,
+  Suppliers: Truck,
+  Orders: ClipboardList,
+  Receipts: Package,
+  Bills: FileText,
+  Payments: CreditCard,
+  Budgets: PieChart,
+  Forecasts: TrendingUp,
+  Reports: BarChart3,
+  "Quantity rentals": Wrench,
+  "Contracts V2": FileText,
+  "Quotations V2": ScrollText,
+  "Rental reconcile": Scale,
+  "Supplier hiring": Truck,
+  Dashboard: LayoutDashboard,
+  "Tax codes": BadgePercent,
+  "Tax accounts": Landmark,
+  "Tax transactions": ArrowLeftRight,
+  "Tax periods": CalendarRange,
+  "Tax returns": FileCheck,
+  "Tax payments": Banknote,
+  "Tax refunds": Undo2,
+  "Tax credits": Gift,
+  Withholding: HandCoins,
+  Reconciliation: Scale,
+  "Import/Export": Download,
+  Settings: Settings,
 };
+
+const TAX_MANAGEMENT_SUB_ITEMS = [
+  { href: "/tax-management", text: "Dashboard", icon: "dashboard" },
+  { href: "/tax-management/accounts", text: "Tax accounts", icon: "taxAccounts" },
+  { href: "/tax-management/transactions", text: "Tax transactions", icon: "taxTransactions" },
+  { href: "/tax-management/periods", text: "Tax periods", icon: "taxPeriods" },
+  { href: "/tax-management/returns", text: "Tax returns", icon: "taxReturns" },
+  { href: "/tax-management/payments", text: "Tax payments", icon: "taxPayments" },
+  { href: "/tax-management/refunds", text: "Tax refunds", icon: "taxRefunds" },
+  { href: "/tax-management/credits", text: "Tax credits", icon: "taxCredits" },
+  { href: "/tax-management/withholding", text: "Withholding", icon: "taxWithholding" },
+  { href: "/tax-management/reconciliation", text: "Reconciliation", icon: "taxReconciliation" },
+  { href: "/tax-management/reports", text: "Reports", icon: "reports" },
+  { href: "/tax-management/import-export", text: "Import/Export", icon: "importExport" },
+  { href: "/tax-management/settings", text: "Settings", icon: "settings" },
+];
 
 const NavIcon = ({ name, active, size = 18 }) => {
   const Icon = iconMap[name] || LayoutDashboard;
@@ -174,6 +268,17 @@ const NavIcon = ({ name, active, size = 18 }) => {
     advances: "#F97316", // Orange
     pension: "#EC4899", // Pink
     accountingPeriods: "#0F766E", // Teal
+    taxCodes: "#F59E0B",
+    taxAccounts: "#0EA5E9",
+    taxTransactions: "#6366F1",
+    taxPeriods: "#14B8A6",
+    taxReturns: "#22C55E",
+    taxPayments: "#10B981",
+    taxRefunds: "#F43F5E",
+    taxCredits: "#A855F7",
+    taxWithholding: "#EC4899",
+    taxReconciliation: "#F97316",
+    importExport: "#84CC16",
     // Sub-item colors
     "Employee Management": "#06B6D4",
     "Leave Management": "#14B8A6",
@@ -223,12 +328,12 @@ const navigationByPermission = {
           text: "MRA EIS Entitlement",
           expandable: true,
           subItems: [
-            { href: "/insightbooks/mra-eis", text: "Entitlements" },
-            { href: "/insightbooks/mra-eis/centre", text: "Platform Overview" },
-            { href: "/insightbooks/mra-eis/terminals", text: "Terminals" },
-            { href: "/insightbooks/mra-eis/configuration", text: "Configuration" },
-            { href: "/insightbooks/mra-eis/mappings", text: "Mappings" },
-            { href: "/insightbooks/mra-eis/catalogue", text: "Catalogue" },
+            { href: "/insightbooks/mra-eis", text: "Entitlements", icon: "affiliate" },
+            { href: "/insightbooks/mra-eis/centre", text: "Platform Overview", icon: "dashboard" },
+            { href: "/insightbooks/mra-eis/terminals", text: "Terminals", icon: "pos" },
+            { href: "/insightbooks/mra-eis/configuration", text: "Configuration", icon: "settings" },
+            { href: "/insightbooks/mra-eis/mappings", text: "Mappings", icon: "coa" },
+            { href: "/insightbooks/mra-eis/catalogue", text: "Catalogue", icon: "stock" },
           ],
         },
         { href: "/insightbooks/affiliate-system", icon: "affiliate", text: "Affiliate Management" },
@@ -238,12 +343,12 @@ const navigationByPermission = {
           text: "Business Owner Module", 
           expandable: true,
           subItems: [
-            { href: "/insightbooks/internal-business/overview", text: "Business Overview" },
-            { href: "/insightbooks/internal-business/finances", text: "Business Management" },
-            { href: "/insightbooks/internal-business/staff", text: "Staff Management" },
-            { href: "/insightbooks/internal-business/expenses", text: "Expense Tracking" },
-            { href: "/insightbooks/internal-business/revenue", text: "Revenue Analytics" },
-            { href: "/insightbooks/internal-business/reports", text: "Business Reports" },
+            { href: "/insightbooks/internal-business/overview", text: "Business Overview", icon: "dashboard" },
+            { href: "/insightbooks/internal-business/finances", text: "Business Management", icon: "capital" },
+            { href: "/insightbooks/internal-business/staff", text: "Staff Management", icon: "users" },
+            { href: "/insightbooks/internal-business/expenses", text: "Expense Tracking", icon: "expenses" },
+            { href: "/insightbooks/internal-business/revenue", text: "Revenue Analytics", icon: "forecasts" },
+            { href: "/insightbooks/internal-business/reports", text: "Business Reports", icon: "reports" },
           ]
         },
       ],
@@ -267,67 +372,15 @@ const navigationByPermission = {
           text: "Accounting",
           expandable: true,
           subItems: [
-            { href: "/general-ledger-v2", text: "General Ledger" },
-            { href: "/accounting/receivables", text: "Receivables" },
-            { href: "/accounting/payables", text: "Payables" },
-            { href: "/chart-of-accounts", text: "Chart of Accounts" },
-            { href: "/financial-calendar-v2", text: "Financial Calendar" },
-            { href: "/journal-entries", text: "Journal Entries" },
-            { href: "/transactions/reversals", text: "Reversals" },
-            { href: "/trial-balance", text: "Trial Balance" },
-            { href: "/capital-account", text: "Capital Account" },
-          ]
-        },
-      ],
-    },
-    {
-      label: "Features",
-      items: [
-        { href: "/pos", icon: "pos", text: "POS" },
-        buildTenantEisNavMenuItem(TENANT_EIS_NAV_FULL),
-        { href: "/quotations", icon: "quotations", text: "Quotations" },
-        { href: "/invoice", icon: "invoicing", text: "Invoicing", badge: "3" },
-        { href: "/expenses", icon: "expenses", text: "Expense Tracking" },
-        { href: "/stock", icon: "stock", text: "Stock Management" },
-        { href: "/clients", icon: "users", text: "Customer Management" },
-        {
-          href: "/purchases/suppliers",
-          icon: "purchases",
-          text: "Purchases",
-          expandable: true,
-          subItems: [
-            { href: "/purchases/suppliers", text: "Suppliers" },
-            { href: "/purchases/orders", text: "Orders" },
-            { href: "/purchases/receipts", text: "Receipts" },
-            { href: "/purchases/bills", text: "Bills" },
-            { href: "/purchases/payments", text: "Payments" },
-          ],
-        },
-        { href: "/payments", icon: "payments", text: "Payment Accounts" },
-        { href: "/reports-v2", icon: "reports", text: "Financial Reporting" },
-      ],
-    },
-    {
-      label: "Additional Features",
-      items: [
-        {
-          href: "/hr",
-          icon: "hr",
-          text: "HR & Payroll",
-          expandable: true,
-          subItems: [
-            { href: "/hr/employees", text: "Employee Management" },
-            { href: "/hr/leave", text: "Leave Management" },
-            { href: "/hr/attendance", text: "Attendance Tracking" },
-            { href: "/hr/performance", text: "Performance Management" },
-            { href: "/hr/payroll", text: "Payroll Processing" },
-            { href: "/hr/payroll/paye-summary", text: "PAYE Summary" },
-            { href: "/hr/payroll-v2", text: "Payroll Workbench (V2)" },
-            { href: "/hr/benefits", text: "Benefits & Allowances" },
-            { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
-            { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
-            { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
-            { href: "/hr/reports", text: "HR Reports" }
+            { href: "/general-ledger-v2", text: "General Ledger", icon: "generalLedger" },
+            { href: "/accounting/receivables", text: "Receivables", icon: "receivables" },
+            { href: "/accounting/payables", text: "Payables", icon: "payables" },
+            { href: "/chart-of-accounts", text: "Chart of Accounts", icon: "coa" },
+            { href: "/financial-calendar-v2", text: "Financial Calendar", icon: "financialCalendar" },
+            { href: "/journal-entries", text: "Journal Entries", icon: "journal" },
+            { href: "/transactions/reversals", text: "Reversals", icon: "reversals" },
+            { href: "/trial-balance", text: "Trial Balance", icon: "trialBalance" },
+            { href: "/capital-account", text: "Capital Account", icon: "capital" },
           ]
         },
         {
@@ -336,42 +389,80 @@ const navigationByPermission = {
           text: "Budget & Forecast",
           expandable: true,
           subItems: [
-            { href: "/budget-forecast/budgets", text: "Budgets" },
-            { href: "/budget-forecast/forecasts", text: "Forecasts" },
-            { href: "/budget-forecast/reports", text: "Reports" },
+            { href: "/budget-forecast/budgets", text: "Budgets", icon: "budgets" },
+            { href: "/budget-forecast/forecasts", text: "Forecasts", icon: "forecasts" },
+            { href: "/budget-forecast/reports", text: "Reports", icon: "reports" },
           ],
         },
         { href: "/asset-management", icon: "reports", text: "Assets & Liabilities" },
+        {
+          href: "/tax-management",
+          icon: "taxCodes",
+          text: "Tax Management",
+          expandable: true,
+          subItems: TAX_MANAGEMENT_SUB_ITEMS,
+        },
+        buildTenantEisNavMenuItem(TENANT_EIS_NAV_FULL),
+      ],
+    },
+    {
+      label: "Features",
+      items: [
+        { href: "/pos", icon: "pos", text: "POS" },
+        { href: "/quotations", icon: "quotations", text: "Quotations" },
+        { href: "/invoice", icon: "invoicing", text: "Invoicing", badge: "3" },
+        { href: "/expenses", icon: "expenses", text: "Expense Tracking" },
+        { href: "/stock", icon: "stock", text: "Stock/Inventory management" },
+        { href: "/clients", icon: "users", text: "Customer Management" },
+        {
+          href: "/purchases/suppliers",
+          icon: "purchases",
+          text: "Purchases",
+          expandable: true,
+          subItems: [
+            { href: "/purchases/suppliers", text: "Suppliers", icon: "suppliers" },
+            { href: "/purchases/orders", text: "Orders", icon: "orders" },
+            { href: "/purchases/receipts", text: "Receipts", icon: "receipts" },
+            { href: "/purchases/bills", text: "Bills", icon: "bills" },
+            { href: "/purchases/payments", text: "Payments", icon: "payments" },
+          ],
+        },
+        { href: "/payments", icon: "payments", text: "Payment Accounts" },
+        {
+          href: "/hr",
+          icon: "hr",
+          text: "HR & Payroll",
+          expandable: true,
+          subItems: [
+            { href: "/hr/employees", text: "Employee Management", icon: "users" },
+            { href: "/hr/leave", text: "Leave Management", icon: "accountingPeriods" },
+            { href: "/hr/attendance", text: "Attendance Tracking", icon: "Attendance Tracking" },
+            { href: "/hr/performance", text: "Performance Management", icon: "Performance Management" },
+            { href: "/hr/payroll", text: "Payroll Processing", icon: "Payroll Processing" },
+            { href: "/hr/payroll/paye-summary", text: "PAYE Summary", icon: "payeSummary" },
+            { href: "/hr/payroll-v2", text: "Payroll Workbench (V2)", icon: "payrollWorkbench" },
+            { href: "/hr/benefits", text: "Benefits & Allowances", icon: "benefits" },
+            { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
+            { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
+            { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
+            { href: "/hr/reports", text: "HR Reports", icon: "reports" },
+          ]
+        },
         {
           href: "/rentals",
           icon: "rental",
           text: "Rental & Hiring",
           expandable: true,
           subItems: [
-            { href: "/rentals", text: "Rentals" },
-            { href: "/rentals/hiring", text: "Quantity rentals" },
-            { href: "/rentals/contracts-v2", text: "Contracts V2" },
-            { href: "/rentals/quotations-v2", text: "Quotations V2" },
-            { href: "/rentals/reconcile", text: "Rental reconcile" },
-            { href: "/rentals/inbound-hiring", text: "Supplier hiring" },
+            { href: "/rentals", text: "Rentals", icon: "Rentals" },
+            { href: "/rentals/hiring", text: "Quantity rentals", icon: "Hiring" },
+            { href: "/rentals/contracts-v2", text: "Contracts V2", icon: "Contracts V2" },
+            { href: "/rentals/quotations-v2", text: "Quotations V2", icon: "Quotations V2" },
+            { href: "/rentals/reconcile", text: "Rental reconcile", icon: "Rental reconcile" },
+            { href: "/rentals/inbound-hiring", text: "Supplier hiring", icon: "Supplier hiring" },
           ],
         },
-        { href: "/tax-management", icon: "reports", text: "Tax Management" },
-
-      ],
-    },
-    {
-      label: "Accounting",
-      items: [
-        {
-          href: "/accounting",
-          icon: "coa",
-          text: "Accounting",
-          expandable: true,
-          subItems: [
-            { href: "/chart-of-accounts", text: "Chart of Accounts" },
-          ]
-        },
+        { href: "/reports-v2", icon: "reports", text: "Reports" },
       ],
     },
   ],
@@ -412,7 +503,7 @@ const navigationByPermission = {
   reports: {
     label: "Reports",
     items: [
-      { href: "/reports-v2", icon: "reports", text: "Financial Reporting", permission: "reports.view" },
+      { href: "/reports-v2", icon: "reports", text: "Reports", permission: "reports.view" },
     ]
   },
   accounting: {
@@ -424,15 +515,15 @@ const navigationByPermission = {
         text: "Accounting",
         expandable: true,
         subItems: [
-          { href: "/general-ledger-v2", text: "General Ledger", permission: "generalLedger.view" },
-          { href: "/accounting/receivables", text: "Receivables" },
-          { href: "/accounting/payables", text: "Payables" },
-          { href: "/financial-calendar-v2", text: "Financial Calendar", permission: "journalEntries.view" },
-          { href: "/journal-entries", text: "Journal Entries", permission: "journalEntries.view" },
-          { href: "/chart-of-accounts", text: "Chart of Accounts" },
-          { href: "/capital-account", text: "Capital Account", permission: "reports.view" },
-          { href: "/trial-balance", text: "Trial Balance", permission: "trialBalance.view" },
-          { href: "/transactions/reversals", text: "Reversals" },
+          { href: "/general-ledger-v2", text: "General Ledger", icon: "generalLedger", permission: "generalLedger.view" },
+          { href: "/accounting/receivables", text: "Receivables", icon: "receivables" },
+          { href: "/accounting/payables", text: "Payables", icon: "payables" },
+          { href: "/financial-calendar-v2", text: "Financial Calendar", icon: "financialCalendar", permission: "journalEntries.view" },
+          { href: "/journal-entries", text: "Journal Entries", icon: "journal", permission: "journalEntries.view" },
+          { href: "/chart-of-accounts", text: "Chart of Accounts", icon: "coa" },
+          { href: "/capital-account", text: "Capital Account", icon: "capital", permission: "reports.view" },
+          { href: "/trial-balance", text: "Trial Balance", icon: "trialBalance", permission: "trialBalance.view" },
+          { href: "/transactions/reversals", text: "Reversals", icon: "reversals" },
         ]
       },
     ]
@@ -441,7 +532,7 @@ const navigationByPermission = {
   stock: {
     label: "Stock",
     items: [
-      { href: "/stock", icon: "stock", text: "Stock Management", permission: "inventory.view" },
+      { href: "/stock", icon: "stock", text: "Stock/Inventory management", permission: "inventory.view" },
     ]
   },
   rental: {
@@ -640,7 +731,9 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     navSections.forEach(section => {
       section.items.forEach(item => {
         if (item.subItems) {
-          const isSubItemActive = item.subItems.some(subItem => subItem.href === pathname);
+          const isSubItemActive = item.subItems.some((subItem) =>
+            isSubNavActive(item.href, subItem.href)
+          );
           if (isSubItemActive && !expandedItems.includes(item.href)) {
             setExpandedItems(prev => [...prev, item.href]);
           }
@@ -784,7 +877,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       coreItems.push({
         href: "/stock",
         icon: "stock",
-        text: "Stock Management"
+        text: "Stock/Inventory management"
       });
     }
 
@@ -797,11 +890,11 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     }
 
     const purchaseSubItems = filterSubItems([
-      { href: "/purchases/suppliers", text: "Suppliers", permission: "suppliers.view" },
-      { href: "/purchases/orders", text: "Orders", permission: "purchases.view" },
-      { href: "/purchases/receipts", text: "Receipts", permission: "purchases.view" },
-      { href: "/purchases/bills", text: "Bills", permission: "purchases.view" },
-      { href: "/purchases/payments", text: "Payments", permission: "purchases.view" },
+      { href: "/purchases/suppliers", text: "Suppliers", icon: "suppliers", permission: "suppliers.view" },
+      { href: "/purchases/orders", text: "Orders", icon: "orders", permission: "purchases.view" },
+      { href: "/purchases/receipts", text: "Receipts", icon: "receipts", permission: "purchases.view" },
+      { href: "/purchases/bills", text: "Bills", icon: "bills", permission: "purchases.view" },
+      { href: "/purchases/payments", text: "Payments", icon: "payments", permission: "purchases.view" },
     ]);
 
     if (purchaseSubItems.length > 0) {
@@ -822,20 +915,57 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
+    const hrSubItems = filterSubItems([
+      { href: "/hr/employees", text: "Employee Management", icon: "users", permission: "hr.view" },
+      { href: "/hr/leave", text: "Leave Management", icon: "accountingPeriods", permissions: ["leave.view", "leave.create", "hr.view"] },
+      { href: "/hr/attendance", text: "Attendance Tracking", icon: "Attendance Tracking", permission: "hr.view" },
+      { href: "/hr/performance", text: "Performance Management", icon: "Performance Management", permission: "hr.view" },
+      { href: "/hr/payroll", text: "Payroll Processing", icon: "Payroll Processing", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/payroll/paye-summary", text: "PAYE Summary", icon: "payeSummary", permissions: ["payroll.view", "hr.view", "reports.view"] },
+      { href: "/hr/payroll-v2", text: "Payroll Workbench (V2)", icon: "payrollWorkbench", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/benefits", text: "Benefits & Allowances", icon: "benefits", permission: "hr.view" },
+      { href: "/hr/pension", text: "Pension (NPS)", icon: "pension", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/advances", text: "Salary Advances", icon: "advances", permissions: ["payroll.view", "hr.view"] },
+      { href: "/hr/reports", text: "HR Reports", icon: "reports", permissions: ["hr.view", "reports.view"] },
+    ]);
+
+    if (hrSubItems.length > 0) {
+      coreItems.push({
+        href: hrSubItems[0].href,
+        icon: "users",
+        text: "HR & Payroll",
+        expandable: true,
+        subItems: hrSubItems
+      });
+    }
+
+    const rentalSubItems = filterSubItems([
+      { href: "/rentals", text: "Rentals", icon: "Rentals", permission: "rentals.view" },
+      { href: "/rentals/hiring", text: "Quantity rentals", icon: "Hiring", permission: "rentals.view" },
+      { href: "/rentals/contracts-v2", text: "Contracts V2", icon: "Contracts V2", permission: "rentals.view" },
+      { href: "/rentals/quotations-v2", text: "Quotations V2", icon: "Quotations V2", permission: "rentals.view" },
+      { href: "/rentals/reconcile", text: "Rental reconcile", icon: "Rental reconcile", permission: "rentals.view" },
+      { href: "/rentals/inbound-hiring", text: "Supplier hiring", icon: "Supplier hiring", permission: "rentals.view" },
+    ]);
+
+    if (rentalSubItems.length > 0) {
+      coreItems.push({
+        href: rentalSubItems[0].href,
+        icon: "rental",
+        text: "Rental & Hiring",
+        expandable: true,
+        subItems: rentalSubItems,
+      });
+    }
+
+    // Reports stays last in Features.
     if (canAccessRoute("/reports") || canAccessRoute("/reports-v2")) {
       coreItems.push({
         href: "/reports-v2",
         icon: "reports",
-        text: "Financial Reporting"
+        text: "Reports"
       });
-    }
-
-    // MRA EIS: hub when locked; full management when subscription OR entitlement unlocks.
-    if (canAccessRoute("/settings/integrations/mra-eis")) {
-      const navItems =
-        eisManagementAccess?.navItems ||
-        (eisManagementAccess?.unlocked ? TENANT_EIS_NAV_FULL : TENANT_EIS_NAV_LOCKED);
-      coreItems.push(buildTenantEisNavMenuItem(navItems));
     }
     
     // Add Features section if there are any items
@@ -845,43 +975,26 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         items: coreItems
       });
     }
-    
-    // Create an Additional Features section based on permissions
-    const additionalItems = [];
-    
-    const hrSubItems = filterSubItems([
-      { href: "/hr/employees", text: "Employee Management", permission: "hr.view" },
-      { href: "/hr/leave", text: "Leave Management", permissions: ["leave.view", "leave.create", "hr.view"] },
-      { href: "/hr/attendance", text: "Attendance Tracking", permission: "hr.view" },
-      { href: "/hr/performance", text: "Performance Management", permission: "hr.view" },
-      { href: "/hr/payroll", text: "Payroll Processing", permissions: ["payroll.view", "hr.view"] },
-      { href: "/hr/payroll/paye-summary", text: "PAYE Summary", permissions: ["payroll.view", "hr.view", "reports.view"] },
-      { href: "/hr/payroll-v2", text: "Payroll Workbench (V2)", permissions: ["payroll.view", "hr.view"] },
-      { href: "/hr/benefits", text: "Benefits & Allowances", permission: "hr.view" },
-      { href: "/hr/pension", text: "Pension (NPS)", icon: "pension", permissions: ["payroll.view", "hr.view"] },
-      { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity", permissions: ["payroll.view", "hr.view"] },
-      { href: "/hr/advances", text: "Salary Advances", icon: "advances", permissions: ["payroll.view", "hr.view"] },
-      { href: "/hr/reports", text: "HR Reports", permissions: ["hr.view", "reports.view"] },
-    ]);
 
-    if (hrSubItems.length > 0) {
-      additionalItems.push({
-        href: hrSubItems[0].href,
-        icon: "users",
-        text: "HR & Payroll",
-        expandable: true,
-        subItems: hrSubItems
-      });
+    // Accounting section extras (formerly Additional Features)
+    const accountingSectionItems = [];
+
+    // MRA EIS Centre: hub when locked; full management when subscription OR entitlement unlocks.
+    if (canAccessRoute("/settings/integrations/mra-eis")) {
+      const navItems =
+        eisManagementAccess?.navItems ||
+        (eisManagementAccess?.unlocked ? TENANT_EIS_NAV_FULL : TENANT_EIS_NAV_LOCKED);
+      accountingSectionItems.push(buildTenantEisNavMenuItem(navItems));
     }
 
     const budgetSubItems = filterSubItems([
-      { href: "/budget-forecast/budgets", text: "Budgets", permission: "budgets.view" },
-      { href: "/budget-forecast/forecasts", text: "Forecasts", permission: "budgets.view" },
-      { href: "/budget-forecast/reports", text: "Reports", permission: "budgets.view" },
+      { href: "/budget-forecast/budgets", text: "Budgets", icon: "budgets", permission: "budgets.view" },
+      { href: "/budget-forecast/forecasts", text: "Forecasts", icon: "forecasts", permission: "budgets.view" },
+      { href: "/budget-forecast/reports", text: "Reports", icon: "reports", permission: "budgets.view" },
     ]);
 
     if (budgetSubItems.length > 0) {
-      additionalItems.push({
+      accountingSectionItems.push({
         href: budgetSubItems[0].href,
         icon: "reports",
         text: "Budget & Forecast",
@@ -892,82 +1005,58 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
     // Assets & Liabilities should be permission-gated (deny-by-default).
     if (canAccessRoute("/asset-management")) {
-      additionalItems.push({
+      accountingSectionItems.push({
         href: "/asset-management",
         icon: "reports",
         text: "Assets & Liabilities"
       });
     }
 
-    const rentalSubItems = filterSubItems([
-      { href: "/rentals", text: "Rentals", permission: "rentals.view" },
-      { href: "/rentals/hiring", text: "Quantity rentals", permission: "rentals.view" },
-      { href: "/rentals/contracts-v2", text: "Contracts V2", permission: "rentals.view" },
-      { href: "/rentals/quotations-v2", text: "Quotations V2", permission: "rentals.view" },
-      { href: "/rentals/reconcile", text: "Rental reconcile", permission: "rentals.view" },
-      { href: "/rentals/inbound-hiring", text: "Supplier hiring", permission: "rentals.view" },
-    ]);
-
-    if (rentalSubItems.length > 0) {
-      additionalItems.push({
-        href: rentalSubItems[0].href,
-        icon: "rental",
-        text: "Rental & Hiring",
-        expandable: true,
-        subItems: rentalSubItems,
-      });
-    }
-
-    
     // Tax management follows the same route rule as the page guard.
     if (canAccessRoute("/tax-management")) {
-      additionalItems.push({
+      accountingSectionItems.push({
         href: "/tax-management",
-        icon: "reports",
-        text: "Tax Management"
-      });
-    }
-
-    
-    // Add Additional Features section if there are any items
-    if (additionalItems.length > 0) {
-      sections.push({
-        label: "Additional Features",
-        items: additionalItems
+        icon: "taxCodes",
+        text: "Tax Management",
+        expandable: true,
+        subItems: TAX_MANAGEMENT_SUB_ITEMS,
       });
     }
 
     // Accounting section: include only items explicitly permitted.
     const accountingSubItems = filterSubItems([
-      { href: "/general-ledger-v2", text: "General Ledger", permission: "generalLedger.view" },
-      { href: "/accounting/receivables", text: "Receivables", permissions: NAV_ROUTE_PERMISSION_OVERRIDES["/accounting/receivables"] },
-      { href: "/accounting/payables", text: "Payables", permission: "expenses.view" },
-      { href: "/financial-calendar-v2", text: "Financial Calendar", permission: "journalEntries.view" },
-      { href: "/bank-reconciliation", text: "Bank Reconciliation", permissions: ["bankReconciliation.view", "payments.view", "accounting.view"] },
-      { href: "/equity-management", text: "Equity Management", permissions: ["equity.view", "equity.viewDashboard", "accounts.view"] },
-      { href: "/accounting-close", text: "Year-End Close", permissions: ["accountingClose.view", "accountingClose.viewDashboard", "journalEntries.view"] },
-      { href: "/budget-forecast/forecasts", text: "Financial Planning", permissions: ["financialPlanning.view", "financialPlanning.viewDashboard", "budgets.view", "reports.view"] },
-      { href: "/loan-readiness", text: "Loan Readiness", permissions: ["loanReadiness.view", "loanReadiness.viewDashboard", "reports.view", "liabilities.view"] },
-      { href: "/capital-account", text: "Capital Account", permission: "accounts.view" },
-      { href: "/chart-of-accounts", text: "Chart of Accounts", permission: "accounts.view" },
-      { href: "/journal-entries", text: "Journal Entries", permission: "journalEntries.view" },
-      { href: "/capital-account", text: "Capital Account", permission: "reports.view" },
-      { href: "/trial-balance", text: "Trial Balance", permission: "trialBalance.view" },
-      { href: "/transactions/reversals", text: "Reversals", permission: "journalEntries.view" },
+      { href: "/general-ledger-v2", text: "General Ledger", icon: "generalLedger", permission: "generalLedger.view" },
+      { href: "/accounting/receivables", text: "Receivables", icon: "receivables", permissions: NAV_ROUTE_PERMISSION_OVERRIDES["/accounting/receivables"] },
+      { href: "/accounting/payables", text: "Payables", icon: "payables", permission: "expenses.view" },
+      { href: "/financial-calendar-v2", text: "Financial Calendar", icon: "financialCalendar", permission: "journalEntries.view" },
+      { href: "/bank-reconciliation", text: "Bank Reconciliation", icon: "bankReconciliation", permissions: ["bankReconciliation.view", "payments.view", "accounting.view"] },
+      { href: "/equity-management", text: "Equity Management", icon: "equity", permissions: ["equity.view", "equity.viewDashboard", "accounts.view"] },
+      { href: "/accounting-close", text: "Year-End Close", icon: "yearEndClose", permissions: ["accountingClose.view", "accountingClose.viewDashboard", "journalEntries.view"] },
+      { href: "/budget-forecast/forecasts", text: "Financial Planning", icon: "financialPlanning", permissions: ["financialPlanning.view", "financialPlanning.viewDashboard", "budgets.view", "reports.view"] },
+      { href: "/loan-readiness", text: "Loan Readiness", icon: "loanReadiness", permissions: ["loanReadiness.view", "loanReadiness.viewDashboard", "reports.view", "liabilities.view"] },
+      { href: "/capital-account", text: "Capital Account", icon: "capital", permission: "accounts.view" },
+      { href: "/chart-of-accounts", text: "Chart of Accounts", icon: "coa", permission: "accounts.view" },
+      { href: "/journal-entries", text: "Journal Entries", icon: "journal", permission: "journalEntries.view" },
+      { href: "/capital-account", text: "Capital Account", icon: "capital", permission: "reports.view" },
+      { href: "/trial-balance", text: "Trial Balance", icon: "trialBalance", permission: "trialBalance.view" },
+      { href: "/transactions/reversals", text: "Reversals", icon: "reversals", permission: "journalEntries.view" },
     ]);
 
-    if (accountingSubItems.length > 0) {
+    if (accountingSubItems.length > 0 || accountingSectionItems.length > 0) {
+      const items = [];
+      if (accountingSubItems.length > 0) {
+        items.push({
+          href: "/accounting",
+          icon: "coa",
+          text: "Accounting",
+          expandable: true,
+          subItems: accountingSubItems.map(({ permission, permissions, ...rest }) => rest),
+        });
+      }
+      items.push(...accountingSectionItems);
       sections.push({
         label: "Accounting",
-        items: [
-          {
-            href: "/accounting",
-            icon: "coa",
-            text: "Accounting",
-            expandable: true,
-            subItems: accountingSubItems.map(({ permission, permissions, ...rest }) => rest),
-          },
-        ],
+        items,
       });
     }
     
@@ -1016,6 +1105,12 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
   };
   
   const isActive = (href) => pathname === href;
+  /** Exact match for the parent/dashboard href; prefix match for deeper child routes. */
+  const isSubNavActive = (parentHref, subHref) => {
+    if (!subHref) return false;
+    if (subHref === parentHref) return pathname === subHref;
+    return pathname === subHref || pathname.startsWith(`${subHref}/`);
+  };
   const isMobile = windowWidth < 1024;
 
   const toggleExpand = (href) => {
@@ -1630,7 +1725,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                           overflow: "hidden"
                         }}>
                           {item.subItems.map((subItem, subIndex) => {
-                            const isSubActive = isActive(subItem.href);
+                            const isSubActive = isSubNavActive(item.href, subItem.href);
                             const subItemIconName = subItem.icon || subItem.text;
                             return (
                               <Link 

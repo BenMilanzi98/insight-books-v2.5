@@ -17,6 +17,8 @@ export const fetchExpenses = async (params = {}) => {
         accountId,
         supplierId,
         includeDeleted,
+        paymentStatus,
+        isHistorical,
       } = params;
       
       // Build query string from params
@@ -32,6 +34,10 @@ export const fetchExpenses = async (params = {}) => {
       if (dateTo) queryParams.append('dateTo', dateTo);
       if (accountId && accountId !== 'all') queryParams.append('accountId', accountId);
       if (supplierId) queryParams.append('supplierId', supplierId);
+      if (paymentStatus && paymentStatus !== 'all') queryParams.append('paymentStatus', paymentStatus);
+      if (isHistorical === true || isHistorical === 'true' || isHistorical === 1 || isHistorical === '1') {
+        queryParams.append('isHistorical', 'true');
+      }
       if (includeDeleted === true || includeDeleted === 'true') {
         queryParams.append('includeDeleted', 'true');
       }

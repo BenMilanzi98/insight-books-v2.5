@@ -23,7 +23,7 @@ export default function AdminFooter({ className }) {
         className
       )}
     >
-      <div className="mx-auto flex max-w-[var(--admin-content-max)] flex-wrap items-center justify-between gap-2">
+      <div className="mx-auto flex w-full max-w-none flex-wrap items-center justify-between gap-2">
         <span>{t('admin-shell.footer.version')}</span>
         <span>{t('admin-shell.footer.environment', { env })}</span>
       </div>

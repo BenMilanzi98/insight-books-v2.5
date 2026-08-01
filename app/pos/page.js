@@ -62,6 +62,7 @@ import {
 import { calculateProductTaxes, calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
 import { isMalawiStandardVatRate, MALAWI_STANDARD_VAT_RATE } from "@/lib/malawiTaxCatalog";
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
+import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
 import ClientModal from "@/components/ClientModal";
 import ClientSearchCombobox from "@/components/ClientSearchCombobox";
 import PermissionGuard from "@/components/PermissionGuard";
@@ -182,6 +183,7 @@ const POSPage = () => {
   const [newPosTax, setNewPosTax] = useState({ taxName: '', taxRate: '', accountId: '' });
   const [addingPosTaxLoading, setAddingPosTaxLoading] = useState(false);
   const taxDropdownRef = useRef(null);
+  const taxesAvailable = posTaxTypes.length > 0;
 
   // Void/Refund modals
   const [showVoidModal, setShowVoidModal] = useState(false);
@@ -293,14 +295,11 @@ const POSPage = () => {
   // Fetch active tax types and default tax for inflow (sales) for auto-population
   const fetchPosTaxTypes = async () => {
     try {
-      const [taxRes, defaultsRes] = await Promise.all([
-        fetch('/api/tax-types?status=Active'),
+      const [taxTypes, defaultsRes] = await Promise.all([
+        fetchActiveTaxTypes(),
         fetch('/api/settings/tax-defaults').catch(() => null)
       ]);
-      if (taxRes.ok) {
-        const data = await taxRes.json();
-        setPosTaxTypes(Array.isArray(data.taxTypes) ? data.taxTypes : []);
-      }
+      setPosTaxTypes(Array.isArray(taxTypes) ? taxTypes : []);
       if (defaultsRes?.ok) {
         const defaults = await defaultsRes.json();
         setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
@@ -405,7 +404,7 @@ const POSPage = () => {
           taxRate: parseFloat(newPosTax.taxRate),
           calculationType: 'Percentage',
           accountId: newPosTax.accountId,
-          status: 'Active',
+          status: 'Inactive',
         }),
       });
       if (!res.ok) {
@@ -413,12 +412,9 @@ const POSPage = () => {
         alert(err.error || 'Failed to create tax type');
         return;
       }
-      const created = await res.json();
       await fetchPosTaxTypes();
-      // Apply the newly created tax to the product that has the dropdown open
-      if (openTaxDropdownId) {
-        applyTaxToProduct(openTaxDropdownId, created);
-      }
+      // New taxes start Inactive — activate on Tax Codes before they can be used on sales.
+      alert('Tax created as Inactive. Activate it under Tax Management → Tax accounts before using it.');
       setIsAddingPosTax(false);
       setNewPosTax({ taxName: '', taxRate: '', accountId: '' });
     } catch (err) {
@@ -1129,7 +1125,9 @@ const POSPage = () => {
     
     if (existingProduct) {
       // Recalculate taxes when updating existing product
-      const productTaxes = detailedProduct.taxes || existingProduct.taxes || [];
+      const productTaxes = taxesAvailable
+        ? (detailedProduct.taxes || existingProduct.taxes || [])
+        : [];
       const newQuantity = isUnitManaged ? parsedQty : (existingProduct.quantity + parsedQty);
       const newSubtotal = existingProduct.price * newQuantity;
       const newDiscountAmount = (parseFloat(existingProduct.discount) || 0) * newQuantity;
@@ -1190,19 +1188,21 @@ const POSPage = () => {
         }
       }
 
-      // Use product's taxes from catalog, or auto-apply default tax (inflow) to avoid manual selection errors
-      const productTaxes = (detailedProduct.taxes && detailedProduct.taxes.length > 0)
-        ? detailedProduct.taxes
-        : (defaultTaxTypeForInflow
-            ? [{
-                id: defaultTaxTypeForInflow.id,
-                taxId: defaultTaxTypeForInflow.taxId,
-                taxName: defaultTaxTypeForInflow.taxName,
-                taxCode: defaultTaxTypeForInflow.taxCode || '',
-                taxRate: Number(defaultTaxTypeForInflow.taxRate),
-                calculationType: defaultTaxTypeForInflow.calculationType || 'Percentage'
-              }]
-            : []);
+      // Use product's taxes from catalog, or auto-apply default tax (inflow) when active taxes exist
+      const productTaxes = !taxesAvailable
+        ? []
+        : ((detailedProduct.taxes && detailedProduct.taxes.length > 0)
+            ? detailedProduct.taxes
+            : (defaultTaxTypeForInflow
+                ? [{
+                    id: defaultTaxTypeForInflow.id,
+                    taxId: defaultTaxTypeForInflow.taxId,
+                    taxName: defaultTaxTypeForInflow.taxName,
+                    taxCode: defaultTaxTypeForInflow.taxCode || '',
+                    taxRate: Number(defaultTaxTypeForInflow.taxRate),
+                    calculationType: defaultTaxTypeForInflow.calculationType || 'Percentage'
+                  }]
+                : []));
       const taxCalculation = calculateSaleItemTaxes({
         quantity: parsedQty,
         unitPrice: initialPrice,
@@ -1265,7 +1265,7 @@ const POSPage = () => {
       return;
     }
 
-    const defaultTaxes = defaultTaxTypeForInflow
+    const defaultTaxes = taxesAvailable && defaultTaxTypeForInflow
       ? [{
           id: defaultTaxTypeForInflow.id,
           taxId: defaultTaxTypeForInflow.taxId,
@@ -2389,17 +2389,6 @@ const POSPage = () => {
           <div className="lg:col-span-9 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-5 lg:p-6 border border-gray-100 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <button
-                type="button"
-                className="px-4 py-2.5 border-2 border-dashed border-gray-300 bg-white/50 backdrop-blur-sm rounded-xl text-gray-700 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center transition-all font-medium text-sm"
-                onClick={() => setShowCustomProduct(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Custom Product
-              </button>
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-900 ml-auto">New Sale</h2>
-            </div>
             <div className="flex flex-wrap gap-2 mb-6 bg-gray-50 p-1 rounded-xl">
               <button
                 className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -2713,7 +2702,7 @@ const POSPage = () => {
 
             <div className="mb-6 relative">
               <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-grow" ref={productSearchRef}>
+                <div className="relative flex-grow min-w-0" ref={productSearchRef}>
                   <input
                     type="text"
                     placeholder="Search by name, SKU or barcode..."
@@ -2788,12 +2777,12 @@ const POSPage = () => {
                     </div>
                   )}
                 </div>
-                
-                <div className="flex gap-2 w-full sm:w-auto items-stretch sm:items-center">
+
+                <div className="flex gap-2 w-full sm:w-auto items-stretch sm:items-center shrink-0">
                   <div className="w-full sm:w-24 shrink-0">
                     <input 
                       type="number" 
-                      className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-center font-semibold" 
+                      className="w-full h-full min-h-[3rem] p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-center font-semibold" 
                       min="1" 
                       value={quantity} 
                       onChange={(e) => {
@@ -2803,6 +2792,14 @@ const POSPage = () => {
                       placeholder="Qty"
                     />
                   </div>
+                  <button
+                    type="button"
+                    className="px-4 py-2.5 border-2 border-dashed border-gray-300 bg-white/50 backdrop-blur-sm rounded-xl text-gray-700 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all font-medium text-sm whitespace-nowrap w-full sm:w-auto"
+                    onClick={() => setShowCustomProduct(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2 shrink-0" />
+                    Add Custom Product
+                  </button>
                 </div>
               </div>
             </div>
@@ -2817,7 +2814,9 @@ const POSPage = () => {
                       {selectedProducts.some(p => !hasUnitManagement(p)) && (
                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Quantity</th>
                       )}
-                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Tax</th>
+                      {taxesAvailable && (
+                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Tax</th>
+                      )}
                       <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Discount</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Total</th>
                       <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
@@ -2845,6 +2844,7 @@ const POSPage = () => {
                             />
                           </td>
                         )}
+                        {taxesAvailable && (
                         <td className="px-4 py-3 text-sm text-right">
                           {product.taxBreakdown && product.taxBreakdown.length > 0 ? (
                             <div className="space-y-1">
@@ -2984,6 +2984,7 @@ const POSPage = () => {
                             </div>
                           )}
                         </td>
+                        )}
                         <td className="px-4 py-3 text-sm">
                           <div className="flex items-center justify-end">
                             <span className="text-xs mr-1 text-gray-600 font-medium">MK</span>
@@ -3014,7 +3015,7 @@ const POSPage = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="px-8 py-12 text-sm text-gray-500 text-center">
+                      <td colSpan={5 + (selectedProducts.some(p => !hasUnitManagement(p)) ? 1 : 0) + (taxesAvailable ? 1 : 0)} className="px-8 py-12 text-sm text-gray-500 text-center">
                         <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p className="font-medium">No products added yet</p>
                         <p className="text-xs mt-1">Search and select products to add to the sale</p>
@@ -3059,101 +3060,22 @@ const POSPage = () => {
               </div>
             )}
 
-            <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl mb-6 border border-gray-200 shadow-lg shadow-gray-200/50">
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">Subtotal:</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(calculateSubtotal())}</span>
-                </div>
-                {(() => {
-                  // Group all taxes from all products
-                  const allTaxes = {};
-                  let hasAnyTaxes = false;
-                  
-                  selectedProducts.forEach(product => {
-                    // Check taxBreakdown (from frontend calculation)
-                    if (product.taxBreakdown && product.taxBreakdown.length > 0) {
-                      hasAnyTaxes = true;
-                      product.taxBreakdown.forEach(tax => {
-                        const taxKey = tax.taxName || tax.taxId || 'Tax';
-                        if (!allTaxes[taxKey]) {
-                          allTaxes[taxKey] = {
-                            taxName: tax.taxName || tax.taxId || 'Tax',
-                            taxCode: tax.taxCode || null,
-                            totalAmount: 0
-                          };
-                        }
-                        allTaxes[taxKey].totalAmount += Number(tax.taxAmount || 0);
-                      });
-                    }
-                  });
-                  
-                  const totalTax = calculateTaxAmount();
-                  
-                  // Sort taxes by name for consistent display
-                  const sortedTaxes = Object.values(allTaxes).sort((a, b) => 
-                    (a.taxName || '').localeCompare(b.taxName || '')
-                  );
-                  
-                  // Show individual taxes if we have them
-                  if (hasAnyTaxes && sortedTaxes.length > 0) {
-                    return (
-                      <>
-                        {sortedTaxes.map((tax, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">
-                              {tax.taxName}{tax.taxCode ? ` (${tax.taxCode})` : ''}:
-                            </span>
-                            <span className="font-semibold text-gray-800">{formatCurrency(tax.totalAmount)}</span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between items-center pt-1 border-t border-gray-200 mt-1">
-                          <span className="font-semibold text-gray-700">Total Tax:</span>
-                          <span className="font-bold text-gray-900">{formatCurrency(totalTax)}</span>
-                        </div>
-                      </>
-                    );
-                  } else if (totalTax > 0) {
-                    // Show total tax only if no individual breakdown available
-                    return (
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-gray-700">Total Tax:</span>
-                        <span className="font-bold text-gray-900">{formatCurrency(totalTax)}</span>
-                      </div>
-                    );
-                  }
-                  // No taxes
-                  return null;
-                })()}
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">Total Discount:</span>
-                  <span className="font-bold text-red-600">-{formatCurrency(calculateDiscountAmount())}</span>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                  <span className="font-semibold text-gray-700">Global Discount:</span>
-                  <div className="flex items-center">
-                    <span className="text-xs mr-1 text-gray-600 font-medium">MK</span>
-                    <input
-                      type="number"
-                      className="w-24 p-2 text-right border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none font-semibold bg-white"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={globalDiscount || ''}
-                      onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                </div>
-                {globalDiscount > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-600">Applied Global Discount:</span>
-                    <span className="font-bold text-red-600">-{formatCurrency(globalDiscount)}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-between items-center pt-4 border-t-2 border-gray-300">
-                <span className="text-xl font-bold text-gray-900">Total:</span>
-                <span className="text-2xl font-extrabold text-blue-600">{formatCurrency(calculateTotal())}</span>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <label className="text-sm font-semibold text-gray-700" htmlFor="pos-global-discount">
+                Global Discount
+              </label>
+              <div className="flex items-center">
+                <span className="text-xs mr-1 text-gray-600 font-medium">MK</span>
+                <input
+                  id="pos-global-discount"
+                  type="number"
+                  className="w-28 p-2 text-right border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none font-semibold bg-white"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={globalDiscount || ''}
+                  onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
+                />
               </div>
             </div>
 
@@ -4029,7 +3951,7 @@ const POSPage = () => {
                     : currentReceipt?.paymentMethod || (paymentMethod ? (paymentAccounts.find(acc => acc.id === paymentMethod)?.name || paymentMethod) : 'N/A')}
                 </p>
               )}
-              {calculateTaxAmount() > 0 && (
+              {taxesAvailable && calculateTaxAmount() > 0 && (
                 <p className="text-sm text-gray-600">
                   Total Tax: {formatCurrency(calculateTaxAmount())}
                 </p>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
 
 const TABS = [
   { href: '/budget-forecast/budgets', label: 'Budgets' },
@@ -15,7 +16,7 @@ export default function BfShell({ title, subtitle, actions, children }) {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-none px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Budget &amp; Forecast</p>
@@ -42,7 +43,7 @@ export default function BfShell({ title, subtitle, actions, children }) {
           </nav>
         </div>
       </div>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+      <div className="mx-auto w-full max-w-none px-4 py-6 sm:px-6 lg:px-8">{children}</div>
     </div>
   );
 }
@@ -64,7 +65,20 @@ export function StatusBadge({ status }) {
   );
 }
 
-export function SummaryCard({ label, value, hint }) {
+export function SummaryCard({ label, value, hint, onClick, active = false, title }) {
+  if (onClick) {
+    return (
+      <ClickableStatCard
+        label={label}
+        value={value}
+        countLabel={hint || undefined}
+        active={active}
+        onClick={onClick}
+        title={title}
+      />
+    );
+  }
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>

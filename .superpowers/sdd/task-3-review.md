@@ -1,50 +1,73 @@
-# Task 3 Re-Review — Phase 17 Wave 3 (after Critical+Important fixes)
+# Task 3 Review — API write enforcement (re-review after Important fix)
 
-**Base:** WORKING_TREE · **Head:** WORKING_TREE · **Package:** `task-3-review-package.diff`  
-**Suite:** Wave 1+2+3 → **37/37 passed** (re-run confirmed)
+**Feature:** Tax Activation (Active-only)  
+**Sources:** `task-3-brief.md`, `task-3-report.md` (incl. Important review fix), working-tree `app/api/**` + `lib/taxManagement/assertActiveTaxTypes.js`  
+**Method:** Grep `assertActiveTaxTypeIds` / `allowInactiveIds`; Read helper + PUT/POST call sites; confirm unit tests cover allow-list
 
 ## Verdicts
-- **Spec compliance:** ✅
-- **Task quality:** Ready (Wave 4 CONDITIONAL GO)
 
-## Must-resolve (prior Critical / Important) — verified fixed
-
-| Finding | Status | Evidence |
-|---|---|---|
-| Critical: stored READY lifts live UNKNOWN→READY | ✅ Fixed | `evaluate.js` — no snapshot merge; stored audit-only; test `stored READY snapshot never lifts…` |
-| Important: training IN_PROGRESS → READY | ✅ Fixed | `evaluateTrainingDim` — IN_PROGRESS/READY without Training-domain COMPLETED → NOT_READY |
-| Important: execute/outcome skip readiness | ✅ Fixed | `requireCurrentReadiness` on approve + execute + SUCCESSFUL outcome |
-| Important: SUCCESSFUL without STABILISATION | ✅ Fixed | Final status gate + `go_live_stabilisation_transition_failed` |
-| Important: ambient tenant journals fail boundary | ✅ Fixed | Fail only onboarding-authored side effects; create-deny retained |
+1. **Spec compliance:** ✅  
+2. **Task quality:** **Approved**
 
 ## Critical
+
 None.
 
 ## Important
-None remaining from the must-resolve set.
 
-## Minor
-- `recordGoLiveOutcome(SUCCESSFUL)` may persist go-live row as SUCCESSFUL before STABILISATION is confirmed; failure path returns `ok: false` but row can be ahead of project status.
-- Production API does not pass `dimensionOverrides`; live probes for tenant/users/config still need Wave 4 attestation wiring (fail-closed — correct).
-- Authored-side-effect detect needs `findMany`; count-only clients cannot flag onboarding-authored rows (ambient still correctly allowed).
+None remaining.
+
+### Resolved (prior Important)
+
+**PUT grandfathering of historical Inactive tax lines** — fixed.
+
+- `lib/taxManagement/assertActiveTaxTypes.js` — optional 4th arg `allowInactiveIds`; IDs must still exist for tenant; Active check skipped only for allow-listed IDs; unknown still `UNKNOWN_TAX`.
+- `app/api/quotations/[id]/route.js` — loads existing `quotationItemTax.taxTypeId`s (tenant-scoped via quotation), passes as `allowInactiveIds` before item recreate.
+- `app/api/invoices/[id]/route.js` — same for `invoiceItemTax` / `normalizedItems`.
+- POST create paths remain strict (no 4th arg):
+  - `app/api/quotations/route.js`
+  - `app/api/invoices/route.js`
+  - `app/api/sales/route.js`
+- Unit tests: Inactive in allow list passes; Inactive not in allow list still `INACTIVE_TAX` (6 tests per report).
+
+## Minor (non-blocking)
+
+1. **No authenticated HTTP POST smoke** — Step 4 verified via shared try/catch + Prisma helper against a temp Inactive type, not a live `POST /api/quotations` with session cookies. Pattern match is sound; full route smoke still recommended.
+2. **Sales rate-match fallback** — items with tax amount but empty `taxBreakdown` are not asserted (no client-supplied id). Fallback already selects `status: 'Active'` only; residual risk is limited and was correctly called out in the report.
 
 ## Spec checklist
 
-| Acceptance | Status |
-|---|---|
-| UNKNOWN ≠ READY; no snapshot lift; blocks go-live | ✅ |
-| Training IN_PROGRESS non-READY | ✅ |
-| Critical defect blocks approval | ✅ |
-| Execute/outcome re-check readiness | ✅ |
-| Successful go-live → STABILISATION (required) | ✅ |
-| Migration COMPLETED needs recon | ✅ |
-| Training COMPLETED needs Training-domain source | ✅ |
-| Completion needs sign-offs / recon / handover | ✅ |
-| Certificate checksum + idempotent retry | ✅ |
-| Accounting: no onboarding creates; ambient GL OK | ✅ |
-| Cross-Tenant project access denied | ✅ |
-| Progress/health server-side, versioned | ✅ |
-| Vitest Wave 1–3 green | ✅ 37/37 |
+| Requirement | Status |
+|-------------|--------|
+| Quotations POST assert before `itemTaxes` create | ✅ ~280–290; strict (no allow list) |
+| Quotations `[id]` PUT assert before item recreate | ✅ ~178–202; `allowInactiveIds` from existing lines |
+| Invoices POST assert before create | ✅ ~402–413; strict |
+| Invoices `[id]` PUT assert before tax write | ✅ ~253–277; `allowInactiveIds` from existing lines |
+| Sales POST assert covering `taxBreakdown` | ✅ ~588–598; collector includes `taxBreakdown`; strict |
+| 400 JSON `{ error, code }` for Inactive / unknown | ✅ Consistent try/catch mapping |
+| GET / read paths untouched | ✅ No assert on GET handlers |
+| No commit | ✅ Per report |
 
-## Overall
-Prior Critical + Important findings are resolved with targeted tests. Readiness honesty holds; go-live success requires STABILISATION; accounting boundary is create/onboarding-authored only. **Ready for Wave 4 CONDITIONAL GO.**
+## Call-site audit (placement)
+
+| File | Assert location | Persist follows? | Strict vs allow |
+|------|-----------------|------------------|-----------------|
+| `app/api/quotations/route.js` | After item field validation | Yes — `$transaction` / nested `itemTaxes.create` | Strict |
+| `app/api/quotations/[id]/route.js` | After totals calc + load existing taxes | Yes — delete items then recreate with taxes | `allowInactiveIds` |
+| `app/api/invoices/route.js` | After item validation | Yes — create path afterward | Strict |
+| `app/api/invoices/[id]/route.js` | After `normalizedItems` validation + load existing | Yes — delete/recreate via `buildInvoiceItemCreateData` | `allowInactiveIds` |
+| `app/api/sales/route.js` | After item validation | Yes — sale + `saleItemTax.create` later | Strict |
+
+All five target files import and invoke the helper **before** tax row persistence. Only PUT exists on quotation/invoice `[id]` (no separate PATCH).
+
+## Strengths
+
+- Shared collector correctly covers `itemTaxes` / `taxes` / `taxBreakdown`.
+- Error mapping matches Task 1 helper contract (`status` / `INACTIVE_TAX` / `UNKNOWN_TAX`).
+- PUT allow-list is tenant-scoped and limited to IDs already on the document; newly selected Inactive IDs still reject.
+- Create/POS paths stay Active-only.
+- Intentionally left duplicate/convert and GET paths alone.
+
+## Residual risk
+
+Low. Historical quotation/invoice edit/save with existing Inactive lines should succeed; attaching a newly selected Inactive tax on update still 400s. Recommend a quick authenticated POST/PUT smoke when logged in.

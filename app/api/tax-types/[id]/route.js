@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const taxType = await prisma.taxType.findFirst({
       where: {
@@ -71,7 +71,7 @@ export async function PUT(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const {
       taxId,
@@ -264,7 +264,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Check if tax type exists
     const existingTax = await prisma.taxType.findFirst({

@@ -23,7 +23,7 @@ export default function TaxManagementComingSoon({
           </Link>
           ,{" "}
           <Link
-            href="/tax-management/tax-codes"
+            href="/tax-management/accounts"
             className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
           >
             Tax codes

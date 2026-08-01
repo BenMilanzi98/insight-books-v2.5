@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
 import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations"; // Reuse the same calculations
 import { calculateInvoiceTotals as calculateInvoiceTotalsCanonical } from "@/lib/invoiceTotals";
@@ -10,6 +10,8 @@ import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtra
 import ClientModal from "./ClientModal";
 import ClientSearchCombobox from "./ClientSearchCombobox";
 import { fetchProductsForSaleAll } from "@/app/services/salesService";
+import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
+import { shouldDisplayDocumentTax } from "@/lib/documentTaxDisplay";
 import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
 
 const lineTaxesOf = (item) =>
@@ -81,6 +83,32 @@ const QuotationModal = ({
   const [isLoadingTaxTypes, setIsLoadingTaxTypes] = useState(false);
   const [showNewTaxForm, setShowNewTaxForm] = useState(false);
   const [newTaxData, setNewTaxData] = useState({ name: '', taxRate: 17.5, calculationType: 'Percentage', description: '' });
+
+  // Active types plus grandfathered Inactive taxes already on edit lines (non-selectable for new attach)
+  const pickerTaxTypes = useMemo(() => {
+    const activeIds = new Set(taxTypes.map((t) => t.id));
+    const extras = [];
+    const seenExtra = new Set();
+    for (const item of formData.items || []) {
+      for (const t of lineTaxesOf(item)) {
+        const id = t.taxTypeId || t.id;
+        if (!id || activeIds.has(id) || seenExtra.has(id)) continue;
+        seenExtra.add(id);
+        extras.push({
+          id,
+          taxTypeId: id,
+          taxName: t.taxName,
+          taxRate: t.taxRate,
+          calculationType: t.calculationType,
+          selectable: false,
+          status: 'Inactive',
+        });
+      }
+    }
+    return extras.length ? [...taxTypes, ...extras] : taxTypes;
+  }, [taxTypes, formData.items]);
+
+  const taxesAvailable = taxTypes.length > 0;
   
   // Unit management state
   const [unitQuantities, setUnitQuantities] = useState({});
@@ -185,7 +213,7 @@ const QuotationModal = ({
 
   // Auto-populate default tax (inflow) on initial item when creating a new quotation
   useEffect(() => {
-    if (mode === "edit" || !defaultTaxTypeForInflow) return;
+    if (mode === "edit" || !defaultTaxTypeForInflow || !taxesAvailable) return;
     if (formData.items.length !== 1) return;
     const first = formData.items[0];
     if (first.selectedTaxTypeId) return;
@@ -197,7 +225,7 @@ const QuotationModal = ({
         selectedTaxTypeId: defaultTaxTypeForInflow.id
       }]
     }));
-  }, [defaultTaxTypeForInflow?.id, mode]);
+  }, [defaultTaxTypeForInflow?.id, mode, taxesAvailable]);
   
   // Load products using the same enhanced method as POS
   const loadProducts = async () => {
@@ -240,14 +268,11 @@ const QuotationModal = ({
         // NEW: Load tax types and default tax for inflow
         setIsLoadingTaxTypes(true);
         try {
-          const [taxTypesResponse, taxDefaultsResponse] = await Promise.all([
-            fetch('/api/tax-types'),
+          const [taxTypesData, taxDefaultsResponse] = await Promise.all([
+            fetchActiveTaxTypes(),
             fetch('/api/settings/tax-defaults').catch(() => null)
           ]);
-          if (taxTypesResponse.ok) {
-            const taxTypesData = await taxTypesResponse.json();
-            setTaxTypes(taxTypesData.taxTypes || taxTypesData || []);
-          }
+          setTaxTypes(taxTypesData);
           if (taxDefaultsResponse?.ok) {
             const defaults = await taxDefaultsResponse.json();
             setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
@@ -411,10 +436,9 @@ const QuotationModal = ({
       });
       
       if (response.ok) {
-        const createdTax = await response.json();
-        setTaxTypes(prev => [...prev, createdTax]);
         setShowNewTaxForm(false);
         setNewTaxData({ name: '', taxRate: 17.5, calculationType: 'Percentage', description: '' });
+        alert('Tax created as Inactive. Activate it under Tax Management → Tax accounts before using it.');
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to create tax type');
@@ -475,9 +499,9 @@ const QuotationModal = ({
     setFormData({ ...formData, discount: validDiscount });
   };
   
-  // Add a new item; auto-apply default tax (inflow) to avoid manual selection errors
+  // Add a new item; auto-apply default tax (inflow) when active taxes exist
   const addItem = () => {
-    const defaultTax = defaultTaxTypeForInflow;
+    const defaultTax = taxesAvailable ? defaultTaxTypeForInflow : null;
     const newItem = {
       description: "",
       quantity: "",
@@ -698,7 +722,7 @@ const QuotationModal = ({
       if (!productTaxes.length && productData.productTaxes?.length) {
         productTaxes = productData.productTaxes.map((pt) => pt.taxType || pt).filter(Boolean);
       }
-      const normalizedTaxes = normalizeLineTaxes(productTaxes);
+      const normalizedTaxes = taxesAvailable ? normalizeLineTaxes(productTaxes) : [];
       const updatedItems = [...formData.items];
       updatedItems[index] = {
         ...updatedItems[index],
@@ -707,7 +731,9 @@ const QuotationModal = ({
         productId: productData.id,
         taxRate: normalizedTaxes.length
           ? denormalizedPercentageTaxRate(normalizedTaxes)
-          : productData.taxRate ?? updatedItems[index].taxRate ?? 0,
+          : taxesAvailable && productData.taxRate != null
+            ? productData.taxRate
+            : updatedItems[index].taxRate ?? 0,
         product: productData,
         taxes: normalizedTaxes,
         productTaxes: normalizedTaxes,
@@ -729,7 +755,10 @@ const QuotationModal = ({
         description: product.name,
         unitPrice: product.price || product.unitPrice || "",
         productId: product.id,
-        taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0)
+        taxRate: taxesAvailable && product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : 0,
+        productTaxes: [],
+        taxes: [],
+        selectedTaxTypeId: '',
       };
       setFormData({ ...formData, items: updatedItems });
     }
@@ -890,9 +919,11 @@ const QuotationModal = ({
                     <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                       Discount (per item)
                     </th>
+                    {taxesAvailable && (
                     <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
                       Tax %
                     </th>
+                    )}
                     <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Amount
                     </th>
@@ -1053,6 +1084,7 @@ const QuotationModal = ({
                           <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.discountAmount`]}</p>
                         )}
                       </td>
+                      {taxesAvailable && (
                       <td className="px-2 py-2 align-top">
                         <div className="flex flex-col min-w-[11rem] max-w-[14rem]">
                           <div className="flex items-center justify-between gap-1 mb-1">
@@ -1073,28 +1105,41 @@ const QuotationModal = ({
                           >
                             {isLoadingTaxTypes ? (
                               <p className="text-xs text-slate-500">Loading...</p>
-                            ) : taxTypes.length === 0 ? (
+                            ) : pickerTaxTypes.length === 0 ? (
                               <p className="text-xs text-slate-500">No taxes configured</p>
                             ) : (
-                              taxTypes.map((tax) => {
+                              pickerTaxTypes.map((tax) => {
                                 const checked = lineTaxesOf(item).some(
                                   (t) => t.taxTypeId === tax.id || t.id === tax.id
                                 );
+                                const selectable = tax.selectable !== false && tax.status !== 'Inactive';
                                 const label = tax.calculationType === 'Fixed'
                                   ? `${tax.taxName || tax.taxId} (Fixed ${tax.taxRate})`
                                   : `${tax.taxName || tax.taxId} (${tax.taxRate}%)`;
                                 return (
                                   <label
                                     key={tax.id}
-                                    className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 rounded px-0.5 py-0.5"
+                                    className={`flex items-start gap-2 text-xs rounded px-0.5 py-0.5 ${
+                                      selectable
+                                        ? 'text-slate-700 cursor-pointer hover:bg-slate-50'
+                                        : 'text-slate-500'
+                                    }`}
                                   >
                                     <input
                                       type="checkbox"
                                       className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                       checked={checked}
-                                      onChange={() => handleTaxTypeToggle(index, tax.id)}
+                                      onChange={() => {
+                                        if (!selectable && !checked) return;
+                                        handleTaxTypeToggle(index, tax.id);
+                                      }}
                                     />
-                                    <span className="leading-snug">{label}</span>
+                                    <span className="leading-snug">
+                                      {label}
+                                      {!selectable && (
+                                        <span className="text-slate-400"> (inactive)</span>
+                                      )}
+                                    </span>
                                   </label>
                                 );
                               })
@@ -1174,6 +1219,7 @@ const QuotationModal = ({
                           )}
                         </div>
                       </td>
+                      )}
                       <td className="px-3 py-2 whitespace-nowrap text-right font-medium">
                         {formatCurrency(calculateQuotationItemTotals(item).amount)}
                       </td>
@@ -1262,10 +1308,15 @@ const QuotationModal = ({
                     <span className="font-medium text-red-600">-{formatCurrency(totalLineItemDiscounts)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-2 text-sm">
-                  <span className="text-gray-600">Tax:</span>
-                  <span className="font-medium">{formatCurrency(tax)}</span>
-                </div>
+                {shouldDisplayDocumentTax({
+                  taxAmount: tax,
+                  taxLines: (formData.items || []).flatMap((item) => item.taxes || item.itemTaxes || []),
+                }) && (
+                  <div className="flex justify-between py-2 text-sm">
+                    <span className="text-gray-600">Tax:</span>
+                    <span className="font-medium">{formatCurrency(tax)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 text-lg font-bold border-t border-gray-200 mt-2 pt-2">
                   <span>Total:</span>
                   <span>{formatCurrency(total)}</span>

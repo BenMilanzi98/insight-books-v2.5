@@ -58,6 +58,11 @@ const ExpenseForm = ({
   const [addingTaxLoading, setAddingTaxLoading] = useState(false);
   const [selectedTaxTypeId, setSelectedTaxTypeId] = useState('');
   const taxDropdownRef = useRef(null);
+  const taxesAvailable = taxTypes.length > 0;
+  const showTaxFields =
+    taxesAvailable ||
+    (parseFloat(formData.taxAmount) || 0) > 0 ||
+    (parseFloat(formData.taxRate) || 0) > 0;
 
   const [availableCategories, setAvailableCategories] = useState([]);
 
@@ -113,7 +118,7 @@ const ExpenseForm = ({
   // Auto-populate default tax (outflow) once when creating a new expense
   const appliedDefaultTaxRef = useRef(false);
   useEffect(() => {
-    if (expense || !defaultTaxTypeForOutflow || appliedDefaultTaxRef.current) return;
+    if (expense || !defaultTaxTypeForOutflow || appliedDefaultTaxRef.current || !taxesAvailable) return;
     appliedDefaultTaxRef.current = true;
     setSelectedTaxTypeId(defaultTaxTypeForOutflow.id);
     const rate = Number(defaultTaxTypeForOutflow.taxRate) || 0;
@@ -127,7 +132,7 @@ const ExpenseForm = ({
       }
       return next;
     });
-  }, [defaultTaxTypeForOutflow?.id, expense]);
+  }, [defaultTaxTypeForOutflow?.id, expense, taxesAvailable]);
 
   // Close tax dropdown on outside click
   useEffect(() => {
@@ -258,7 +263,7 @@ const ExpenseForm = ({
           taxRate: parseFloat(newTax.taxRate),
           calculationType: 'Percentage',
           accountId: newTax.accountId,
-          status: 'Active',
+          status: 'Inactive',
         }),
       });
       if (!res.ok) {
@@ -266,9 +271,8 @@ const ExpenseForm = ({
         alert(err.error || 'Failed to create tax type');
         return;
       }
-      const created = await res.json();
       await fetchTaxTypes();
-      handleSelectTaxType(created);
+      alert('Tax created as Inactive. Activate it under Tax Management → Tax accounts before using it.');
       setIsAddingTax(false);
       setNewTax({ taxName: '', taxRate: '', accountId: '' });
     } catch (err) {
@@ -534,6 +538,8 @@ const ExpenseForm = ({
           </div>
 
           {/* Tax amount (optional) */}
+          {showTaxFields && (
+          <>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tax amount (MK)
@@ -695,6 +701,8 @@ const ExpenseForm = ({
               Select a tax type; tax amount will be calculated from the total.
             </p>
           </div>
+          </>
+          )}
 
           {/* Date Field */}
           <div>

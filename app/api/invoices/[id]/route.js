@@ -17,6 +17,10 @@ import {
 } from '@/lib/mraEis/application/eligibility/finalizationIntegration.js';
 import { MraEisControlError } from '@/lib/mraEis/domain/errors.js';
 import { emitSalesInvoicePosted } from '@/lib/admin/productAnalytics/producers';
+import {
+  assertActiveTaxTypeIds,
+  collectTaxTypeIdsFromItems,
+} from '@/lib/taxManagement/assertActiveTaxTypes';
 
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
@@ -244,6 +248,32 @@ export async function PUT(request, { params }) {
           { status: 400 }
         );
       }
+    }
+
+    // Historical lines may keep Inactive taxes; new taxTypeIds must still be Active
+    const existingItemTaxes = await prisma.invoiceItemTax.findMany({
+      where: {
+        invoiceItem: {
+          invoiceId,
+          invoice: { tenantId: user.tenantId },
+        },
+      },
+      select: { taxTypeId: true },
+    });
+    const allowInactiveIds = existingItemTaxes.map((r) => r.taxTypeId);
+
+    try {
+      await assertActiveTaxTypeIds(
+        prisma,
+        user.tenantId,
+        collectTaxTypeIdsFromItems(normalizedItems),
+        allowInactiveIds
+      );
+    } catch (e) {
+      if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
+        return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+      }
+      throw e;
     }
 
     const incomeAccountIds = normalizedItems.map(item => item.accountId).filter(Boolean);

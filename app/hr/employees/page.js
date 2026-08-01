@@ -35,6 +35,8 @@ import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
 import EmploymentContractsPanel from "@/components/hr/EmploymentContractsPanel";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import PageHeader from "@/components/shell/PageHeader";
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
+import { useRouter } from 'next/navigation';
 
 
 function formatNpsPercentLabel(v) {
@@ -1757,6 +1759,7 @@ const EmployeeManagement = () => {
   const [filterDepartment, setFilterDepartment] = useState("All");
   const [filterEmploymentType, setFilterEmploymentType] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
+  const router = useRouter();
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -2680,44 +2683,44 @@ const EmployeeManagement = () => {
       {/* Statistics Cards */}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-blue-100 p-3 rounded-full mr-4">
-            <User size={20} className="text-blue-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{statistics.totalEmployees}</span>
-            <span className="text-gray-600 text-sm">Total Employees</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-green-100 p-3 rounded-full mr-4">
-            <CheckCircle size={20} className="text-green-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{statistics.activeEmployees}</span>
-            <span className="text-gray-600 text-sm">Active</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-red-100 p-3 rounded-full mr-4">
-            <AlertCircle size={20} className="text-red-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{statistics.inactiveEmployees}</span>
-            <span className="text-gray-600 text-sm">Inactive</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-yellow-100 p-3 rounded-full mr-4">
-            <DollarSign size={20} className="text-yellow-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">
-              {formatCurrency(statistics.totalSalaryExpense)}
-            </span>
-            <span className="text-gray-600 text-sm">Monthly Salary</span>
-          </div>
-        </div>
+        <ClickableStatCard
+          label="Total Employees"
+          value={statistics.totalEmployees}
+          icon={User}
+          active={filterStatus === 'All'}
+          onClick={() => setFilterStatus('All')}
+          iconWrapClassName="bg-blue-100 text-blue-600"
+          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+        />
+        <ClickableStatCard
+          label="Active"
+          value={statistics.activeEmployees}
+          icon={CheckCircle}
+          active={filterStatus === 'Active'}
+          onClick={() => setFilterStatus((prev) => (prev === 'Active' ? 'All' : 'Active'))}
+          iconWrapClassName="bg-green-100 text-green-600"
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+        />
+        <ClickableStatCard
+          label="Inactive"
+          value={statistics.inactiveEmployees}
+          icon={AlertCircle}
+          active={filterStatus === 'Inactive'}
+          onClick={() => setFilterStatus((prev) => (prev === 'Inactive' ? 'All' : 'Inactive'))}
+          iconWrapClassName="bg-red-100 text-red-600"
+          barClassName="from-red-400 via-rose-500 to-red-600"
+        />
+        <ClickableStatCard
+          label="Monthly Salary"
+          value={formatCurrency(statistics.totalSalaryExpense)}
+          icon={DollarSign}
+          active={false}
+          onClick={() => router.push('/hr/payroll')}
+          title="Open payroll processing"
+          valueClassName="text-amber-700"
+          iconWrapClassName="bg-yellow-100 text-yellow-600"
+          barClassName="from-amber-400 via-yellow-500 to-orange-500"
+        />
       </div>
 
       {/* Main Content Layout - 3/1 */}

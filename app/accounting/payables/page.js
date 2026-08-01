@@ -21,6 +21,7 @@ import {
 import { getPermission } from "@/lib/permissions";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import { calculateDateRange } from "@/lib/dateUtils";
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
 
 // Format currency
 const formatCurrency = (amount) => {
@@ -406,61 +407,46 @@ const AccountsPayable = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-5">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mr-4">
-              <DollarSign className="h-6 w-6 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Payables</p>
-              <div className="text-2xl font-bold text-gray-900">
-                {payables?.current !== undefined ? formatCurrency(payables.current) : <SkeletonElement className="h-8 w-32" />}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-5">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-              <CheckCircle2 className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Not Due</p>
-              <div className="text-2xl font-bold text-gray-900">
-                {payables?.notDue !== undefined ? formatCurrency(payables.notDue) : <SkeletonElement className="h-8 w-32" />}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-5">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mr-4">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Overdue</p>
-              <div className="text-2xl font-bold text-gray-900">
-                {payables?.overdue !== undefined ? formatCurrency(payables.overdue) : <SkeletonElement className="h-8 w-32" />}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-5">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-              <Building className="h-6 w-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Vendors</p>
-              <div className="text-2xl font-bold text-gray-900">
-                {payables?.aging ? payables.aging.length : <SkeletonElement className="h-8 w-16" />}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ClickableStatCard
+          label="Total Payables"
+          value={payables?.current !== undefined ? formatCurrency(payables.current) : '—'}
+          icon={DollarSign}
+          active={statusFilter === 'All'}
+          onClick={() => setStatusFilter('All')}
+          valueClassName="text-red-700"
+          iconWrapClassName="bg-red-100 text-red-600"
+          barClassName="from-red-400 via-rose-500 to-red-600"
+        />
+        <ClickableStatCard
+          label="Not Due"
+          value={payables?.notDue !== undefined ? formatCurrency(payables.notDue) : '—'}
+          icon={CheckCircle2}
+          active={statusFilter === 'Not Due'}
+          onClick={() => setStatusFilter((prev) => (prev === 'Not Due' ? 'All' : 'Not Due'))}
+          valueClassName="text-green-700"
+          iconWrapClassName="bg-green-100 text-green-600"
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+        />
+        <ClickableStatCard
+          label="Overdue"
+          value={payables?.overdue !== undefined ? formatCurrency(payables.overdue) : '—'}
+          icon={AlertCircle}
+          active={statusFilter === 'Overdue'}
+          onClick={() => setStatusFilter((prev) => (prev === 'Overdue' ? 'All' : 'Overdue'))}
+          valueClassName="text-red-700"
+          iconWrapClassName="bg-red-100 text-red-600"
+          barClassName="from-red-400 via-rose-500 to-red-600"
+        />
+        <ClickableStatCard
+          label="Active Vendors"
+          value={payables?.aging ? payables.aging.length : '—'}
+          icon={Building}
+          active={false}
+          onClick={() => setStatusFilter('All')}
+          title="Show all payables"
+          iconWrapClassName="bg-purple-100 text-purple-600"
+          barClassName="from-violet-400 via-purple-500 to-indigo-500"
+        />
       </div>
 
       {/* Aging Summary */}

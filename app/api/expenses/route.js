@@ -65,6 +65,8 @@ export async function GET(request) {
     const dateTo = searchParams.get('dateTo');
     const includeDeleted = searchParams.get('includeDeleted');
     const supplierId = searchParams.get('supplierId');
+    const paymentStatus = searchParams.get('paymentStatus');
+    const isHistorical = searchParams.get('isHistorical');
     
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -73,6 +75,17 @@ export async function GET(request) {
     const whereClause = {
       tenantId: user.tenantId,
       isDeleted: includeDeleted === 'true' ? undefined : false // Exclude deleted by default
+    };
+
+    const andWhere = (clause) => {
+      if (whereClause.AND) {
+        whereClause.AND.push(clause);
+      } else if (whereClause.OR) {
+        whereClause.AND = [{ OR: whereClause.OR }, clause];
+        delete whereClause.OR;
+      } else {
+        Object.assign(whereClause, clause);
+      }
     };
     
     // Branch: explicit query wins; otherwise include tenant-wide rows (branchId null) so payroll PAYE/NPS
@@ -102,6 +115,16 @@ export async function GET(request) {
     // Add supplier filter if provided
     if (supplierId) {
       whereClause.supplierId = supplierId;
+    }
+
+    // Payment status filter (card filters on /expenses)
+    // paymentStatus is required (non-null) with default "Fully paid"
+    if (paymentStatus && paymentStatus !== 'all') {
+      andWhere({ paymentStatus });
+    }
+
+    if (isHistorical === 'true' || isHistorical === '1') {
+      andWhere({ isHistorical: true });
     }
     
     // Add date range filter if provided

@@ -2,18 +2,19 @@ import { cn } from '@/lib/utils';
 
 /**
  * Standard page width wrapper. Presentation only.
+ * Default is full width so modules fill the available shell.
  * @param {'default'|'narrow'|'wide'|'full'} [variant]
  */
 export default function PageContainer({
   children,
   className,
-  variant = 'default',
+  variant = 'full',
   as: Comp = 'div',
 }) {
   const widths = {
-    default: 'max-w-7xl',
+    default: 'max-w-none',
     narrow: 'max-w-3xl',
-    wide: 'max-w-[90rem]',
+    wide: 'max-w-none',
     full: 'max-w-none',
   };
   return (

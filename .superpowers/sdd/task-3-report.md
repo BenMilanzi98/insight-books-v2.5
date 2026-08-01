@@ -1,142 +1,121 @@
-# Task 3 Report � Phase 17 Wave 3 (Readiness, go-live, stabilisation, handover, completion)
+# Task 3 Report: API write enforcement
 
-**Status:** DONE  
-**Date:** 2026-07-31  
-**Working tree:** branch `v2`, in-place (**no git commit**)  
-**Domain path:** `lib/admin/customerSuccess/onboarding/**` (extended Wave 1�2; no second domain)
+## Status
+
+**DONE**
 
 ## Summary
 
-Wave 3 ships readiness dimension evaluation (`UNKNOWN` ? `READY`), migration/MRA/training coordination (recon gate; Training COMPLETED needs Phase 18 source), testing/defects (Critical blocks go-live), go-live approve/execute/outcome ? `STABILISATION` (not `COMPLETED`), stabilisation exit, handover create/accept, completion evaluation + checksum certificate (idempotent retry), server-side progress/health, and accounting boundary (no journals/OB/stock). Cross-Tenant project access denied. Thin project tabs + API actions. Vitest Wave 1 + 2 + 3 green.
+Wired `assertActiveTaxTypeIds` + `collectTaxTypeIdsFromItems` into quotation, invoice, and sales write handlers so Inactive / unknown `taxTypeId`s are rejected with HTTP 400 `{ error, code }` before any item-tax rows are persisted. No commits.
 
-## TDD evidence
+## Files Modified
 
-### RED
-
-```text
-$ npx vitest run test/systemAdmin.cs.onboardingWave3.test.js
-
- FAIL  test/systemAdmin.cs.onboardingWave3.test.js (11 tests | 11 failed)
- TypeError: evaluateOnboardingReadiness is not a function
- TypeError: recordOnboardingDefect is not a function
- TypeError: approveGoLive is not a function
- � (migration / training / completion / certificate / accounting / progress / handover likewise missing)
-```
-
-Failure reason: Wave 3 exports/modules not implemented (expected before GREEN).
-
-### GREEN
-
-```text
-$ npx vitest run test/systemAdmin.cs.onboardingWave3.test.js
-
- Test Files  1 passed (1)
-      Tests  11 passed (11)
-```
-
-### Regression (Wave 1 + Wave 2 + Wave 3)
-
-```text
-$ npx vitest run test/systemAdmin.cs.onboardingWave1.test.js test/systemAdmin.cs.onboardingWave2.test.js test/systemAdmin.cs.onboardingWave3.test.js
-
- Test Files  3 passed (3)
-      Tests  34 passed (34)
-```
-
-### Cases covered
-
-| Case | Result |
+| File | Change |
 |------|--------|
-| UNKNOWN readiness blocks go-live (UNKNOWN ? READY) | PASS |
-| Critical defect blocks go-live approval | PASS |
-| Successful go-live ? STABILISATION not COMPLETED | PASS |
-| Migration COMPLETED rejected without reconciliation | PASS |
-| Training COMPLETED rejected without Training-domain source | PASS |
-| Completion without Customer sign-off fails | PASS |
-| Completion certificate checksum stable on exact retry | PASS |
-| Accounting boundary � no journals/OB/stock from onboarding | PASS |
-| Cross-Tenant project access denied | PASS |
-| Progress/health server-side, versioned; progress ? completion | PASS |
-| Handover create/accept | PASS |
+| `app/api/quotations/route.js` | Import assert helpers; assert on `body.items` after field validation, before `$transaction` / `itemTaxes.create` |
+| `app/api/quotations/[id]/route.js` | Same on PUT, after totals calc, before item delete/recreate |
+| `app/api/invoices/route.js` | Assert on `body.items` after item validation, before income-account checks / create |
+| `app/api/invoices/[id]/route.js` | Assert on `normalizedItems` after item validation, before update transaction |
+| `app/api/sales/route.js` | Assert on `data.items` after item validation (covers `taxBreakdown` via collector), before sale create |
 
-## Deliverables
+## Pattern applied
 
-### Lib (`lib/admin/customerSuccess/onboarding/`)
-
-| File | Role |
-|------|------|
-| `projectAccess.js` | Project load + Cross-Tenant isolation |
-| `readiness/tenant.js` � `configuration.js` / `accounting.js` | Dimension evaluators |
-| `readiness/evaluate.js` | `evaluateOnboardingReadiness` � UNKNOWN ? READY |
-| `accountingBoundary.js` | No journal/OB/stock create; side-effect assert |
-| `migration.js` | Coordination SM; recon gate on COMPLETED |
-| `mraEis.js` | Credential-status boundary only |
-| `training.js` | Phase 16 handoff consume; COMPLETED needs Phase 18 source |
-| `testing.js` / `defects.js` | Plans + Critical severity gate |
-| `goLive.js` | `approveGoLive` / `executeGoLive` / `recordGoLiveOutcome` ? STABILISATION |
-| `stabilisation.js` | Exit criteria + approval |
-| `handover.js` | Create / accept |
-| `completion.js` | Evaluation + checksum certificate (idempotent) |
-| `progress.js` / `health.js` | Server-side versioned rules; no ML |
-| `catalogue.js` / `model.js` / `index.js` | Wave 3 contract + guards + exports |
-
-### Prisma / SQL
-
-- Models appended to `prisma/schema.prisma` (ReadinessEvaluation, Migration, MraEis, Training, TestPlan, Defect, GoLive, GoLiveApproval, Stabilisation, Handover, Completion, CompletionCertificate, Risk, Issue, Document metadata)
-- SQL fallback: `scripts/sql/cs-onboarding-phase17-wave3.sql`
-
-### Thin API / UI
-
-- `app/api/admin/customer-success/onboarding/route.js` � Wave 3 POST actions
-- UI tabs under `app/insightbooks/customer-success/onboarding/projects/[id]/{readiness,migration,training,testing,go-live,stabilisation,handover,completion}`
-
-## Constraints honored
-
-- [x] Extend Wave 1�2 domain; no fork
-- [x] UNKNOWN readiness ? READY; blocks go-live
-- [x] Critical defects block go-live approval
-- [x] Successful go-live ? STABILISATION not COMPLETED
-- [x] Migration COMPLETED rejected without recon
-- [x] Training COMPLETED rejected without Training-domain source
-- [x] Completion needs sign-offs + recon + handover; certificate checksum; exact retry same certificate
-- [x] Accounting boundary: no journal/OB/stock from onboarding
-- [x] Cross-Tenant project access denied
-- [x] Gate honesty: never fabricate go-live/completion
-- [x] No git commit
-
-## Concerns / follow-ups
-
-- Prisma `generate` / `db push` may hit Windows EPERM � use `scripts/sql/cs-onboarding-phase17-wave3.sql` fallback; model guards keep APIs UNAVAILABLE until models exist.
-- Full UI hubs, reliability gate metrics, DQ/recon/lineage, Phase 8 migrate, Phase 18 input pack remain Wave 4.
-- SDD review gate before Wave 4.
-
-## Exit for Wave 3 stop gate
-
-**CONDITIONAL GO** for Wave 4 � no false go-live/completion in delivered services; accounting boundary holds; Critical/High honesty rules covered by Vitest.
-
-## Fix wave
-
-**Date:** 2026-07-31  
-**Trigger:** Task 3 review Critical + Important findings  
-**No git commit**
-
-### Fixes
-
-| Finding | Change |
-|---------|--------|
-| Critical: stored READY snapshot lifts live UNKNOWN ? READY | Removed snapshot merge/lift in `readiness/evaluate.js`; stored eval is audit-only; fresh dims never promoted from history |
-| Important: training `IN_PROGRESS` treated as READY | `evaluateTrainingDim` � only Training-domain COMPLETED or NOT_REQUIRED / WAIVED_WITH_APPROVAL / NOT_APPLICABLE; stub IN_PROGRESS/UNKNOWN stay non-READY |
-| Important: execute/outcome skip readiness re-check | `executeGoLive` + `recordGoLiveOutcome(SUCCESSFUL)` call `requireCurrentReadiness` (READY / READY_WITH_WARNINGS only) |
-| Important: SUCCESSFUL can return ok without STABILISATION | Outcome fails with `go_live_stabilisation_transition_failed` if final status ? STABILISATION |
-| Important: accounting boundary fails on ambient tenant GL | `assertOnboardingAccountingBoundary` fails only on onboarding-authored side effects; create-deny retained; ambient journals OK |
-
-### Tests
-
-```text
-$ npx vitest run test/systemAdmin.cs.onboardingWave1.test.js test/systemAdmin.cs.onboardingWave2.test.js test/systemAdmin.cs.onboardingWave3.test.js
-
- Test Files  3 passed (3)
-      Tests  37 passed (37)
+```js
+try {
+  await assertActiveTaxTypeIds(prisma, user.tenantId, collectTaxTypeIdsFromItems(items));
+} catch (e) {
+  if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
+    return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+  }
+  throw e;
+}
 ```
 
-Added Wave 3 cases: stored snapshot never lifts UNKNOWN; training IN_PROGRESS non-READY; execute refuses after readiness regression; ambient journals allowed on accounting boundary. Harness `seedGoLiveReady` uses explicit `dimensionOverrides` + live Training-domain COMPLETED / test plan PASSED (no snapshot lift).
+`collectTaxTypeIdsFromItems` already gathers from `itemTaxes` / `taxes` / `taxBreakdown`, so sales taxBreakdown IDs are covered without a second collector.
+
+## Out of scope (intentionally unchanged)
+
+- GET / read paths
+- Quotation duplicate / convert routes (historical copy-from-existing)
+- Sales rate-match fallback that only selects from `status: 'Active'` rows
+
+## Verification
+
+### Call-site audit
+
+All five target files import and call `assertActiveTaxTypeIds` before persisting taxes. Example (quotations POST): assert at ~line 280, `$transaction` / `itemTaxes.create` afterward.
+
+### Unit tests
+
+```
+npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js
+→ Test Files 1 passed | Tests 4 passed
+```
+
+### Inactive reject (route-pattern + live DB)
+
+No auth cookies available for a full HTTP `POST /api/quotations` in this session. Verified the same try/catch mapping used by the routes against Prisma with a temporary Inactive `TaxType`:
+
+```json
+{
+  "status": 400,
+  "body": {
+    "error": "Tax \"TMP Inactive Task3 Verify\" is not active and cannot be used on new documents.",
+    "code": "INACTIVE_TAX"
+  }
+}
+```
+
+Temp Inactive tax was deleted after the check.
+
+## Self-Review
+
+### Strengths
+
+- Assert runs before any write transaction that creates item tax rows.
+- Consistent 400 payload shape across all five handlers.
+- Sales uses shared collector so `taxBreakdown` is covered.
+
+### Concerns / residual risk
+
+- Editing a saved quotation/invoice that still carries an Inactive tax line will now 400 on save until the user removes/replaces that tax (matches spec write enforcement; may surprise users who only change non-tax fields).
+- Full authenticated HTTP POST smoke was not run here (empty cookie jar); recommend a quick manual POST once logged in.
+- Sales items with tax amount but empty `taxBreakdown` still use the Active-by-rate fallback and are not asserted (no client-supplied Inactive id to reject).
+
+## Commits
+
+None (per constraint).
+
+---
+
+## Important review fix: PUT allowInactiveIds for historical taxes
+
+### Problem
+
+Quotation/invoice PUT called `assertActiveTaxTypeIds` on the full payload with no exception for taxes already on the document. Saving a historical doc that still carried Inactive tax lines returned 400.
+
+### Fix
+
+1. **`lib/taxManagement/assertActiveTaxTypes.js`** — optional 4th arg `allowInactiveIds` (array or Set). Those IDs must still exist for the tenant; Active check is skipped. Unknown IDs still reject. IDs not in the allow list still require Active.
+
+2. **PUT only**
+   - `app/api/quotations/[id]/route.js` — load existing `quotationItemTax.taxTypeId`s (tenant-scoped via quotation), pass as `allowInactiveIds`
+   - `app/api/invoices/[id]/route.js` — same for `invoiceItemTax`
+
+3. **Unchanged (strict)** — POST create on quotations/invoices and sales create (no allow list).
+
+### Unit tests
+
+```
+npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js
+→ Test Files 1 passed (1)
+→ Tests 6 passed (6)
+```
+
+Added cases:
+- Inactive id in `allowInactiveIds` → passes
+- Inactive id not in allow list → still rejects `INACTIVE_TAX`
+
+### Commits
+
+None (per constraint).

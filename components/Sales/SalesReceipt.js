@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getPaymentMethodIcon, getPaymentMethodName } from '@/lib/paymentMethods';
 import { multiplyMoney } from '@/lib/money';
+import { shouldDisplayDocumentTax, taxLineAmount } from '@/lib/documentTaxDisplay';
 
 const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSettings = null }) => {
   const receiptRef = useRef(null);
@@ -318,53 +319,39 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               </div>
               {(() => {
                 const taxBuckets = {};
-                let hasAnyTaxes = false;
-                
-                // Check both taxBreakdown (from frontend) and itemTaxes (from database)
+
                 (sale.items || []).forEach(item => {
-                  // Try taxBreakdown first (frontend data)
-                  if (item.taxBreakdown && item.taxBreakdown.length > 0) {
-                    hasAnyTaxes = true;
-                    item.taxBreakdown.forEach(tax => {
-                      const taxKey = tax.taxName || tax.taxId || 'Tax';
-                      if (!taxBuckets[taxKey]) {
-                        taxBuckets[taxKey] = {
-                          name: tax.taxName || tax.taxId || 'Tax',
-                          code: tax.taxCode || null,
-                          total: 0
-                        };
-                      }
-                      taxBuckets[taxKey].total += Number(tax.taxAmount || 0);
-                    });
-                  }
-                  // Also check itemTaxes (database data)
-                  if (item.itemTaxes && item.itemTaxes.length > 0) {
-                    hasAnyTaxes = true;
-                    item.itemTaxes.forEach(tax => {
-                      const taxKey = tax.taxName || 'Tax';
-                      if (!taxBuckets[taxKey]) {
-                        taxBuckets[taxKey] = {
-                          name: tax.taxName || 'Tax',
-                          code: tax.taxCode || null,
-                          total: 0
-                        };
-                      }
-                      taxBuckets[taxKey].total += Number(tax.taxAmount || 0);
-                    });
-                  }
+                  const addTax = (tax) => {
+                    const amount = taxLineAmount(tax);
+                    if (amount <= 0) return;
+                    const taxKey = tax.taxName || tax.taxId || 'Tax';
+                    if (!taxBuckets[taxKey]) {
+                      taxBuckets[taxKey] = {
+                        name: tax.taxName || tax.taxId || 'Tax',
+                        code: tax.taxCode || null,
+                        total: 0,
+                      };
+                    }
+                    taxBuckets[taxKey].total += amount;
+                  };
+
+                  (item.taxBreakdown || []).forEach(addTax);
+                  (item.itemTaxes || []).forEach(addTax);
                 });
 
                 const detailedTaxes = Object.values(taxBuckets)
+                  .filter((tax) => tax.total > 0)
                   .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                 const calculatedTotalTax = detailedTaxes.reduce((sum, tax) => sum + tax.total, 0);
                 const totalTax = calculatedTotalTax > 0 ? calculatedTotalTax : Number(sale.totalTaxAmount || 0);
 
-                // Show taxes if we have any
-                if (!hasAnyTaxes && totalTax <= 0) return null;
+                if (!shouldDisplayDocumentTax({ taxAmount: totalTax, taxLines: detailedTaxes })) {
+                  return null;
+                }
 
                 return (
                   <>
-                    {detailedTaxes.length > 0 && detailedTaxes.map((tax, idx) => (
+                    {detailedTaxes.map((tax, idx) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                         <span style={{ fontWeight: 'bold' }}>
                           {tax.name}{tax.code ? ` (${tax.code})` : ''}:
@@ -373,9 +360,9 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                       </div>
                     ))}
                     {totalTax > 0 && (
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
                         margin: '2px 0',
                         borderTop: '1px solid #ddd',
                         paddingTop: '4px',

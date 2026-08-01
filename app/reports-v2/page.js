@@ -11,7 +11,7 @@
  * Legacy /reports redirects here.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { REPORT_TYPES } from '@/lib/accountingV2/reporting/reportTypes';
 import ReportLayout from '@/components/patterns/ReportLayout';
@@ -261,7 +261,7 @@ function ReportsV2PageInner() {
 
   return (
     <ReportLayout
-      title="Financial Reports"
+      title="Reports"
       description="All figures derive from canonical posted journal lines through the Financial Reporting Engine. Exports use the same calculation service as this screen. This is the sole financial reporting hub."
       period={
         <p className="text-sm font-medium text-[var(--text-primary)]" aria-live="polite">
@@ -415,8 +415,8 @@ function ReportsV2PageInner() {
                   </thead>
                   <tbody>
                     {report.lines.map((l) => (
-                      <>
-                        <tr key={l.lineId} className={`border-b border-slate-100 ${['GRAND_TOTAL', 'SUBTOTAL', 'CALCULATED_TOTAL'].includes(l.lineType) ? 'font-semibold' : ''} ${l.lineType === 'SECTION' ? 'bg-slate-50 font-bold uppercase' : ''}`}>
+                      <Fragment key={l.lineId}>
+                        <tr className={`border-b border-slate-100 ${['GRAND_TOTAL', 'SUBTOTAL', 'CALCULATED_TOTAL'].includes(l.lineType) ? 'font-semibold' : ''} ${l.lineType === 'SECTION' ? 'bg-slate-50 font-bold uppercase' : ''}`}>
                           <td className="py-1.5 pr-2">
                             {l.label}
                             {l.warningStatus && <Badge tone="warn">{l.warningStatus}</Badge>}
@@ -453,7 +453,7 @@ function ReportsV2PageInner() {
                               </td>
                             </tr>
                           ))}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

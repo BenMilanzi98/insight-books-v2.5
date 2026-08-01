@@ -1,3 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-export { default } from "../../tax-types/page";
+export default function TaxCodesRedirectPage() {
+  redirect("/tax-management/accounts");
+}

@@ -1,49 +1,46 @@
-# Task 1 Review — Phase 17 Wave 1 (Request + Project spine)
+# Task 1 Review: Server assert helper + unit tests
 
-**Base:** pre-Task1 WORKING_TREE · **Head:** WORKING_TREE · **Package:** `task-1-review-package.diff`  
-**Suite:** not re-run (7 cases present; report GREEN trusted)
+**Reviewer:** task-scoped gate (read-only)  
+**Base:** `f918aed627019ad3d669c92b382904d266e7bfb7`  
+**Head:** working tree (uncommitted)
 
-## Verdicts
-- **Spec compliance:** ✅ (core spine; Important gaps below)
-- **Task quality:** Changes required
+## Spec compliance: ✅
 
-## Critical
-None.
+| Requirement | Verified |
+|-------------|----------|
+| Create `lib/taxManagement/assertActiveTaxTypes.js` | Present; matches brief Step 3 |
+| Create `tests/unit/taxManagement/assertActiveTaxTypes.test.js` | Present; matches brief Step 1 verbatim (4 cases) |
+| `assertActiveTaxTypeIds` dedupes, no-ops empty, tenant-scoped query | Implemented (`Set`, early return, `where: { tenantId, id: { in: ids } }`) |
+| Rejects inactive / unknown with routable errors | Throws `Error` with `code` (`INACTIVE_TAX` / `UNKNOWN_TAX`) and `status: 400` |
+| `collectTaxTypeIdsFromItems` exported | Present; matches brief |
+| No Prisma schema change | Confirmed — helper only |
+| No API/UI wiring (later tasks) | Confirmed — only helper + tests + vitest include |
+| No commit | Confirmed |
 
-## Important
-1. **Handoff acknowledge skipped on idempotent replay** — `handoffConsume.js:176-181`. After Request create, `acknowledgeOnboardingHandoffInProgress` runs only when `!alreadyExists && !idempotentReplay`. If acknowledge fails/throws then client retries, replay skips acknowledge → handoff can stay `NOT_STARTED` forever. Acknowledge when still not `IN_PROGRESS` (ignore ack result only after success, or always re-attempt).
-2. **Project create → Request `CONVERTED_TO_PROJECT` not durable on retry** — `projects.js:222-232` (+ `130-144`). Transition runs only after first create; `existingByKey` / `existingByRequest` replays return the Project without repairing Request status. Concurrent unique(`onboardingRequestId`) race catch (`193-215`) looks up by `idempotencyKey` only, not by request id. Wrap create+transition (or repair status on replay / catch by `onboardingRequestId`).
+**Note:** Brief interface text mentions messages containing `INACTIVE_TAX`/`UNKNOWN_TAX`, but Step 3 reference implementation and tests use `err.code`. Implementation follows Step 3 (authoritative for this task).
 
-## Minor
-- `allowIncompletePins` documented (`handoffConsume.js:79`) but unused; pins enforced at validate/accept/project (OK if intentional).
-- Review package omits `prisma/schema.prisma` + `crm/catalogue.js` ONR/ONB (present on disk; verified).
-- No auto-hook from Phase 16 emit → consume (API `action=consume` is the wire; acceptable Wave 1).
+## Task quality: Approved
 
----
+### Strengths
 
-## Re-review (after Important fix wave)
+- Implementation is essentially identical to the brief’s reference code.
+- Error shape (`Error` + `code` + `status: 400`) aligns with existing patterns (`taxPeriodService`, budgetForecast route guards).
+- Prisma field names (`status`, `taxName`, `tenantId`) match `TaxType` model.
+- Tests are minimal mocks — no DB required; cases cover empty, success, inactive, unknown.
+- `vitest.config.js` include fix (`tests/**/*.test.js`) is necessary for the brief’s documented run command; low-risk additive change.
 
-**Date:** 2026-07-31  
-**Package:** `task-1-review-package.diff` (fix-wave files)  
-**Suite:** not re-run (implementer reported 9/9; trusted)
+### Minor (non-blocking)
 
-### Prior Important — disposition
+1. **Test depth:** Brief-specified suite does not assert dedupe/trim, `status: 400`, or `findMany` call args (`tenantId`, `id.in`). Behavior is in implementation but unverified by tests.
+2. **`collectTaxTypeIdsFromItems`:** Untested (explicitly deferred to later tasks per brief).
+3. **`t.id` fallback:** Per brief; downstream wiring should prefer `taxTypeId` payloads where possible.
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | Handoff ack skipped on idempotent replay | **Resolved** — `consumeOnboardingHandoff` always calls `acknowledgeOnboardingHandoffInProgress` after Request exists (create or replay). Covered by repair test. |
-| 2 | Request `CONVERTED_TO_PROJECT` not durable + race lookup by key only | **Resolved** — `ensureRequestConvertedToProject` on `existingByKey`, `existingByRequest`, race catch, and create success; race catch resolves by idempotency key **or** `onboardingRequestId`. Covered by repair test. |
+### Not issues for this task
 
-### Verdicts
-- **Spec compliance:** ✅
-- **Task quality:** Approved
+- TDD RED/GREEN logs in report were not re-run; code/test alignment is sufficient without rerun.
+- No route integration yet — correctly scoped to Task 1.
 
-### Critical
-None.
+## Verdict summary
 
-### Important
-None remaining.
-
-### Minor / residual
-- Consume response still defaults `handoffExecutionStatus` to `IN_PROGRESS` when ack returns no handoff payload (`ack?.handoff?.executionStatus || IN_PROGRESS`). Durability is fixed by replay ack; response accuracy if ack fails mid-call is cosmetic.
-- Prior Minor items (unused `allowIncompletePins`, package omissions, no emit→consume auto-hook) unchanged; non-blocking for Wave 1.
+1. **Spec compliance:** ✅  
+2. **Task quality:** Approved

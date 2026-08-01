@@ -40,7 +40,8 @@ export async function GET(request) {
     // Fetch tax types without include to avoid Prisma relation mismatches on different clients
     const taxTypes = await prisma.taxType.findMany({
       where,
-      orderBy: { taxName: 'asc' },
+      // Active before Inactive ('Active' < 'Inactive'), then name
+      orderBy: [{ status: 'asc' }, { taxName: 'asc' }],
     });
 
     // Load accounts separately if any tax types have accountId
@@ -98,8 +99,9 @@ export async function POST(request) {
       taxRate,
       calculationType,
       accountId,
-      status = 'Active',
+      // status from body is ignored on create — taxes start Inactive; Activate via PUT / Tax Codes.
     } = body;
+    const status = 'Inactive';
 
     // Validation - taxId, taxName and taxRate are required. taxCode and accountId are optional.
     if (!taxId || !taxName) {

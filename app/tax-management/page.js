@@ -17,10 +17,12 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import PageHeader from "@/components/shell/PageHeader";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import ClickableStatCard from '@/components/ui/ClickableStatCard';
 
 
 export default function TaxManagement() {
   const { t } = useI18n();
+  const router = useRouter();
   // State for filtering and data
   const [timeframe, setTimeframe] = useState("thisMonth");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
@@ -432,44 +434,47 @@ export default function TaxManagement() {
                 <>
                   {/* Tax Summary Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    <div className="bg-blue-50 rounded-lg p-6">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-medium text-blue-800">Total Collected Tax</h3>
-                        <DollarSign className="h-5 w-5 text-blue-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-blue-700">
-                        {formatCurrency(taxData.collectedTaxes.totalCollectedTax)}
-                      </p>
-                      <p className="text-sm text-blue-600 mt-2">
+                    <ClickableStatCard
+                      label="Total Collected Tax"
+                      value={formatCurrency(taxData.collectedTaxes.totalCollectedTax)}
+                      icon={DollarSign}
+                      active={activeTab === 'collected'}
+                      onClick={() => setActiveTab((prev) => (prev === 'collected' ? 'summary' : 'collected'))}
+                      valueClassName="text-blue-700"
+                      iconWrapClassName="bg-blue-100 text-blue-600"
+                      barClassName="from-blue-400 via-indigo-500 to-blue-600"
+                    >
+                      <span className="block text-sm text-blue-600">
                         On {formatCurrency(taxData.collectedTaxes.totalTaxableAmount)} taxable amount
-                      </p>
-                    </div>
-
-                    <div className="bg-red-50 rounded-lg p-6">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-medium text-red-800">Total Paid Tax</h3>
-                        <DollarSign className="h-5 w-5 text-red-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-red-700">
-                        {formatCurrency(taxData.paidTaxes.totalTaxPaid)}
-                      </p>
-                      <p className="text-sm text-red-600 mt-2">
-                        From {taxData.paidTaxes.expenses.length} expense transactions
-                      </p>
-                    </div>
-
-                    <div className="bg-green-50 rounded-lg p-6">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-medium text-green-800">Net Tax Liability</h3>
-                        <PercentIcon className="h-5 w-5 text-green-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-green-700">
-                        {formatCurrency(taxData.netTaxLiability)}
-                      </p>
-                      <p className="text-sm text-green-600 mt-2">
+                      </span>
+                    </ClickableStatCard>
+                    <ClickableStatCard
+                      label="Total Paid Tax"
+                      value={formatCurrency(taxData.paidTaxes.totalTaxPaid)}
+                      count={taxData.paidTaxes.expenses.length}
+                      countLabel="expense transactions"
+                      icon={DollarSign}
+                      active={activeTab === 'paid'}
+                      onClick={() => setActiveTab((prev) => (prev === 'paid' ? 'summary' : 'paid'))}
+                      valueClassName="text-red-700"
+                      iconWrapClassName="bg-red-100 text-red-600"
+                      barClassName="from-red-400 via-rose-500 to-red-600"
+                    />
+                    <ClickableStatCard
+                      label="Net Tax Liability"
+                      value={formatCurrency(taxData.netTaxLiability)}
+                      icon={PercentIcon}
+                      active={false}
+                      onClick={() => router.push('/tax-management/accounts')}
+                      title="View tax accounts and balances"
+                      valueClassName="text-green-700"
+                      iconWrapClassName="bg-green-100 text-green-600"
+                      barClassName="from-emerald-400 via-green-500 to-teal-500"
+                    >
+                      <span className="block text-sm text-green-600">
                         Due to tax authority for this period
-                      </p>
-                    </div>
+                      </span>
+                    </ClickableStatCard>
                   </div>
 
                   {/* VAT Summary: Purchase taxes → Input VAT, Sales taxes → Output VAT, Net VAT payable */}

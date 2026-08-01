@@ -10,8 +10,6 @@ import {
   prismaWhereExpenseRegisterOverlapsGlCogs,
 } from '@/lib/expenseRegisterGlCogsOverlap';
 import { applyExpenseTextSearchToWhere } from '@/lib/applyExpenseTextSearchToWhere';
-import { getExpenseGrossAmount } from '@/lib/expenseAmounts';
-import { addMoney, roundMoney, subtractMoney } from '@/lib/money';
 
 // GET - Fetch expense statistics
 export async function GET(request) {
@@ -149,28 +147,41 @@ export async function GET(request) {
       _sum: { amount: true }
     });
 
-    // Approved expenses that still need cash/settlement (matches grid "Payment status")
-    const outstandingPaymentRows = await prisma.expense.findMany({
-      where: {
-        ...baseFilter,
-        status: 'Approved',
-        paymentStatus: { in: ['Pending', 'Partially'] }
-      },
-      select: {
-        amount: true,
-        taxAmount: true,
-        paidAmount: true
+    // Merge extra predicates without clobbering branch OR from addBranchFilterIncludeUnassigned
+    const withFilter = (extra) => {
+      const where = { ...baseFilter };
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, extra];
+        delete where.OR;
+      } else if (where.AND) {
+        where.AND = [...where.AND, extra];
+      } else {
+        Object.assign(where, extra);
       }
+      return where;
+    };
+
+    // Payment status buckets (matches grid "Payment status" column)
+    const pendingPaymentExpenses = await prisma.expense.aggregate({
+      where: withFilter({ paymentStatus: 'Pending' }),
+      _count: true,
+      _sum: { amount: true },
     });
-    let outstandingPaymentSum = 0;
-    for (const row of outstandingPaymentRows) {
-      const totalDue = getExpenseGrossAmount(row);
-      const paid = roundMoney(row.paidAmount != null ? row.paidAmount : 0);
-      outstandingPaymentSum = addMoney(
-        outstandingPaymentSum,
-        Math.max(0, subtractMoney(totalDue, paid))
-      );
-    }
+    const partiallyPaidExpenses = await prisma.expense.aggregate({
+      where: withFilter({ paymentStatus: 'Partially' }),
+      _count: true,
+      _sum: { amount: true },
+    });
+    const fullyPaidExpenses = await prisma.expense.aggregate({
+      where: withFilter({ paymentStatus: 'Fully paid' }),
+      _count: true,
+      _sum: { amount: true },
+    });
+    const historicalExpenses = await prisma.expense.aggregate({
+      where: withFilter({ isHistorical: true }),
+      _count: true,
+      _sum: { amount: true },
+    });
     
     // Get expenses by category (only categories that have at least one expense)
     const expensesByCategory = await prisma.expense.groupBy({
@@ -424,9 +435,22 @@ export async function GET(request) {
         count: pendingExpenses._count || 0,
         amount: fmt(pendingAmount)
       },
-      outstandingPayment: {
-        count: outstandingPaymentRows.length,
-        amount: fmt(outstandingPaymentSum)
+      // Payment status (not approval workflow)
+      paymentPending: {
+        count: pendingPaymentExpenses._count || 0,
+        amount: fmt(pendingPaymentExpenses._sum.amount || 0),
+      },
+      partiallyPaid: {
+        count: partiallyPaidExpenses._count || 0,
+        amount: fmt(partiallyPaidExpenses._sum.amount || 0),
+      },
+      fullyPaid: {
+        count: fullyPaidExpenses._count || 0,
+        amount: fmt(fullyPaidExpenses._sum.amount || 0),
+      },
+      historical: {
+        count: historicalExpenses._count || 0,
+        amount: fmt(historicalExpenses._sum.amount || 0),
       },
       rejected: {
         count: rejectedExpenses._count || 0,
