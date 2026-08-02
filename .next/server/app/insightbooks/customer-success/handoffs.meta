@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/customer-success/layout,_N_T_/insightbooks/customer-success/handoffs/layout,_N_T_/insightbooks/customer-success/handoffs/page,_N_T_/insightbooks/customer-success/handoffs"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/customer-success/handoffs/__PAGE__",
+    "/insightbooks/customer-success/handoffs",
+    "/insightbooks/customer-success",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "status": 307,
+  "headers": {
+    "location": "/subscription",
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/subscription/layout,_N_T_/subscription/branch/layout,_N_T_/subscription/branch/page,_N_T_/subscription/branch"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/subscription/branch/__PAGE__",
+    "/subscription/branch",
+    "/subscription",
+    "/_index",
+    "/_head"
+  ]
+}

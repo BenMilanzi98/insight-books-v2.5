@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/budget-forecast/layout,_N_T_/budget-forecast/reports/layout,_N_T_/budget-forecast/reports/page,_N_T_/budget-forecast/reports"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/budget-forecast/reports/__PAGE__",
+    "/budget-forecast/reports",
+    "/budget-forecast",
+    "/_index",
+    "/_head"
+  ]
+}

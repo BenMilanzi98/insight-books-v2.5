@@ -1,0 +1,8 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /insightbooks/
+Disallow: /pos/
+
+Sitemap: http://213.165.230.139:3000/sitemap.xml

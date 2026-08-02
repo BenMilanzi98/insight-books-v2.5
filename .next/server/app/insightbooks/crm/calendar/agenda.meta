@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/crm/layout,_N_T_/insightbooks/crm/calendar/layout,_N_T_/insightbooks/crm/calendar/agenda/layout,_N_T_/insightbooks/crm/calendar/agenda/page,_N_T_/insightbooks/crm/calendar/agenda"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/crm/calendar/agenda/__PAGE__",
+    "/insightbooks/crm/calendar/agenda",
+    "/insightbooks/crm/calendar",
+    "/insightbooks/crm",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

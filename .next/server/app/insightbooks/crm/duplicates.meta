@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/crm/layout,_N_T_/insightbooks/crm/duplicates/layout,_N_T_/insightbooks/crm/duplicates/page,_N_T_/insightbooks/crm/duplicates"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/crm/duplicates/__PAGE__",
+    "/insightbooks/crm/duplicates",
+    "/insightbooks/crm",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/tax-management/layout,_N_T_/tax-management/tax-codes/layout,_N_T_/tax-management/tax-codes/page,_N_T_/tax-management/tax-codes"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/tax-management/tax-codes/__PAGE__",
+    "/tax-management/tax-codes",
+    "/tax-management",
+    "/_index",
+    "/_head"
+  ]
+}

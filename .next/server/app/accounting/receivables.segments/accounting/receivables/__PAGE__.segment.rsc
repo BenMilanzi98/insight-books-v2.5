@@ -1,0 +1,9 @@
+1:"$Sreact.fragment"
+2:I[61304,[],"ClientPageRoot"]
+3:I[66119,["53930","static/chunks/164f4fb6-6251be9fefac3e80.js","85033","static/chunks/2f0b94e8-e0b81e2083ba6765.js","14316","static/chunks/ad2866b8-edbe681f688e4c03.js","18409","static/chunks/18409-fded1b463fc1468c.js","63034","static/chunks/63034-6d889380d7432a99.js","13280","static/chunks/13280-7976c27cc34f4e6f.js","98114","static/chunks/98114-a2e17d50c19163d7.js","84027","static/chunks/84027-c75ab1574cdac93b.js","8516","static/chunks/8516-6fa4cefd1d968434.js","37135","static/chunks/37135-cd92bae9d884e5c3.js","75202","static/chunks/75202-1d41b16cb3371f37.js","85198","static/chunks/app/accounting/receivables/page-081f986965d307b2.js"],"default",1]
+6:I[90484,[],"OutletBoundary"]
+7:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],null,["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"build"}
+4:{}
+5:"$0:rsc:props:children:0:props:serverProvidedParams:params"
+8:null

@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/chart-of-accounts/layout,_N_T_/insightbooks/chart-of-accounts/page,_N_T_/insightbooks/chart-of-accounts"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/chart-of-accounts/__PAGE__",
+    "/insightbooks/chart-of-accounts",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

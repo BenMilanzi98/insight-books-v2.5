@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/dashboard/layout,_N_T_/insightbooks/dashboard/subscription-analytics/layout,_N_T_/insightbooks/dashboard/subscription-analytics/page,_N_T_/insightbooks/dashboard/subscription-analytics"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/dashboard/subscription-analytics/__PAGE__",
+    "/insightbooks/dashboard/subscription-analytics",
+    "/insightbooks/dashboard",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

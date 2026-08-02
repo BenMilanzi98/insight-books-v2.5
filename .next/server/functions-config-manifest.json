@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/assets/[id]/transfer": {},
+    "/api/employees/export": {},
+    "/api/employees/import": {},
+    "/api/employees/import-template": {},
+    "/api/mobile-app/download": {},
+    "/api/mobile-app/proxy-apk": {},
+    "/api/payment-accounts": {},
+    "/api/payment-accounts/[id]": {},
+    "/api/payment-accounts/channels": {},
+    "/api/sales/receipts/export": {
+      "maxDuration": 300
+    },
+    "/api/system/cutover/gates": {},
+    "/api/system/cutover/status": {},
+    "/api/system/health": {},
+    "/api/system/health/live": {},
+    "/api/system/health/ready": {}
+  }
+}

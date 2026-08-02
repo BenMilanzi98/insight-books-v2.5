@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/marketing/layout,_N_T_/insightbooks/marketing/lead-sources/layout,_N_T_/insightbooks/marketing/lead-sources/page,_N_T_/insightbooks/marketing/lead-sources"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/marketing/lead-sources/__PAGE__",
+    "/insightbooks/marketing/lead-sources",
+    "/insightbooks/marketing",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/crm/layout,_N_T_/insightbooks/crm/activities/layout,_N_T_/insightbooks/crm/activities/page,_N_T_/insightbooks/crm/activities"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/crm/activities/__PAGE__",
+    "/insightbooks/crm/activities",
+    "/insightbooks/crm",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

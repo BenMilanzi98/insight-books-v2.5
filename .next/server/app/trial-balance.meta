@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/trial-balance/layout,_N_T_/trial-balance/page,_N_T_/trial-balance"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/trial-balance/__PAGE__",
+    "/trial-balance",
+    "/_index",
+    "/_head"
+  ]
+}

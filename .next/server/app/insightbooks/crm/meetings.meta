@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/crm/layout,_N_T_/insightbooks/crm/meetings/layout,_N_T_/insightbooks/crm/meetings/page,_N_T_/insightbooks/crm/meetings"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/crm/meetings/__PAGE__",
+    "/insightbooks/crm/meetings",
+    "/insightbooks/crm",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

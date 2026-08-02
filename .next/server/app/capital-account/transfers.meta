@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/capital-account/layout,_N_T_/capital-account/transfers/layout,_N_T_/capital-account/transfers/page,_N_T_/capital-account/transfers"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/capital-account/transfers/__PAGE__",
+    "/capital-account/transfers",
+    "/capital-account",
+    "/_index",
+    "/_head"
+  ]
+}
