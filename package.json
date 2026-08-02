@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && cross-env NODE_ENV=development next dev -p 3000",
-    "build": "prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=4096 next build --webpack",
-    "build:clean": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=4096 next build --webpack",
+    "build": "prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+    "build:clean": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+    "build:standalone": "prisma generate && cross-env NODE_ENV=production NEXT_STANDALONE=1 NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+    "build:vps": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=6144 next build --webpack",
     "start": "cross-env NODE_ENV=production next start",
     "lint": "eslint . --max-warnings 999",
     "lint:next": "next lint",

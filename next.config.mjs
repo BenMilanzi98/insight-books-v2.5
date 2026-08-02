@@ -27,8 +27,10 @@ const nextConfig = {
   compiler: {
     removeConsole: isClientConsoleEnabledAtBuild() ? false : true,
   },
-  output: 'standalone',
-  // Keep upload/tmp/docs out of standalone file tracing (cuts VPS build RAM).
+  // Standalone tracing is very RAM-heavy on small VPSs. Opt in explicitly:
+  // NEXT_STANDALONE=1 npm run build
+  ...(process.env.NEXT_STANDALONE === '1' ? { output: 'standalone' } : {}),
+  // Keep upload/tmp/docs out of file tracing (cuts VPS build RAM).
   outputFileTracingExcludes: {
     '*': [
       './uploads/**/*',
@@ -36,23 +38,25 @@ const nextConfig = {
       './.cursor/**/*',
       './docs/**/*',
       './storage/**/*',
+      './node_modules/@swc/core*/**/*',
+      './node_modules/next/dist/server/lib/squoosh/**/*',
       './**/*.docx',
       './**/*.pdf',
       './**/*.xlsx',
     ],
   },
   transpilePackages: ['qrcode.react'],
+  productionBrowserSourceMaps: false,
   experimental: {
     // Lower peak memory during webpack production builds (helps small VPSs).
     webpackMemoryOptimizations: true,
     cpus: 1,
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     // Serialize webpack work — trades speed for lower RAM on small hosts.
     config.parallelism = 1;
-    if (isServer) {
-      config.externals = config.externals || [];
-    }
+    config.cache = false;
+    config.devtool = false;
     return config;
   },
   images: {
