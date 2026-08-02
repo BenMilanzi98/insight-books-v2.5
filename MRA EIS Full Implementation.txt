@@ -217,7 +217,7 @@ System Admin Entitlement
 AND
 Tenant Operational Setting
 AND
-Valid Activated Terminal
+Valid Activated Terminal////
 AND
 Valid Current Configuration
 AND
