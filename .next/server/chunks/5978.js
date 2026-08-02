@@ -1,0 +1,1 @@
+"use strict";exports.id=5978,exports.ids=[5978],exports.modules={283597:(a,b,c)=>{c.d(b,{NV:()=>f,fY:()=>e});var d=c(12014);function e(a){return(0,d.By)(a?.amount)}function f(a){let b=e(a),c=(0,d.By)(a?.paidAmount);return Math.max(0,(0,d.$w)(b,c))}}};

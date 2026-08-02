@@ -1,0 +1,1 @@
+globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/clients/[id]/invoices/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"C:\\laragon\\www\\insight-books-v2.5\\app\\api\\clients\\[id]\\invoices\\route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}};

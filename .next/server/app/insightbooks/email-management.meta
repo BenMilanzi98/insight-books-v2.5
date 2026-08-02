@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/email-management/layout,_N_T_/insightbooks/email-management/page,_N_T_/insightbooks/email-management"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/email-management/__PAGE__",
+    "/insightbooks/email-management",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

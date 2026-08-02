@@ -14,8 +14,12 @@
 # testing
 /coverage
 
-# next.js
-/.next/
+# next.js — commit production build so VPS can pull + reload without building.
+# Exclude cache + build diagnostics (not required for `next start`; often >100MB).
+/.next/cache/
+/.next/trace
+/.next/trace-build
+/.next/diagnostics/
 /out/
 
 # production
@@ -31,7 +35,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (never commit secrets)
 .env*
 .env
 
@@ -42,12 +46,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .next.zip
-.next/
 public/uploads/
 # Android APKs uploaded via admin (large binaries)
 public/releases/*.apk
 cookies.txt
-.env
 
 # Phase 1 accounting audit artifacts (may contain real financial data — never commit)
 /artifacts/accounting-audit/

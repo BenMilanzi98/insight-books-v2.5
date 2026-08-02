@@ -1,0 +1,1 @@
+globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/ai-assistant/chat/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"C:\\laragon\\www\\insight-books-v2.5\\app\\api\\ai-assistant\\chat\\route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}};

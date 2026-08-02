@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/global-settings/layout,_N_T_/insightbooks/global-settings/page,_N_T_/insightbooks/global-settings"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/global-settings/__PAGE__",
+    "/insightbooks/global-settings",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

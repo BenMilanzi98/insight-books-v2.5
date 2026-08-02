@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/stock/layout,_N_T_/stock/low-stock/layout,_N_T_/stock/low-stock/page,_N_T_/stock/low-stock"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/stock/low-stock/__PAGE__",
+    "/stock/low-stock",
+    "/stock",
+    "/_index",
+    "/_head"
+  ]
+}

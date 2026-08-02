@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/tax-management/layout,_N_T_/tax-management/payments/layout,_N_T_/tax-management/payments/page,_N_T_/tax-management/payments"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/tax-management/payments/__PAGE__",
+    "/tax-management/payments",
+    "/tax-management",
+    "/_index",
+    "/_head"
+  ]
+}

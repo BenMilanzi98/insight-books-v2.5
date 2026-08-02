@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/hr/layout,_N_T_/hr/payroll/layout,_N_T_/hr/payroll/create/layout,_N_T_/hr/payroll/create/page,_N_T_/hr/payroll/create"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/hr/payroll/create/__PAGE__",
+    "/hr/payroll/create",
+    "/hr/payroll",
+    "/hr",
+    "/_index",
+    "/_head"
+  ]
+}

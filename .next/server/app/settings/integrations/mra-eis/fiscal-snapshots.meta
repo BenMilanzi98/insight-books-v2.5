@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/settings/layout,_N_T_/settings/integrations/layout,_N_T_/settings/integrations/mra-eis/layout,_N_T_/settings/integrations/mra-eis/fiscal-snapshots/layout,_N_T_/settings/integrations/mra-eis/fiscal-snapshots/page,_N_T_/settings/integrations/mra-eis/fiscal-snapshots"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/settings/integrations/mra-eis/fiscal-snapshots/__PAGE__",
+    "/settings/integrations/mra-eis/fiscal-snapshots",
+    "/settings/integrations/mra-eis",
+    "/settings/integrations",
+    "/settings",
+    "/_index",
+    "/_head"
+  ]
+}

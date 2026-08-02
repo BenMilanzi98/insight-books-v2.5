@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/customer-success/layout,_N_T_/insightbooks/customer-success/adoption/layout,_N_T_/insightbooks/customer-success/adoption/milestones/layout,_N_T_/insightbooks/customer-success/adoption/milestones/page,_N_T_/insightbooks/customer-success/adoption/milestones"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/customer-success/adoption/milestones/__PAGE__",
+    "/insightbooks/customer-success/adoption/milestones",
+    "/insightbooks/customer-success/adoption",
+    "/insightbooks/customer-success",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

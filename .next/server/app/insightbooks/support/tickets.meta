@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/support/layout,_N_T_/insightbooks/support/tickets/layout,_N_T_/insightbooks/support/tickets/page,_N_T_/insightbooks/support/tickets"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/support/tickets/__PAGE__",
+    "/insightbooks/support/tickets",
+    "/insightbooks/support",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

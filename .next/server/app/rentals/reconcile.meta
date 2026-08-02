@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/rentals/layout,_N_T_/rentals/reconcile/layout,_N_T_/rentals/reconcile/page,_N_T_/rentals/reconcile"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/rentals/reconcile/__PAGE__",
+    "/rentals/reconcile",
+    "/rentals",
+    "/_index",
+    "/_head"
+  ]
+}

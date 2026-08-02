@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/login/layout,_N_T_/insightbooks/login/page,_N_T_/insightbooks/login"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/login/__PAGE__",
+    "/insightbooks/login",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

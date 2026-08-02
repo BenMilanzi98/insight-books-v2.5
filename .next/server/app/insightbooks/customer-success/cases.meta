@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/customer-success/layout,_N_T_/insightbooks/customer-success/cases/layout,_N_T_/insightbooks/customer-success/cases/page,_N_T_/insightbooks/customer-success/cases"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/customer-success/cases/__PAGE__",
+    "/insightbooks/customer-success/cases",
+    "/insightbooks/customer-success",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/system-health/layout,_N_T_/insightbooks/system-health/page,_N_T_/insightbooks/system-health"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/system-health/__PAGE__",
+    "/insightbooks/system-health",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

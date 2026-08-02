@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/settings/layout,_N_T_/settings/integrations/layout,_N_T_/settings/integrations/mra-eis/layout,_N_T_/settings/integrations/mra-eis/restrictions/layout,_N_T_/settings/integrations/mra-eis/restrictions/page,_N_T_/settings/integrations/mra-eis/restrictions"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/settings/integrations/mra-eis/restrictions/__PAGE__",
+    "/settings/integrations/mra-eis/restrictions",
+    "/settings/integrations/mra-eis",
+    "/settings/integrations",
+    "/settings",
+    "/_index",
+    "/_head"
+  ]
+}

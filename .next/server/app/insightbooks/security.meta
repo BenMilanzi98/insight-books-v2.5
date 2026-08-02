@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/security/layout,_N_T_/insightbooks/security/page,_N_T_/insightbooks/security"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/security/__PAGE__",
+    "/insightbooks/security",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

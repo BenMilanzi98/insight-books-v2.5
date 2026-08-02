@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/marketing/layout,_N_T_/insightbooks/marketing/taxonomy/layout,_N_T_/insightbooks/marketing/taxonomy/page,_N_T_/insightbooks/marketing/taxonomy"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/marketing/taxonomy/__PAGE__",
+    "/insightbooks/marketing/taxonomy",
+    "/insightbooks/marketing",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

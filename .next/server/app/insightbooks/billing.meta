@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/billing/layout,_N_T_/insightbooks/billing/page,_N_T_/insightbooks/billing"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/billing/__PAGE__",
+    "/insightbooks/billing",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

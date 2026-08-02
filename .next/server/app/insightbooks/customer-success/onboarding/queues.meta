@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/customer-success/layout,_N_T_/insightbooks/customer-success/onboarding/layout,_N_T_/insightbooks/customer-success/onboarding/queues/layout,_N_T_/insightbooks/customer-success/onboarding/queues/page,_N_T_/insightbooks/customer-success/onboarding/queues"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/customer-success/onboarding/queues/__PAGE__",
+    "/insightbooks/customer-success/onboarding/queues",
+    "/insightbooks/customer-success/onboarding",
+    "/insightbooks/customer-success",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}

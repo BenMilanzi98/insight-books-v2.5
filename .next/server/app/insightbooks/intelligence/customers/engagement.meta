@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/insightbooks/layout,_N_T_/insightbooks/intelligence/layout,_N_T_/insightbooks/intelligence/customers/layout,_N_T_/insightbooks/intelligence/customers/engagement/layout,_N_T_/insightbooks/intelligence/customers/engagement/page,_N_T_/insightbooks/intelligence/customers/engagement"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/insightbooks/intelligence/customers/engagement/__PAGE__",
+    "/insightbooks/intelligence/customers/engagement",
+    "/insightbooks/intelligence/customers",
+    "/insightbooks/intelligence",
+    "/insightbooks",
+    "/_index",
+    "/_head"
+  ]
+}
