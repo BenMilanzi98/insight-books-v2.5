@@ -1,4 +1,4 @@
--- Additive only. Safe to re-run. Fixes admin dashboard/billing 500s when tables are missing.
+-- Additive only. Safe to re-run. Fixes admin dashboard/billing 500s when tables are missing. kaya amwene
 
 CREATE TABLE IF NOT EXISTS "PlatformSupportAccess" (
   "id" TEXT NOT NULL,
