@@ -485,10 +485,27 @@ model AccountingPeriod {
   @@index([status])
 }
 
-// Legacy table backing the ReversalSummary view (kept to avoid accidental drops)
+// Legacy table backing the ReversalSummary view.
+// Keep full columns so db push never tries to drop them (view depends on originalAmount etc.).
 model ReversalAudit {
-  id String @id
+  id                      String   @id
+  originalTransactionId   String
+  originalTransactionType String
+  reversalTransactionId   String
+  reversalTransactionType String
+  reversalReason          String
+  reversedById            String
+  reversedAt              DateTime @default(now())
+  originalAmount          Float
+  reversalAmount          Float
+  tenantId                String?
+  metadata                Json?
 
+  @@index([originalTransactionId])
+  @@index([reversalTransactionId])
+  @@index([reversedById])
+  @@index([reversedAt])
+  @@index([tenantId])
   @@map("ReversalAudit")
   @@ignore
 }
