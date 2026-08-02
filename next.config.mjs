@@ -23,15 +23,38 @@ const nextConfig = {
       tailwindcss: path.resolve(__dirname, 'node_modules/tailwindcss'),
     },
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   // Strip console.* from production client/server bundles unless explicitly enabled via .env
   compiler: {
     removeConsole: isClientConsoleEnabledAtBuild() ? false : true,
   },
   output: 'standalone',
+  // Keep upload/tmp/docs out of standalone file tracing (cuts VPS build RAM).
+  outputFileTracingExcludes: {
+    '*': [
+      './uploads/**/*',
+      './tmp/**/*',
+      './.cursor/**/*',
+      './docs/**/*',
+      './storage/**/*',
+      './**/*.docx',
+      './**/*.pdf',
+      './**/*.xlsx',
+    ],
+  },
   transpilePackages: ['qrcode.react'],
+  experimental: {
+    // Lower peak memory during webpack production builds (helps small VPSs).
+    webpackMemoryOptimizations: true,
+    cpus: 1,
+  },
+  webpack: (config, { isServer }) => {
+    // Serialize webpack work — trades speed for lower RAM on small hosts.
+    config.parallelism = 1;
+    if (isServer) {
+      config.externals = config.externals || [];
+    }
+    return config;
+  },
   images: {
     // Disable image optimization for uploaded files to prevent thumbnail generation
     // Allow images from uploads directory
@@ -55,7 +78,19 @@ const nextConfig = {
   },
   // Force dynamic rendering for auth-related pages to prevent build-time auth failures
   // Use the supported `serverExternalPackages` key to mark packages that should remain external on the server
-  serverExternalPackages: ["pg", "bcryptjs", "prisma", "puppeteer", "jspdf", "jspdf-autotable"],
+  serverExternalPackages: [
+    'pg',
+    'bcryptjs',
+    'prisma',
+    '@prisma/client',
+    'puppeteer',
+    'jspdf',
+    'jspdf-autotable',
+    'exceljs',
+    'jsqr',
+    'pngjs',
+    'qrcode',
+  ],
   // Ensure auth pages are not statically generated
   generateBuildId: () => 'build',
   async redirects() {
