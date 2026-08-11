@@ -1,6 +1,6 @@
 1:"$Sreact.fragment"
 2:I[61304,[],"ClientPageRoot"]
-3:I[5684,["53930","static/chunks/164f4fb6-6251be9fefac3e80.js","85033","static/chunks/2f0b94e8-e0b81e2083ba6765.js","14316","static/chunks/ad2866b8-edbe681f688e4c03.js","18409","static/chunks/18409-fded1b463fc1468c.js","63034","static/chunks/63034-6d889380d7432a99.js","29505","static/chunks/29505-adbc7240fe2cac6d.js","82179","static/chunks/82179-bce228d55b28aa72.js","98114","static/chunks/98114-a2e17d50c19163d7.js","48818","static/chunks/48818-5e5063cb52e79381.js","4380","static/chunks/4380-79ff8cca322ea5a8.js","13464","static/chunks/13464-55ade8ecbc75f6c1.js","95249","static/chunks/95249-88881b7fdfbe5871.js","40522","static/chunks/app/expenses/page-a027e909b9175080.js"],"default"]
+3:I[77564,["18409","static/chunks/18409-fded1b463fc1468c.js","14562","static/chunks/14562-5ba87462a4567d78.js","98114","static/chunks/98114-a2e17d50c19163d7.js","40522","static/chunks/app/expenses/page-d17231bce8de70a8.js"],"default"]
 6:I[90484,[],"OutletBoundary"]
 7:"$Sreact.suspense"
 0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],null,["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"build"}

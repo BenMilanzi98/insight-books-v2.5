@@ -1,9 +1,9 @@
 1:"$Sreact.fragment"
-2:I[74206,["98500","static/chunks/98500-a1c3ccb6022dcbcf.js","18409","static/chunks/18409-fded1b463fc1468c.js","29558","static/chunks/29558-7ee0c5c056056979.js","9593","static/chunks/9593-b07b21464a1999d8.js","98114","static/chunks/98114-a2e17d50c19163d7.js","84027","static/chunks/84027-c75ab1574cdac93b.js","86366","static/chunks/86366-63493a1556b10074.js","7177","static/chunks/app/layout-4dc38730d7ae60eb.js"],"default"]
+2:I[74206,["98500","static/chunks/98500-a1c3ccb6022dcbcf.js","18409","static/chunks/18409-fded1b463fc1468c.js","29558","static/chunks/29558-7ee0c5c056056979.js","9593","static/chunks/9593-b07b21464a1999d8.js","98114","static/chunks/98114-a2e17d50c19163d7.js","84027","static/chunks/84027-0a01a2706c9b971b.js","86366","static/chunks/86366-63493a1556b10074.js","7177","static/chunks/app/layout-4dc38730d7ae60eb.js"],"default"]
 3:I[57121,[],""]
 4:I[74581,[],""]
 5:I[61304,[],"ClientPageRoot"]
-6:I[93762,["53930","static/chunks/164f4fb6-6251be9fefac3e80.js","85033","static/chunks/2f0b94e8-e0b81e2083ba6765.js","14316","static/chunks/ad2866b8-edbe681f688e4c03.js","18409","static/chunks/18409-fded1b463fc1468c.js","63034","static/chunks/63034-6d889380d7432a99.js","29499","static/chunks/29499-7a32abd6706eb306.js","98114","static/chunks/98114-a2e17d50c19163d7.js","53336","static/chunks/53336-d86d4e4c52e0ddd0.js","72279","static/chunks/72279-ab6f0884566e7b4c.js","48818","static/chunks/48818-5e5063cb52e79381.js","67456","static/chunks/app/quotations/page-026531eb21f0e7b3.js"],"default"]
+6:I[93762,["53930","static/chunks/164f4fb6-6251be9fefac3e80.js","85033","static/chunks/2f0b94e8-e0b81e2083ba6765.js","14316","static/chunks/ad2866b8-edbe681f688e4c03.js","18409","static/chunks/18409-fded1b463fc1468c.js","54233","static/chunks/54233-80d5c0d7d35d8798.js","94197","static/chunks/94197-480f2b462c661f7e.js","98114","static/chunks/98114-a2e17d50c19163d7.js","53336","static/chunks/53336-d86d4e4c52e0ddd0.js","27647","static/chunks/27647-80912ff5c71d180e.js","82433","static/chunks/82433-8ad687bc4ceacc34.js","67456","static/chunks/app/quotations/page-cd4011fed0737994.js"],"default"]
 9:I[90484,[],"OutletBoundary"]
 a:"$Sreact.suspense"
 d:I[90484,[],"ViewportBoundary"]

@@ -1,0 +1,90 @@
+﻿diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 00000000..3c511947
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,84 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - 'v*'
++
++permissions:
++  contents: write
++
++concurrency:
++  group: release-${{ github.ref }}
++  cancel-in-progress: false
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    timeout-minutes: 90
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          submodules: false
++
++      - name: Setup Node.js
++        uses: actions/setup-node@v4
++        with:
++          node-version: '20'
++          cache: npm
++
++      - name: Install dependencies
++        run: npm ci
++
++      - name: Ensure DATABASE_URL for build
++        run: |
++          if [ -n "${DATABASE_URL}" ]; then
++            echo "DATABASE_URL=${DATABASE_URL}" >> "$GITHUB_ENV"
++          else
++            echo "DATABASE_URL=postgresql://ci:ci@127.0.0.1:5432/ci?schema=public" >> "$GITHUB_ENV"
++          fi
++        env:
++          DATABASE_URL: ${{ secrets.DATABASE_URL }}
++
++      - name: Production build (CI build:clean)
++        run: npm run build:ci
++        env:
++          NODE_ENV: production
++
++      - name: Write CI build manifest
++        run: node scripts/ci-write-build-manifest.mjs
++        env:
++          GITHUB_SHA: ${{ github.sha }}
++          GITHUB_REF_NAME: ${{ github.ref_name }}
++
++      - name: Prune Next cache
++        run: rm -rf .next/cache
++
++      - name: Pack release tarball
++        id: pack
++        run: |
++          TAG="${GITHUB_REF_NAME}"
++          ARCHIVE="insight-books-${TAG}.tar.gz"
++          tar -czf "${ARCHIVE}" \
++            --exclude='.next/cache' \
++            .next \
++            public \
++            package.json \
++            package-lock.json \
++            prisma \
++            next.config.mjs \
++            scripts/vps-apply-release.sh \
++            scripts/ci-write-build-manifest.mjs
++          echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
++          ls -lh "${ARCHIVE}"
++
++      - name: Create GitHub Release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: ${{ steps.pack.outputs.archive }}
++          generate_release_notes: true
++          fail_on_unmatched_files: true
++        env:
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

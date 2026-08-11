@@ -3636,7 +3636,8 @@ model JournalEntry {
   notes            String?
   postedById       String?
   postedDate       DateTime?
-  referenceNumber  String?            @unique
+  /// Unique per tenant (not globally) — V2 journal numbers like POS-2026-000001 collide across tenants if global.
+  referenceNumber  String?
   sourceId         String?
   sourceType       String?
   tenantId         String?
@@ -3689,6 +3690,7 @@ model JournalEntry {
   supplierPayments SupplierPayment[]  @relation("SupplierPaymentJournalEntry")
 
   @@unique([tenantId, journalNumber])
+  @@unique([tenantId, referenceNumber])
   @@index([tenantId])
   @@index([entryDate])
   @@index([status])

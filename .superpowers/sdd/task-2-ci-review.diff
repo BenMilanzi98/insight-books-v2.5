@@ -1,0 +1,46 @@
+﻿diff --git a/package.json b/package.json
+index 5b1038b8..9f2de1ea 100644
+--- a/package.json
++++ b/package.json
+@@ -3,12 +3,13 @@
+   "version": "0.1.0",
+   "private": true,
+   "scripts": {
+     "dev": "prisma generate && cross-env NODE_ENV=development next dev -p 3000",
+     "build": "prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+     "build:clean": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
++    "build:ci": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=6144 next build --webpack",
+     "build:standalone": "prisma generate && cross-env NODE_ENV=production NEXT_STANDALONE=1 NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+     "build:vps": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=6144 next build --webpack",
+     "start": "cross-env NODE_ENV=production next start",
+     "lint": "eslint . --max-warnings 999",
+     "lint:next": "next lint",
+     "test": "vitest run",
+diff --git a/scripts/ci-write-build-manifest.mjs b/scripts/ci-write-build-manifest.mjs
+new file mode 100644
+index 00000000..6fcc78d5
+--- /dev/null
++++ b/scripts/ci-write-build-manifest.mjs
+@@ -0,0 +1,22 @@
++import fs from 'fs';
++import path from 'path';
++
++const outDir = path.join(process.cwd(), '.next');
++if (!fs.existsSync(outDir)) {
++  console.error('ci-write-build-manifest: .next missing ΓÇö run build first');
++  process.exit(1);
++}
++
++const sha = process.env.GITHUB_SHA || process.env.GIT_SHA || '';
++const ref = process.env.GITHUB_REF_NAME || process.env.GITHUB_REF || '';
++const manifest = {
++  gitSha: sha,
++  gitRef: ref,
++  nodeVersion: process.version,
++  builtAt: new Date().toISOString(),
++  nextBuildId: 'build',
++};
++
++const dest = path.join(outDir, 'ci-build-manifest.json');
++fs.writeFileSync(dest, JSON.stringify(manifest, null, 2) + '\n');
++console.log('Wrote', dest);

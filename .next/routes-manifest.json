@@ -4216,6 +4216,12 @@
       "namedRegex": "^/api/admin/tenants/delete(?:/)?$"
     },
     {
+      "page": "/api/admin/tenants/sync-financial-defaults",
+      "regex": "^/api/admin/tenants/sync\\-financial\\-defaults(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin/tenants/sync\\-financial\\-defaults(?:/)?$"
+    },
+    {
       "page": "/api/admin/test-daily-report",
       "regex": "^/api/admin/test\\-daily\\-report(?:/)?$",
       "routeKeys": {},

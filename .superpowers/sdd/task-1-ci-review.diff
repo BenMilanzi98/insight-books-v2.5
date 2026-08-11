@@ -1,0 +1,43 @@
+﻿diff --git a/next.config.mjs b/next.config.mjs
+index f1a8b767..04a35876 100644
+--- a/next.config.mjs
++++ b/next.config.mjs
+@@ -33,29 +33,38 @@ const nextConfig = {
+   // Keep upload/tmp/docs out of file tracing (cuts VPS build RAM).
+   outputFileTracingExcludes: {
+     '*': [
+       './uploads/**/*',
+       './tmp/**/*',
+       './.cursor/**/*',
+       './docs/**/*',
+       './storage/**/*',
++      './insight/**/*',
++      './android-app-center/**/*',
++      './insight_books_android/**/*',
++      './starter-for-nextjs/**/*',
++      './test/**/*',
++      './tests/**/*',
++      './artifacts/**/*',
++      './backups/**/*',
+       './node_modules/@swc/core*/**/*',
+       './node_modules/next/dist/server/lib/squoosh/**/*',
+       './**/*.docx',
+       './**/*.pdf',
+       './**/*.xlsx',
+     ],
+   },
+   transpilePackages: ['qrcode.react'],
+   productionBrowserSourceMaps: false,
+   experimental: {
+     // Lower peak memory during webpack production builds (helps small VPSs).
+     webpackMemoryOptimizations: true,
+     cpus: 1,
++    optimizePackageImports: ['lucide-react', 'recharts'],
+   },
+   webpack: (config) => {
+     // Serialize webpack work ΓÇö trades speed for lower RAM on small hosts.
+     config.parallelism = 1;
+     config.cache = false;
+     config.devtool = false;
+     return config;
+   },

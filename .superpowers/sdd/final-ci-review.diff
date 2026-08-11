@@ -1,0 +1,296 @@
+﻿# Phase 1 CI final review package
+
+ .github/workflows/build.yml         | 73 ++++++++++++++++++++++++++++++++
+ .github/workflows/release.yml       | 84 +++++++++++++++++++++++++++++++++++++
+ next.config.mjs                     |  9 ++++
+ package.json                        |  1 +
+ scripts/ci-write-build-manifest.mjs | 22 ++++++++++
+ scripts/vps-apply-release.sh        | 11 ++++-
+ 6 files changed, 198 insertions(+), 2 deletions(-)
+
+===== FULL DIFF =====
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+new file mode 100644
+index 00000000..e6e0024b
+--- /dev/null
++++ b/.github/workflows/build.yml
+@@ -0,0 +1,73 @@
++name: Production build
++
++on:
++  push:
++    branches:
++      - '**'
++  pull_request:
++
++concurrency:
++  group: production-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
++  cancel-in-progress: true
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++    timeout-minutes: 90
++    permissions:
++      contents: read
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          submodules: false
++
++      - name: Setup Node.js
++        uses: actions/setup-node@v4
++        with:
++          node-version: '20'
++          cache: npm
++
++      - name: Install dependencies
++        run: npm ci
++
++      - name: Ensure DATABASE_URL for build
++        run: |
++          if [ -n "${DATABASE_URL}" ]; then
++            echo "DATABASE_URL=${DATABASE_URL}" >> "$GITHUB_ENV"
++          else
++            echo "DATABASE_URL=postgresql://ci:ci@127.0.0.1:5432/ci?schema=public" >> "$GITHUB_ENV"
++          fi
++        env:
++          DATABASE_URL: ${{ secrets.DATABASE_URL }}
++
++      - name: Production build (CI build:clean)
++        run: npm run build:ci
++        env:
++          NODE_ENV: production
++
++      - name: Write CI build manifest
++        run: node scripts/ci-write-build-manifest.mjs
++        env:
++          GITHUB_SHA: ${{ github.sha }}
++          GITHUB_REF_NAME: ${{ github.ref_name }}
++
++      - name: Prune Next cache from artifact
++        run: rm -rf .next/cache
++
++      - name: Sanitize artifact name parts
++        id: meta
++        run: |
++          REF="${GITHUB_REF_NAME}"
++          REF_SAFE="$(echo "$REF" | sed 's/[^a-zA-Z0-9._-]/-/g' | cut -c1-60)"
++          SHA_SHORT="$(echo "$GITHUB_SHA" | cut -c1-7)"
++          echo "artifact_name=next-build-${REF_SAFE}-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
++
++      - name: Upload build artifact
++        uses: actions/upload-artifact@v4
++        with:
++          name: ${{ steps.meta.outputs.artifact_name }}
++          path: .next
++          if-no-files-found: error
++          retention-days: ${{ github.event_name == 'pull_request' && 7 || 14 }}
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 00000000..3c511947
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,84 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - 'v*'
++
++permissions:
++  contents: write
++
++concurrency:
++  group: release-${{ github.ref }}
++  cancel-in-progress: false
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    timeout-minutes: 90
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          submodules: false
++
++      - name: Setup Node.js
++        uses: actions/setup-node@v4
++        with:
++          node-version: '20'
++          cache: npm
++
++      - name: Install dependencies
++        run: npm ci
++
++      - name: Ensure DATABASE_URL for build
++        run: |
++          if [ -n "${DATABASE_URL}" ]; then
++            echo "DATABASE_URL=${DATABASE_URL}" >> "$GITHUB_ENV"
++          else
++            echo "DATABASE_URL=postgresql://ci:ci@127.0.0.1:5432/ci?schema=public" >> "$GITHUB_ENV"
++          fi
++        env:
++          DATABASE_URL: ${{ secrets.DATABASE_URL }}
++
++      - name: Production build (CI build:clean)
++        run: npm run build:ci
++        env:
++          NODE_ENV: production
++
++      - name: Write CI build manifest
++        run: node scripts/ci-write-build-manifest.mjs
++        env:
++          GITHUB_SHA: ${{ github.sha }}
++          GITHUB_REF_NAME: ${{ github.ref_name }}
++
++      - name: Prune Next cache
++        run: rm -rf .next/cache
++
++      - name: Pack release tarball
++        id: pack
++        run: |
++          TAG="${GITHUB_REF_NAME}"
++          ARCHIVE="insight-books-${TAG}.tar.gz"
++          tar -czf "${ARCHIVE}" \
++            --exclude='.next/cache' \
++            .next \
++            public \
++            package.json \
++            package-lock.json \
++            prisma \
++            next.config.mjs \
++            scripts/vps-apply-release.sh \
++            scripts/ci-write-build-manifest.mjs
++          echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
++          ls -lh "${ARCHIVE}"
++
++      - name: Create GitHub Release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: ${{ steps.pack.outputs.archive }}
++          generate_release_notes: true
++          fail_on_unmatched_files: true
++        env:
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+diff --git a/next.config.mjs b/next.config.mjs
+index f1a8b767..04a35876 100644
+--- a/next.config.mjs
++++ b/next.config.mjs
+@@ -35,12 +35,20 @@ const nextConfig = {
+     '*': [
+       './uploads/**/*',
+       './tmp/**/*',
+       './.cursor/**/*',
+       './docs/**/*',
+       './storage/**/*',
++      './insight/**/*',
++      './android-app-center/**/*',
++      './insight_books_android/**/*',
++      './starter-for-nextjs/**/*',
++      './test/**/*',
++      './tests/**/*',
++      './artifacts/**/*',
++      './backups/**/*',
+       './node_modules/@swc/core*/**/*',
+       './node_modules/next/dist/server/lib/squoosh/**/*',
+       './**/*.docx',
+       './**/*.pdf',
+       './**/*.xlsx',
+     ],
+@@ -48,12 +56,13 @@ const nextConfig = {
+   transpilePackages: ['qrcode.react'],
+   productionBrowserSourceMaps: false,
+   experimental: {
+     // Lower peak memory during webpack production builds (helps small VPSs).
+     webpackMemoryOptimizations: true,
+     cpus: 1,
++    optimizePackageImports: ['lucide-react', 'recharts'],
+   },
+   webpack: (config) => {
+     // Serialize webpack work ΓÇö trades speed for lower RAM on small hosts.
+     config.parallelism = 1;
+     config.cache = false;
+     config.devtool = false;
+diff --git a/package.json b/package.json
+index 5b1038b8..9f2de1ea 100644
+--- a/package.json
++++ b/package.json
+@@ -3,12 +3,13 @@
+   "version": "0.1.0",
+   "private": true,
+   "scripts": {
+     "dev": "prisma generate && cross-env NODE_ENV=development next dev -p 3000",
+     "build": "prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+     "build:clean": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
++    "build:ci": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=6144 next build --webpack",
+     "build:standalone": "prisma generate && cross-env NODE_ENV=production NEXT_STANDALONE=1 NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
+     "build:vps": "rimraf .next && prisma generate && cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=6144 next build --webpack",
+     "start": "cross-env NODE_ENV=production next start",
+     "lint": "eslint . --max-warnings 999",
+     "lint:next": "next lint",
+     "test": "vitest run",
+diff --git a/scripts/ci-write-build-manifest.mjs b/scripts/ci-write-build-manifest.mjs
+new file mode 100644
+index 00000000..6fcc78d5
+--- /dev/null
++++ b/scripts/ci-write-build-manifest.mjs
+@@ -0,0 +1,22 @@
++import fs from 'fs';
++import path from 'path';
++
++const outDir = path.join(process.cwd(), '.next');
++if (!fs.existsSync(outDir)) {
++  console.error('ci-write-build-manifest: .next missing ΓÇö run build first');
++  process.exit(1);
++}
++
++const sha = process.env.GITHUB_SHA || process.env.GIT_SHA || '';
++const ref = process.env.GITHUB_REF_NAME || process.env.GITHUB_REF || '';
++const manifest = {
++  gitSha: sha,
++  gitRef: ref,
++  nodeVersion: process.version,
++  builtAt: new Date().toISOString(),
++  nextBuildId: 'build',
++};
++
++const dest = path.join(outDir, 'ci-build-manifest.json');
++fs.writeFileSync(dest, JSON.stringify(manifest, null, 2) + '\n');
++console.log('Wrote', dest);
+diff --git a/scripts/vps-apply-release.sh b/scripts/vps-apply-release.sh
+index a8b54a18..6005d742 100755
+--- a/scripts/vps-apply-release.sh
++++ b/scripts/vps-apply-release.sh
+@@ -29,16 +29,23 @@ echo "==> Unpacking into ${APP_DIR} (preserves .env and uploads/)"
+ tar -xzf "${ARCHIVE}"
+ rm -f "${ARCHIVE}"
+ 
+ echo "==> Installing production dependencies"
+ npm ci --omit=dev
+ 
++# Ensure Prisma CLI matches package-lock (devDependency omitted by --omit=dev)
++PRISMA_VER="$(node -e "const l=require('./package-lock.json'); const p=l.packages?.['node_modules/prisma']?.version || l.dependencies?.prisma?.version; if(!p) process.exit(1); process.stdout.write(p)")"
++echo "==> Installing Prisma CLI ${PRISMA_VER} for migrate/generate"
++npm install --no-save "prisma@${PRISMA_VER}"
++
+ echo "==> Prisma generate"
+ npx prisma generate
+ 
+ if [ "${SKIP_MIGRATE:-0}" != "1" ]; then
+   echo "==> Prisma migrate deploy"
+   npx prisma migrate deploy
+ fi
+ 
+-echo "==> Done. Start the app with: npm run start"
+-echo "    (or restart pm2/systemd ΓÇö do NOT run build:clean on this host)"
++echo "==> Done. Start the app with:"
++echo "    ./node_modules/.bin/next start"
++echo "    (or: node node_modules/next/dist/bin/next start)"
++echo "    Do NOT run build:clean / next build on this host."
