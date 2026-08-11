@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import ClickableStatCard from "@/components/ui/ClickableStatCard";
 import { format } from "date-fns";
 import { 
@@ -46,28 +47,49 @@ import ProductSearchSelect from "@/components/ProductSearchSelect";
 import Link from "next/link";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
-import BulkStockOperations from "@/components/BulkStockOperations";
-import ExpiryAlertSystem from "@/components/ExpiryAlertSystem";
 import DynamicCategorySelect from "@/components/DynamicCategorySelect";
-import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
-import SkuConflictModal from "@/components/Stock/SkuConflictModal";
-import ServiceFormModal, { formatBillingLabel } from "@/components/Stock/ServiceFormModal";
-import ReceivingModule from "@/components/Stock/ReceivingModule";
-import UnitManagement from "@/components/UnitManagement/UnitManagement";
-import BulkTaxApplicationModal from "@/components/BulkTaxApplicationModal";
-import {
-  StockTransferModal,
-  StockTransfersList,
-  StockPerBusiness,
-} from "@/components/StockTransfer";
 import { fetchStockMovement, exportReport } from "@/app/services/financialReportingService";
-import { StockMovementReport } from "@/components/FinancialReportComponents";
-import { ReportDateRangeModals } from "@/components/ReportDateRangeModals";
 import { useReportTimeframe } from "@/hooks/useReportTimeframe";
 import { formatCurrency } from "@/lib/invoiceCalculations";
 import { addMoney, multiplyMoney, parseMoney, roundMoney } from "@/lib/money";
 import PageHeader from "@/components/shell/PageHeader";
 
+const SERVICE_BILLING_LABELS = {
+  fixed: "Fixed price",
+  hourly: "Hourly",
+  daily: "Daily",
+};
+function formatBillingLabel(v) {
+  return SERVICE_BILLING_LABELS[v] || v || "—";
+}
+const BulkStockOperations = dynamic(() => import("@/components/BulkStockOperations"), { ssr: false });
+const ExpiryAlertSystem = dynamic(() => import("@/components/ExpiryAlertSystem"), { ssr: false });
+const ProductDeletionWarningModal = dynamic(() => import("@/components/ProductDeletionWarningModal"), { ssr: false });
+const SkuConflictModal = dynamic(() => import("@/components/Stock/SkuConflictModal"), { ssr: false });
+const ServiceFormModal = dynamic(() => import("@/components/Stock/ServiceFormModal"), { ssr: false });
+const ReceivingModule = dynamic(() => import("@/components/Stock/ReceivingModule"), { ssr: false });
+const UnitManagement = dynamic(() => import("@/components/UnitManagement/UnitManagement"), { ssr: false });
+const BulkTaxApplicationModal = dynamic(() => import("@/components/BulkTaxApplicationModal"), { ssr: false });
+const StockTransferModal = dynamic(
+  () => import("@/components/StockTransfer").then((m) => m.StockTransferModal),
+  { ssr: false }
+);
+const StockTransfersList = dynamic(
+  () => import("@/components/StockTransfer").then((m) => m.StockTransfersList),
+  { ssr: false }
+);
+const StockPerBusiness = dynamic(
+  () => import("@/components/StockTransfer").then((m) => m.StockPerBusiness),
+  { ssr: false }
+);
+const StockMovementReport = dynamic(
+  () => import("@/components/FinancialReportComponents").then((m) => m.StockMovementReport),
+  { ssr: false }
+);
+const ReportDateRangeModals = dynamic(
+  () => import("@/components/ReportDateRangeModals").then((m) => m.ReportDateRangeModals),
+  { ssr: false }
+);
 
 /** Line stock value = qty × unit cost, 2 dp. */
 function stockLineValue(quantity, unitCost) {

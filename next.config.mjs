@@ -38,6 +38,14 @@ const nextConfig = {
       './.cursor/**/*',
       './docs/**/*',
       './storage/**/*',
+      './insight/**/*',
+      './android-app-center/**/*',
+      './insight_books_android/**/*',
+      './starter-for-nextjs/**/*',
+      './test/**/*',
+      './tests/**/*',
+      './artifacts/**/*',
+      './backups/**/*',
       './node_modules/@swc/core*/**/*',
       './node_modules/next/dist/server/lib/squoosh/**/*',
       './**/*.docx',
@@ -51,6 +59,7 @@ const nextConfig = {
     // Lower peak memory during webpack production builds (helps small VPSs).
     webpackMemoryOptimizations: true,
     cpus: 1,
+    optimizePackageImports: ['lucide-react', 'recharts'],
   },
   webpack: (config) => {
     // Serialize webpack work — trades speed for lower RAM on small hosts.

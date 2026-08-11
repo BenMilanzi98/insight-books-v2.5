@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import crypto from 'crypto';
 import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
 
-const prisma = new PrismaClient();
 
 export async function POST(request) {
   try {

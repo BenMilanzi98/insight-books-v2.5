@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { requireAdminDecision } from '@/lib/admin/authorization/requireAdminDecision';
 import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 
-const prisma = new PrismaClient();
 
 export async function GET(request) {
   try {

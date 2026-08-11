@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
 
-const prisma = new PrismaClient();
 
 // GET - Fetch security events and system monitoring data
 export async function GET(request) {

@@ -1,12 +1,9 @@
 "use client";
-import { scanReceipt } from "@/lib/receipt-scanner";
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import ExpensePartialPaymentModal from "@/components/ExpensePartialPaymentModal";
-import ExpensePaymentHistory from "@/components/ExpensePaymentHistory";
+import dynamic from "next/dynamic";
 import PageHeader from "@/components/shell/PageHeader";
 import ClickableStatCard from "@/components/ui/ClickableStatCard";
-
 import { 
   PlusCircle, 
   Search, 
@@ -63,10 +60,6 @@ import {
   fetchDeletedExpenses,
   restoreExpense
 } from "@/app/services/expenseService";
-import ExpenseModal from "@/components/Expenses/ExpenseModal";
-import RecurringExpenseModal from "@/components/Expenses/RecurringExpenseModal";
-import HistoricalExpenseUpload from "@/components/Expenses/HistoricalExpenseUpload";
-import HistoricalExpenseModal from "@/components/Expenses/HistoricalExpenseModal";
 import { 
   createRecurringExpense,
   fetchRecurringExpenses,
@@ -76,11 +69,23 @@ import {
 } from "@/app/services/recurringExpenseService";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
-import COGSManagement from "@/app/cogs/page";
-import COGSSettlementModal from "@/components/COGSSettlementModal";
-import COGSSummaryChart from "@/components/COGSSummaryChart";
-import COGSExpensesTable from "@/components/COGSExpensesTable";
-import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
+
+const scanReceipt = (...args) =>
+  import("@/lib/receipt-scanner").then((m) => m.scanReceipt(...args));
+const ExpensePartialPaymentModal = dynamic(() => import("@/components/ExpensePartialPaymentModal"), { ssr: false });
+const ExpensePaymentHistory = dynamic(() => import("@/components/ExpensePaymentHistory"), { ssr: false });
+const ExpenseModal = dynamic(() => import("@/components/Expenses/ExpenseModal"), { ssr: false });
+const RecurringExpenseModal = dynamic(() => import("@/components/Expenses/RecurringExpenseModal"), { ssr: false });
+const HistoricalExpenseUpload = dynamic(() => import("@/components/Expenses/HistoricalExpenseUpload"), { ssr: false });
+const HistoricalExpenseModal = dynamic(() => import("@/components/Expenses/HistoricalExpenseModal"), { ssr: false });
+const COGSManagement = dynamic(() => import("@/app/cogs/page"), { ssr: false });
+const COGSSettlementModal = dynamic(() => import("@/components/COGSSettlementModal"), { ssr: false });
+const COGSSummaryChart = dynamic(() => import("@/components/COGSSummaryChart"), { ssr: false });
+const COGSExpensesTable = dynamic(() => import("@/components/COGSExpensesTable"), { ssr: false });
+const ReversalStatusBadge = dynamic(
+  () => import("@/components/TransactionReversal/ReversalStatusBadge").then((m) => m.ReversalStatusBadge),
+  { ssr: false }
+);
 
 /** Matches server validation in transactionReversalService / expenses batch-delete. */
 const MIN_EXPENSE_DELETE_REASON_LENGTH = 10;

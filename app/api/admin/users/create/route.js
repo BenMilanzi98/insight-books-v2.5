@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
 import bcrypt from 'bcryptjs';
 import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 
-const prisma = new PrismaClient();
 
 export async function POST(request) {
   try {

@@ -63,10 +63,9 @@ import { calculateProductTaxes, calculateSaleItemTaxes } from "@/lib/productTaxC
 import { isMalawiStandardVatRate, MALAWI_STANDARD_VAT_RATE } from "@/lib/malawiTaxCatalog";
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
-import ClientModal from "@/components/ClientModal";
 import ClientSearchCombobox from "@/components/ClientSearchCombobox";
 import PermissionGuard from "@/components/PermissionGuard";
-import PosTillGateModals from "@/components/pos/PosTillGateModals";
+import dynamic from "next/dynamic";
 import { formatYmdInTimeZone } from "@/lib/dateUtils";
 import UnitBasedQuantityInput from "@/components/UnitBasedQuantityInput";
 import { getPermission } from "@/lib/permissions";
@@ -75,10 +74,15 @@ import {
   queueOfflineSale, syncOfflineSales, checkOfflineThresholds,
   getOfflineSalesCount, getPendingOfflineSales
 } from '@/lib/offlineSalesQueue';
-import HistoricalSalesImportWizard from '@/components/pos/HistoricalSalesImportWizard';
 import { RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM } from '@/lib/receiptPaperWidthPresets';
 import { normalizeReceiptPaperWidthMm } from '@/lib/receiptPaperWidth';
 
+const ClientModal = dynamic(() => import("@/components/ClientModal"), { ssr: false });
+const PosTillGateModals = dynamic(() => import("@/components/pos/PosTillGateModals"), { ssr: false });
+const HistoricalSalesImportWizard = dynamic(
+  () => import("@/components/pos/HistoricalSalesImportWizard"),
+  { ssr: false }
+);
 const POSPage = () => {
   const router = useRouter();
   
