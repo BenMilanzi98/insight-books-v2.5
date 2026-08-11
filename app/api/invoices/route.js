@@ -2,9 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
-import { postInvoiceAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
+import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { calculateCOGS } from '@/lib/inventoryCosting';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
@@ -539,6 +538,9 @@ export async function POST(request) {
           taxAmount: calculations.taxAmount,
           totalDiscountAmount: calculations.totalDiscountAmount, // Enhanced: Total of all line item discounts
           total: calculations.total,
+          // Cash-basis: unpaid until payments land (schema defaults remainingBalance to 0).
+          totalPaid: 0,
+          remainingBalance: calculations.total,
           status: invoiceStatus,
           notes: body.notes,
           tenantId: user.tenantId,
@@ -564,107 +566,18 @@ export async function POST(request) {
         }
       });
 
-      // Create journal entry if invoice is not a draft
-      if (invoiceStatus !== 'Draft') {
+      // Recognize revenue + COGS when invoice is not a draft
+      if (invoiceStatus !== 'Draft' && String(invoiceStatus).toUpperCase() !== 'PROFORMA') {
         try {
-          // Calculate total COGS for all inventory items
-          let totalCOGS = 0;
-          let productsWithoutCost = [];
-          
-          for (const item of calculations.processedItems) {
-            if (item.productId) {
-              try {
-                // Check if product is a service (services don't have COGS)
-                const product = await tx.product.findUnique({
-                  where: { id: item.productId },
-                  select: { id: true, isService: true, cost: true, averageCost: true }
-                });
-                
-                // Only calculate COGS and deduct stock for non-service products
-                if (product && !product.isService) {
-                  const cogsData = await calculateCOGS({
-                    productId: item.productId,
-                    tenantId: user.tenantId,
-                    quantitySold: item.quantity,
-                    tx,
-                  });
-                  
-                  console.log(`📊 COGS Calculation for product ${item.productId}:`, {
-                    quantitySold: item.quantity,
-                    unitCost: cogsData.unitCost,
-                    cogsAmount: cogsData.cogsAmount,
-                    remainingQuantity: cogsData.remainingQuantity
-                  });
-                  
-                  totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
-                  
-                  if (cogsData.cogsAmount === 0 && item.quantity > 0) {
-                    productsWithoutCost.push({
-                      productId: item.productId,
-                      description: item.description,
-                      quantity: item.quantity,
-                      unitPrice: item.unitPrice
-                    });
-                  }
-                  // Deduct stock when invoice is posted (reversal will restore)
-                  const qty = Number(item.quantity) || 0;
-                  if (qty > 0) {
-                    await tx.product.update({
-                      where: { id: item.productId },
-                      data: { stockLevel: { decrement: qty } }
-                    });
-                    try {
-                      await tx.inventoryTransaction.create({
-                        data: {
-                          productId: item.productId,
-                          type: 'invoice',
-                          quantity: -Math.round(qty), // Int: negative = deduction
-                          notes: `Invoice ${invoiceNumber}`,
-                          userId: user.id,
-                          tenantId: user.tenantId
-                        }
-                      });
-                    } catch (e) {
-                      if (!e.message?.includes('Unknown model')) console.warn('InventoryTransaction for invoice:', e?.message);
-                    }
-                  }
-                }
-              } catch (cogsError) {
-                console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);
-                // Continue with other items
-              }
-            }
-          }
-
-          console.log(`📊 Total COGS for invoice ${invoiceNumber}: MK ${totalCOGS}`);
-          
-          // Log warning if there are products without cost
-          if (productsWithoutCost.length > 0) {
-            console.warn(`⚠️ ${productsWithoutCost.length} products have no cost information:`, productsWithoutCost);
-          }
-
-          // V2 accounting: invoice revenue + tax via adapter; COGS via cost-of-sales adapter
-          await postInvoiceAccounting({
+          const posted = await ensureInvoiceSalesAccounting({
             db: tx,
             tenantId: user.tenantId,
             userId: user.id,
             invoiceId: newInvoice.id,
           });
-          if (totalCOGS > 0) {
-            await postCostOfSalesAccounting({
-              db: tx,
-              tenantId: user.tenantId,
-              userId: user.id,
-              documentKind: 'Invoice',
-              documentId: newInvoice.id,
-              documentNumber: invoiceNumber,
-              documentDate: issueDate,
-              cogsAmount: totalCOGS,
-              branchId: newInvoice.branchId || null,
-            });
-          }
-
-          console.log(`✅ V2 journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}, tax: MK ${calculations.taxAmount}`);
+          console.log(
+            `✅ V2 sales accounting for invoice ${invoiceNumber}: revenue=${posted.postedInvoice}, cogs=${posted.postedCogs} (MK ${posted.cogsAmount}), tax: MK ${calculations.taxAmount}`
+          );
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
           throw journalError;

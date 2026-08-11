@@ -5,6 +5,7 @@ import {
   RefreshCw, Settings, ArrowRight, Wifi, WifiOff, TrendingUp
 } from 'lucide-react';
 import Link from 'next/link';
+import StatCard from '@/components/ui/StatCard';
 
 export default function EISDashboardPage() {
   const [data, setData] = useState(null);
@@ -36,19 +37,6 @@ export default function EISDashboardPage() {
       setIsLoading(false);
     }
   };
-
-  const StatCard = ({ title, value, icon: Icon, color, sub }) => (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-500">{title}</span>
-        <div className={`p-2 rounded-lg ${color}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
-    </div>
-  );
 
   if (isLoading) {
     return (
@@ -99,11 +87,11 @@ export default function EISDashboardPage() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard title="Total Submitted" value={data?.totalInvoices || 0} icon={FileText} color="bg-blue-50 text-blue-600" />
-        <StatCard title="Approved" value={data?.approved || 0} icon={CheckCircle} color="bg-green-50 text-green-600" />
-        <StatCard title="Pending" value={(data?.pending || 0) + (data?.submitted || 0)} icon={Clock} color="bg-yellow-50 text-yellow-600" />
-        <StatCard title="Rejected" value={data?.rejected || 0} icon={XCircle} color="bg-red-50 text-red-600" />
-        <StatCard title="Success Rate" value={`${data?.successRate || 0}%`} icon={TrendingUp} color="bg-indigo-50 text-indigo-600" />
+        <StatCard label="Total Submitted" value={data?.totalInvoices || 0} icon={FileText} barClassName="from-blue-400 via-indigo-500 to-blue-600" iconWrapClassName="bg-blue-50 text-blue-600" />
+        <StatCard label="Approved" value={data?.approved || 0} icon={CheckCircle} barClassName="from-emerald-400 via-green-500 to-teal-500" iconWrapClassName="bg-green-50 text-green-600" />
+        <StatCard label="Pending" value={(data?.pending || 0) + (data?.submitted || 0)} icon={Clock} barClassName="from-amber-400 via-yellow-500 to-orange-500" iconWrapClassName="bg-yellow-50 text-yellow-600" />
+        <StatCard label="Rejected" value={data?.rejected || 0} icon={XCircle} barClassName="from-red-400 via-rose-500 to-pink-500" iconWrapClassName="bg-red-50 text-red-600" />
+        <StatCard label="Success Rate" value={`${data?.successRate || 0}%`} icon={TrendingUp} barClassName="from-indigo-400 via-violet-500 to-purple-500" iconWrapClassName="bg-indigo-50 text-indigo-600" />
       </div>
 
       {data?.monthlyUsage && (

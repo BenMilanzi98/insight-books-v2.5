@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Wrench,
 } from "lucide-react";
+import StatCard from "@/components/ui/StatCard";
 
 function formatMoney(n) {
   const v = Number(n) || 0;
@@ -602,30 +603,25 @@ export default function RentalsClient({ mode }) {
           ) : (
             <>
               <section className="mb-8 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {kind === "rental" ? "Rental assets" : "Pool items"}
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900">
-                    {kind === "rental" ? stats?.totalRentalAssets ?? 0 : stats?.totalHiringAssets ?? 0}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Active bookings
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900">{stats?.activeBookings ?? 0}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {kind === "rental" ? "Assets available" : "Fleet status"}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-slate-800">
-                    {kind === "rental"
+                <StatCard
+                  label={kind === "rental" ? "Rental assets" : "Pool items"}
+                  value={kind === "rental" ? stats?.totalRentalAssets ?? 0 : stats?.totalHiringAssets ?? 0}
+                  icon={kind === "rental" ? Building2 : Package}
+                />
+                <StatCard
+                  label="Active bookings"
+                  value={stats?.activeBookings ?? 0}
+                  icon={ClipboardList}
+                />
+                <StatCard
+                  label={kind === "rental" ? "Assets available" : "Fleet status"}
+                  value={
+                    kind === "rental"
                       ? `${stats?.rentalUnitsAvailable ?? 0} of ${stats?.totalRentalAssets ?? 0} available`
-                      : `${stats?.totalHiringAssets ?? 0} Assets in pool`}
-                  </p>
-                </div>
+                      : `${stats?.totalHiringAssets ?? 0} Assets in pool`
+                  }
+                  icon={Wrench}
+                />
               </section>
 
               <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

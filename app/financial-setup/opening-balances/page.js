@@ -17,6 +17,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
+import StatCard from "@/components/ui/StatCard";
 
 /** Statement order for opening balance grouping */
 const COA_CATEGORY_ORDER = ["Asset", "Liability", "Equity", "Revenue", "Expense"];
@@ -454,24 +455,24 @@ export default function OpeningBalancesPage() {
 
         {/* Balance Sheet Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="text-sm text-blue-600 font-medium">Total Assets</div>
-            <div className="text-2xl font-bold text-blue-900">
-              MWK {getTotalAssets().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="text-sm text-red-600 font-medium">Total Liabilities</div>
-            <div className="text-2xl font-bold text-red-900">
-              MWK {getTotalLiabilities().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="text-sm text-green-600 font-medium">Total Equity</div>
-            <div className="text-2xl font-bold text-green-900">
-              MWK {getTotalEquity().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
+          <StatCard
+            label="Total Assets"
+            value={`MWK ${getTotalAssets().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            valueClassName="text-blue-900"
+            barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          />
+          <StatCard
+            label="Total Liabilities"
+            value={`MWK ${getTotalLiabilities().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            valueClassName="text-red-900"
+            barClassName="from-red-400 via-rose-500 to-pink-500"
+          />
+          <StatCard
+            label="Total Equity"
+            value={`MWK ${getTotalEquity().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            valueClassName="text-green-900"
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+          />
         </div>
 
         {/* Balance Sheet Equation */}

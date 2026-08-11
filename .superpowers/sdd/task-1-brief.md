@@ -1,119 +1,154 @@
-### Task 1: Server assert helper + unit tests
+### Task 1: Failing unit tests for Unpaid-always auto bill
 
 **Files:**
-- Create: `lib/taxManagement/assertActiveTaxTypes.js`
-- Create: `tests/unit/taxManagement/assertActiveTaxTypes.test.js`
+- Create: `tests/unit/purchases/autoCreateBillFromReceipt.test.js`
+- Modify: (none yet)
 
 **Interfaces:**
-- Produces: `export async function assertActiveTaxTypeIds(db, tenantId, taxTypeIds)` — dedupes IDs, no-op if empty, throws `Error` with message containing `INACTIVE_TAX` or `UNKNOWN_TAX` when invalid; or throw an object `{ code, message }` that routes can map to 400. Prefer throwing `{ status: 400, code: 'INACTIVE_TAX', message: string }` pattern if the codebase uses that; otherwise throw `Error` and catch in routes.
+- Consumes: `autoCreateBillFromReceipt({ tx, goodsReceipt, supplier, purchaseOrder, tenantId, userId, journalEntryId })`
+- Produces: Vitest coverage that fails while GRNI Draft behavior remains
 
-- [ ] **Step 1: Write failing unit test**
+- [ ] **Step 1: Write the failing test file**
+
+Create `tests/unit/purchases/autoCreateBillFromReceipt.test.js`:
 
 ```js
-import { describe, it, expect, vi } from 'vitest';
-import { assertActiveTaxTypeIds } from '@/lib/taxManagement/assertActiveTaxTypes';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-describe('assertActiveTaxTypeIds', () => {
-  it('no-ops for empty ids', async () => {
-    const db = { taxType: { findMany: vi.fn() } };
-    await expect(assertActiveTaxTypeIds(db, 't1', [])).resolves.toBeUndefined();
-    expect(db.taxType.findMany).not.toHaveBeenCalled();
+vi.mock('@/lib/purchases/grniPolicy', () => ({
+  isPurchasesGrniEnabled: vi.fn(),
+}));
+
+import { isPurchasesGrniEnabled } from '@/lib/purchases/grniPolicy';
+import { autoCreateBillFromReceipt } from '@/lib/goodsReceiptFollowOn';
+
+function makeTx({ existingBill = null } = {}) {
+  const created = { id: 'bill-1', billNumber: 'GRB-GR-001', status: 'Unpaid' };
+  return {
+    supplierBill: {
+      findFirst: vi
+        .fn()
+        // first call: idempotency check; later calls: bill-number uniqueness
+        .mockResolvedValueOnce(existingBill)
+        .mockResolvedValue(null),
+      create: vi.fn().mockImplementation(async ({ data }) => ({
+        ...created,
+        ...data,
+        id: 'bill-1',
+      })),
+    },
+    supplier: {
+      update: vi.fn().mockResolvedValue({}),
+    },
+  };
+}
+
+const baseArgs = {
+  goodsReceipt: {
+    id: 'gr-1',
+    receiptNumber: 'GR-001',
+    receiptDate: new Date('2026-08-01T00:00:00.000Z'),
+    totalAmount: 250,
+    purchaseOrderId: 'po-1',
+    supplierReference: null,
+    notes: null,
+    items: [
+      {
+        lineNumber: 1,
+        productId: 'prod-1',
+        quantityReceived: 5,
+        unitCost: 50,
+        notes: '',
+      },
+    ],
+  },
+  supplier: {
+    id: 'sup-1',
+    paymentTerms: 30,
+    currency: 'MWK',
+  },
+  purchaseOrder: { id: 'po-1', paymentTerms: 30 },
+  tenantId: 'tenant-1',
+  userId: 'user-1',
+  journalEntryId: 'je-1',
+};
+
+describe('autoCreateBillFromReceipt', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('passes when all found and Active', async () => {
-    const db = {
-      taxType: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: 'a', status: 'Active', taxName: 'VAT' },
-        ]),
-      },
-    };
-    await expect(assertActiveTaxTypeIds(db, 't1', ['a'])).resolves.toBeUndefined();
-  });
+  it('creates Unpaid bill and increments supplier balance when GRNI is enabled', async () => {
+    isPurchasesGrniEnabled.mockResolvedValue(true);
+    const tx = makeTx();
 
-  it('rejects Inactive', async () => {
-    const db = {
-      taxType: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: 'a', status: 'Inactive', taxName: 'Old VAT' },
-        ]),
-      },
-    };
-    await expect(assertActiveTaxTypeIds(db, 't1', ['a'])).rejects.toMatchObject({
-      code: 'INACTIVE_TAX',
+    const bill = await autoCreateBillFromReceipt({ tx, ...baseArgs });
+
+    expect(bill.status).toBe('Unpaid');
+    expect(tx.supplierBill.create).toHaveBeenCalledTimes(1);
+    const data = tx.supplierBill.create.mock.calls[0][0].data;
+    expect(data.status).toBe('Unpaid');
+    expect(data.journalEntryId).toBe('je-1');
+    expect(data.finalizedAt).toBeInstanceOf(Date);
+    expect(data.finalizedById).toBe('user-1');
+    expect(data.amountPaid).toBe(0);
+    expect(data.totalAmount).toBe(250);
+    expect(tx.supplier.update).toHaveBeenCalledWith({
+      where: { id: 'sup-1' },
+      data: { currentBalance: { increment: 250 } },
     });
   });
 
-  it('rejects unknown id', async () => {
-    const db = {
-      taxType: { findMany: vi.fn().mockResolvedValue([]) },
-    };
-    await expect(assertActiveTaxTypeIds(db, 't1', ['missing'])).rejects.toMatchObject({
-      code: 'UNKNOWN_TAX',
+  it('creates Unpaid bill when GRNI is disabled', async () => {
+    isPurchasesGrniEnabled.mockResolvedValue(false);
+    const tx = makeTx();
+
+    await autoCreateBillFromReceipt({ tx, ...baseArgs });
+
+    const data = tx.supplierBill.create.mock.calls[0][0].data;
+    expect(data.status).toBe('Unpaid');
+    expect(tx.supplier.update).toHaveBeenCalled();
+  });
+
+  it('returns existing bill without creating a second one', async () => {
+    isPurchasesGrniEnabled.mockResolvedValue(true);
+    const existing = { id: 'existing-bill', status: 'Unpaid', billNumber: 'GRB-GR-001' };
+    const tx = makeTx({ existingBill: existing });
+
+    const bill = await autoCreateBillFromReceipt({ tx, ...baseArgs });
+
+    expect(bill).toEqual(existing);
+    expect(tx.supplierBill.create).not.toHaveBeenCalled();
+    expect(tx.supplier.update).not.toHaveBeenCalled();
+  });
+
+  it('returns null when receipt has no items', async () => {
+    isPurchasesGrniEnabled.mockResolvedValue(true);
+    const tx = makeTx();
+    const bill = await autoCreateBillFromReceipt({
+      tx,
+      ...baseArgs,
+      goodsReceipt: { ...baseArgs.goodsReceipt, items: [] },
     });
+    expect(bill).toBeNull();
+    expect(tx.supplierBill.create).not.toHaveBeenCalled();
   });
 });
 ```
 
-- [ ] **Step 2: Run test — expect FAIL (module missing)**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js`
+Run:
 
-- [ ] **Step 3: Implement helper**
-
-```js
-/**
- * Ensure every taxTypeId belongs to tenant and is Active.
- * @param {import('@prisma/client').PrismaClient} db
- * @param {string} tenantId
- * @param {string[]} taxTypeIds
- */
-export async function assertActiveTaxTypeIds(db, tenantId, taxTypeIds) {
-  const ids = [...new Set((taxTypeIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
-  if (ids.length === 0) return;
-
-  const rows = await db.taxType.findMany({
-    where: { tenantId, id: { in: ids } },
-    select: { id: true, status: true, taxName: true },
-  });
-  const byId = new Map(rows.map((r) => [r.id, r]));
-
-  for (const id of ids) {
-    const row = byId.get(id);
-    if (!row) {
-      const err = new Error(`Unknown tax type: ${id}`);
-      err.code = 'UNKNOWN_TAX';
-      err.status = 400;
-      throw err;
-    }
-    if (row.status !== 'Active') {
-      const err = new Error(
-        `Tax "${row.taxName || id}" is not active and cannot be used on new documents.`
-      );
-      err.code = 'INACTIVE_TAX';
-      err.status = 400;
-      throw err;
-    }
-  }
-}
-
-/** Collect taxTypeIds from quotation/invoice item tax arrays. */
-export function collectTaxTypeIdsFromItems(items) {
-  const ids = [];
-  for (const item of items || []) {
-    const taxes = item.itemTaxes || item.taxes || item.taxBreakdown || [];
-    for (const t of taxes) {
-      const id = t.taxTypeId || t.id;
-      if (id) ids.push(id);
-    }
-  }
-  return ids;
-}
+```bash
+npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
 ```
 
-- [ ] **Step 4: Run test — expect PASS**
+Expected: FAIL — at least the GRNI-enabled case fails because create payload still uses `Draft` / skips `supplier.update`.
 
-Run: `npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js`
+- [ ] **Step 3: Commit**
+
+Skip unless the user explicitly asks to commit.
 
 ---
 

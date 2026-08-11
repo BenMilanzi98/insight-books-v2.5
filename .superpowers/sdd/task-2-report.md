@@ -1,75 +1,74 @@
-# Task 2 Report: Client helper + Quotation/Invoice/POS pickers
+# Task 2 Report: Always Unpaid in `autoCreateBillFromReceipt`
 
 ## Status
 
-**DONE**
+**GREEN** — Production change implemented; all unit tests pass.
 
 ## Summary
 
-Created `lib/taxTypesClient.js` with `fetchActiveTaxTypes()` (Active-only GET, returns array). Wired QuotationModal, InvoiceModal, and POS page picker loads through the helper. POST create-tax calls left unchanged. No commits.
+Removed GRNI-conditional Draft branching from `autoCreateBillFromReceipt` in `lib/goodsReceiptFollowOn.js`. Auto-bills from goods receipts are now always created as `Unpaid`, always finalized immediately, always attach `journalEntryId` when provided, and always increment supplier `currentBalance`.
 
-## Files Created
+## Changes Made
 
-| File | Action |
-|------|--------|
-| `lib/taxTypesClient.js` | Created — `fetchActiveTaxTypes()` as specified in brief |
+### `lib/goodsReceiptFollowOn.js`
 
-## Files Modified
+1. **Removed** `isPurchasesGrniEnabled` import (no longer referenced anywhere in the file).
+2. **Removed** GRNI gate variables (`grniEnabled`, `billStatus`, `billJournalId`).
+3. **Replaced** conditional bill creation with Unpaid-always logic per product decision (2026-08-11):
+   - `status: 'Unpaid'` (hard-coded)
+   - `finalizedAt: new Date()` and `finalizedById: userId` (always set)
+   - `journalEntryId: journalEntryId || null` (always passed through)
+   - Supplier balance increment runs unconditionally after bill create
 
-| File | Change |
-|------|--------|
-| `components/QuotationModal.js` | Import helper; picker load uses `fetchActiveTaxTypes()`; POST create unchanged |
-| `components/InvoiceModal.js` | Same as QuotationModal; keeps default-tax fallback using returned array |
-| `app/pos/page.js` | `fetchPosTaxTypes` uses `fetchActiveTaxTypes()` instead of raw Active GET; POST create unchanged |
+### Unchanged
 
-## Verification (call-site audit)
+- Idempotency check (returns existing bill if one exists for the receipt)
+- Null return when receipt has no items
+- Bill number allocation, subtotal calculation, line items mapping
 
-Searched the three target files for `fetch('/api/tax-types...')` and `fetchActiveTaxTypes`:
+## TDD Evidence
 
-| File | Picker GET | Create POST | Other |
-|------|------------|-------------|-------|
-| `QuotationModal.js` | `fetchActiveTaxTypes()` only | `fetch('/api/tax-types', { method: 'POST', ... })` kept | — |
-| `InvoiceModal.js` | `fetchActiveTaxTypes()` only | POST kept | — |
-| `app/pos/page.js` | `fetchActiveTaxTypes()` only | POST kept | `fetch('/api/tax-types/accounts')` unchanged (accounts, not picker list) |
+### RED (Task 1 baseline)
 
-No unfiltered `fetch('/api/tax-types')` GET remains in these three files. No bare `fetch('/api/tax-types?status=Active')` remains in POS.
+Task 1 added failing tests at `tests/unit/purchases/autoCreateBillFromReceipt.test.js`. The GRNI-enabled case expected `Unpaid` but production returned `Draft` and skipped balance increment.
 
-## Helper contract
+### GREEN (Task 2)
 
-```js
-export async function fetchActiveTaxTypes() {
-  const response = await fetch('/api/tax-types?status=Active');
-  if (!response.ok) {
-    throw new Error(`Failed to load tax types: ${response.statusText}`);
-  }
-  const data = await response.json();
-  return Array.isArray(data) ? data : data.taxTypes || data.data || [];
-}
+Command:
+
+```bash
+npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
 ```
 
-Returns an array matching what modals previously derived from `taxTypes` / array / `data` response shapes.
+Output:
 
-## Tests
+```
+ RUN  v4.1.2 C:/laragon/www/insight-books-v2.5
 
-No automated tests required by the brief (Step 5 is a manual UI check). Not run.
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  01:10:51
+   Duration  2.69s (transform 159ms, setup 0ms, import 815ms, tests 28ms, environment 0ms)
+```
 
-Manual check not executed in this agent session (no browser / DB Inactive fixture here). Call-site audit confirms pickers only load via Active helper.
+All four test cases pass:
+
+| Test | Result |
+|------|--------|
+| Creates Unpaid bill and increments supplier balance when GRNI is enabled | PASS |
+| Creates Unpaid bill when GRNI is disabled | PASS |
+| Returns existing bill without creating a second one | PASS |
+| Returns null when receipt has no items | PASS |
 
 ## Self-Review
 
-### Strengths
-
-- Helper matches brief verbatim.
-- Only picker GETs changed; create POSTs untouched in all three files.
-- Response normalization returns array so `setTaxTypes` / `setPosTaxTypes` keep prior state shape.
-- Existing try/catch around loads still handles helper throws (`!response.ok`).
-
-### Concerns / residual risk
-
-1. **Manual UI check not run** — Inactive tax exclusion depends on API honoring `?status=Active`; not verified in-browser this session.
-2. **InvoiceModal default fallback** — still uses first returned (Active) tax when settings default is missing; behavior unchanged in spirit, now Active-scoped.
-3. **No unit test for helper** — brief did not require one; fetch-mock unit test would harden response-shape parsing.
+- **Scope**: Change limited to `autoCreateBillFromReceipt` only; no other exports modified.
+- **Verbatim compliance**: Replacement block matches task brief exactly.
+- **Import cleanup**: `isPurchasesGrniEnabled` removed; confirmed unused elsewhere in file.
+- **Behavioral change**: GRNI-enabled tenants now get immediate Unpaid bills with AP balance impact — intentional per product decision.
+- **Risk**: Downstream flows that assumed Draft auto-bills under GRNI (e.g. match/post workflows) may need separate validation in integration tests; out of scope for this task.
+- **No commit**: Per instructions, changes are uncommitted.
 
 ## Commits
 
-None (per global constraint).
+None.

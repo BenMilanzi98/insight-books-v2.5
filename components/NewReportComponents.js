@@ -403,7 +403,7 @@ export const PosDailyReport = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-emerald-200/80 p-4 sm:p-5 bg-gradient-to-br from-emerald-50 to-white shadow-sm border-l-4 border-l-emerald-500">
               <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Total sales</p>
-              <p className="text-xl font-bold text-slate-800 mt-1">{formatCurrency(totalSales)}</p>
+              <p className="mt-1 min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-slate-800 sm:text-xl">{formatCurrency(totalSales)}</p>
             </div>
             <div className="rounded-2xl border border-blue-200/80 p-4 sm:p-5 bg-gradient-to-br from-blue-50 to-white shadow-sm border-l-4 border-l-blue-500">
               <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Transactions</p>
@@ -415,7 +415,7 @@ export const PosDailyReport = ({
             </div>
             <div className="rounded-2xl border border-amber-200/80 p-4 sm:p-5 bg-gradient-to-br from-amber-50 to-white shadow-sm border-l-4 border-l-amber-500">
               <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">Avg sale</p>
-              <p className="text-xl font-bold text-slate-800 mt-1">{formatCurrency(averageSaleValue)}</p>
+              <p className="mt-1 min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-slate-800 sm:text-xl">{formatCurrency(averageSaleValue)}</p>
             </div>
           </div>
           {/* Payment breakdown */}

@@ -61,6 +61,28 @@ describe('resolveTenantEisManagementAccess', () => {
     expect(access.unlocked).toBe(false);
     expect(access.navItems).toEqual([...TENANT_EIS_NAV_LOCKED]);
   });
+
+  it('unlocks when EIS subscription has null expiresAt (open-ended)', async () => {
+    prisma.accountSubscription.findFirst.mockResolvedValue({
+      plan: 'eis-yearly',
+      isActive: true,
+      expiresAt: null,
+    });
+    prisma.mraEisTenantEntitlement.findFirst.mockResolvedValue(null);
+    const access = await resolveTenantEisManagementAccess('t1');
+    expect(access.unlocked).toBe(true);
+    expect(access.via).toBe('subscription');
+  });
+
+  it('exposes MRA EIS menu label for sidebar', async () => {
+    prisma.accountSubscription.findFirst.mockResolvedValue({
+      plan: 'eis-monthly',
+      isActive: true,
+    });
+    prisma.mraEisTenantEntitlement.findFirst.mockResolvedValue(null);
+    const access = await resolveTenantEisManagementAccess('t1');
+    expect(access.menuItem.text).toBe('MRA EIS');
+  });
 });
 
 describe('admin MRA EIS section active state', () => {

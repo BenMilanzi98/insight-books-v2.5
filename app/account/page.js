@@ -426,7 +426,7 @@ function AccountContent() {
     : '';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="w-full">
       <div className="max-w-6xl mx-auto p-6">
         {/* Header - always visible */}
         <div className="mb-8">
@@ -1080,7 +1080,7 @@ function AccountContent() {
 export default function Account() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">Loading account...</p>

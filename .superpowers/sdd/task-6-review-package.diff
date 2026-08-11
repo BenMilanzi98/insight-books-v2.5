@@ -1,0 +1,441 @@
+Task 6 review
+ M app/api/invoices/partial-payment/route.js
+?? lib/ensureInvoicePaymentRevenueRecognition.js
+?? test/ensureInvoicePaymentRevenueRecognition.test.js
+?? test/invoicePartialPaymentSalesAccounting.test.js
+
+diff --git a/app/api/invoices/partial-payment/route.js b/app/api/invoices/partial-payment/route.js
+index 3caf24c7..9f9ad23a 100644
+--- a/app/api/invoices/partial-payment/route.js
++++ b/app/api/invoices/partial-payment/route.js
+@@ -1,14 +1,16 @@
+ import { NextResponse } from 'next/server';
+ import prisma from '@/lib/prisma';
+ import { getUserFromSession } from '@/lib/auth';
+ import { postCustomerPaymentAccounting } from '@/lib/accountingV2/adapters';
++import { ensureInvoicePaymentRevenueRecognition } from '@/lib/ensureInvoicePaymentRevenueRecognition';
++import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
+ import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+ import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+ 
+ // POST - Process a partial payment for an invoice
+ export async function POST(request) {
+   try {
+     const body = await request.json();
+     const { invoiceId, amount, paymentMethod, paymentDate, reference, notes } = body;
+     
+     // Convert amount to a safe 2-decimal money number
+@@ -88,20 +90,30 @@ export async function POST(request) {
+       return NextResponse.json(
+         { error: `Payment amount exceeds remaining balance of ${remainingBalance.toLocaleString()}` },
+         { status: 400 }
+       );
+     }
+ 
+     const paymentDateObj = new Date(paymentDate || new Date());
+     
+     // Process payment in a transaction
+     const result = await prisma.$transaction(async (tx) => {
++      // Recognize revenue + COGS before cash application (covers Draft/Partial
++      // invoices that were never posted, and backfills missing Invoice-COGS).
++      await ensureInvoiceSalesAccounting({
++        db: tx,
++        tenantId: user.tenantId,
++        userId: user.id,
++        invoiceId,
++        force: true,
++      });
++
+       // Create the payment record
+       const payment = await tx.payment.create({
+         data: {
+           amount: numericAmount,
+           paymentMethod: paymentMethod,
+           paymentDate: paymentDateObj,
+           reference: reference || '',
+           notes: notes || '',
+           status: 'Completed',
+           type: 'invoice',
+@@ -148,20 +160,29 @@ export async function POST(request) {
+         db: tx,
+         tenantId: user.tenantId,
+         userId: user.id,
+         paymentId: payment.id,
+         invoiceId: invoice.id,
+         paymentAmount: numericAmount,
+         paymentDate: paymentDateObj,
+         paymentMethod,
+       });
+ 
++      await ensureInvoicePaymentRevenueRecognition({
++        db: tx,
++        tenantId: user.tenantId,
++        userId: user.id,
++        invoiceId,
++        paymentId: payment.id,
++        paymentAmount: numericAmount,
++      });
++
+       return { payment, invoice: updatedInvoice };
+     });
+ 
+     const payment = result.payment;
+     const updatedInvoice = result.invoice;
+ 
+     // Format response data
+     const [formattedPayment] = await enrichPaymentsWithMethodNames(prisma, user.tenantId, [
+       {
+         id: payment.id,
+
+=== FULL lib/ensureInvoicePaymentRevenueRecognition.js ===
+import { postInvoiceRevenueRecognitionAccounting } from '@/lib/accountingV2/adapters';
+import {
+  computeFinalPaymentRecognizedNet,
+  computePaymentRecognizedNet,
+} from '@/lib/invoiceDeferredRevenue';
+import { addMoney, MONEY_TOLERANCE, parseMoney, subtractMoney } from '@/lib/money';
+
+const POSTED_STATUSES = ['Posted', 'POSTED', 'posted'];
+
+function isCreditLine(line) {
+  return parseMoney(line?.creditAmount) > 0;
+}
+
+function extractRecognizedNet(journal) {
+  return parseMoney(journal?.metadata?.recognizedNet ?? journal?.totalCredit ?? journal?.totalDebit ?? 0);
+}
+
+/**
+ * Posts payment-time invoice revenue recognition against deferred revenue.
+ *
+ * Skips:
+ * - invoices without the issue journal posted yet
+ * - legacy invoices that already credited sales revenue on issue
+ * - payments already recognized via Invoice-Revenue journal
+ */
+export async function ensureInvoicePaymentRevenueRecognition({
+  db,
+  tenantId,
+  userId,
+  invoiceId,
+  paymentId,
+  paymentAmount,
+  hasPermission = () => true,
+}) {
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, tenantId },
+    select: {
+      id: true,
+      total: true,
+      taxAmount: true,
+      payments: {
+        where: { status: 'Completed', isReversal: false },
+        select: { id: true, amount: true },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new Error('Invoice not found for payment revenue recognition');
+  }
+
+  const issueJournal = await db.journalEntry.findFirst({
+    where: {
+      tenantId,
+      sourceType: 'Invoice',
+      sourceId: invoice.id,
+      status: { in: POSTED_STATUSES },
+    },
+    include: {
+      lines: {
+        include: {
+          account: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountSubtype: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!issueJournal) {
+    return { skipped: 'no_issue_journal' };
+  }
+
+  const creditedAccountIds = (issueJournal.lines || [])
+    .filter(isCreditLine)
+    .map((line) => line.accountId)
+    .filter(Boolean);
+
+  const revenueMappings = creditedAccountIds.length && db.coaV2AccountMapping?.findMany
+    ? await db.coaV2AccountMapping.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          purpose: 'SALES_REVENUE',
+          accountId: { in: creditedAccountIds },
+        },
+        select: { accountId: true },
+      })
+    : [];
+  const revenueAccountIds = new Set((revenueMappings || []).map((row) => row.accountId));
+
+  const hasLegacyRevenueCredit = (issueJournal.lines || []).some((line) => {
+    if (!isCreditLine(line)) return false;
+    return (
+      line.account?.accountCode === '4100'
+      || line.account?.accountSubtype === 'SALES_REVENUE'
+      || revenueAccountIds.has(line.accountId)
+    );
+  });
+
+  if (hasLegacyRevenueCredit) {
+    return { skipped: 'legacy_accrual' };
+  }
+
+  const existingRecognition = await db.journalEntry.findFirst({
+    where: {
+      tenantId,
+      sourceType: 'Invoice-Revenue',
+      sourceId: paymentId,
+      status: { in: POSTED_STATUSES },
+    },
+    select: { id: true },
+  });
+
+  if (existingRecognition) {
+    return { skipped: 'already_posted' };
+  }
+
+  const priorPayments = (invoice.payments || []).filter((payment) => payment.id !== paymentId);
+  const priorPaymentIds = priorPayments.map((payment) => payment.id);
+  const priorRecognitionJournals = priorPaymentIds.length
+    ? await db.journalEntry.findMany({
+        where: {
+          tenantId,
+          sourceType: 'Invoice-Revenue',
+          sourceId: { in: priorPaymentIds },
+          status: { in: POSTED_STATUSES },
+        },
+        select: {
+          metadata: true,
+          totalCredit: true,
+          totalDebit: true,
+        },
+      })
+    : [];
+
+  const previouslyRecognizedNet = (priorRecognitionJournals || []).reduce(
+    (sum, journal) => addMoney(sum, extractRecognizedNet(journal)),
+    0
+  );
+
+  const invoiceTotal = parseMoney(invoice.total);
+  const invoiceTaxAmount = parseMoney(invoice.taxAmount);
+  const invoiceNet = subtractMoney(invoiceTotal, invoiceTaxAmount);
+  const priorPaid = priorPayments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+  const remainingAfterThisPayment = subtractMoney(invoiceTotal, addMoney(priorPaid, paymentAmount));
+
+  const recognizedNet = remainingAfterThisPayment <= MONEY_TOLERANCE
+    ? computeFinalPaymentRecognizedNet({
+        invoiceNet,
+        previouslyRecognizedNet,
+      })
+    : computePaymentRecognizedNet({
+        paymentAmount,
+        invoiceTotal,
+        invoiceTaxAmount,
+      });
+
+  const postingResult = await postInvoiceRevenueRecognitionAccounting({
+    db,
+    tenantId,
+    userId,
+    invoiceId,
+    paymentId,
+    recognizedNet,
+    hasPermission,
+  });
+
+  return {
+    recognizedNet,
+    ...postingResult,
+  };
+}
+
+
+=== FULL test/ensureInvoicePaymentRevenueRecognition.test.js ===
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const postInvoiceRevenueRecognitionAccounting = vi.fn();
+
+vi.mock('../lib/accountingV2/adapters/index.js', () => ({
+  postInvoiceRevenueRecognitionAccounting: (...args) =>
+    postInvoiceRevenueRecognitionAccounting(...args),
+}));
+
+vi.mock('../lib/accountingV2/adapters', () => ({
+  postInvoiceRevenueRecognitionAccounting: (...args) =>
+    postInvoiceRevenueRecognitionAccounting(...args),
+}));
+
+describe('ensureInvoicePaymentRevenueRecognition', () => {
+  let db;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    postInvoiceRevenueRecognitionAccounting.mockResolvedValue({ ok: true });
+
+    db = {
+      invoice: {
+        findFirst: vi.fn(),
+      },
+      journalEntry: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+      },
+      coaV2AccountMapping: {
+        findMany: vi.fn(),
+      },
+    };
+  });
+
+  it('skips recognition for legacy invoices that already credited sales revenue on issue', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [{ id: 'pay-1', amount: 590, status: 'Completed', isReversal: false }],
+    });
+    db.journalEntry.findFirst.mockResolvedValueOnce({
+      id: 'je-invoice',
+      lines: [
+        {
+          accountId: 'acct-sales',
+          creditAmount: 1000,
+          account: { accountCode: '4100', accountSubtype: null },
+        },
+      ],
+    });
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    const result = await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-1',
+      paymentAmount: 590,
+    });
+
+    expect(result).toEqual({ skipped: 'legacy_accrual' });
+    expect(postInvoiceRevenueRecognitionAccounting).not.toHaveBeenCalled();
+  });
+
+  it('posts pro-rata recognized revenue for a partial payment', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [{ id: 'pay-1', amount: 590, status: 'Completed', isReversal: false }],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce({
+        id: 'je-invoice',
+        lines: [
+          {
+            accountId: 'acct-deferred',
+            creditAmount: 1000,
+            account: { accountCode: '2200', accountSubtype: null },
+          },
+        ],
+      })
+      .mockResolvedValueOnce(null);
+    db.coaV2AccountMapping.findMany.mockResolvedValue([]);
+    db.journalEntry.findMany.mockResolvedValue([]);
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-1',
+      paymentAmount: 590,
+    });
+
+    expect(postInvoiceRevenueRecognitionAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db,
+        tenantId: 't1',
+        userId: 'u1',
+        invoiceId: 'inv-1',
+        paymentId: 'pay-1',
+        recognizedNet: 500,
+      })
+    );
+  });
+
+  it('uses the remaining net revenue on the final payment', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [
+        { id: 'pay-1', amount: 590, status: 'Completed', isReversal: false },
+        { id: 'pay-2', amount: 590, status: 'Completed', isReversal: false },
+      ],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce({
+        id: 'je-invoice',
+        lines: [
+          {
+            accountId: 'acct-deferred',
+            creditAmount: 1000,
+            account: { accountCode: '2200', accountSubtype: null },
+          },
+        ],
+      })
+      .mockResolvedValueOnce(null);
+    db.coaV2AccountMapping.findMany.mockResolvedValue([]);
+    db.journalEntry.findMany.mockResolvedValue([
+      {
+        id: 'je-rev-1',
+        sourceId: 'pay-1',
+        metadata: { recognizedNet: '500.00' },
+        totalCredit: '500.00',
+      },
+    ]);
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-2',
+      paymentAmount: 590,
+    });
+
+    expect(postInvoiceRevenueRecognitionAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: 'pay-2',
+        recognizedNet: 500,
+      })
+    );
+  });
+});
+

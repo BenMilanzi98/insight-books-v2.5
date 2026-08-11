@@ -686,7 +686,7 @@ export default function FinancialCalendarV2Page() {
   const hasCalendar = years.length > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+    <div className="w-full">
       <div className="w-full px-4 py-6 pb-12 sm:px-6 lg:px-8 lg:py-8">
         {/* Header */}
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 p-6 shadow-xl shadow-indigo-200/50 sm:p-8">

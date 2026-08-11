@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
 import { EIS_PLAN_IDS, EIS_PLANS } from '@/lib/subscriptionConfig';
+import { requestEntitlementPendingFromSubscription } from '@/lib/mraEis/application/entitlementService.js';
 
 export async function GET(request) {
   try {
@@ -213,7 +214,7 @@ export async function POST(request) {
       );
     }
 
-    // Check if tenant already has an active EIS subscription
+    // Check if tenant already has an active EIS subscription (null expiresAt = open-ended)
     const existingEIS = await prisma.accountSubscription.findFirst({
       where: {
         tenantId,
@@ -221,13 +222,12 @@ export async function POST(request) {
           in: eisPlanIds
         },
         isActive: true,
-        expiresAt: {
-          gt: new Date()
-        }
+        isTrial: false,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       }
     });
 
-    if (existingEIS && isActive) {
+    if (existingEIS && isActive !== false) {
       return NextResponse.json(
         { success: false, error: 'Tenant already has an active EIS subscription' },
         { status: 400 }
@@ -275,6 +275,21 @@ export async function POST(request) {
         }
       }
     });
+
+    // Paid/active EIS package: open entitlement review (does not replace subscription unlock)
+    if (subscription.isActive) {
+      try {
+        await requestEntitlementPendingFromSubscription({
+          tenantId,
+          subscriptionId: subscription.id,
+          planCode: subscription.plan,
+          reason: 'Admin-created MRA EIS subscription — entitlement review required',
+          requestId: `admin-eis-sub:${subscription.id}`,
+        });
+      } catch (entitlementErr) {
+        console.warn('EIS subscription created but entitlement pending failed:', entitlementErr?.message || entitlementErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

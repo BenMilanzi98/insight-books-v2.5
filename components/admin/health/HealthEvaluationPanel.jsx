@@ -57,7 +57,7 @@ export default function HealthEvaluationPanel({ evaluation }) {
             {t('admin-pages.customerHealth.score')}
           </p>
           <p
-            className={`mt-2 text-2xl font-bold tabular-nums ${
+            className={`mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums sm:text-2xl ${
               evaluation.score == null
                 ? 'text-[var(--admin-danger)]'
                 : 'text-[var(--admin-text)]'

@@ -438,7 +438,7 @@ export default function TaxAccountsBalances() {
               <DollarSign className="text-blue-600" size={24} />
               <h3 className="text-sm font-medium text-gray-700">Total Collected</h3>
             </div>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-blue-600 sm:text-2xl">
               {formatCurrency(summary.totalCollected || 0)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
@@ -451,7 +451,7 @@ export default function TaxAccountsBalances() {
               <TrendingDown className="text-red-600" size={24} />
               <h3 className="text-sm font-medium text-gray-700">Total Paid</h3>
             </div>
-            <p className="text-2xl font-bold text-red-600">
+            <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-red-600 sm:text-2xl">
               {formatCurrency(summary.totalPaid || 0)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
@@ -464,7 +464,7 @@ export default function TaxAccountsBalances() {
               <Info className="text-yellow-600" size={24} />
               <h3 className="text-sm font-medium text-gray-700">Total Refunded</h3>
             </div>
-            <p className="text-2xl font-bold text-yellow-600">
+            <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-yellow-600 sm:text-2xl">
               {formatCurrency(summary.totalRefunded || 0)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
@@ -477,7 +477,7 @@ export default function TaxAccountsBalances() {
               <TrendingUp className="text-purple-600" size={24} />
               <h3 className="text-sm font-medium text-gray-700">Net due (period)</h3>
             </div>
-            <p className="text-2xl font-bold text-purple-600">
+            <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-purple-600 sm:text-2xl">
               {formatCurrency(
                 summary.totalNetDueInPeriod ?? Math.max(0, summary.totalNetPayable || 0)
               )}

@@ -30,7 +30,7 @@ export default function ReportLayout({
         }
       />
       {filters ? (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-3 sm:p-4">
+        <div className="tenant-glass-card tenant-glass-card--accent mb-4 flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-3 sm:p-4">
           {filters}
         </div>
       ) : null}

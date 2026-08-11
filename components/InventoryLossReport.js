@@ -67,22 +67,22 @@ export const InventoryLossReport = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-orange-700">Total loss</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{formatCurrency(summary.totalAmount || 0)}</p>
+              <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(summary.totalAmount || 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{summary.totalCount || 0} events</p>
             </div>
             <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-rose-700">Write-offs</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{formatCurrency(summary.writeOffAmount || 0)}</p>
+              <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(summary.writeOffAmount || 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{summary.writeOffCount || 0} events</p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Stock-outs</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{formatCurrency(summary.stockOutAmount || 0)}</p>
+              <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(summary.stockOutAmount || 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{summary.stockOutCount || 0} events</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-600">Average loss/event</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">
+              <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">
                 {formatCurrency((summary.totalCount || 0) > 0 ? (summary.totalAmount || 0) / summary.totalCount : 0)}
               </p>
               <p className="text-xs text-slate-500 mt-1">For selected filter</p>

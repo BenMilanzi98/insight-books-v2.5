@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Landmark, Users, Plus, RefreshCw, AlertCircle, CheckCircle2, Scale } from 'lucide-react';
 import PageHeader from '@/components/shell/PageHeader';
+import StatCard from '@/components/ui/StatCard';
 
 
 async function api(url, options) {
@@ -209,10 +210,10 @@ export default function EquityManagementPage() {
 
         {tab === 'dashboard' && dashboard ? (
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label="Owners / partners" value={dashboard.ownerCount} icon={Users} />
-            <Stat label="Contributions posted" value={dashboard.contributionsPosted} icon={Landmark} />
-            <Stat label="Drawings posted" value={dashboard.drawingsPosted} />
-            <Stat label="Dividends paid" value={dashboard.dividendsPaid} />
+            <StatCard label="Owners / partners" value={dashboard.ownerCount ?? '—'} icon={Users} />
+            <StatCard label="Contributions posted" value={dashboard.contributionsPosted ?? '—'} icon={Landmark} />
+            <StatCard label="Drawings posted" value={dashboard.drawingsPosted ?? '—'} />
+            <StatCard label="Dividends paid" value={dashboard.dividendsPaid ?? '—'} />
             <div className="sm:col-span-2 lg:col-span-4 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
               {dashboard.note}
               <div className="mt-2 flex gap-2">
@@ -321,18 +322,6 @@ export default function EquityManagementPage() {
           </section>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, icon: Icon }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-        {label}
-      </div>
-      <div className="mt-1 text-xl font-semibold text-slate-900">{value ?? '—'}</div>
     </div>
   );
 }

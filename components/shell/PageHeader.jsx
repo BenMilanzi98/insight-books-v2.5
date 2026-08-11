@@ -16,7 +16,7 @@ export default function PageHeader({
   return (
     <header
       className={cn(
-        'mb-6 flex flex-col gap-3 border-b border-[var(--border-default)] pb-4 sm:flex-row sm:items-start sm:justify-between',
+        'mb-6 flex flex-col gap-3 border-b border-[var(--border-default)] pb-5 sm:mb-8 sm:flex-row sm:items-start sm:justify-between',
         className
       )}
     >
@@ -24,14 +24,14 @@ export default function PageHeader({
         {breadcrumb ? (
           <div className="mb-1 text-sm text-[var(--text-muted)]">{breadcrumb}</div>
         ) : null}
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl sm:tracking-tight">
             {title}
           </h1>
           {status}
         </div>
         {description ? (
-          <p className="mt-1 max-w-3xl text-sm text-[var(--text-secondary)]">{description}</p>
+          <p className="mt-1.5 max-w-3xl text-sm text-[var(--text-secondary)]">{description}</p>
         ) : null}
         {children}
       </div>

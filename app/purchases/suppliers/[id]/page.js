@@ -54,7 +54,7 @@ export default function SupplierLedgerPage() {
 
   if (loading && !supplier) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="w-full">
         <div className="mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
           Loading supplier ledger…
         </div>
@@ -64,7 +64,7 @@ export default function SupplierLedgerPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="w-full">
         <div className="mx-auto max-w-4xl rounded-xl border border-red-200 bg-white p-8">
           <p className="text-red-600">{error}</p>
           <Link
@@ -79,7 +79,7 @@ export default function SupplierLedgerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="w-full">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">

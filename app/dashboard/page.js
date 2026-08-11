@@ -38,6 +38,7 @@ import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
 import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanner";
 import SetupWizardReminderBanner from "@/components/SetupWizardReminderBanner";
+import StatCard from "@/components/ui/StatCard";
 import { SetupWizardProvider } from "@/components/setup/SetupWizardContext";
 import SetupWizardHost from "@/components/setup/SetupWizardHost";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
@@ -45,7 +46,7 @@ import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessSc
 import MultiBusinessComparisonPanel, {
   DASHBOARD_METRICS_COMPARE_COLUMNS,
 } from "@/components/reports/MultiBusinessComparisonPanel";
-import { formatCurrency, formatDate, getDateRange, toYmdLocal } from "@/lib/dateUtils";
+import { formatCurrency, formatDate, getDateRange, toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import { addMoney, parseMoney } from "@/lib/money";
 import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
 import PageHeader from "@/components/shell/PageHeader";
@@ -750,6 +751,25 @@ const BusinessOwnerDashboard = () => {
     setShowAndroidAppNotice(false);
   };
 
+  const getDashboardRangeYmd = () => {
+    if (selectedDateRange === 'custom' && dateRange.start && dateRange.end) {
+      return { from: toYmdLocal(dateRange.start), to: toYmdLocal(dateRange.end) };
+    }
+    if (dateRange.start && dateRange.end) {
+      return { from: toYmdLocal(dateRange.start), to: toYmdLocal(dateRange.end) };
+    }
+    const range = getDateRange(selectedDateRange);
+    return { from: toYmdLocal(range.startDate), to: toYmdLocal(range.endDate) };
+  };
+
+  const openExpensesForRange = (from, to) => {
+    router.push(`/expenses?dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}`);
+  };
+
+  const openInvoicesForRange = (from, to) => {
+    router.push(`/invoice?dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}`);
+  };
+
   // Enhanced data fetching with date range filtering
   const fetchDashboardData = async () => {
     try {
@@ -995,7 +1015,7 @@ const BusinessOwnerDashboard = () => {
   
   if (!dashboardPermissionResolved) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+      <div className="flex w-full items-center justify-center p-4 sm:p-6">
         <div className="text-center max-w-sm">
           <div className="relative w-16 h-16 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
@@ -1010,7 +1030,7 @@ const BusinessOwnerDashboard = () => {
 
   if (!pagePermissions.canViewDashboard) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+      <div className="flex w-full items-center justify-center p-4 sm:p-6">
         <div className="text-center max-w-sm">
           <div className="relative w-16 h-16 mx-auto mb-6">
             <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
@@ -1026,7 +1046,7 @@ const BusinessOwnerDashboard = () => {
   // Error state (only reached when user may view dashboard)
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+      <div className="flex w-full items-center justify-center p-4 sm:p-6">
         <div className="text-center max-w-md w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/80 p-8">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
             <AlertCircle className="h-8 w-8 text-red-600" />
@@ -1076,7 +1096,7 @@ const BusinessOwnerDashboard = () => {
           : 1;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
+      <div className="w-full">
         {showAndroidAppNotice && (
           <div
             className="fixed inset-0 z-[220] flex items-center justify-center bg-gray-900/55 p-4 backdrop-blur-sm"
@@ -1347,77 +1367,71 @@ const BusinessOwnerDashboard = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Today's Revenue Card */}
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-green-200/50 border border-white/50 hover:shadow-xl hover:shadow-green-200/60 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-200 group-hover:shadow-xl group-hover:shadow-green-200 transition-all duration-300 ring-2 ring-green-100">
-                      <TrendingUp size={24} className="text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">
-                        {"Today's Revenue"}
-                      </p>
-                      <p className="text-xs text-gray-400">vs Yesterday</p>
-                    </div>
-                  </div>
-                  <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold ${parseFloat(revenueChange) >= 0 ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+              <StatCard
+                interactive
+                label="Today's Revenue"
+                value={
+                  dailyPerformance
+                    ? formatCurrency(dailyPerformance.today.revenue)
+                    : <SkeletonElement className="h-10 w-36" />
+                }
+                icon={TrendingUp}
+                helper="vs Yesterday"
+                barClassName="from-green-400 via-emerald-500 to-teal-500"
+                iconWrapClassName="bg-emerald-100 text-emerald-600"
+                title="View today's invoices"
+                onClick={() => {
+                  const today = todayYmdLocal();
+                  openInvoicesForRange(today, today);
+                }}
+              >
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold ${parseFloat(revenueChange) >= 0 ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
                     {parseFloat(revenueChange) >= 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
                     <span>{Math.abs(parseFloat(revenueChange))}%</span>
                   </div>
+                  {dailyPerformance
+                    ? <MiniSparkline data={dailyPerformance.weeklyTrend.revenue} type="revenue" />
+                    : <SkeletonElement className="h-8 w-24" />}
                 </div>
-                
-                <div className="flex items-end justify-between">
-                  <div className="text-3xl font-bold text-gray-900">
-                    {dailyPerformance ? formatCurrency(dailyPerformance.today.revenue) : <SkeletonElement className="h-10 w-36" />}
-                  </div>
-                  {dailyPerformance ? 
-                    <MiniSparkline data={dailyPerformance.weeklyTrend.revenue} type="revenue" /> : 
-                    <SkeletonElement className="h-8 w-24" />
-                  }
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-xs text-gray-400">
+                <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
                   <Activity size={12} />
                   <span>Last 7 days trend</span>
                 </div>
-              </div>
-              
-              {/* Today's Expenses Card */}
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-red-200/50 border border-white/50 hover:shadow-xl hover:shadow-red-200/60 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 via-rose-500 to-pink-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200 group-hover:shadow-xl group-hover:shadow-red-200 transition-all duration-300 ring-2 ring-red-100">
-                      <TrendingDown size={24} className="text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">
-                        {"Today's Expenses"}
-                      </p>
-                      <p className="text-xs text-gray-400">vs Yesterday</p>
-                    </div>
-                  </div>
-                  <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold ${parseFloat(expensesChange) < 0 ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+              </StatCard>
+
+              <StatCard
+                interactive
+                label="Today's Expenses"
+                value={
+                  dailyPerformance
+                    ? formatCurrency(dailyPerformance.today.expenses)
+                    : <SkeletonElement className="h-10 w-36" />
+                }
+                icon={TrendingDown}
+                helper="vs Yesterday"
+                barClassName="from-red-400 via-rose-500 to-pink-500"
+                iconWrapClassName="bg-rose-100 text-rose-600"
+                title="View today's expenses"
+                onClick={() => {
+                  const today = todayYmdLocal();
+                  openExpensesForRange(today, today);
+                }}
+              >
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold ${parseFloat(expensesChange) < 0 ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
                     {parseFloat(expensesChange) < 0 ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
                     <span>{Math.abs(parseFloat(expensesChange))}%</span>
                   </div>
+                  {dailyPerformance
+                    ? <MiniSparkline data={dailyPerformance.weeklyTrend.expenses} type="expenses" />
+                    : <SkeletonElement className="h-8 w-24" />}
                 </div>
-                
-                <div className="flex items-end justify-between">
-                  <div className="text-3xl font-bold text-gray-900">
-                    {dailyPerformance ? formatCurrency(dailyPerformance.today.expenses) : <SkeletonElement className="h-10 w-36" />}
-                  </div>
-                  {dailyPerformance ? 
-                    <MiniSparkline data={dailyPerformance.weeklyTrend.expenses} type="expenses" /> : 
-                    <SkeletonElement className="h-8 w-24" />
-                  }
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-xs text-gray-400">
+                <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
                   <Activity size={12} />
                   <span>Last 7 days trend</span>
                 </div>
-              </div>
+              </StatCard>
             </div>
           </div>
           
@@ -1442,57 +1456,61 @@ const BusinessOwnerDashboard = () => {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Total Revenue Card */}
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-indigo-200/50 border border-white/50 hover:shadow-xl hover:shadow-indigo-200/60 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-200 group-hover:shadow-xl group-hover:shadow-green-200 transition-all duration-300 ring-2 ring-green-100">
-                      <CreditCard size={24} className="text-white" />
-                    </div>
-                    <p className="text-sm font-semibold text-gray-600">Total Revenue</p>
-                  </div>
-                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse ring-2 ring-green-200"></div>
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-3">
-                  {incomeExpenses ? formatCurrency(sumChartMoney(incomeExpenses.income)) : <SkeletonElement className="h-10 w-40" />}
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg font-semibold border border-green-200">
+              <StatCard
+                interactive
+                label="Total Revenue"
+                value={
+                  incomeExpenses
+                    ? formatCurrency(sumChartMoney(incomeExpenses.income))
+                    : <SkeletonElement className="h-10 w-40" />
+                }
+                icon={CreditCard}
+                barClassName="from-green-400 via-emerald-500 to-teal-500"
+                iconWrapClassName="bg-emerald-100 text-emerald-600"
+                title="View invoices for selected period"
+                onClick={() => {
+                  const { from, to } = getDashboardRangeYmd();
+                  openInvoicesForRange(from, to);
+                }}
+              >
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-green-100 px-2 py-1 font-semibold text-green-700">
                     <ArrowUpRight size={16} />
                     {metrics ? `${metrics.revenue.change}%` : '--'}
                   </span>
-                  <span className="text-gray-500 text-xs">
+                  <div className="text-xs text-gray-500">
                     {metrics ? `from last ${getDateRangeLabel(selectedDateRange)}` : <SkeletonElement className="h-4 w-24" />}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Total Expenses Card */}
-              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-orange-200/50 border border-white/50 hover:shadow-xl hover:shadow-orange-200/60 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 via-red-500 to-rose-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200 group-hover:shadow-xl group-hover:shadow-orange-200 transition-all duration-300 ring-2 ring-orange-100">
-                      <ShoppingCart size={24} className="text-white" />
-                    </div>
-                    <p className="text-sm font-semibold text-gray-600">Total Expenses</p>
                   </div>
-                  <div className="w-3 h-3 bg-orange-400 rounded-full animate-pulse ring-2 ring-orange-200"></div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-3">
-                  {incomeExpenses ? formatCurrency(sumChartMoney(incomeExpenses.expenses)) : <SkeletonElement className="h-10 w-40" />}
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-lg font-semibold border border-orange-200">
+              </StatCard>
+
+              <StatCard
+                interactive
+                label="Total Expenses"
+                value={
+                  incomeExpenses
+                    ? formatCurrency(sumChartMoney(incomeExpenses.expenses))
+                    : <SkeletonElement className="h-10 w-40" />
+                }
+                icon={ShoppingCart}
+                barClassName="from-orange-400 via-red-500 to-rose-500"
+                iconWrapClassName="bg-orange-100 text-orange-700"
+                title="View expenses for selected period"
+                onClick={() => {
+                  const { from, to } = getDashboardRangeYmd();
+                  openExpensesForRange(from, to);
+                }}
+              >
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-100 px-2 py-1 font-semibold text-orange-700">
                     <ArrowUpRight size={16} />
                     {metrics ? `${metrics.expenses.change}%` : '--'}
                   </span>
-                  <span className="text-gray-500 text-xs">
+                  <div className="text-xs text-gray-500">
                     {metrics ? `from last ${getDateRangeLabel(selectedDateRange)}` : <SkeletonElement className="h-4 w-24" />}
-                  </span>
+                  </div>
                 </div>
-              </div>
+              </StatCard>
             </div>
           </div>
 
@@ -1621,19 +1639,19 @@ const BusinessOwnerDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total Receivables</p>
-                    <div className="text-xl font-bold text-gray-900">
+                    <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-gray-900">
                       {receivables ? formatCurrency(receivables.current) : <SkeletonElement className="h-6 w-24 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 text-center border border-green-100">
                     <p className="text-xs text-green-600 mb-1 font-medium">Not Due</p>
-                    <div className="text-xl font-bold text-green-700">
+                    <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-green-700">
                       {receivables ? formatCurrency(receivables.notDue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 text-center border border-red-100">
                     <p className="text-xs text-red-600 mb-1 font-medium">Overdue</p>
-                    <div className="text-xl font-bold text-red-700">
+                    <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-red-700">
                       {receivables ? formatCurrency(receivables.overdue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
                   </div>
@@ -1678,8 +1696,8 @@ const BusinessOwnerDashboard = () => {
                                 ></div>
                               </div>
                             </div>
-                            <div className="w-28 text-right">
-                              <p className="text-sm font-bold text-gray-900">{formatCurrency(period.amount)}</p>
+                            <div className="min-w-[6.5rem] max-w-[40%] shrink-0 text-right">
+                              <p className="break-words text-sm font-bold tabular-nums text-gray-900">{formatCurrency(period.amount)}</p>
                               {percentage > 0 && (
                                 <p className="text-xs text-gray-400">{percentage.toFixed(1)}%</p>
                               )}
@@ -1720,19 +1738,19 @@ const BusinessOwnerDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total Payables</p>
-                    <div className="text-xl font-bold text-gray-900">
+                    <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-gray-900">
                       {payables ? formatCurrency(payables.current) : <SkeletonElement className="h-6 w-24 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 text-center border border-green-100">
                     <p className="text-xs text-green-600 mb-1 font-medium">Not Due</p>
-                    <div className="text-xl font-bold text-green-700">
+                    <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-green-700">
                       {payables ? formatCurrency(payables.notDue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 text-center border border-red-100">
                     <p className="text-xs text-red-600 mb-1 font-medium">Overdue</p>
-                    <div className="text-xl font-bold text-red-700">
+                    <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-red-700">
                       {payables ? formatCurrency(payables.overdue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
                   </div>
@@ -1777,8 +1795,8 @@ const BusinessOwnerDashboard = () => {
                                 ></div>
                               </div>
                             </div>
-                            <div className="w-28 text-right">
-                              <p className="text-sm font-bold text-gray-900">{formatCurrency(period.amount)}</p>
+                            <div className="min-w-[6.5rem] max-w-[40%] shrink-0 text-right">
+                              <p className="break-words text-sm font-bold tabular-nums text-gray-900">{formatCurrency(period.amount)}</p>
                               {percentage > 0 && (
                                 <p className="text-xs text-gray-400">{percentage.toFixed(1)}%</p>
                               )}

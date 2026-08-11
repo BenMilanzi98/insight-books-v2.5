@@ -2317,7 +2317,7 @@ const toggleModulePermissions = (module) => {
   
   return (
     <PermissionGuard permissions={["users.view", "roles.view"]}>
-    <div className="w-full min-h-screen bg-gray-50/60">
+    <div className="w-full">
       <div className="w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6 lg:py-8 overflow-x-visible">
         {/* Header Section */}
         <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { assertPosTillOpenForSale, posBusinessDateToday } from '@/lib/posCashDayService';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
 import { postPosSaleAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
@@ -473,6 +474,28 @@ export async function POST(request) {
         { error: 'Tenant context required' },
         { status: 400 }
       );
+    }
+
+    // Hard-gate: live POS sales require an open till for the Blantyre business date
+    if (!data.isHistorical) {
+      try {
+        await assertPosTillOpenForSale(user.tenantId, {
+          businessDate: posBusinessDateToday(),
+          isHistorical: false,
+        });
+      } catch (tillErr) {
+        if (tillErr?.code === 'TILL_NOT_OPEN') {
+          return NextResponse.json(
+            {
+              error: tillErr.message,
+              code: 'TILL_NOT_OPEN',
+              businessDate: tillErr.businessDate,
+            },
+            { status: 403 }
+          );
+        }
+        throw tillErr;
+      }
     }
 
     // Apply default income account for any line missing accountId (client race, offline sync, or partial payloads)

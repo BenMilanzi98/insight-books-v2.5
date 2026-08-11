@@ -1,106 +1,90 @@
-# Task 1 Report: Server assert helper + unit tests
+# Task 1 Report — Failing unit tests for Unpaid-always auto bill
 
-## Status
+**Date:** 2026-08-11  
+**Status:** **DONE (TDD RED)**  
+**Scope:** Create failing Vitest coverage for `autoCreateBillFromReceipt` only. No production code changes (Task 2). No git commit.
 
-**DONE**
+## Verdict
 
-## Summary
+Task 1 TDD RED phase complete. The new unit test file asserts that goods-receipt auto-bills are always **Unpaid** (including when GRNI is enabled) and that supplier balance is incremented. One test fails against current production behavior, confirming the expected RED state before Task 2 implementation.
 
-Created `assertActiveTaxTypeIds` and `collectTaxTypeIdsFromItems` in `lib/taxManagement/assertActiveTaxTypes.js`, plus vitest unit tests at `tests/unit/taxManagement/assertActiveTaxTypes.test.js`. All four tests pass.
+## Brief note
 
-## Files Created
+The file at `.superpowers/sdd/task-1-brief.md` contained stale content (Deferred Revenue purpose task). Test code and values were taken verbatim from the authoritative plan: `docs/superpowers/plans/2026-08-11-goods-receipt-stock-unpaid-bill.md` Task 1, which matches the user task description.
 
-| File | Action |
+## Deliverables
+
+| Item | Result |
 |------|--------|
-| `lib/taxManagement/assertActiveTaxTypes.js` | Created |
-| `tests/unit/taxManagement/assertActiveTaxTypes.test.js` | Created |
+| Create `tests/unit/purchases/autoCreateBillFromReceipt.test.js` | **DONE** |
+| Mock `@/lib/purchases/grniPolicy` | **DONE** |
+| Four test cases (GRNI on, GRNI off, idempotency, empty items) | **DONE** |
+| Production code changes | **NONE** (by design) |
+| Git commit | **NONE** (global constraint) |
 
-## Files Modified
+## Test file summary
 
-| File | Change |
-|------|--------|
-| `vitest.config.js` | Added `tests/**/*.test.js` to `test.include` so the brief's test path is discoverable |
+**Path:** `tests/unit/purchases/autoCreateBillFromReceipt.test.js`
 
-## TDD Evidence
+| Test | Expected in Task 1 (RED) | Actual result |
+|------|--------------------------|---------------|
+| creates Unpaid bill and increments supplier balance when GRNI is enabled | **FAIL** | **FAIL** ✓ |
+| creates Unpaid bill when GRNI is disabled | PASS | PASS |
+| returns existing bill without creating a second one | PASS | PASS |
+| returns null when receipt has no items | PASS | PASS |
 
-### RED — Step 2 (module missing)
+**Result:** 1 failed | 3 passed (4 total) — correct RED evidence.
+
+## TDD RED evidence
 
 **Command:**
-```
-npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js
-```
 
-**Initial run (before vitest config fix):**
+```bash
+npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
 ```
-No test files found, exiting with code 1
-filter: tests/unit/taxManagement/assertActiveTaxTypes.test.js
-include: test/**/*.test.js
-```
-
-After adding `tests/**/*.test.js` to vitest include:
 
 **Output:**
+
 ```
- FAIL  tests/unit/taxManagement/assertActiveTaxTypes.test.js
-Error: Cannot find package '@/lib/taxManagement/assertActiveTaxTypes' imported from ...
- ❯ tests/unit/taxManagement/assertActiveTaxTypes.test.js:2:1
+ RUN  v4.1.2 C:/laragon/www/insight-books-v2.5
+
+ ❯ tests/unit/purchases/autoCreateBillFromReceipt.test.js (4 tests | 1 failed) 21ms
+     × creates Unpaid bill and increments supplier balance when GRNI is enabled 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/purchases/autoCreateBillFromReceipt.test.js > autoCreateBillFromReceipt > creates Unpaid bill and increments supplier balance when GRNI is enabled
+AssertionError: expected 'Draft' to be 'Unpaid' // Object.is equality
+
+Expected: "Unpaid"
+Received: "Draft"
+
+ ❯ tests/unit/purchases/autoCreateBillFromReceipt.test.js:72:25
+     70|     const bill = await autoCreateBillFromReceipt({ tx, ...baseArgs });
+     71|
+     72|     expect(bill.status).toBe('Unpaid');
+       |                         ^
+     73|     expect(tx.supplierBill.create).toHaveBeenCalledTimes(1);
+     74|     const data = tx.supplierBill.create.mock.calls[0][0].data;
 
  Test Files  1 failed (1)
-      Tests  no tests
+      Tests  1 failed | 3 passed (4)
 ```
 
-Expected failure: module not found. Confirmed.
+**Root cause (current production):** In `lib/goodsReceiptFollowOn.js`, `autoCreateBillFromReceipt` sets `billStatus = grniEnabled ? 'Draft' : 'Unpaid'` and skips `supplier.update` when GRNI is enabled (lines 127–184). The failing test correctly exposes this Draft/GRNI branch.
 
-### GREEN — Step 4 (implementation complete)
+## Self-review
 
-**Command:**
-```
-npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js
-```
+| Check | Outcome |
+|-------|---------|
+| Test code matches plan verbatim | **PASS** |
+| No production code touched | **PASS** |
+| Vitest alias `@/` resolves (`vitest.config.js`) | **PASS** |
+| RED failure is the GRNI-enabled case (not import/setup error) | **PASS** |
+| Other three cases pass (GRNI-off already Unpaid; idempotency; empty items) | **PASS** |
+| Linter clean on new file | **PASS** |
+| Ready for Task 2 (always-Unpaid implementation) | **PASS** |
 
-**Output:**
-```
- Test Files  1 passed (1)
-      Tests  4 passed (4)
-   Duration  536ms
-```
+## Next step (Task 2)
 
-All cases pass:
-- no-ops for empty ids (findMany not called)
-- passes when all found and Active
-- rejects Inactive (`code: INACTIVE_TAX`)
-- rejects unknown id (`code: UNKNOWN_TAX`)
-
-## Self-Review
-
-### Implementation
-
-- `assertActiveTaxTypeIds` dedupes IDs via `Set`, trims/filters blanks, no-ops on empty array.
-- Queries `db.taxType.findMany` with `{ tenantId, id: { in: ids } }` and selects `id`, `status`, `taxName`.
-- Throws `Error` objects augmented with `code` (`UNKNOWN_TAX` / `INACTIVE_TAX`) and `status: 400` for route mapping.
-- `collectTaxTypeIdsFromItems` exported for later tasks (quotation/invoice/sales APIs); not covered by this task's tests per brief.
-
-### Tests
-
-- Matches brief verbatim (4 cases, vitest + `@/` alias).
-- Mocks Prisma client minimally; no DB required.
-
-### Scope
-
-- No API routes or UI modified (per task constraint).
-- No git commit (per global constraint).
-
-## Concerns
-
-1. **Vitest config change required:** The brief places tests under `tests/unit/` but existing `vitest.config.js` only included `test/**/*.test.js`. Added `tests/**/*.test.js` so the documented run command works. Without this, `npx vitest run tests/unit/...` exits with "No test files found."
-
-2. **`collectTaxTypeIdsFromItems` untested:** Included in implementation per brief for downstream tasks; unit tests for it are out of scope for Task 1.
-
-## Commits
-
-None (plan forbids commits unless user asks).
-
-## Next Steps (later tasks)
-
-- Wire `assertActiveTaxTypeIds` into quotation/invoice/sales API routes.
-- Use `collectTaxTypeIdsFromItems` to gather IDs from request payloads before asserting.
+Modify `lib/goodsReceiptFollowOn.js` → `autoCreateBillFromReceipt` to always create `status: 'Unpaid'`, always attach `journalEntryId`, always set finalize fields, and always increment supplier balance. Re-run the same vitest command; expected: **4/4 PASS**.

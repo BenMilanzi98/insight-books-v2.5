@@ -65,7 +65,7 @@ export const ExpenseReport = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             <div className="bg-gradient-to-br from-amber-50 to-white p-4 sm:p-5 rounded-2xl border border-amber-200/80 shadow-sm border-l-4 border-l-amber-500">
               <h3 className="text-sm font-medium text-amber-700 mb-1">Total expenses</h3>
-              <p className="text-2xl font-semibold text-slate-800">{formatCurrency(data.summary.totalExpenses)}</p>
+              <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.summary.totalExpenses)}</p>
               <p className="text-xs text-slate-500 mt-1">
                 {data.summary.expenseCount} register line{data.summary.expenseCount !== 1 ? 's' : ''}
                 {typeof data.summary.cogsFromGl === 'number' && Math.abs(data.summary.cogsFromGl) >= 0.005 ? (
@@ -81,7 +81,7 @@ export const ExpenseReport = ({
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-sm border-l-4 border-l-blue-500">
               <h3 className="text-sm font-medium text-blue-700 mb-1">Average monthly expense</h3>
-              <p className="text-2xl font-semibold text-slate-800">
+              <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">
                 {formatCurrency(data.expensesByMonth?.length ? data.summary.totalExpenses / data.expensesByMonth.length : 0)}
               </p>
               <p className="text-xs text-slate-500 mt-1">{data.expensesByMonth?.length || 0} months in selected period</p>

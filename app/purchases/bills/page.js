@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
+import StatCard from "@/components/ui/StatCard";
 
 const statusOptions = ["Draft", "Approved", "Unpaid", "Partially Paid", "Paid", "Overdue", "Cancelled"];
 
@@ -44,15 +45,7 @@ async function reverseBill(id, reversalReason) {
   return res.json();
 }
 
-function SummaryCard({ label, value, helper }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 ">
-      <div className="text-sm font-medium text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div>
-      {helper && <div className="mt-1 text-xs text-gray-500">{helper}</div>}
-    </div>
-  );
-}
+
 
 function displayBillNumber(bill) {
   if (!bill) return "—";
@@ -500,10 +493,10 @@ export default function SupplierBillsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Total Bills" value={stats.total} />
-        <SummaryCard label="Unpaid / Partially Paid" value={stats.unpaid} />
-        <SummaryCard label="Overdue" value={stats.overdue} />
-        <SummaryCard
+        <StatCard label="Total Bills" value={stats.total} />
+        <StatCard label="Unpaid / Partially Paid" value={stats.unpaid} />
+        <StatCard label="Overdue" value={stats.overdue} />
+        <StatCard
           label="Outstanding Balance"
           value={`MWK ${stats.outstanding.toLocaleString()}`}
         />

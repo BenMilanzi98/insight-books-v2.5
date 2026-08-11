@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { AlertCircle, Check, DollarSign, ArrowRightLeft, TrendingUp, Wallet, Clock, ArrowUpRight, ArrowDownRight, Edit, Trash2, Save, X, PlusCircle, Building2, Banknote } from "lucide-react";
 import { paymentMethods } from "@/lib/paymentMethods";
+import StatCard from "@/components/ui/StatCard";
 
 const CapitalAccountManager = ({ onboarding = false }) => {
   const [capitalAccount, setCapitalAccount] = useState(null);
@@ -538,60 +539,39 @@ const CapitalAccountManager = ({ onboarding = false }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div className={`p-5 rounded-xl ${(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-50 border border-amber-200' : 'bg-indigo-50 border border-indigo-100'}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium uppercase tracking-wider ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-600' : 'text-indigo-600'}`}>
-                  Current Balance
-                </p>
-                <p className={`text-2xl font-bold mt-1 ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-indigo-900'}`}>
-                  {formatCurrency(capitalAccount?.balance || 0)}
-                </p>
-                <p className="text-xs text-slate-600 mt-2">
-                  Cumulative contributed capital:{" "}
-                  <span className="font-semibold text-slate-800">
-                    {formatCurrency(capitalAccount?.ownerContributedCapital ?? 0)}
-                  </span>
-                  <span className="block text-slate-500 mt-0.5">
-                    (Transfers to payment accounts do not reduce this figure; it increases when you add contributions.)
-                  </span>
-                </p>
-                {(capitalAccount?.balance || 0) <= 0 && (
-                  <p className="text-xs text-amber-700 mt-2">Available transfer balance is empty — add capital or contributions first</p>
-                )}
-              </div>
-              <div className={`p-3 rounded-xl ${(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100' : 'bg-indigo-100'}`}>
-                <TrendingUp className={`h-8 w-8 ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-600' : 'text-indigo-600'}`} />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Current Balance"
+            value={formatCurrency(capitalAccount?.balance || 0)}
+            icon={TrendingUp}
+            valueClassName={(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-indigo-900'}
+            barClassName={(capitalAccount?.balance || 0) <= 0 ? 'from-amber-400 via-yellow-500 to-orange-500' : 'from-indigo-400 via-blue-500 to-violet-500'}
+            iconWrapClassName={(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}
+            helper={`Cumulative contributed capital: ${formatCurrency(capitalAccount?.ownerContributedCapital ?? 0)}`}
+          >
+            <p className="mt-1 text-xs text-slate-500">
+              (Transfers to payment accounts do not reduce this figure; it increases when you add contributions.)
+            </p>
+            {(capitalAccount?.balance || 0) <= 0 ? (
+              <p className="mt-1 text-xs text-amber-700">Available transfer balance is empty — add capital or contributions first</p>
+            ) : null}
+          </StatCard>
 
-          <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider">Account Status</p>
-                <p className="text-lg font-bold text-emerald-900 mt-1">{capitalAccount?.isActive ? 'Active' : 'Inactive'}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-emerald-100">
-                <Check className="h-8 w-8 text-emerald-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Account Status"
+            value={capitalAccount?.isActive ? 'Active' : 'Inactive'}
+            icon={Check}
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+            iconWrapClassName="bg-emerald-100 text-emerald-600"
+          />
 
-          <div className="p-5 rounded-xl bg-violet-50 border border-violet-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-violet-600 uppercase tracking-wider">GL account</p>
-                <p className="text-lg font-bold font-mono text-violet-900 mt-1">
-                  {glAccount?.code || capitalAccount?.code || "3100"}
-                </p>
-                <p className="text-xs text-violet-700/80 mt-1">{glAccount?.name || "Owner's Capital"}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-violet-100">
-                <Wallet className="h-8 w-8 text-violet-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="GL account"
+            value={glAccount?.code || capitalAccount?.code || "3100"}
+            helper={glAccount?.name || "Owner's Capital"}
+            icon={Building2}
+            barClassName="from-violet-400 via-purple-500 to-indigo-500"
+            iconWrapClassName="bg-violet-100 text-violet-600"
+          />
         </div>
       </div>
 
@@ -1050,25 +1030,29 @@ const CapitalAccountManager = ({ onboarding = false }) => {
           Capital Summary
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-            <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider">Cash Contributions</p>
-            <p className="text-xl font-bold text-emerald-900 mt-1">{formatCurrency(contributionSummary.totalCashContributions)}</p>
-          </div>
-          <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-            <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Asset Contributions</p>
-            <p className="text-xl font-bold text-blue-900 mt-1">{formatCurrency(contributionSummary.totalAssetContributions)}</p>
-          </div>
-          <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100">
-            <p className="text-sm font-medium text-indigo-600 uppercase tracking-wider">Contributed capital</p>
-            <p className="text-xl font-bold text-indigo-900 mt-1">
-              {formatCurrency(
-                contributionSummary.ownerContributedCapital != null
-                  ? contributionSummary.ownerContributedCapital
-                  : contributionSummary.totalCapital
-              )}
-            </p>
-            <p className="text-xs text-indigo-700/80 mt-1">Increases with new contributions; not reduced by transfers to payment accounts.</p>
-          </div>
+          <StatCard
+            label="Cash Contributions"
+            value={formatCurrency(contributionSummary.totalCashContributions)}
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+            valueClassName="text-emerald-900"
+          />
+          <StatCard
+            label="Asset Contributions"
+            value={formatCurrency(contributionSummary.totalAssetContributions)}
+            barClassName="from-blue-400 via-indigo-500 to-blue-600"
+            valueClassName="text-blue-900"
+          />
+          <StatCard
+            label="Contributed capital"
+            value={formatCurrency(
+              contributionSummary.ownerContributedCapital != null
+                ? contributionSummary.ownerContributedCapital
+                : contributionSummary.totalCapital
+            )}
+            helper="Increases with new contributions; not reduced by transfers to payment accounts."
+            barClassName="from-indigo-400 via-violet-500 to-purple-500"
+            valueClassName="text-indigo-900"
+          />
         </div>
         {contributions.length > 0 ? (
           <div className="overflow-x-auto">

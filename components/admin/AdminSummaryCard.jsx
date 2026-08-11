@@ -62,7 +62,7 @@ export default function AdminSummaryCard({
               Unavailable
             </p>
           ) : (
-            <p className="mt-2 truncate text-2xl font-bold tabular-nums tracking-tight text-[var(--admin-text)]">
+            <p className="mt-2 break-words text-xl font-bold leading-tight tabular-nums tracking-tight text-[var(--admin-text)] sm:text-2xl">
               {value}
             </p>
           )}

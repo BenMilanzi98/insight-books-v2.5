@@ -35,7 +35,7 @@ export default function HealthDimensionScore({ dimension }) {
         </AdminStatusBadge>
       </div>
       <p
-        className={`text-xl font-bold tabular-nums ${
+        className={`min-w-0 break-words text-lg font-bold leading-tight tabular-nums sm:text-xl ${
           isNa ? 'text-[var(--admin-danger)]' : 'text-[var(--admin-text)]'
         }`}
         role="status"

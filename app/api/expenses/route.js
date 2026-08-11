@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { fetchCogsExpenseRegisterRows } from '@/lib/fetchCogsExpenseRegisterRows';
 import {
   normalizeExpenseAmountsForGl,
   postApprovedExpenseJournalIfMissing,
@@ -141,78 +141,6 @@ export async function GET(request) {
     // Search (must not overwrite branch OR from addBranchFilterIncludeUnassigned)
     applyExpenseTextSearchToWhere(whereClause, search);
     
-    const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(
-      prisma,
-      user.tenantId
-    );
-
-    // Build COGS transaction filter (Prisma `in: []` is invalid — skip GL COGS rows if no accounts)
-    const cogsTransactionFilter =
-      cogsAccountIds.length > 0
-        ? {
-            accountId: { in: cogsAccountIds },
-            debitAmount: { gt: 0 },
-            transaction: {
-              tenantId: user.tenantId,
-              status: { in: ['posted', 'Posted'] }
-            }
-          }
-        : null;
-
-    if (cogsTransactionFilter) {
-      // GL: match branch or unscoped journals (same rule as financial-analytics / P&L COGS)
-      if (branchId) {
-        cogsTransactionFilter.transaction.branchId = branchId;
-      } else if (user?.currentBranchId) {
-        const bid =
-          typeof user.currentBranchId === 'string'
-            ? user.currentBranchId
-            : user.currentBranchId?.id;
-        if (bid) {
-          cogsTransactionFilter.transaction.OR = [{ branchId: bid }, { branchId: null }];
-        }
-      }
-
-      // Add date range filter to COGS transactions if provided
-      if (dateFrom || dateTo) {
-        cogsTransactionFilter.transaction.date = {};
-        if (dateFrom) {
-          cogsTransactionFilter.transaction.date.gte = new Date(dateFrom);
-        }
-        if (dateTo) {
-          cogsTransactionFilter.transaction.date.lte = new Date(dateTo);
-        }
-      }
-
-      // Add search filter to COGS transactions if provided
-      if (search) {
-        cogsTransactionFilter.transaction.OR = [
-          { description: { contains: search, mode: 'insensitive' } },
-          { reference: { contains: search, mode: 'insensitive' } }
-        ];
-      }
-
-      // Drop COGS list rows once the parent GL journal has been reversed (original stays in GL for audit)
-      try {
-        const reversedParents = await prisma.transaction.findMany({
-          where: {
-            tenantId: user.tenantId,
-            isReversal: true,
-            reversedTransactionId: { not: null },
-          },
-          select: { reversedTransactionId: true },
-        });
-        const reversedParentIds = [
-          ...new Set(reversedParents.map((r) => r.reversedTransactionId).filter(Boolean)),
-        ];
-        if (reversedParentIds.length > 0) {
-          cogsTransactionFilter.transaction.id = { notIn: reversedParentIds };
-        }
-      } catch (reversalFilterErr) {
-        console.warn('COGS reversed-transaction filter skipped:', reversalFilterErr?.message);
-      }
-    }
-
     // Check if we should include COGS transactions
     // If category filter is set and it's not "Cost of Goods Sold" or "COGS", exclude COGS
     const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
@@ -257,17 +185,34 @@ export async function GET(request) {
       ];
     }
 
+    // Prefetch GL COGS (legacy Transaction + V2 JournalEntry) for count + list merge
+    let cogsRegisterRows = [];
+    if (includeCOGS && categoryLower !== 'salary advance' && category !== 'Salary Advance') {
+      try {
+        cogsRegisterRows = await fetchCogsExpenseRegisterRows(prisma, {
+          tenantId: user.tenantId,
+          branchIdParam: branchId || undefined,
+          currentBranchId: user?.currentBranchId,
+          dateFrom,
+          dateTo,
+          search,
+          category,
+        });
+      } catch (cogsFetchErr) {
+        console.error('Error fetching GL COGS for expense register:', cogsFetchErr);
+        cogsRegisterRows = [];
+      }
+    }
+
     // Get total count for pagination (expenses + COGS transactions + salary advances)
     // If filtering by "Salary Advance", exclude regular expenses and COGS from count
-    let expenseCount = 0, cogsCount = 0, salaryAdvanceCount = 0;
+    let expenseCount = 0, salaryAdvanceCount = 0;
+    const cogsCount = cogsRegisterRows.length;
     try {
-      [expenseCount, cogsCount, salaryAdvanceCount] = await Promise.all([
+      [expenseCount, salaryAdvanceCount] = await Promise.all([
         (categoryLower === 'salary advance' || category === 'Salary Advance')
           ? Promise.resolve(0) // Don't count regular expenses when filtering by Salary Advance
           : prisma.expense.count({ where: whereClause }),
-        (includeCOGS && cogsTransactionFilter && categoryLower !== 'salary advance' && category !== 'Salary Advance')
-          ? prisma.transactionLine.count({ where: cogsTransactionFilter })
-          : Promise.resolve(0),
         includeSalaryAdvances
           ? prisma.salaryAdvance.count({ where: salaryAdvanceFilter })
           : Promise.resolve(0)
@@ -349,67 +294,28 @@ export async function GET(request) {
       allExpensesFromDB = [];
     }
 
-    // Fetch COGS transactions if there are COGS accounts and we should include them
-    // Exclude COGS when filtering by "Salary Advance"
-    let cogsTransactions = [];
-    if (includeCOGS && cogsTransactionFilter && categoryLower !== 'salary advance' && category !== 'Salary Advance') {
-      const cogsTransactionLines = await prisma.transactionLine.findMany({
-        where: cogsTransactionFilter,
-        include: {
-          transaction: {
-            select: {
-              id: true,
-              date: true,
-              description: true,
-              reference: true,
-              sourceId: true,
-              sourceType: true,
-            }
-          },
-          account: {
-            select: {
-              id: true,
-              accountName: true,
-              name: true
-            }
-          }
-        },
-        orderBy: {
-          transaction: {
-            date: sortOrder === 'asc' ? 'asc' : 'desc'
-          }
+    // Map GL COGS rows into expense-list shape (positive debit amount for register display)
+    const cogsTransactions = cogsRegisterRows.map((row) => {
+      const signed = Number(row.amount) || 0;
+      const displayAmount = Math.abs(signed);
+      let formattedDate = new Date().toISOString().split('T')[0];
+      if (row.date) {
+        const d = row.date instanceof Date ? row.date : new Date(row.date);
+        if (!Number.isNaN(d.getTime())) {
+          formattedDate = d.toISOString().split('T')[0];
         }
-      });
-
-      // Convert COGS transactions to expense-like format
-      cogsTransactions = cogsTransactionLines.map(line => ({
-        id: `cogs-${line.transaction.id}-${line.id}`, // Unique ID for COGS entries
-        description: line.transaction.description || `COGS - ${line.transaction.reference || 'Sale'}`,
-        amount: Number(line.debitAmount),
-        date: line.transaction.date,
-        category: 'Cost of Goods Sold',
-        status: 'Approved', // COGS transactions are always approved
-        merchant: null,
-        notes: `Automated COGS entry from ${line.transaction.reference || 'sale'}`,
-        submittedBy: {
-          id: 'system',
-          name: 'System'
-        },
-        sourceAccount: {
-          id: line.account.id,
-          name: line.account.accountName || line.account.name
-        },
-        payments: [], // COGS doesn't have payments
-        attachments: [],
-        isCOGS: true, // Flag to identify COGS entries
-        transactionId: line.transaction.id,
-        transactionReference: line.transaction.reference,
-        linkedSaleId:
-          line.transaction.sourceType === 'Sale' && line.transaction.sourceId
-            ? line.transaction.sourceId
-            : null,
-      }));
-    }
+      }
+      return {
+        ...row,
+        amount: displayAmount,
+        date: formattedDate,
+        merchant: row.merchant || null,
+        isCOGS: true,
+        status: 'Approved',
+        paymentStatus: signed < 0 ? 'GL credit' : 'Fully paid',
+        attachments: Array.isArray(row.attachments) ? row.attachments : [],
+      };
+    });
 
     // Fetch salary advances if we should include them
     let salaryAdvanceExpenses = [];

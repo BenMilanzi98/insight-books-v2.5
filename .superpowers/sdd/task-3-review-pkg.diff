@@ -1,0 +1,49 @@
+﻿diff --git a/app/api/purchases/receipts/route.js b/app/api/purchases/receipts/route.js
+index f90337d5..8e5f0e9e 100644
+--- a/app/api/purchases/receipts/route.js
++++ b/app/api/purchases/receipts/route.js
+@@ -565,31 +565,44 @@ export async function POST(request) {
+           include: {
+             product: { select: { id: true, name: true, sku: true } },
+           },
+         },
+         supplier: { select: { supplierName: true, supplierCode: true } },
+         purchaseOrder: { select: { poNumber: true, orderType: true } },
+         receivedBy: { select: { name: true } },
+       },
+     });
+ 
++    const linkedBill = goodsReceiptOut
++      ? await prisma.supplierBill.findFirst({
++          where: {
++            tenantId: user.tenantId,
++            goodsReceiptId: goodsReceiptOut.id,
++          },
++          select: { id: true, billNumber: true, status: true },
++        })
++      : null;
++
+     const hasInventoryItems =
+       Array.isArray(goodsReceiptOut?.items) && goodsReceiptOut.items.length > 0;
+     const inventoryNotApplied =
+       goodsReceiptOut?.status === 'Posted' && hasInventoryItems && !goodsReceiptOut.inventoryAppliedAt;
+     const responsePayload = goodsReceiptOut
+       ? {
+           ...goodsReceiptOut,
+           receiptType: hasInventoryItems ? 'inventory' : 'service',
+           deferredStockPosting:
+             inventoryNotApplied && isReceiptDateStrictlyAfterTodayUTC(goodsReceiptOut.receiptDate),
+           stockPostingPending: inventoryNotApplied,
++          supplierBillId: linkedBill?.id || null,
++          billNumber: linkedBill?.billNumber || null,
++          billStatus: linkedBill?.status || null,
+         }
+       : result;
+ 
+     return NextResponse.json({ goodsReceipt: responsePayload }, { status: 201 });
+   } catch (error) {
+     console.error('Error posting goods receipt:', error);
+     if (error.code === 'P2002' && String(error.meta?.target || '').includes('receiptNumber')) {
+       return NextResponse.json(
+         { error: 'Receipt number already exists for this business.' },
+         { status: 409 }

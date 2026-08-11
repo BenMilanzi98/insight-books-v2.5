@@ -1,0 +1,1792 @@
+Final branch review package (cash-basis invoice revenue)
+BASE b4867a727432a4e1f43109f028959ca063aa0470
+
+ app/api/invoices/partial-payment/route.js          | 21 ++++++++
+ lib/accountingV2/adapters/index.js                 |  1 +
+ lib/accountingV2/domain/enums.js                   |  1 +
+ lib/accountingV2/engine/journalNumbering.js        |  1 +
+ lib/accountingV2/engine/legacyGuard.js             |  4 ++
+ lib/accountingV2/engine/sourceValidation.js        | 54 +++++++++++++++++++
+ .../legacy/legacyAccountMappingAdapter.js          |  1 +
+ lib/accountingV2/templates/pilotTemplates.js       | 10 ++--
+ lib/accountingV2/templates/stageTemplates.js       | 60 ++++++++++++++++++++++
+ lib/coaPostingCodes.js                             |  1 +
+ lib/coaV2/application/accountMappingRegistry.js    |  1 +
+ lib/coaV2/application/purposeMappingReadiness.js   |  1 +
+ lib/coaV2/domain/systemPurposes.js                 |  8 +++
+ lib/coaV2/templates/blueprintClassification.js     |  1 +
+ lib/transactionReversalService.js                  |  2 +-
+ 15 files changed, 161 insertions(+), 6 deletions(-)
+
+diff --git a/app/api/invoices/partial-payment/route.js b/app/api/invoices/partial-payment/route.js
+index 3caf24c7..9f9ad23a 100644
+--- a/app/api/invoices/partial-payment/route.js
++++ b/app/api/invoices/partial-payment/route.js
+@@ -1,9 +1,11 @@
+ import { NextResponse } from 'next/server';
+ import prisma from '@/lib/prisma';
+ import { getUserFromSession } from '@/lib/auth';
+ import { postCustomerPaymentAccounting } from '@/lib/accountingV2/adapters';
++import { ensureInvoicePaymentRevenueRecognition } from '@/lib/ensureInvoicePaymentRevenueRecognition';
++import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
+ import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
+ import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+ 
+ // POST - Process a partial payment for an invoice
+ export async function POST(request) {
+@@ -93,10 +95,20 @@ export async function POST(request) {
+ 
+     const paymentDateObj = new Date(paymentDate || new Date());
+     
+     // Process payment in a transaction
+     const result = await prisma.$transaction(async (tx) => {
++      // Recognize revenue + COGS before cash application (covers Draft/Partial
++      // invoices that were never posted, and backfills missing Invoice-COGS).
++      await ensureInvoiceSalesAccounting({
++        db: tx,
++        tenantId: user.tenantId,
++        userId: user.id,
++        invoiceId,
++        force: true,
++      });
++
+       // Create the payment record
+       const payment = await tx.payment.create({
+         data: {
+           amount: numericAmount,
+           paymentMethod: paymentMethod,
+@@ -153,10 +165,19 @@ export async function POST(request) {
+         paymentAmount: numericAmount,
+         paymentDate: paymentDateObj,
+         paymentMethod,
+       });
+ 
++      await ensureInvoicePaymentRevenueRecognition({
++        db: tx,
++        tenantId: user.tenantId,
++        userId: user.id,
++        invoiceId,
++        paymentId: payment.id,
++        paymentAmount: numericAmount,
++      });
++
+       return { payment, invoice: updatedInvoice };
+     });
+ 
+     const payment = result.payment;
+     const updatedInvoice = result.invoice;
+diff --git a/lib/accountingV2/adapters/index.js b/lib/accountingV2/adapters/index.js
+index dea2b2a6..574807c0 100644
+--- a/lib/accountingV2/adapters/index.js
++++ b/lib/accountingV2/adapters/index.js
+@@ -5,10 +5,11 @@
+ export { runCutoverPosting } from './cutoverBridge.js';
+ export { contextFromSession, submitViaCutover, toIsoDate, amountString } from './baseAdapter.js';
+ export { postExpenseAccounting } from './expenseAdapter.js';
+ export { postExpensePaymentAccounting } from './expensePaymentAdapter.js';
+ export { postInvoiceAccounting } from './invoiceAdapter.js';
++export { postInvoiceRevenueRecognitionAccounting } from './invoiceRevenueRecognitionAdapter.js';
+ export { postCustomerPaymentAccounting } from './customerPaymentAdapter.js';
+ export { postSupplierBillAccounting } from './supplierBillAdapter.js';
+ export { postSupplierPaymentAccounting } from './supplierPaymentAdapter.js';
+ export { postBankChargeAccounting, postInterestIncomeAccounting } from './bankingAdapter.js';
+ export { postPosSaleAccounting } from './posSaleAdapter.js';
+diff --git a/lib/accountingV2/domain/enums.js b/lib/accountingV2/domain/enums.js
+index c5df1672..db6d96f2 100644
+--- a/lib/accountingV2/domain/enums.js
++++ b/lib/accountingV2/domain/enums.js
+@@ -28,10 +28,11 @@ export const AccountingSourceModule = Object.freeze({
+   MIGRATION: 'MIGRATION',
+ });
+ 
+ export const AccountingEventType = Object.freeze({
+   INVOICE_POSTED: 'INVOICE_POSTED',
++  INVOICE_REVENUE_RECOGNIZED: 'INVOICE_REVENUE_RECOGNIZED',
+   CUSTOMER_PAYMENT_POSTED: 'CUSTOMER_PAYMENT_POSTED',
+   CUSTOMER_CREDIT_NOTE_POSTED: 'CUSTOMER_CREDIT_NOTE_POSTED',
+   CUSTOMER_REFUND_POSTED: 'CUSTOMER_REFUND_POSTED',
+   SUPPLIER_BILL_POSTED: 'SUPPLIER_BILL_POSTED',
+   SUPPLIER_PAYMENT_POSTED: 'SUPPLIER_PAYMENT_POSTED',
+diff --git a/lib/accountingV2/engine/journalNumbering.js b/lib/accountingV2/engine/journalNumbering.js
+index 9a2aad31..f8423d1b 100644
+--- a/lib/accountingV2/engine/journalNumbering.js
++++ b/lib/accountingV2/engine/journalNumbering.js
+@@ -22,10 +22,11 @@ export const JOURNAL_NUMBER_PREFIXES = Object.freeze({
+   [AccountingEventType.OPENING_BALANCE_POSTED]: 'OB',
+   [AccountingEventType.OPENING_STOCK_POSTED]: 'OB',
+   [AccountingEventType.REVERSAL_POSTED]: 'REV',
+   [AccountingEventType.HISTORICAL_REPAIR_POSTED]: 'HREP',
+   [AccountingEventType.INVOICE_POSTED]: 'SALE',
++  [AccountingEventType.INVOICE_REVENUE_RECOGNIZED]: 'REV',
+   [AccountingEventType.CUSTOMER_PAYMENT_POSTED]: 'RCPT',
+   [AccountingEventType.CUSTOMER_CREDIT_NOTE_POSTED]: 'CN',
+   [AccountingEventType.CUSTOMER_REFUND_POSTED]: 'REF',
+   [AccountingEventType.SUPPLIER_PAYMENT_POSTED]: 'PAY',
+   [AccountingEventType.EXPENSE_POSTED]: 'EXP',
+diff --git a/lib/accountingV2/engine/legacyGuard.js b/lib/accountingV2/engine/legacyGuard.js
+index d9f66085..5945dcd2 100644
+--- a/lib/accountingV2/engine/legacyGuard.js
++++ b/lib/accountingV2/engine/legacyGuard.js
+@@ -13,10 +13,14 @@ import { LegacyAndNewPostingConflictError } from '../domain/errors.js';
+ /** Legacy `sourceType` strings → V2 module/event scope (documentation / diagnostics). */
+ export const LEGACY_SOURCE_SCOPE = Object.freeze({
+   JournalEntry: { moduleKey: AccountingSourceModule.MANUAL_JOURNAL, eventType: AccountingEventType.MANUAL_JOURNAL_POSTED },
+   Manual: { moduleKey: AccountingSourceModule.MANUAL_JOURNAL, eventType: AccountingEventType.MANUAL_JOURNAL_POSTED },
+   Invoice: { moduleKey: AccountingSourceModule.SALES, eventType: AccountingEventType.INVOICE_POSTED },
++  'Invoice-Revenue': {
++    moduleKey: AccountingSourceModule.SALES,
++    eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
++  },
+   CreditNote: { moduleKey: AccountingSourceModule.SALES, eventType: AccountingEventType.CUSTOMER_CREDIT_NOTE_POSTED },
+   InvoiceRefund: { moduleKey: AccountingSourceModule.RECEIVABLES, eventType: AccountingEventType.CUSTOMER_REFUND_POSTED },
+   Sale: { moduleKey: AccountingSourceModule.POINT_OF_SALE, eventType: AccountingEventType.INVENTORY_SOLD },
+   'Sale-COGS': { moduleKey: AccountingSourceModule.INVENTORY, eventType: AccountingEventType.COST_OF_SALES_RECOGNIZED },
+   'Invoice-COGS': { moduleKey: AccountingSourceModule.INVENTORY, eventType: AccountingEventType.COST_OF_SALES_RECOGNIZED },
+diff --git a/lib/accountingV2/engine/sourceValidation.js b/lib/accountingV2/engine/sourceValidation.js
+index f8dfbfe6..b9c9c47a 100644
+--- a/lib/accountingV2/engine/sourceValidation.js
++++ b/lib/accountingV2/engine/sourceValidation.js
+@@ -288,10 +288,60 @@ async function customerPaymentSourceValidator({ db, context, command }) {
+     throw new SourceNotPostableError(`Payment is not completed (status: ${payment.status}).`, ids(context));
+   }
+   return payment;
+ }
+ 
++async function invoiceRevenueRecognitionSourceValidator({ db, context, command }) {
++  const payment = await db.payment.findFirst({
++    where: { id: command.sourceReference.sourceId },
++    include: {
++      invoice: {
++        select: { id: true, clientId: true, invoiceNumber: true, tenantId: true },
++      },
++    },
++  });
++  if (!payment) throw new SourceTransactionNotFoundError(ids(context));
++  if (payment.tenantId !== context.businessId) {
++    throw new CrossTenantAccountingError({ ...ids(context), diagnostic: { paymentId: payment.id } });
++  }
++  if (payment.isReversal) {
++    throw new SourceNotPostableError(
++      'Reversal payment rows do not post as invoice revenue recognition.',
++      ids(context)
++    );
++  }
++  const status = String(payment.status ?? 'Completed');
++  if (status !== 'Completed' && status !== 'completed') {
++    throw new SourceNotPostableError(`Payment is not completed (status: ${payment.status}).`, ids(context));
++  }
++  const linkedInvoiceId = payment.invoice?.id ?? payment.invoiceId ?? null;
++  if (!linkedInvoiceId) {
++    throw new SourceNotPostableError(
++      `Invoice-Revenue payment ${payment.id} must be linked to an invoice.`,
++      ids(context)
++    );
++  }
++  const requestedInvoiceId = command.metadata?.invoiceId ?? null;
++  if (requestedInvoiceId && requestedInvoiceId !== linkedInvoiceId) {
++    throw new SourceNotPostableError(
++      `Invoice-Revenue payment ${payment.id} is linked to invoice ${linkedInvoiceId}, not ${requestedInvoiceId}.`,
++      ids(context)
++    );
++  }
++  const amount = Number(command.metadata?.recognizedNet ?? command.totalAmount ?? 0);
++  if (!(amount > 0)) {
++    throw new SourceNotPostableError('Recognized revenue amount must be positive.', ids(context));
++  }
++  return {
++    ...payment,
++    recognizedNet: command.metadata?.recognizedNet ?? command.totalAmount,
++    clientId: payment.invoice?.clientId,
++    invoiceId: linkedInvoiceId,
++    invoiceNumber: payment.invoice?.invoiceNumber,
++  };
++}
++
+ async function supplierBillSourceValidator({ db, context, command }) {
+   const bill = await db.supplierBill.findFirst({
+     where: { id: command.sourceReference.sourceId },
+     include: { items: true, supplier: { select: { id: true, supplierName: true, tenantId: true } } },
+   });
+@@ -337,10 +387,14 @@ registerSourceValidator(AccountingEventType.ADJUSTMENT_POSTED, adjustmentSourceV
+ registerSourceValidator(AccountingEventType.OPENING_BALANCE_POSTED, openingBalanceSourceValidator);
+ registerSourceValidator(AccountingEventType.INVOICE_POSTED, invoiceSourceValidator);
+ registerSourceValidator(AccountingEventType.REVERSAL_POSTED, reversalSourceValidator);
+ registerSourceValidator(AccountingEventType.EXPENSE_POSTED, expenseSourceValidator);
+ registerSourceValidator(AccountingEventType.CUSTOMER_PAYMENT_POSTED, customerPaymentSourceValidator);
++registerSourceValidator(
++  AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
++  invoiceRevenueRecognitionSourceValidator
++);
+ registerSourceValidator(AccountingEventType.SUPPLIER_BILL_POSTED, supplierBillSourceValidator);
+ registerSourceValidator(AccountingEventType.SUPPLIER_PAYMENT_POSTED, supplierPaymentSourceValidator);
+ registerSourceValidator(AccountingEventType.BANK_CHARGE_POSTED, bankingPaymentSourceValidator);
+ registerSourceValidator(AccountingEventType.INTEREST_INCOME_POSTED, bankingPaymentSourceValidator);
+ 
+diff --git a/lib/accountingV2/infrastructure/legacy/legacyAccountMappingAdapter.js b/lib/accountingV2/infrastructure/legacy/legacyAccountMappingAdapter.js
+index 694031f5..5aae185e 100644
+--- a/lib/accountingV2/infrastructure/legacy/legacyAccountMappingAdapter.js
++++ b/lib/accountingV2/infrastructure/legacy/legacyAccountMappingAdapter.js
+@@ -26,10 +26,11 @@ export const LEGACY_MAPPING_CODES = Object.freeze({
+   ACCOUNTS_RECEIVABLE: '1200',
+   INVENTORY: '1310', // Stock on Hand (1300 is header)
+   ACCOUNTS_PAYABLE: '2110',
+   GRNI: '2115',
+   VAT_OUTPUT: '2120', // VAT Payable leaf (2041 is tax-inflow header)
++  DEFERRED_REVENUE: '2150',
+   VAT_INPUT: '1240', // VAT Recoverable (legacy 1150 often absent)
+   WITHHOLDING_TAX: '2045-01', // leaf under 2045 when present; adapter falls back
+   PAYE_PAYABLE: '2130',
+   SALARIES_EXPENSE: '5200',
+   COST_OF_SALES: '5110', // Purchases / COGS leaf (5100 is header)
+diff --git a/lib/accountingV2/templates/pilotTemplates.js b/lib/accountingV2/templates/pilotTemplates.js
+index b9ef1b59..1eb0c01e 100644
+--- a/lib/accountingV2/templates/pilotTemplates.js
++++ b/lib/accountingV2/templates/pilotTemplates.js
+@@ -337,11 +337,11 @@ registerTemplate({
+ /* ── Customer invoice (shadow pilot) ──────────────────────────────────────── */
+ 
+ async function buildCustomerInvoiceDraft({ context, command, source, resolvePurpose }) {
+   const currency = command.currency;
+   const ar = await resolvePurpose('ACCOUNTS_RECEIVABLE');
+-  const revenue = await resolvePurpose('SALES_REVENUE');
++  const deferred = await resolvePurpose('DEFERRED_REVENUE');
+ 
+   const total = money(String(source.total), currency);
+   const tax = money(String(source.taxAmount ?? '0'), currency);
+   const net = money(
+     ((total.minor - tax.minor) / 100).toFixed(2),
+@@ -362,15 +362,15 @@ async function buildCustomerInvoiceDraft({ context, command, source, resolvePurp
+       sequence: 1,
+       description: `Invoice ${source.invoiceNumber}`,
+       dimensions: { customerId },
+     }),
+     createJournalLineDraft({
+-      accountId: revenue.id,
++      accountId: deferred.id,
+       credit: net.decimal,
+       currency,
+       sequence: 2,
+-      description: `Revenue — invoice ${source.invoiceNumber}`,
++      description: `Deferred revenue — invoice ${source.invoiceNumber}`,
+       dimensions: { customerId },
+     }),
+   ];
+   if (tax.minor > 0) {
+     const vatOutput = await resolvePurpose('VAT_OUTPUT');
+@@ -403,15 +403,15 @@ registerTemplate({
+   templateId: 'CUSTOMER_INVOICE',
+   templateVersion: 1,
+   eventType: AccountingEventType.INVOICE_POSTED,
+   status: TemplateStatus.ACTIVE,
+   supportedSourceTypes: ['Invoice'],
+-  requiredPurposes: ['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE', 'VAT_OUTPUT'],
++  requiredPurposes: ['ACCOUNTS_RECEIVABLE', 'DEFERRED_REVENUE', 'VAT_OUTPUT'],
+   requiredSourceFields: ['total', 'taxAmount', 'invoiceNumber', 'clientId'],
+   requiredDimensions: ['customerId'],
+   optionalDimensions: ['branchId', 'projectId'],
+   prohibitedDimensions: ['supplierId'],
+   approvalRule: 'Follows invoice approval status; no separate posting approval.',
+   reversalBehaviour: 'Credit note or invoice reversal event; never in-place edits.',
+-  description: 'Dr Accounts Receivable / Cr Sales Revenue / Cr VAT Output. Shadow pilot in Phase 4.',
++  description: 'Dr Accounts Receivable / Cr Deferred Revenue / Cr VAT Output. Shadow pilot in Phase 4.',
+   buildDraft: buildCustomerInvoiceDraft,
+ });
+diff --git a/lib/accountingV2/templates/stageTemplates.js b/lib/accountingV2/templates/stageTemplates.js
+index 92bf9e0b..113c8d1c 100644
+--- a/lib/accountingV2/templates/stageTemplates.js
++++ b/lib/accountingV2/templates/stageTemplates.js
+@@ -165,10 +165,70 @@ registerTemplate({
+   reversalBehaviour: 'Payment reversal event mirrors lines.',
+   description: 'Dr Cash/Bank/Mobile Money, Cr Accounts Receivable.',
+   buildDraft: buildCustomerPaymentDraft,
+ });
+ 
++/* ── Invoice revenue recognition ──────────────────────────────────────────── */
++
++async function buildInvoiceRevenueRecognitionDraft({ command, source, resolvePurpose }) {
++  const currency = command.currency;
++  const amount = money(
++    String(command.metadata?.recognizedNet ?? source.recognizedNet ?? command.totalAmount ?? '0'),
++    currency
++  );
++  if (amount.minor <= 0) {
++    throw new PostingTemplateValidationError([
++      { path: 'recognizedNet', message: 'recognized revenue must be positive' },
++    ]);
++  }
++  const deferred = await resolvePurpose('DEFERRED_REVENUE');
++  const revenue = await resolvePurpose('SALES_REVENUE');
++  const customerId = command.dimensions.customerId ?? source.clientId ?? source.invoice?.clientId;
++  const label = source.invoiceNumber || source.invoice?.invoiceNumber || source.reference || source.id;
++
++  return draftBase({
++    command,
++    lines: [
++      createJournalLineDraft({
++        accountId: deferred.id,
++        debit: amount.decimal,
++        currency,
++        sequence: 1,
++        description: `Deferred revenue recognized${label ? ` — ${label}` : ''}`,
++        dimensions: { customerId },
++      }),
++      createJournalLineDraft({
++        accountId: revenue.id,
++        credit: amount.decimal,
++        currency,
++        sequence: 2,
++        description: `Sales revenue recognized${label ? ` — ${label}` : ''}`,
++        dimensions: { customerId },
++      }),
++    ],
++    templateId: 'INVOICE_REVENUE_RECOGNITION',
++    description: `Invoice revenue recognition${label ? ` — ${label}` : ''}`,
++  });
++}
++
++registerTemplate({
++  templateId: 'INVOICE_REVENUE_RECOGNITION',
++  templateVersion: 2,
++  eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
++  status: TemplateStatus.ACTIVE,
++  supportedSourceTypes: ['Invoice-Revenue'],
++  requiredPurposes: ['DEFERRED_REVENUE', 'SALES_REVENUE'],
++  requiredSourceFields: [],
++  requiredDimensions: ['customerId'],
++  optionalDimensions: ['branchId'],
++  prohibitedDimensions: ['supplierId'],
++  approvalRule: 'System-generated from an eligible invoice payment; no separate approval.',
++  reversalBehaviour: 'Reverse through the corresponding revenue-unrecognition workflow, never by editing source payment.',
++  description: 'Dr Deferred Revenue, Cr Sales Revenue when invoice cash collection earns revenue.',
++  buildDraft: buildInvoiceRevenueRecognitionDraft,
++});
++
+ /* ── Supplier bill (expense + mixed lines) ───────────────────────────────── */
+ 
+ async function buildSupplierBillDraft({ db, context, command, source, resolvePurpose }) {
+   const currency = command.currency;
+   const total = money(String(source.totalAmount ?? source.total ?? '0'), currency);
+diff --git a/lib/coaPostingCodes.js b/lib/coaPostingCodes.js
+index 4ea0a23d..92f9bea9 100644
+--- a/lib/coaPostingCodes.js
++++ b/lib/coaPostingCodes.js
+@@ -26,10 +26,11 @@ export function isAccountsReceivableSubledgerLeaf(account, { hasChildren = false
+ }
+ export const CODE_ACCOUNTS_PAYABLE = '2110';
+ /** Goods Received Not Invoiced (accrued purchases clearing). */
+ export const CODE_GRNI = '2115';
+ export const CODE_CURRENT_LIABILITIES_GROUP = '2100';
++export const CODE_DEFERRED_REVENUE = '2150';
+ export const CODE_PRODUCT_SALES = '4100';
+ export const CODE_SERVICE_REVENUE = '4150';
+ export const CODE_SERVICE_REVENUE_LEGACY = '4200';
+ export const CODE_COST_OF_SALES = '5100';
+ export const CODE_REVENUE_ROOT = '4000';
+diff --git a/lib/coaV2/application/accountMappingRegistry.js b/lib/coaV2/application/accountMappingRegistry.js
+index 8f15c956..19c4b656 100644
+--- a/lib/coaV2/application/accountMappingRegistry.js
++++ b/lib/coaV2/application/accountMappingRegistry.js
+@@ -246,10 +246,11 @@ export const PURPOSE_BY_LEGACY_KEY = Object.freeze({
+   ACCOUNTS_RECEIVABLE: 'ACCOUNTS_RECEIVABLE',
+   INVENTORY: 'INVENTORY',
+   ACCOUNTS_PAYABLE: 'ACCOUNTS_PAYABLE',
+   GRNI: 'GRNI',
+   VAT_OUTPUT: 'VAT_OUTPUT',
++  DEFERRED_REVENUE: 'DEFERRED_REVENUE',
+   VAT_INPUT: 'VAT_INPUT',
+   WITHHOLDING_TAX: 'WITHHOLDING_TAX_PAYABLE',
+   PAYE_PAYABLE: 'PAYE_PAYABLE',
+   SALARIES_EXPENSE: 'SALARIES_AND_WAGES',
+   COST_OF_SALES: 'COST_OF_SALES',
+diff --git a/lib/coaV2/application/purposeMappingReadiness.js b/lib/coaV2/application/purposeMappingReadiness.js
+index e31a7023..0ed4f872 100644
+--- a/lib/coaV2/application/purposeMappingReadiness.js
++++ b/lib/coaV2/application/purposeMappingReadiness.js
+@@ -24,10 +24,11 @@ export const STANDARD_PURPOSE_MAPPINGS = Object.freeze([
+   'SALES_REVENUE',
+   'SERVICE_REVENUE',
+   'COST_OF_SALES',
+   'VAT_INPUT',
+   'VAT_OUTPUT',
++  'DEFERRED_REVENUE',
+   'WITHHOLDING_TAX_PAYABLE',
+   'SALARIES_AND_WAGES',
+   'OWNER_CAPITAL',
+   'RETAINED_EARNINGS',
+   'OPENING_BALANCE_EQUITY',
+diff --git a/lib/coaV2/domain/systemPurposes.js b/lib/coaV2/domain/systemPurposes.js
+index df7df02c..e73c1a95 100644
+--- a/lib/coaV2/domain/systemPurposes.js
++++ b/lib/coaV2/domain/systemPurposes.js
+@@ -56,10 +56,18 @@ export const SYSTEM_ACCOUNT_PURPOSES = Object.freeze({
+   /** Goods Received Not Invoiced — accrual clearing between inventory receipt and supplier bill. */
+   GRNI: { categories: [LIABILITY], behaviours: [CONTROL, POSTING], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], protectedAccount: true, manualPostingRestricted: true, requiredDimension: 'supplierId', legacyCode: '2115', notes: 'Credit on goods receipt; debit when matched supplier bill posts. Never conflate with trade AP.' },
+   VAT_INPUT: { categories: [ASSET], behaviours: [POSTING, SYSTEM], normalBalance: DEBIT, subTypes: [AccountSubType.CURRENT_ASSET], legacyCode: '1240' },
+   VAT_OUTPUT: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2120', notes: 'Prefer VAT Payable leaf 2120; 2041 is tax-inflow header.' },
+   VAT_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2120' },
++  DEFERRED_REVENUE: {
++    categories: [LIABILITY],
++    behaviours: [POSTING, SYSTEM],
++    normalBalance: CREDIT,
++    subTypes: [AccountSubType.CURRENT_LIABILITY],
++    legacyCode: '2150',
++    notes: 'Unearned / deferred invoice revenue until payment recognition',
++  },
+   PAYE_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2130' },
+   PENSION_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+   SALARY_DEDUCTIONS_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+   WITHHOLDING_TAX_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2045' },
+   INTEREST_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+diff --git a/lib/coaV2/templates/blueprintClassification.js b/lib/coaV2/templates/blueprintClassification.js
+index 64578de9..f0742417 100644
+--- a/lib/coaV2/templates/blueprintClassification.js
++++ b/lib/coaV2/templates/blueprintClassification.js
+@@ -25,10 +25,11 @@ export const BLUEPRINT_PURPOSES = Object.freeze({
+   '1240': 'VAT_INPUT',
+   '1310': 'INVENTORY',
+   '2110': 'ACCOUNTS_PAYABLE',
+   '2115': 'GRNI',
+   '2120': 'VAT_PAYABLE',
++  '2150': 'DEFERRED_REVENUE',
+   '2130': 'PAYE_PAYABLE',
+   '3100': 'OWNER_CAPITAL',
+   '3190': 'OPENING_BALANCE_EQUITY',
+   '3200': 'RETAINED_EARNINGS',
+   '3300': 'CURRENT_YEAR_EARNINGS',
+diff --git a/lib/transactionReversalService.js b/lib/transactionReversalService.js
+index a600cc3c..7e6641b7 100644
+--- a/lib/transactionReversalService.js
++++ b/lib/transactionReversalService.js
+@@ -981,11 +981,11 @@ async function createPaymentReversal({
+ 
+   const v2 = await reverseSourceJournals({
+     tenantId,
+     userId,
+     reason: reasonValidation.reason,
+-    sourceTypes: ['Payment'],
++    sourceTypes: ['Payment', 'Invoice-Revenue'],
+     sourceIds: [originalPayment.id],
+     requireJournals: true,
+   });
+ 
+   const reversalRef = await generateReversalReference('PAY-REV', tenantId);
+
+=== UNTRACKED FULL lib/invoiceDeferredRevenue.js ===
+// lib/invoiceDeferredRevenue.js
+import { parseMoney, roundMoney, subtractMoney } from '@/lib/money';
+
+export function computePaymentRecognizedNet({
+  paymentAmount,
+  invoiceTotal,
+  invoiceTaxAmount,
+}) {
+  const total = parseMoney(invoiceTotal);
+  const tax = parseMoney(invoiceTaxAmount);
+  const net = subtractMoney(total, tax);
+  const pay = parseMoney(paymentAmount);
+  if (total <= 0 || pay <= 0 || net <= 0) return 0;
+  return roundMoney((pay * net) / total);
+}
+
+export function computeFinalPaymentRecognizedNet({
+  invoiceNet,
+  previouslyRecognizedNet,
+}) {
+  return roundMoney(
+    Math.max(0, subtractMoney(parseMoney(invoiceNet), parseMoney(previouslyRecognizedNet)))
+  );
+}
+
+
+=== UNTRACKED FULL lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js ===
+/**
+ * Invoice payment-time revenue recognition → Posting Engine cutover.
+ *
+ * Recognizes earned revenue from deferred revenue when a customer payment is
+ * received against an invoice that was initially posted to deferred revenue.
+ */
+
+import { AccountingEventType, AccountingSourceModule } from '../domain/enums.js';
+import { amountString, contextFromSession, submitViaCutover, toIsoDate } from './baseAdapter.js';
+
+export async function postInvoiceRevenueRecognitionAccounting({
+  db,
+  tenantId,
+  userId,
+  paymentId,
+  invoiceId,
+  recognizedNet,
+  paymentDate,
+  hasPermission = () => true,
+  currency = 'MWK',
+}) {
+  if (!(Number(recognizedNet) > 0)) {
+    return {
+      skipped: 'recognized_net_non_positive',
+      paymentId,
+      invoiceId,
+      recognizedNet: Number(recognizedNet ?? 0),
+    };
+  }
+
+  const payment = await db.payment.findFirst({
+    where: { id: paymentId, tenantId },
+    include: {
+      invoice: {
+        select: { id: true, clientId: true, invoiceNumber: true, tenantId: true },
+      },
+    },
+  });
+  if (!payment) {
+    throw new Error(`Invoice-Revenue payment not found: ${paymentId}`);
+  }
+
+  const linkedInvoiceId = payment.invoice?.id ?? payment.invoiceId ?? null;
+  if (!linkedInvoiceId) {
+    throw new Error(`Invoice-Revenue payment ${paymentId} must be linked to an invoice.`);
+  }
+  if (invoiceId && linkedInvoiceId !== invoiceId) {
+    throw new Error(
+      `Invoice-Revenue payment ${paymentId} is linked to invoice ${linkedInvoiceId}, not ${invoiceId}.`
+    );
+  }
+
+  const invoice = payment?.invoice
+    || await db.invoice.findFirst({
+      where: { id: linkedInvoiceId, tenantId },
+      select: { id: true, clientId: true, invoiceNumber: true, tenantId: true },
+    });
+  if (!invoice) {
+    throw new Error(
+      `Invoice-Revenue invoice ${linkedInvoiceId} could not be loaded for payment ${paymentId}.`
+    );
+  }
+
+  const context = contextFromSession({
+    tenantId,
+    userId,
+    currency,
+    branchId: payment?.branchId ?? null,
+  });
+
+  const amount = amountString(recognizedNet);
+  const effectiveDate = paymentDate || payment?.paymentDate;
+  const sourceNumber = payment?.reference || invoice?.invoiceNumber || paymentId;
+
+  return submitViaCutover({
+    db,
+    context,
+    moduleKey: AccountingSourceModule.SALES,
+    eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+    hasPermission,
+    buildEngineInput: async () => ({
+      sourceReference: {
+        sourceModule: AccountingSourceModule.SALES,
+        sourceType: 'Invoice-Revenue',
+        sourceId: paymentId,
+        sourceNumber,
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      transactionDate: toIsoDate(effectiveDate),
+      requestedPostingDate: toIsoDate(effectiveDate),
+      currency,
+      totalAmount: amount,
+      taxAmount: '0.00',
+      description: `Invoice revenue recognition${invoice?.invoiceNumber ? ` — ${invoice.invoiceNumber}` : ''}`,
+      dimensions: {
+        customerId: invoice?.clientId,
+        branchId: payment?.branchId ?? undefined,
+      },
+      metadata: {
+        paymentId,
+        invoiceId: invoice.id,
+        recognizedNet: amount,
+      },
+      payload: null,
+    }),
+  });
+}
+
+
+=== UNTRACKED FULL lib/ensureInvoiceSalesAccounting.js ===
+/**
+ * Idempotent invoice issue accounting: AR + Deferred Revenue + VAT (Journal A) + Invoice-COGS + stock.
+ * Does NOT post Sales Revenue — that happens on payment recognition (Task 6).
+ * Used when leaving Draft, on create (non-draft), and on first/partial payment
+ * so issue journals and COGS hit the GL even if payment lands before formal issue.
+ */
+
+import { postInvoiceAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
+import { calculateCOGS } from '@/lib/inventoryCosting';
+import { addMoney, parseMoney } from '@/lib/money';
+
+/**
+ * @param {object} params
+ * @param {import('@prisma/client').PrismaClient | import('@prisma/client').Prisma.TransactionClient} params.db
+ * @param {string} params.tenantId
+ * @param {string} params.userId
+ * @param {string} params.invoiceId
+ * @param {boolean} [params.force] — post issue+COGS even when status is Draft (payment path)
+ * @param {(k: string) => boolean} [params.hasPermission]
+ * @returns {Promise<{
+ *   skipped?: string,
+ *   postedInvoice: boolean, — true when Journal A (AR/Deferred/VAT) was posted; never Sales Revenue
+ *   postedCogs: boolean,
+ *   stockDeducted: boolean,
+ *   cogsAmount: number,
+ * }>}
+ */
+export async function ensureInvoiceSalesAccounting({
+  db,
+  tenantId,
+  userId,
+  invoiceId,
+  force = false,
+  hasPermission = () => true,
+}) {
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, tenantId },
+    include: {
+      items: {
+        select: {
+          productId: true,
+          quantity: true,
+          description: true,
+        },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new Error('Invoice not found for issue accounting');
+  }
+
+  const status = String(invoice.status || '');
+  if (!force && status.toLowerCase() === 'draft') {
+    return {
+      skipped: 'draft',
+      postedInvoice: false,
+      postedCogs: false,
+      stockDeducted: false,
+      cogsAmount: 0,
+    };
+  }
+  if (String(status).toUpperCase() === 'PROFORMA' && !force) {
+    return {
+      skipped: 'proforma',
+      postedInvoice: false,
+      postedCogs: false,
+      stockDeducted: false,
+      cogsAmount: 0,
+    };
+  }
+
+  const existingInvoiceJe = await db.journalEntry.findFirst({
+    where: {
+      tenantId,
+      sourceType: 'Invoice',
+      sourceId: invoice.id,
+      status: { in: ['Posted', 'POSTED', 'posted'] },
+    },
+    select: { id: true },
+  });
+
+  const existingCogsJe = await db.journalEntry.findFirst({
+    where: {
+      tenantId,
+      sourceType: 'Invoice-COGS',
+      sourceId: invoice.id,
+      status: { in: ['Posted', 'POSTED', 'posted'] },
+    },
+    select: { id: true },
+  });
+
+  // Journal A: Dr AR / Cr Deferred Revenue / Cr VAT — not Sales Revenue (see CUSTOMER_INVOICE template).
+  let postedInvoice = false;
+  if (!existingInvoiceJe) {
+    await postInvoiceAccounting({
+      db,
+      tenantId,
+      userId,
+      invoiceId: invoice.id,
+      hasPermission,
+    });
+    postedInvoice = true;
+  }
+
+  let totalCOGS = 0;
+  let stockDeducted = false;
+
+  if (!existingCogsJe) {
+    for (const item of invoice.items || []) {
+      if (!item.productId) continue;
+      try {
+        const product = await db.product.findUnique({
+          where: { id: item.productId },
+          select: { id: true, isService: true },
+        });
+        if (!product || product.isService) continue;
+
+        const cogsData = await calculateCOGS({
+          productId: item.productId,
+          tenantId,
+          quantitySold: item.quantity,
+          tx: db,
+        });
+        totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
+
+        const qty = parseMoney(item.quantity);
+        if (qty > 0) {
+          const alreadyDeducted = await db.inventoryTransaction.findFirst({
+            where: {
+              tenantId,
+              productId: item.productId,
+              type: 'invoice',
+              notes: { contains: invoice.invoiceNumber },
+            },
+            select: { id: true },
+          });
+          if (!alreadyDeducted) {
+            await db.product.update({
+              where: { id: item.productId },
+              data: { stockLevel: { decrement: qty } },
+            });
+            try {
+              await db.inventoryTransaction.create({
+                data: {
+                  productId: item.productId,
+                  type: 'invoice',
+                  quantity: -Math.round(qty),
+                  notes: `Invoice ${invoice.invoiceNumber}`,
+                  userId,
+                  tenantId,
+                },
+              });
+            } catch (e) {
+              if (!e.message?.includes('Unknown model')) {
+                console.warn('InventoryTransaction for invoice:', e?.message);
+              }
+            }
+            stockDeducted = true;
+          }
+        }
+      } catch (cogsError) {
+        console.error(
+          `ensureInvoiceSalesAccounting COGS failed for product ${item.productId}:`,
+          cogsError
+        );
+        throw cogsError;
+      }
+    }
+
+    if (totalCOGS > 0) {
+      await postCostOfSalesAccounting({
+        db,
+        tenantId,
+        userId,
+        documentKind: 'Invoice',
+        documentId: invoice.id,
+        documentNumber: invoice.invoiceNumber,
+        documentDate: invoice.issueDate,
+        cogsAmount: totalCOGS,
+        branchId: invoice.branchId || null,
+        hasPermission,
+      });
+    }
+  }
+
+  return {
+    postedInvoice,
+    postedCogs: !existingCogsJe && totalCOGS > 0,
+    stockDeducted,
+    cogsAmount: totalCOGS,
+  };
+}
+
+
+=== UNTRACKED FULL lib/ensureInvoicePaymentRevenueRecognition.js ===
+import { postInvoiceRevenueRecognitionAccounting } from '@/lib/accountingV2/adapters';
+import {
+  computeFinalPaymentRecognizedNet,
+  computePaymentRecognizedNet,
+} from '@/lib/invoiceDeferredRevenue';
+import { addMoney, MONEY_TOLERANCE, parseMoney, subtractMoney } from '@/lib/money';
+
+const POSTED_STATUSES = ['Posted', 'POSTED', 'posted'];
+
+function isCreditLine(line) {
+  return parseMoney(line?.creditAmount) > 0;
+}
+
+function extractRecognizedNet(journal) {
+  return parseMoney(journal?.metadata?.recognizedNet ?? journal?.totalCredit ?? journal?.totalDebit ?? 0);
+}
+
+/**
+ * Posts payment-time invoice revenue recognition against deferred revenue.
+ *
+ * Skips:
+ * - invoices without the issue journal posted yet
+ * - legacy invoices that already credited sales revenue on issue
+ * - payments already recognized via Invoice-Revenue journal
+ */
+export async function ensureInvoicePaymentRevenueRecognition({
+  db,
+  tenantId,
+  userId,
+  invoiceId,
+  paymentId,
+  paymentAmount,
+  hasPermission = () => true,
+}) {
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, tenantId },
+    select: {
+      id: true,
+      total: true,
+      taxAmount: true,
+      payments: {
+        where: { status: 'Completed', isReversal: false },
+        select: { id: true, amount: true },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new Error('Invoice not found for payment revenue recognition');
+  }
+
+  const issueJournal = await db.journalEntry.findFirst({
+    where: {
+      tenantId,
+      sourceType: 'Invoice',
+      sourceId: invoice.id,
+      status: { in: POSTED_STATUSES },
+    },
+    include: {
+      lines: {
+        include: {
+          account: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountSubtype: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!issueJournal) {
+    return { skipped: 'no_issue_journal' };
+  }
+
+  const creditedAccountIds = (issueJournal.lines || [])
+    .filter(isCreditLine)
+    .map((line) => line.accountId)
+    .filter(Boolean);
+
+  const revenueMappings = creditedAccountIds.length && db.coaV2AccountMapping?.findMany
+    ? await db.coaV2AccountMapping.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          purpose: 'SALES_REVENUE',
+          accountId: { in: creditedAccountIds },
+        },
+        select: { accountId: true },
+      })
+    : [];
+  const revenueAccountIds = new Set((revenueMappings || []).map((row) => row.accountId));
+
+  const hasLegacyRevenueCredit = (issueJournal.lines || []).some((line) => {
+    if (!isCreditLine(line)) return false;
+    return (
+      line.account?.accountCode === '4100'
+      || line.account?.accountSubtype === 'SALES_REVENUE'
+      || revenueAccountIds.has(line.accountId)
+    );
+  });
+
+  if (hasLegacyRevenueCredit) {
+    return { skipped: 'legacy_accrual' };
+  }
+
+  const existingRecognition = await db.journalEntry.findFirst({
+    where: {
+      tenantId,
+      sourceType: 'Invoice-Revenue',
+      sourceId: paymentId,
+      status: { in: POSTED_STATUSES },
+    },
+    select: { id: true },
+  });
+
+  if (existingRecognition) {
+    return { skipped: 'already_posted' };
+  }
+
+  const priorPayments = (invoice.payments || []).filter((payment) => payment.id !== paymentId);
+  const priorPaymentIds = priorPayments.map((payment) => payment.id);
+  const priorRecognitionJournals = priorPaymentIds.length
+    ? await db.journalEntry.findMany({
+        where: {
+          tenantId,
+          sourceType: 'Invoice-Revenue',
+          sourceId: { in: priorPaymentIds },
+          status: { in: POSTED_STATUSES },
+        },
+        select: {
+          metadata: true,
+          totalCredit: true,
+          totalDebit: true,
+        },
+      })
+    : [];
+
+  const previouslyRecognizedNet = (priorRecognitionJournals || []).reduce(
+    (sum, journal) => addMoney(sum, extractRecognizedNet(journal)),
+    0
+  );
+
+  const invoiceTotal = parseMoney(invoice.total);
+  const invoiceTaxAmount = parseMoney(invoice.taxAmount);
+  const invoiceNet = subtractMoney(invoiceTotal, invoiceTaxAmount);
+  const priorPaid = priorPayments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
+  const remainingAfterThisPayment = subtractMoney(invoiceTotal, addMoney(priorPaid, paymentAmount));
+
+  const recognizedNet = remainingAfterThisPayment <= MONEY_TOLERANCE
+    ? computeFinalPaymentRecognizedNet({
+        invoiceNet,
+        previouslyRecognizedNet,
+      })
+    : computePaymentRecognizedNet({
+        paymentAmount,
+        invoiceTotal,
+        invoiceTaxAmount,
+      });
+
+  const postingResult = await postInvoiceRevenueRecognitionAccounting({
+    db,
+    tenantId,
+    userId,
+    invoiceId,
+    paymentId,
+    recognizedNet,
+    hasPermission,
+  });
+
+  return {
+    recognizedNet,
+    ...postingResult,
+  };
+}
+
+
+=== UNTRACKED FULL test/coaDeferredRevenuePurpose.test.js ===
+// test/coaDeferredRevenuePurpose.test.js
+import { describe, it, expect } from 'vitest';
+import { SYSTEM_ACCOUNT_PURPOSES } from '../lib/coaV2/domain/systemPurposes.js';
+import { CODE_DEFERRED_REVENUE } from '../lib/coaPostingCodes.js';
+import { LEGACY_MAPPING_CODES } from '../lib/accountingV2/infrastructure/legacy/legacyAccountMappingAdapter.js';
+import { LEGACY_KEY_BY_PURPOSE } from '../lib/coaV2/application/accountMappingRegistry.js';
+
+describe('DEFERRED_REVENUE purpose', () => {
+  it('is registered as a credit liability with legacy code 2150', () => {
+    expect(CODE_DEFERRED_REVENUE).toBe('2150');
+    const p = SYSTEM_ACCOUNT_PURPOSES.DEFERRED_REVENUE;
+    expect(p).toBeTruthy();
+    expect(p.legacyCode).toBe('2150');
+    expect(p.normalBalance).toBe('CREDIT');
+  });
+
+  it('is wired into the legacy resolution path (same as VAT_OUTPUT)', () => {
+    expect(LEGACY_MAPPING_CODES.DEFERRED_REVENUE).toBe('2150');
+    expect(LEGACY_KEY_BY_PURPOSE.DEFERRED_REVENUE).toBe('DEFERRED_REVENUE');
+  });
+});
+
+
+=== UNTRACKED FULL test/invoiceDeferredRevenue.test.js ===
+// test/invoiceDeferredRevenue.test.js
+import { describe, it, expect } from 'vitest';
+import {
+  computePaymentRecognizedNet,
+  computeFinalPaymentRecognizedNet,
+} from '../lib/invoiceDeferredRevenue.js';
+
+describe('invoice deferred revenue math', () => {
+  it('pro-rates net revenue by payment / total', () => {
+    // total 1180, tax 180, net 1000; pay 590 → recognize 500
+    expect(
+      computePaymentRecognizedNet({
+        paymentAmount: 590,
+        invoiceTotal: 1180,
+        invoiceTaxAmount: 180,
+      })
+    ).toBe(500);
+  });
+
+  it('final payment uses remaining net not a fresh multiply', () => {
+    expect(
+      computeFinalPaymentRecognizedNet({
+        invoiceNet: 1000,
+        previouslyRecognizedNet: 500,
+      })
+    ).toBe(500);
+  });
+});
+
+
+=== UNTRACKED FULL test/invoiceIssueDeferredRevenueTemplate.test.js ===
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('customer invoice issue template', () => {
+  it('credits deferred revenue purpose instead of sales revenue on issue', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'lib/accountingV2/templates/pilotTemplates.js'),
+      'utf8'
+    );
+    expect(src).toContain("resolvePurpose('DEFERRED_REVENUE')");
+    const fnStart = src.indexOf('async function buildCustomerInvoiceDraft');
+    const fnSlice = src.slice(fnStart, fnStart + 2500);
+    expect(fnSlice).toContain('DEFERRED_REVENUE');
+    expect(fnSlice).not.toContain("resolvePurpose('SALES_REVENUE')");
+  });
+});
+
+
+=== UNTRACKED FULL test/invoiceRevenueRecognitionAdapter.test.js ===
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createAccountingContext } from '../lib/accountingV2/domain/accountingContext.js';
+import { AccountingEventType, AccountingSourceModule } from '../lib/accountingV2/domain/enums.js';
+import { LEGACY_SOURCE_SCOPE } from '../lib/accountingV2/engine/legacyGuard.js';
+import { journalNumberPrefix } from '../lib/accountingV2/engine/journalNumbering.js';
+import { validateSource } from '../lib/accountingV2/engine/sourceValidation.js';
+import { getActiveTemplate } from '../lib/accountingV2/templates/index.js';
+
+const submitViaCutover = vi.fn(async ({ buildEngineInput }) => ({
+  input: await buildEngineInput(),
+}));
+
+vi.mock('../lib/accountingV2/adapters/baseAdapter.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    submitViaCutover: (...args) => submitViaCutover(...args),
+  };
+});
+
+describe('invoice revenue recognition adapter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('builds Invoice-Revenue engine input keyed by payment id', async () => {
+    const { postInvoiceRevenueRecognitionAccounting } = await import(
+      '../lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js'
+    );
+
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          invoiceId: 'inv-1',
+          paymentDate: new Date('2026-08-10T00:00:00.000Z'),
+          branchId: 'branch-1',
+          reference: 'RCPT-1',
+          invoice: {
+            id: 'inv-1',
+            clientId: 'customer-1',
+            invoiceNumber: 'INV-1',
+          },
+        }),
+      },
+      invoice: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'inv-1',
+          tenantId: 'tenant-1',
+          clientId: 'customer-1',
+          invoiceNumber: 'INV-1',
+        }),
+      },
+    };
+
+    const result = await postInvoiceRevenueRecognitionAccounting({
+      db,
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      paymentId: 'pay-1',
+      invoiceId: 'inv-1',
+      recognizedNet: 500,
+      paymentDate: '2026-08-10',
+    });
+
+    expect(submitViaCutover).toHaveBeenCalledTimes(1);
+    expect(result.input).toMatchObject({
+      sourceReference: {
+        sourceType: 'Invoice-Revenue',
+        sourceId: 'pay-1',
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      transactionDate: '2026-08-10',
+      requestedPostingDate: '2026-08-10',
+      totalAmount: '500.00',
+      taxAmount: '0.00',
+      dimensions: {
+        customerId: 'customer-1',
+        branchId: 'branch-1',
+      },
+      metadata: {
+        invoiceId: 'inv-1',
+        paymentId: 'pay-1',
+        recognizedNet: '500.00',
+      },
+    });
+  });
+
+  it('skips cutover when recognized net is not positive', async () => {
+    const { postInvoiceRevenueRecognitionAccounting } = await import(
+      '../lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js'
+    );
+
+    const result = await postInvoiceRevenueRecognitionAccounting({
+      db: {},
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      paymentId: 'pay-1',
+      invoiceId: 'inv-1',
+      recognizedNet: 0,
+    });
+
+    expect(submitViaCutover).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      skipped: 'recognized_net_non_positive',
+      paymentId: 'pay-1',
+      invoiceId: 'inv-1',
+      recognizedNet: 0,
+    });
+  });
+
+  it('rejects when provided invoiceId does not match the payment invoice link', async () => {
+    const { postInvoiceRevenueRecognitionAccounting } = await import(
+      '../lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js'
+    );
+
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          invoiceId: 'inv-actual',
+          paymentDate: new Date('2026-08-10T00:00:00.000Z'),
+          branchId: 'branch-1',
+          reference: 'RCPT-1',
+          invoice: {
+            id: 'inv-actual',
+            clientId: 'customer-1',
+            invoiceNumber: 'INV-ACTUAL',
+          },
+        }),
+      },
+      invoice: {
+        findFirst: vi.fn(),
+      },
+    };
+
+    await expect(
+      postInvoiceRevenueRecognitionAccounting({
+        db,
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+        paymentId: 'pay-1',
+        invoiceId: 'inv-requested',
+        recognizedNet: 500,
+        paymentDate: '2026-08-10',
+      })
+    ).rejects.toThrow(/linked to invoice inv-actual, not inv-requested/i);
+
+    expect(submitViaCutover).not.toHaveBeenCalled();
+  });
+});
+
+describe('invoice revenue recognition template + wiring', () => {
+  it('registers an ACTIVE template for INVOICE_REVENUE_RECOGNIZED', async () => {
+    const template = getActiveTemplate(AccountingEventType.INVOICE_REVENUE_RECOGNIZED);
+    expect(template).toBeTruthy();
+    expect(template.templateId).toBe('INVOICE_REVENUE_RECOGNITION');
+    expect(template.supportedSourceTypes).toContain('Invoice-Revenue');
+  });
+
+  it('builds Dr deferred revenue / Cr sales revenue lines', async () => {
+    const template = getActiveTemplate(AccountingEventType.INVOICE_REVENUE_RECOGNIZED);
+    const draft = await template.buildDraft({
+      command: {
+        sourceReference: {
+          sourceModule: AccountingSourceModule.SALES,
+          sourceType: 'Invoice-Revenue',
+          sourceId: 'pay-1',
+          eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+        },
+        transactionDate: '2026-08-10',
+        requestedPostingDate: '2026-08-10',
+        currency: 'MWK',
+        totalAmount: '500.00',
+        taxAmount: '0.00',
+        description: 'Invoice revenue recognition',
+        dimensions: { customerId: 'customer-1' },
+        metadata: { recognizedNet: '500.00' },
+      },
+      source: {
+        id: 'pay-1',
+        invoiceNumber: 'INV-1',
+        clientId: 'customer-1',
+      },
+      resolvePurpose: async (purpose) => ({ id: `acct-${purpose}` }),
+    });
+
+    expect(draft.lines).toHaveLength(2);
+    expect(draft.lines[0]).toMatchObject({
+      accountId: 'acct-DEFERRED_REVENUE',
+    });
+    expect(draft.lines[0].debit?.decimal).toBe('500.00');
+    expect(draft.lines[1]).toMatchObject({
+      accountId: 'acct-SALES_REVENUE',
+    });
+    expect(draft.lines[1].credit?.decimal).toBe('500.00');
+  });
+
+  it('accepts Invoice-Revenue source validation on a completed payment', async () => {
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          status: 'Completed',
+          isReversal: false,
+          invoiceId: 'inv-1',
+          invoice: {
+            id: 'inv-1',
+            tenantId: 'tenant-1',
+            clientId: 'customer-1',
+            invoiceNumber: 'INV-1',
+          },
+        }),
+      },
+    };
+
+    const command = {
+      sourceReference: {
+        sourceModule: AccountingSourceModule.SALES,
+        sourceType: 'Invoice-Revenue',
+        sourceId: 'pay-1',
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      totalAmount: '500.00',
+      metadata: {
+        recognizedNet: '500.00',
+      },
+    };
+
+    const source = await validateSource(
+      db,
+      createAccountingContext({ businessId: 'tenant-1', userId: 'user-1', sourceChannel: 'test' }),
+      command
+    );
+
+    expect(source).toMatchObject({
+      id: 'pay-1',
+      invoiceId: 'inv-1',
+    });
+  });
+
+  it('rejects source validation when the payment is not linked to an invoice', async () => {
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          status: 'Completed',
+          isReversal: false,
+     
+
+=== UNTRACKED FULL test/ensureInvoiceSalesAccounting.test.js ===
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+const postInvoiceAccounting = vi.fn();
+const postCostOfSalesAccounting = vi.fn();
+const calculateCOGS = vi.fn();
+
+vi.mock('../lib/accountingV2/adapters/index.js', () => ({
+  postInvoiceAccounting: (...args) => postInvoiceAccounting(...args),
+  postCostOfSalesAccounting: (...args) => postCostOfSalesAccounting(...args),
+}));
+
+vi.mock('../lib/accountingV2/adapters', () => ({
+  postInvoiceAccounting: (...args) => postInvoiceAccounting(...args),
+  postCostOfSalesAccounting: (...args) => postCostOfSalesAccounting(...args),
+}));
+
+vi.mock('../lib/inventoryCosting.js', () => ({
+  calculateCOGS: (...args) => calculateCOGS(...args),
+}));
+
+describe('ensureInvoiceSalesAccounting', () => {
+  // Issue accounting only: postInvoiceAccounting → CUSTOMER_INVOICE (AR+Deferred+VAT).
+  // Sales Revenue recognition on payment is out of scope here (Task 6).
+
+  let db;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    postInvoiceAccounting.mockResolvedValue({ ok: true });
+    postCostOfSalesAccounting.mockResolvedValue({ ok: true });
+    calculateCOGS.mockResolvedValue({ unitCost: 100, cogsAmount: 100, remainingQuantity: 9 });
+
+    db = {
+      invoice: {
+        findFirst: vi.fn(),
+      },
+      journalEntry: {
+        findFirst: vi.fn(),
+      },
+      product: {
+        findUnique: vi.fn(),
+        update: vi.fn(),
+      },
+      inventoryTransaction: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+      },
+    };
+  });
+
+  it('posts Invoice issue journal (AR+Deferred+VAT) when missing, then Invoice-COGS for stocked products', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      invoiceNumber: 'INV-1',
+      issueDate: new Date('2026-08-10'),
+      branchId: null,
+      status: 'Partial',
+      tenantId: 't1',
+      items: [{ productId: 'p1', quantity: 1, description: 'X' }],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce(null) // Invoice JE
+      .mockResolvedValueOnce(null); // Invoice-COGS JE
+    db.product.findUnique.mockResolvedValue({ id: 'p1', isService: false });
+    db.inventoryTransaction.findFirst.mockResolvedValue(null);
+
+    const { ensureInvoiceSalesAccounting } = await import(
+      '../lib/ensureInvoiceSalesAccounting.js'
+    );
+    const result = await ensureInvoiceSalesAccounting({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+    });
+
+    expect(postInvoiceAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({ invoiceId: 'inv-1', tenantId: 't1' })
+    );
+    // postInvoiceAccounting uses deferred template — no Sales Revenue on issue.
+    expect(postCostOfSalesAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentKind: 'Invoice',
+        documentId: 'inv-1',
+        cogsAmount: 100,
+      })
+    );
+    expect(result.postedInvoice).toBe(true);
+    expect(result.postedCogs).toBe(true);
+  });
+
+  it('posts missing Invoice-COGS even when Invoice issue journal already exists', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      invoiceNumber: 'INV-1',
+      issueDate: new Date('2026-08-10'),
+      branchId: null,
+      status: 'Paid',
+      tenantId: 't1',
+      items: [{ productId: 'p1', quantity: 1, description: 'X' }],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce({ id: 'je-inv' })
+      .mockResolvedValueOnce(null);
+    db.product.findUnique.mockResolvedValue({ id: 'p1', isService: false });
+    db.inventoryTransaction.findFirst.mockResolvedValue(null);
+
+    const { ensureInvoiceSalesAccounting } = await import(
+      '../lib/ensureInvoiceSalesAccounting.js'
+    );
+    const result = await ensureInvoiceSalesAccounting({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+    });
+
+    expect(postInvoiceAccounting).not.toHaveBeenCalled();
+    expect(postCostOfSalesAccounting).toHaveBeenCalled();
+    expect(result.postedInvoice).toBe(false);
+    expect(result.postedCogs).toBe(true);
+  });
+
+  it('skips Draft invoices until they leave draft (unless force)', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      invoiceNumber: 'INV-1',
+      issueDate: new Date('2026-08-10'),
+      branchId: null,
+      status: 'Draft',
+      tenantId: 't1',
+      items: [{ productId: 'p1', quantity: 1 }],
+    });
+
+    const { ensureInvoiceSalesAccounting } = await import(
+      '../lib/ensureInvoiceSalesAccounting.js'
+    );
+    const result = await ensureInvoiceSalesAccounting({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+    });
+
+    expect(postInvoiceAccounting).not.toHaveBeenCalled();
+    expect(result.skipped).toBe('draft');
+  });
+
+  it('posts Draft invoices when force is true (first payment path posts issue+COGS)', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      invoiceNumber: 'INV-1',
+      issueDate: new Date('2026-08-10'),
+      branchId: null,
+      status: 'Draft',
+      tenantId: 't1',
+      items: [{ productId: 'p1', quantity: 1 }],
+    });
+    db.journalEntry.findFirst.mockResolvedValue(null);
+    db.product.findUnique.mockResolvedValue({ id: 'p1', isService: false });
+    db.inventoryTransaction.findFirst.mockResolvedValue(null);
+
+    const { ensureInvoiceSalesAccounting } = await import(
+      '../lib/ensureInvoiceSalesAccounting.js'
+    );
+    await ensureInvoiceSalesAccounting({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      force: true,
+    });
+
+    expect(postInvoiceAccounting).toHaveBeenCalled();
+  });
+});
+
+
+=== UNTRACKED FULL test/ensureInvoicePaymentRevenueRecognition.test.js ===
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const postInvoiceRevenueRecognitionAccounting = vi.fn();
+
+vi.mock('../lib/accountingV2/adapters/index.js', () => ({
+  postInvoiceRevenueRecognitionAccounting: (...args) =>
+    postInvoiceRevenueRecognitionAccounting(...args),
+}));
+
+vi.mock('../lib/accountingV2/adapters', () => ({
+  postInvoiceRevenueRecognitionAccounting: (...args) =>
+    postInvoiceRevenueRecognitionAccounting(...args),
+}));
+
+describe('ensureInvoicePaymentRevenueRecognition', () => {
+  let db;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    postInvoiceRevenueRecognitionAccounting.mockResolvedValue({ ok: true });
+
+    db = {
+      invoice: {
+        findFirst: vi.fn(),
+      },
+      journalEntry: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+      },
+      coaV2AccountMapping: {
+        findMany: vi.fn(),
+      },
+    };
+  });
+
+  it('skips recognition for legacy invoices that already credited sales revenue on issue', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [{ id: 'pay-1', amount: 590, status: 'Completed', isReversal: false }],
+    });
+    db.journalEntry.findFirst.mockResolvedValueOnce({
+      id: 'je-invoice',
+      lines: [
+        {
+          accountId: 'acct-sales',
+          creditAmount: 1000,
+          account: { accountCode: '4100', accountSubtype: null },
+        },
+      ],
+    });
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    const result = await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-1',
+      paymentAmount: 590,
+    });
+
+    expect(result).toEqual({ skipped: 'legacy_accrual' });
+    expect(postInvoiceRevenueRecognitionAccounting).not.toHaveBeenCalled();
+  });
+
+  it('skips recognition when the invoice issue journal has not been posted yet', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [{ id: 'pay-1', amount: 590, status: 'Completed', isReversal: false }],
+    });
+    db.journalEntry.findFirst.mockResolvedValueOnce(null);
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    const result = await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-1',
+      paymentAmount: 590,
+    });
+
+    expect(result).toEqual({ skipped: 'no_issue_journal' });
+    expect(postInvoiceRevenueRecognitionAccounting).not.toHaveBeenCalled();
+  });
+
+  it('skips recognition when an Invoice-Revenue journal already exists for the payment', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [{ id: 'pay-1', amount: 590, status: 'Completed', isReversal: false }],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce({
+        id: 'je-invoice',
+        lines: [
+          {
+            accountId: 'acct-deferred',
+            creditAmount: 1000,
+            account: { accountCode: '2200', accountSubtype: null },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ id: 'je-rev' });
+    db.coaV2AccountMapping.findMany.mockResolvedValue([]);
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    const result = await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-1',
+      paymentAmount: 590,
+    });
+
+    expect(result).toEqual({ skipped: 'already_posted' });
+    expect(postInvoiceRevenueRecognitionAccounting).not.toHaveBeenCalled();
+  });
+
+  it('posts pro-rata recognized revenue for a partial payment', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [{ id: 'pay-1', amount: 590, status: 'Completed', isReversal: false }],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce({
+        id: 'je-invoice',
+        lines: [
+          {
+            accountId: 'acct-deferred',
+            creditAmount: 1000,
+            account: { accountCode: '2200', accountSubtype: null },
+          },
+        ],
+      })
+      .mockResolvedValueOnce(null);
+    db.coaV2AccountMapping.findMany.mockResolvedValue([]);
+    db.journalEntry.findMany.mockResolvedValue([]);
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-1',
+      paymentAmount: 590,
+    });
+
+    expect(postInvoiceRevenueRecognitionAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db,
+        tenantId: 't1',
+        userId: 'u1',
+        invoiceId: 'inv-1',
+        paymentId: 'pay-1',
+        recognizedNet: 500,
+      })
+    );
+  });
+
+  it('uses the remaining net revenue on the final payment', async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: 'inv-1',
+      total: 1180,
+      taxAmount: 180,
+      payments: [
+        { id: 'pay-1', amount: 590, status: 'Completed', isReversal: false },
+        { id: 'pay-2', amount: 590, status: 'Completed', isReversal: false },
+      ],
+    });
+    db.journalEntry.findFirst
+      .mockResolvedValueOnce({
+        id: 'je-invoice',
+        lines: [
+          {
+            accountId: 'acct-deferred',
+            creditAmount: 1000,
+            account: { accountCode: '2200', accountSubtype: null },
+          },
+        ],
+      })
+      .mockResolvedValueOnce(null);
+    db.coaV2AccountMapping.findMany.mockResolvedValue([]);
+    db.journalEntry.findMany.mockResolvedValue([
+      {
+        id: 'je-rev-1',
+        sourceId: 'pay-1',
+        metadata: { recognizedNet: '500.00' },
+        totalCredit: '500.00',
+      },
+    ]);
+
+    const { ensureInvoicePaymentRevenueRecognition } = await import(
+      '../lib/ensureInvoicePaymentRevenueRecognition.js'
+    );
+
+    await ensureInvoicePaymentRevenueRecognition({
+      db,
+      tenantId: 't1',
+      userId: 'u1',
+      invoiceId: 'inv-1',
+      paymentId: 'pay-2',
+      paymentAmount: 590,
+    });
+
+    expect(postInvoiceRevenueRecognitionAccounting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: 'pay-2',
+        recognizedNet: 500,
+      })
+    );
+  });
+});
+
+
+=== UNTRACKED FULL test/invoicePartialPaymentSalesAccounting.test.js ===
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('invoice partial-payment recognizes sales accounting', () => {
+  const routePath = join(process.cwd(), 'app/api/invoices/partial-payment/route.js');
+  const source = readFileSync(routePath, 'utf8');
+  const ensureSalesIndex = source.indexOf('ensureInvoiceSalesAccounting');
+  const paymentCreateIndex = Math.max(
+    source.indexOf('tx.payment.create'),
+    source.indexOf('payment.create')
+  );
+  const postPaymentIndex = source.indexOf('postCustomerPaymentAccounting');
+  const ensureRecognitionIndex = source.indexOf('ensureInvoicePaymentRevenueRecognition');
+
+  it('ensures invoice revenue + COGS before posting the payment', () => {
+    expect(source).toContain('ensureInvoiceSalesAccounting');
+    expect(source).toContain('force: true');
+    expect(ensureSalesIndex).toBeGreaterThanOrEqual(0);
+    expect(paymentCreateIndex).toBeGreaterThanOrEqual(0);
+    expect(ensureSalesIndex).toBeLessThan(paymentCreateIndex);
+  });
+
+  it('recognizes invoice revenue after posting the customer payment', () => {
+    expect(source).toContain('ensureInvoicePaymentRevenueRecognition');
+    expect(source).toContain('ensureInvoiceSalesAccounting');
+    expect(source).toContain('postCustomerPaymentAccounting');
+    expect(postPaymentIndex).toBeGreaterThanOrEqual(0);
+    expect(ensureRecognitionIndex).toBeGreaterThanOrEqual(0);
+    expect(postPaymentIndex).toBeLessThan(ensureRecognitionIndex);
+    expect(ensureRecognitionIndex).toBeGreaterThan(postPaymentIndex);
+  });
+});
+
+
+=== UNTRACKED FULL test/paymentReversalSourceTypes.test.js ===
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const reversalServicePath = path.resolve(__dirname, '../lib/transactionReversalService.js');
+
+describe('payment reversal source type coverage', () => {
+  const source = readFileSync(reversalServicePath, 'utf8');
+
+  it('includes Invoice-Revenue among V2 source types reversed for payments', () => {
+    const blockMatch = source.match(
+      /async function createPaymentReversal\([\s\S]*?const reversalRef = await generateReversalReference/
+    );
+    expect(blockMatch).not.toBeNull();
+
+    const block = blockMatch[0];
+    expect(block).toMatch(/sourceTypes:\s*\[\s*'Payment'\s*,\s*'Invoice-Revenue'\s*\]/);
+    expect(block).toMatch(/sourceIds:\s*\[\s*originalPayment\.id\s*\]/);
+  });
+});
+

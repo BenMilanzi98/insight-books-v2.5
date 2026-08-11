@@ -9,6 +9,7 @@ import {
   isReceiptDateStrictlyAfterTodayUTC,
 } from "@/lib/goodsReceiptDateUtils";
 import { receiptUnitCostFromPurchaseOrderLine } from "@/lib/receiptUnitCostFromPoLine";
+import StatCard from "@/components/ui/StatCard";
 
 const statusOptions = ["Draft", "Posted"];
 
@@ -742,15 +743,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
   );
 }
 
-function SummaryCard({ label, value, helper }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 ">
-      <div className="text-sm font-medium text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div>
-      {helper && <div className="mt-1 text-xs text-gray-500">{helper}</div>}
-    </div>
-  );
-}
+
 
 function ReceiptDetails({ receipt, onClose }) {
   if (!receipt) return null;
@@ -872,6 +865,7 @@ export default function GoodsReceiptsPage() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState(null);
+  const [receiveNotice, setReceiveNotice] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -934,8 +928,33 @@ export default function GoodsReceiptsPage() {
   }, [receipts]);
 
   const handleCreate = async (payload) => {
-    await postReceipt(payload);
+    const result = await postReceipt(payload);
+    const gr = result?.goodsReceipt || null;
     setShowForm(false);
+
+    if (payload?.receiptType === "inventory" || (gr?.items && gr.items.length > 0)) {
+      if (gr?.deferredStockPosting || gr?.stockPostingPending) {
+        setReceiveNotice({
+          tone: "warning",
+          title: "Receipt posted — stock deferred",
+          body: "This receipt date is in the future. Stock and the unpaid bill will apply on the receipt date.",
+          billNumber: gr?.billNumber || null,
+        });
+      } else {
+        setReceiveNotice({
+          tone: "success",
+          title: "Goods received",
+          body: gr?.billNumber
+            ? `Stock updated. Unpaid bill ${gr.billNumber} is ready to pay.`
+            : "Stock updated. An unpaid supplier bill is ready on Bills / Payments.",
+          billNumber: gr?.billNumber || null,
+          supplierBillId: gr?.supplierBillId || null,
+        });
+      }
+    } else {
+      setReceiveNotice(null);
+    }
+
     await loadData();
   };
 
@@ -986,23 +1005,57 @@ export default function GoodsReceiptsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Receipts" value={stats.total} helper="All statuses" />
+        <StatCard label="Receipts" value={stats.total} helper="All statuses" />
         {activeReceiptTab === "inventory" ? (
-          <SummaryCard
+          <StatCard
             label="Stock pending"
             value={stats.pendingStock}
             helper="Posted, not in stock yet"
           />
         ) : (
-          <SummaryCard label="Draft" value={stats.draft} />
+          <StatCard label="Draft" value={stats.draft} />
         )}
-        <SummaryCard label="Posted" value={stats.posted} />
-        <SummaryCard
+        <StatCard label="Posted" value={stats.posted} />
+        <StatCard
           label="Posted Inventory"
           value={`MWK ${stats.inventoryValue.toLocaleString()}`}
           helper="Added to stock"
         />
       </div>
+
+      {receiveNotice && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            receiveNotice.tone === "warning"
+              ? "border-amber-200 bg-amber-50 text-amber-900"
+              : "border-emerald-200 bg-emerald-50 text-emerald-900"
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">{receiveNotice.title}</p>
+              <p className="mt-1">{receiveNotice.body}</p>
+              {receiveNotice.tone === "success" && (
+                <p className="mt-2 flex flex-wrap gap-3">
+                  <a href="/purchases/bills" className="font-medium underline underline-offset-2">
+                    Open Bills
+                  </a>
+                  <a href="/purchases/payments" className="font-medium underline underline-offset-2">
+                    Open Payments
+                  </a>
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setReceiveNotice(null)}
+              className="text-xs font-medium opacity-70 hover:opacity-100"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-gray-200 bg-white p-4 ">
         <div className="mb-4 grid gap-3 md:grid-cols-3">

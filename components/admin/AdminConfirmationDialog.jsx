@@ -39,7 +39,7 @@ export default function AdminConfirmationDialog({
     <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center p-4 sm:items-center">
       <button
         type="button"
-        className="absolute inset-0 bg-black/50"
+        className="ib-modal-backdrop absolute inset-0"
         aria-label="Dismiss dialog"
         onClick={onCancel}
       />
@@ -48,7 +48,7 @@ export default function AdminConfirmationDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
-        className="relative z-10 w-full max-w-md rounded-[var(--radius-lg)] bg-[var(--surface-primary)] p-5 shadow-[var(--shadow-modal)]"
+        className="ib-modal-panel relative z-10 w-full max-w-md p-5"
       >
         <h2 id={titleId} className="text-lg font-semibold text-[var(--text-primary)]">
           {title}

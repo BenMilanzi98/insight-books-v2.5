@@ -65,7 +65,7 @@ export const MetricCard = ({
       {loading ? (
         <div className="animate-pulse h-8 bg-gray-200 rounded w-3/4 mb-1"></div>
       ) : (
-        <div className="text-2xl font-bold text-gray-800">
+        <div className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-800 sm:text-2xl">
           {formatValue(value)}
         </div>
       )}
@@ -243,7 +243,7 @@ export const FinancialSummaryPanel = ({
             {data.keyPerformanceIndicators.map((kpi, index) => (
               <div key={index} className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="text-sm font-medium text-gray-600 mb-1">{kpi.name}</h4>
-                <p className="text-xl font-semibold text-gray-800">{kpi.value}</p>
+                <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{kpi.value}</p>
                 <p className="text-xs text-gray-500 mt-1">{kpi.description}</p>
               </div>
             ))}
@@ -306,7 +306,7 @@ export const PerformanceSnapshot = ({
           </div>
           <div>
             <p className="text-sm text-gray-500">Revenue</p>
-            <p className="text-xl font-semibold text-gray-800">{formatCurrency(revenue)}</p>
+            <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{formatCurrency(revenue)}</p>
           </div>
         </div>
         
@@ -316,7 +316,7 @@ export const PerformanceSnapshot = ({
           </div>
           <div>
             <p className="text-sm text-gray-500">Expenses</p>
-            <p className="text-xl font-semibold text-gray-800">{formatCurrency(expenses)}</p>
+            <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{formatCurrency(expenses)}</p>
           </div>
         </div>
         
@@ -326,7 +326,7 @@ export const PerformanceSnapshot = ({
           </div>
           <div>
             <p className="text-sm text-gray-500">Profit</p>
-            <p className="text-xl font-semibold text-gray-800">{formatCurrency(profit)}</p>
+            <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{formatCurrency(profit)}</p>
             <p className="text-xs text-gray-500">{profitMargin.toFixed(2)}% margin</p>
           </div>
         </div>

@@ -22,6 +22,7 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
 import { calculateDateRange } from "@/lib/dateUtils";
+import StatCard from "@/components/ui/StatCard";
 
 export default function SupplierReportsPage() {
   const [loading, setLoading] = useState(true);
@@ -182,61 +183,37 @@ export default function SupplierReportsPage() {
           {/* Summary Cards */}
           {summary && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Total Outstanding</p>
-                    <p className="text-xl font-bold mt-1 text-red-600">
-                      {formatCurrency(summary.totalOutstanding || 0)}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-                    <DollarSign size={20} className="text-red-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Current (0-30 Days)</p>
-                    <p className="text-xl font-bold mt-1 text-green-600">
-                      {formatCurrency(summary.current || 0)}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
-                    <CheckCircle size={20} className="text-green-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Overdue (31+ Days)</p>
-                    <p className="text-xl font-bold mt-1 text-orange-600">
-                      {formatCurrency((summary.days31to60 || 0) + (summary.days61to90 || 0) + (summary.over90 || 0))}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center">
-                    <AlertTriangle size={20} className="text-orange-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Suppliers with Balance</p>
-                    <p className="text-xl font-bold mt-1 text-gray-900">
-                      {summary.supplierCount || 0}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                    <Users size={20} className="text-blue-600" />
-                  </div>
-                </div>
-              </div>
+              <StatCard
+                label="Total Outstanding"
+                value={formatCurrency(summary.totalOutstanding || 0)}
+                icon={DollarSign}
+                valueClassName="text-red-600"
+                barClassName="from-red-400 via-rose-500 to-pink-500"
+                iconWrapClassName="bg-red-50 text-red-600"
+              />
+              <StatCard
+                label="Current (0-30 Days)"
+                value={formatCurrency(summary.current || 0)}
+                icon={CheckCircle}
+                valueClassName="text-green-600"
+                barClassName="from-emerald-400 via-green-500 to-teal-500"
+                iconWrapClassName="bg-green-50 text-green-600"
+              />
+              <StatCard
+                label="Overdue (31+ Days)"
+                value={formatCurrency((summary.days31to60 || 0) + (summary.days61to90 || 0) + (summary.over90 || 0))}
+                icon={AlertTriangle}
+                valueClassName="text-orange-600"
+                barClassName="from-amber-400 via-orange-500 to-red-400"
+                iconWrapClassName="bg-orange-50 text-orange-600"
+              />
+              <StatCard
+                label="Suppliers with Balance"
+                value={summary.supplierCount || 0}
+                icon={Users}
+                barClassName="from-blue-400 via-indigo-500 to-blue-600"
+                iconWrapClassName="bg-blue-50 text-blue-600"
+              />
             </div>
           )}
 

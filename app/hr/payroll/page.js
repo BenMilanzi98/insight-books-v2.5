@@ -9,6 +9,7 @@ import { calculatePayroll } from "@/lib/payrollCalculations";
 import { effectiveNpsRatePercentForPayroll } from "@/lib/npsTenantRates";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
+import StatCard from "@/components/ui/StatCard";
 
 export default function PayrollProcessing() {
   const router = useRouter();
@@ -932,42 +933,34 @@ export default function PayrollProcessing() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-blue-100 p-3 rounded-full mr-4">
-            <Calendar size={20} className="text-blue-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{totalStats.totalRuns}</span>
-            <span className="text-gray-600 text-sm">Payroll Runs</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-green-100 p-3 rounded-full mr-4">
-            <CheckCircle size={20} className="text-green-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{totalStats.totalEmployees}</span>
-            <span className="text-gray-600 text-sm">Total Processed</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-yellow-100 p-3 rounded-full mr-4">
-            <DollarSign size={20} className="text-yellow-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{formatCurrency(totalStats.totalGross)}</span>
-            <span className="text-gray-600 text-sm">Total Gross</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-purple-100 p-3 rounded-full mr-4">
-            <DollarSign size={20} className="text-purple-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{formatCurrency(totalStats.totalNet)}</span>
-            <span className="text-gray-600 text-sm">Total Net Pay</span>
-          </div>
-        </div>
+        <StatCard
+          label="Payroll Runs"
+          value={totalStats.totalRuns}
+          icon={Calendar}
+          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          iconWrapClassName="bg-blue-100 text-blue-600"
+        />
+        <StatCard
+          label="Total Processed"
+          value={totalStats.totalEmployees}
+          icon={CheckCircle}
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+          iconWrapClassName="bg-green-100 text-green-600"
+        />
+        <StatCard
+          label="Total Gross"
+          value={formatCurrency(totalStats.totalGross)}
+          icon={DollarSign}
+          barClassName="from-amber-400 via-yellow-500 to-orange-500"
+          iconWrapClassName="bg-yellow-100 text-yellow-600"
+        />
+        <StatCard
+          label="Total Net Pay"
+          value={formatCurrency(totalStats.totalNet)}
+          icon={DollarSign}
+          barClassName="from-violet-400 via-purple-500 to-indigo-500"
+          iconWrapClassName="bg-purple-100 text-purple-600"
+        />
       </div>
 
       {/* Payroll Runs Table */}

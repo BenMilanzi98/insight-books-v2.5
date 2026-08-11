@@ -3,6 +3,10 @@ import { CreditCard, Calendar, FileText, DollarSign, CheckCircle, Clock, Downloa
 import ReceiptTemplateCapture from '@/components/ReceiptTemplateCapture';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
+function isSyntheticCogsExpenseId(expenseId) {
+  return typeof expenseId === 'string' && expenseId.startsWith('cogs-');
+}
+
 const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
   const [payments, setPayments] = useState([]);
   const [expense, setExpense] = useState(null);
@@ -12,12 +16,20 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
   const [isCapturingReceipt, setIsCapturingReceipt] = useState(false);
 
   useEffect(() => {
-    if (expenseId) {
-      fetchPaymentHistory();
+    if (!expenseId) return;
+    // COGS register rows are synthetic GL views — no Expense payment records.
+    if (isSyntheticCogsExpenseId(expenseId)) {
+      setPayments([]);
+      setExpense(null);
+      setError('');
+      setLoading(false);
+      return;
     }
+    fetchPaymentHistory();
   }, [expenseId]);
 
   const fetchPaymentHistory = async () => {
+    if (isSyntheticCogsExpenseId(expenseId)) return;
     try {
       setLoading(true);
       const response = await fetch(`/api/expenses/partial-payment?expenseId=${expenseId}`);
@@ -27,9 +39,6 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
       }
 
       const data = await response.json();
-      console.log('Payment history data received:', data);
-      console.log('Expense amount type and value:', typeof data.expense?.amount, data.expense?.amount);
-      console.log('Full expense object:', data.expense);
       setPayments(data.payments || []);
       setExpense(data.expense);
       setError('');
@@ -198,14 +207,11 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
     const totalPaid = payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
     const expenseAmount = parseMoney(expense.amount);
     
-    if (isNaN(expenseAmount) || expenseAmount <= 0) {
-      console.warn('Invalid expense amount for progress calculation:', expense.amount);
+    if (!Number.isFinite(expenseAmount) || expenseAmount <= 0) {
       return 0;
     }
     
-    const progress = Math.min((totalPaid / expenseAmount) * 100, 100);
-    console.log('Progress calculation:', { totalPaid, expenseAmount, progress });
-    return progress;
+    return Math.min((totalPaid / expenseAmount) * 100, 100);
   };
 
   const getTotalPaid = () => {
@@ -217,8 +223,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
     const expenseAmount = parseMoney(expense.amount);
     const totalPaid = getTotalPaid();
     
-    if (isNaN(expenseAmount)) {
-      console.warn('Invalid expense amount for remaining balance calculation:', expense.amount);
+    if (!Number.isFinite(expenseAmount)) {
       return 0;
     }
     
@@ -228,6 +233,19 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
   const isFullyPaid = () => {
     return getRemainingBalance() <= 0;
   };
+
+  if (isSyntheticCogsExpenseId(expenseId)) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+        <p className="font-medium text-gray-700">No payment history for COGS</p>
+        <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
+          Cost of goods sold entries come from inventory journals when items are sold.
+          They are not paid like supplier expenses.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -268,15 +286,15 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{formatCurrency(expense.amount)}</div>
+            <div className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 sm:text-2xl">{formatCurrency(expense.amount)}</div>
             <div className="text-sm text-gray-600">Total Amount</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(getTotalPaid())}</div>
+            <div className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-green-600 sm:text-2xl">{formatCurrency(getTotalPaid())}</div>
             <div className="text-sm text-gray-600">Total Paid</div>
           </div>
           <div className="text-center">
-            <div className={`text-2xl font-bold ${getRemainingBalance() > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            <div className={`min-w-0 break-words text-xl font-bold leading-tight tabular-nums sm:text-2xl ${getRemainingBalance() > 0 ? 'text-red-600' : 'text-green-600'}`}>
               {formatCurrency(getRemainingBalance())}
             </div>
             <div className="text-sm text-gray-600">Remaining Balance</div>

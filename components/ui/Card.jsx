@@ -1,10 +1,33 @@
+'use client';
+
 import { cn } from '@/lib/utils';
 
-export default function Card({ children, className, padded = true, as: Comp = 'div', ...props }) {
+/**
+ * Tenant glass card. Optional accent bar matches POS panel chrome.
+ * @param {'none'|'blue'|'green'|'rose'} [accent]
+ */
+export default function Card({
+  children,
+  className,
+  padded = true,
+  accent = 'none',
+  as: Comp = 'div',
+  ...props
+}) {
+  const accentClass =
+    accent === 'blue'
+      ? 'tenant-glass-card--accent'
+      : accent === 'green'
+        ? 'tenant-glass-card--accent tenant-glass-card--accent-green'
+        : accent === 'rose'
+          ? 'tenant-glass-card--accent tenant-glass-card--accent-rose'
+          : '';
+
   return (
     <Comp
       className={cn(
-        'rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] shadow-[var(--shadow-card)]',
+        'tenant-glass-card rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] shadow-[var(--shadow-card)]',
+        accentClass,
         padded && 'p-4 sm:p-5',
         className
       )}

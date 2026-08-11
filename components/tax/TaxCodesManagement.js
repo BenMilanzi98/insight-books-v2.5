@@ -614,7 +614,7 @@ export default function TaxCodesManagement() {
               )}
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 sm:text-2xl">
                 {tax.calculationType === "Percentage" ? `${tax.taxRate}%` : formatCurrency(tax.taxRate)}
               </p>
               <p className="text-xs text-gray-500">Tax Rate</p>
@@ -1431,7 +1431,7 @@ export default function TaxCodesManagement() {
                     </div>
                     <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 text-white">
                       <p className="text-purple-100 text-sm">Tax Collected</p>
-                      <p className="text-3xl font-bold mt-1">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
+                      <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums sm:text-3xl">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
                     </div>
                   </div>
 

@@ -1,1708 +1,496 @@
-# Task 4 review
+Task 4 re-review
+diff --git a/lib/accountingV2/engine/sourceValidation.js b/lib/accountingV2/engine/sourceValidation.js
+index f8dfbfe6..b9c9c47a 100644
+--- a/lib/accountingV2/engine/sourceValidation.js
++++ b/lib/accountingV2/engine/sourceValidation.js
+@@ -285,16 +285,66 @@ async function customerPaymentSourceValidator({ db, context, command }) {
+   }
+   const status = String(payment.status ?? 'Completed');
+   if (status !== 'Completed' && status !== 'completed') {
+     throw new SourceNotPostableError(`Payment is not completed (status: ${payment.status}).`, ids(context));
+   }
+   return payment;
+ }
+ 
++async function invoiceRevenueRecognitionSourceValidator({ db, context, command }) {
++  const payment = await db.payment.findFirst({
++    where: { id: command.sourceReference.sourceId },
++    include: {
++      invoice: {
++        select: { id: true, clientId: true, invoiceNumber: true, tenantId: true },
++      },
++    },
++  });
++  if (!payment) throw new SourceTransactionNotFoundError(ids(context));
++  if (payment.tenantId !== context.businessId) {
++    throw new CrossTenantAccountingError({ ...ids(context), diagnostic: { paymentId: payment.id } });
++  }
++  if (payment.isReversal) {
++    throw new SourceNotPostableError(
++      'Reversal payment rows do not post as invoice revenue recognition.',
++      ids(context)
++    );
++  }
++  const status = String(payment.status ?? 'Completed');
++  if (status !== 'Completed' && status !== 'completed') {
++    throw new SourceNotPostableError(`Payment is not completed (status: ${payment.status}).`, ids(context));
++  }
++  const linkedInvoiceId = payment.invoice?.id ?? payment.invoiceId ?? null;
++  if (!linkedInvoiceId) {
++    throw new SourceNotPostableError(
++      `Invoice-Revenue payment ${payment.id} must be linked to an invoice.`,
++      ids(context)
++    );
++  }
++  const requestedInvoiceId = command.metadata?.invoiceId ?? null;
++  if (requestedInvoiceId && requestedInvoiceId !== linkedInvoiceId) {
++    throw new SourceNotPostableError(
++      `Invoice-Revenue payment ${payment.id} is linked to invoice ${linkedInvoiceId}, not ${requestedInvoiceId}.`,
++      ids(context)
++    );
++  }
++  const amount = Number(command.metadata?.recognizedNet ?? command.totalAmount ?? 0);
++  if (!(amount > 0)) {
++    throw new SourceNotPostableError('Recognized revenue amount must be positive.', ids(context));
++  }
++  return {
++    ...payment,
++    recognizedNet: command.metadata?.recognizedNet ?? command.totalAmount,
++    clientId: payment.invoice?.clientId,
++    invoiceId: linkedInvoiceId,
++    invoiceNumber: payment.invoice?.invoiceNumber,
++  };
++}
++
+ async function supplierBillSourceValidator({ db, context, command }) {
+   const bill = await db.supplierBill.findFirst({
+     where: { id: command.sourceReference.sourceId },
+     include: { items: true, supplier: { select: { id: true, supplierName: true, tenantId: true } } },
+   });
+   if (!bill) throw new SourceTransactionNotFoundError(ids(context));
+   if (bill.tenantId !== context.businessId) {
+     throw new CrossTenantAccountingError({ ...ids(context), diagnostic: { billId: bill.id } });
+@@ -334,16 +384,20 @@ async function bankingPaymentSourceValidator({ db, context, command }) {
+ registerSourceValidator(AccountingEventType.MANUAL_JOURNAL_POSTED, manualJournalSourceValidator);
+ registerSourceValidator(AccountingEventType.HISTORICAL_REPAIR_POSTED, repairActionSourceValidator);
+ registerSourceValidator(AccountingEventType.ADJUSTMENT_POSTED, adjustmentSourceValidator);
+ registerSourceValidator(AccountingEventType.OPENING_BALANCE_POSTED, openingBalanceSourceValidator);
+ registerSourceValidator(AccountingEventType.INVOICE_POSTED, invoiceSourceValidator);
+ registerSourceValidator(AccountingEventType.REVERSAL_POSTED, reversalSourceValidator);
+ registerSourceValidator(AccountingEventType.EXPENSE_POSTED, expenseSourceValidator);
+ registerSourceValidator(AccountingEventType.CUSTOMER_PAYMENT_POSTED, customerPaymentSourceValidator);
++registerSourceValidator(
++  AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
++  invoiceRevenueRecognitionSourceValidator
++);
+ registerSourceValidator(AccountingEventType.SUPPLIER_BILL_POSTED, supplierBillSourceValidator);
+ registerSourceValidator(AccountingEventType.SUPPLIER_PAYMENT_POSTED, supplierPaymentSourceValidator);
+ registerSourceValidator(AccountingEventType.BANK_CHARGE_POSTED, bankingPaymentSourceValidator);
+ registerSourceValidator(AccountingEventType.INTEREST_INCOME_POSTED, bankingPaymentSourceValidator);
+ 
+ /* ── Phase 9 Stage 3A operational validators ──────────────────────────────── */
+ 
+ async function posSaleSourceValidator({ db, context, command }) {
 
+=== FULL TEST ===
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createAccountingContext } from '../lib/accountingV2/domain/accountingContext.js';
+import { AccountingEventType, AccountingSourceModule } from '../lib/accountingV2/domain/enums.js';
+import { LEGACY_SOURCE_SCOPE } from '../lib/accountingV2/engine/legacyGuard.js';
+import { journalNumberPrefix } from '../lib/accountingV2/engine/journalNumbering.js';
+import { validateSource } from '../lib/accountingV2/engine/sourceValidation.js';
+import { getActiveTemplate } from '../lib/accountingV2/templates/index.js';
 
-===== lib/admin/customerSuccess/onboarding/metrics.js =====
+const submitViaCutover = vi.fn(async ({ buildEngineInput }) => ({
+  input: await buildEngineInput(),
+}));
 
-/**
- * Onboarding metrics — Phase 17 Wave 4.
- * Reliability-gated; gate fail ≠ fabricated zero.
- */
-
-import {
-  canViewOnboarding,
-  hasCustomerOnboardingProjectModel,
-  resolveOnboardingActor,
-} from './model.js';
-import { getOnboardingDomainContract } from './catalogue.js';
-import {
-  applyOnboardingReportHonesty,
-  safeOnboardingCount,
-  gatedMetricCard,
-  ONBOARDING_REPORT_STATUS,
-} from './reliabilityGate.js';
-
-export const ONBOARDING_METRIC_VERSION = 'cs-onboarding-metric-v1-2026-07-31';
-
-/**
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ admin?: object, actorContext?: object, metric?: string }} args
- */
-export async function getOnboardingMetric(prisma, args = {}) {
-  const admin = resolveOnboardingActor(args);
-  if (!canViewOnboarding(admin)) {
-    const honesty = applyOnboardingReportHonesty({ permissionOk: false });
-    return {
-      ok: false,
-      forbidden: true,
-      status: honesty.status,
-      value: null,
-      honesty,
-      definitionVersion: ONBOARDING_METRIC_VERSION,
-    };
-  }
-
-  if (!hasCustomerOnboardingProjectModel(prisma)) {
-    const honesty = applyOnboardingReportHonesty({ modelAvailable: false });
-    return {
-      ok: true,
-      status: honesty.status,
-      value: null,
-      honesty,
-      reason: 'customer_onboarding_project_model_unavailable',
-      definitionVersion: ONBOARDING_METRIC_VERSION,
-      domain: getOnboardingDomainContract(),
-    };
-  }
-
-  const metric = String(args.metric || 'project_count').trim().toLowerCase();
-  const counted = await safeOnboardingCount(() =>
-    prisma.customerOnboardingProject.count()
-  );
-
-  if (!counted.ok) {
-    const honesty = applyOnboardingReportHonesty({
-      modelAvailable: true,
-      queryOk: false,
-      permissionOk: true,
-    });
-    return {
-      ok: true,
-      status: honesty.status,
-      value: null,
-      honesty,
-      reason: 'onboarding_metric_query_failed',
-      definitionVersion: ONBOARDING_METRIC_VERSION,
-      domain: getOnboardingDomainContract(),
-    };
-  }
-
-  const honesty = applyOnboardingReportHonesty({
-    modelAvailable: true,
-    queryOk: true,
-    permissionOk: true,
-  });
-
+vi.mock('../lib/accountingV2/adapters/baseAdapter.js', async (importOriginal) => {
+  const actual = await importOriginal();
   return {
-    ok: true,
-    status: ONBOARDING_REPORT_STATUS.READY,
-    metric,
-    value: counted.value,
-    honesty: {
-      ...honesty,
-      reliability: 'AVAILABLE',
-    },
-    definitionVersion: ONBOARDING_METRIC_VERSION,
-    domain: getOnboardingDomainContract(),
+    ...actual,
+    submitViaCutover: (...args) => submitViaCutover(...args),
   };
-}
-
-/**
- * Overview queue cards — each value reliability-gated.
- */
-export async function getOnboardingOverviewCards(prisma, args = {}) {
-  const admin = resolveOnboardingActor(args);
-  if (!canViewOnboarding(admin)) {
-    const honesty = applyOnboardingReportHonesty({ permissionOk: false });
-    return {
-      ok: false,
-      forbidden: true,
-      status: honesty.status,
-      cards: null,
-      honesty,
-    };
-  }
-
-  if (!hasCustomerOnboardingProjectModel(prisma)) {
-    const honesty = applyOnboardingReportHonesty({ modelAvailable: false });
-    return {
-      ok: true,
-      status: honesty.status,
-      cards: {
-        inProgress: gatedMetricCard({
-          label: 'in_progress',
-          counted: { ok: false, value: null },
-          honesty,
-        }),
-        atRisk: gatedMetricCard({
-          label: 'at_risk',
-          counted: { ok: false, value: null },
-          honesty,
-        }),
-        goLive: gatedMetricCard({
-          label: 'go_live',
-          counted: { ok: false, value: null },
-          honesty,
-        }),
-        completed: gatedMetricCard({
-          label: 'completed',
-          counted: { ok: false, value: null },
-          honesty,
-        }),
-      },
-      honesty,
-      definitionVersion: ONBOARDING_METRIC_VERSION,
-    };
-  }
-
-  const counts = await Promise.all([
-    safeOnboardingCount(() =>
-      prisma.customerOnboardingProject.count({ where: { status: 'IN_PROGRESS' } })
-    ),
-    safeOnboardingCount(() =>
-      prisma.customerOnboardingProject.count({ where: { status: 'BLOCKED' } })
-    ),
-    safeOnboardingCount(() =>
-      prisma.customerOnboardingProject.count({
-        where: { status: 'GO_LIVE_READINESS' },
-      })
-    ),
-    safeOnboardingCount(() =>
-      prisma.customerOnboardingProject.count({ where: { status: 'COMPLETED' } })
-    ),
-  ]);
-
-  const anyFail = counts.some((c) => !c.ok);
-  if (anyFail) {
-    const honesty = applyOnboardingReportHonesty({
-      modelAvailable: true,
-      queryOk: false,
-      permissionOk: true,
-    });
-    return {
-      ok: true,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      cards: {
-        inProgress: gatedMetricCard({
-          label: 'in_progress',
-          counted: { ok: false },
-          honesty,
-        }),
-        atRisk: gatedMetricCard({
-          label: 'at_risk',
-          counted: { ok: false },
-          honesty,
-        }),
-        goLive: gatedMetricCard({
-          label: 'go_live',
-          counted: { ok: false },
-          honesty,
-        }),
-        completed: gatedMetricCard({
-          label: 'completed',
-          counted: { ok: false },
-          honesty,
-        }),
-      },
-      honesty,
-      definitionVersion: ONBOARDING_METRIC_VERSION,
-      domain: getOnboardingDomainContract(),
-    };
-  }
-
-  const honesty = applyOnboardingReportHonesty({
-    modelAvailable: true,
-    queryOk: true,
-    permissionOk: true,
-  });
-
-  return {
-    ok: true,
-    status: ONBOARDING_REPORT_STATUS.READY,
-    cards: {
-      inProgress: gatedMetricCard({
-        label: 'in_progress',
-        counted: counts[0],
-        honesty,
-      }),
-      atRisk: gatedMetricCard({
-        label: 'at_risk',
-        counted: counts[1],
-        honesty,
-      }),
-      goLive: gatedMetricCard({
-        label: 'go_live',
-        counted: counts[2],
-        honesty,
-      }),
-      completed: gatedMetricCard({
-        label: 'completed',
-        counted: counts[3],
-        honesty,
-      }),
-    },
-    honesty: { ...honesty, reliability: 'AVAILABLE' },
-    definitionVersion: ONBOARDING_METRIC_VERSION,
-    domain: getOnboardingDomainContract(),
-  };
-}
-
-
-===== lib/admin/customerSuccess/onboarding/reliabilityGate.js =====
-
-/**
- * Onboarding reliability gate — Phase 17 Wave 4.
- * Gate fail → never fabricated zeroes (UNAVAILABLE / value: null).
- */
-
-export const ONBOARDING_REPORT_STATUS = Object.freeze({
-  READY: 'READY',
-  EMPTY: 'EMPTY',
-  UNAVAILABLE: 'UNAVAILABLE',
 });
 
-/**
- * Apply honesty envelope for onboarding metrics/reports.
- * @param {{ permissionOk?: boolean, modelAvailable?: boolean, queryOk?: boolean, freshnessOk?: boolean }} gate
- */
-export function applyOnboardingReportHonesty(gate = {}) {
-  if (gate.permissionOk === false) {
-    return {
-      kpiSafe: false,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      reliability: 'PERMISSION_RESTRICTED',
-      inventZeroesForbidden: true,
-      falseZeroes: false,
-    };
-  }
-  if (gate.modelAvailable === false) {
-    return {
-      kpiSafe: false,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      reliability: 'NOT_INSTRUMENTED',
-      inventZeroesForbidden: true,
-      falseZeroes: false,
-    };
-  }
-  if (gate.queryOk === false || gate.freshnessOk === false) {
-    return {
-      kpiSafe: false,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      reliability: 'RECONCILIATION_FAILED',
-      inventZeroesForbidden: true,
-      falseZeroes: false,
-    };
-  }
-  return {
-    kpiSafe: true,
-    inventZeroesForbidden: true,
-    falseZeroes: false,
-  };
-}
-
-/**
- * Shared safe count — failures return null, never invent 0.
- */
-export async function safeOnboardingCount(fn) {
-  try {
-    const value = await fn();
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      return { ok: false, value: null };
-    }
-    return { ok: true, value };
-  } catch {
-    return { ok: false, value: null };
-  }
-}
-
-/**
- * Wrap a metric card — gate fail forces value null (never 0).
- */
-export function gatedMetricCard({ label, counted, honesty }) {
-  if (!honesty?.kpiSafe || !counted?.ok) {
-    return {
-      label,
-      value: null,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      inventZeroesForbidden: true,
-    };
-  }
-  return {
-    label,
-    value: counted.value,
-    status:
-      counted.value === 0
-        ? ONBOARDING_REPORT_STATUS.EMPTY
-        : ONBOARDING_REPORT_STATUS.READY,
-    inventZeroesForbidden: true,
-  };
-}
-
-
-===== lib/admin/customerSuccess/onboarding/dataQuality.js =====
-
-/**
- * Onboarding data-quality foundations — Phase 17 Wave 4.
- * Never invent DQ scores or false zeroes on gate failure.
- */
-
-import {
-  canViewOnboarding,
-  hasCustomerOnboardingProjectModel,
-  hasCustomerOnboardingRequestModel,
-  resolveOnboardingActor,
-} from './model.js';
-import { getOnboardingDomainContract } from './catalogue.js';
-import {
-  applyOnboardingReportHonesty,
-  safeOnboardingCount,
-  ONBOARDING_REPORT_STATUS,
-} from './reliabilityGate.js';
-
-export const ONBOARDING_DQ_VERSION = 'cs-onboarding-dq-v1-2026-07-31';
-
-/**
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ admin?: object }} args
- */
-export async function runOnboardingDataQuality(prisma, args = {}) {
-  const admin = resolveOnboardingActor(args);
-  if (!canViewOnboarding(admin)) {
-    return {
-      ok: false,
-      forbidden: true,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      checks: null,
-      reason: 'onboarding_dq_forbidden',
-    };
-  }
-
-  if (!hasCustomerOnboardingProjectModel(prisma)) {
-    const honesty = applyOnboardingReportHonesty({ modelAvailable: false });
-    return {
-      ok: true,
-      status: honesty.status,
-      checks: null,
-      honesty,
-      definitionVersion: ONBOARDING_DQ_VERSION,
-      domain: getOnboardingDomainContract(),
-    };
-  }
-
-  const projects = await safeOnboardingCount(() =>
-    prisma.customerOnboardingProject.count()
-  );
-  if (!projects.ok) {
-    const honesty = applyOnboardingReportHonesty({
-      modelAvailable: true,
-      queryOk: false,
-      permissionOk: true,
-    });
-    return {
-      ok: true,
-      status: honesty.status,
-      checks: null,
-      honesty,
-      definitionVersion: ONBOARDING_DQ_VERSION,
-    };
-  }
-
-  let requests = { ok: true, value: 0 };
-  if (hasCustomerOnboardingRequestModel(prisma)) {
-    requests = await safeOnboardingCount(() =>
-      prisma.customerOnboardingRequest.count()
-    );
-  }
-
-  return {
-    ok: true,
-    status: ONBOARDING_REPORT_STATUS.READY,
-    checks: {
-      totalProjects: projects.value,
-      totalRequests: requests.ok ? requests.value : null,
-      orphanedRequests: null,
-      blockingDq: false,
-    },
-    honesty: {
-      inventZeroesForbidden: true,
-      falseZeroes: false,
-    },
-    definitionVersion: ONBOARDING_DQ_VERSION,
-    domain: getOnboardingDomainContract(),
-  };
-}
-
-
-===== lib/admin/customerSuccess/onboarding/reconciliation.js =====
-
-/**
- * Onboarding reconciliation — Phase 17 Wave 4.
- * Handoff ↔ request ↔ project ↔ tenant scope ↔ migration/training/MRA ↔ go-live ↔ completion.
- * Never invent zeroes on gate failure.
- */
-
-import {
-  canViewOnboarding,
-  hasCustomerOnboardingProjectModel,
-  resolveOnboardingActor,
-} from './model.js';
-import { getOnboardingDomainContract } from './catalogue.js';
-import {
-  applyOnboardingReportHonesty,
-  safeOnboardingCount,
-  ONBOARDING_REPORT_STATUS,
-} from './reliabilityGate.js';
-
-export const ONBOARDING_RECON_VERSION = 'cs-onboarding-recon-v1-2026-07-31';
-
-/**
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ admin?: object }} args
- */
-export async function runOnboardingReconciliation(prisma, args = {}) {
-  const admin = resolveOnboardingActor(args);
-  if (!canViewOnboarding(admin)) {
-    return {
-      ok: false,
-      forbidden: true,
-      status: ONBOARDING_REPORT_STATUS.UNAVAILABLE,
-      cards: null,
-      reason: 'onboarding_recon_forbidden',
-    };
-  }
-
-  if (!hasCustomerOnboardingProjectModel(prisma)) {
-    const honesty = applyOnboardingReportHonesty({ modelAvailable: false });
-    return {
-      ok: true,
-      status: honesty.status,
-      cards: null,
-      honesty,
-      definitionVersion: ONBOARDING_RECON_VERSION,
-      domain: getOnboardingDomainContract(),
-    };
-  }
-
-  const projects = await safeOnboardingCount(() =>
-    prisma.customerOnboardingProject.count()
-  );
-  if (!projects.ok) {
-    const honesty = applyOnboardingReportHonesty({
-      modelAvailable: true,
-      queryOk: false,
-      permissionOk: true,
-    });
-    return {
-      ok: true,
-      status: honesty.status,
-      cards: null,
-      honesty,
-      definitionVersion: ONBOARDING_RECON_VERSION,
-    };
-  }
-
-  return {
-    ok: true,
-    status: ONBOARDING_REPORT_STATUS.READY,
-    cards: {
-      projects: projects.value,
-      phase8Linked: null,
-      lineageIntact: true,
-    },
-    honesty: {
-      inventZeroesForbidden: true,
-      falseZeroes: false,
-    },
-    definitionVersion: ONBOARDING_RECON_VERSION,
-    domain: getOnboardingDomainContract(),
-  };
-}
-
-
-===== lib/admin/customerSuccess/onboarding/reports.js =====
-
-/**
- * Onboarding report catalogue — Phase 17 Wave 4.
- * Subset: Overview, At-Risk, Overdue Customer Tasks, Go-Live Readiness, Completion.
- */
-
-import {
-  canViewOnboarding,
-  hasCustomerOnboardingProjectModel,
-  resolveOnboardingActor,
-} from './model.js';
-import { getOnboardingDomainContract } from './catalogue.js';
-import {
-  applyOnboardingReportHonesty,
-  safeOnboardingCount,
-  ONBOARDING_REPORT_STATUS,
-} from './reliabilityGate.js';
-
-export const ONBOARDING_REPORT_VERSION = 'cs-onboarding-report-v1-2026-07-31';
-
-export const ONBOARDING_REPORT_CATALOGUE = Object.freeze([
-  { key: 'overview', title: 'Onboarding Overview' },
-  { key: 'at-risk', title: 'At-Risk Onboarding' },
-  { key: 'overdue-customer-tasks', title: 'Overdue Customer Tasks' },
-  { key: 'go-live-readiness', title: 'Go-Live Readiness' },
-  { key: 'completion', title: 'Onboarding Completion' },
-]);
-
-export function listOnboardingReports() {
-  return ONBOARDING_REPORT_CATALOGUE.map((r) => ({ ...r }));
-}
-
-/**
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ admin?: object, reportKey?: string }} args
- */
-export async function getOnboardingReport(prisma, args = {}) {
-  const admin = resolveOnboardingActor(args);
-  if (!canViewOnboarding(admin)) {
-    const honesty = applyOnboardingReportHonesty({ permissionOk: false });
-    return {
-      ok: false,
-      forbidden: true,
-      status: honesty.status,
-      report: null,
-      honesty,
-    };
-  }
-
-  if (!hasCustomerOnboardingProjectModel(prisma)) {
-    const honesty = applyOnboardingReportHonesty({ modelAvailable: false });
-    return {
-      ok: true,
-      status: honesty.status,
-      report: null,
-      honesty,
-      definitionVersion: ONBOARDING_REPORT_VERSION,
-    };
-  }
-
-  const reportKey = String(args.reportKey || 'overview').trim().toLowerCase();
-  const total = await safeOnboardingCount(() =>
-    prisma.customerOnboardingProject.count()
-  );
-  if (!total.ok) {
-    const honesty = applyOnboardingReportHonesty({
-      modelAvailable: true,
-      queryOk: false,
-      permissionOk: true,
-    });
-    return {
-      ok: true,
-      status: honesty.status,
-      report: null,
-      honesty,
-      definitionVersion: ONBOARDING_REPORT_VERSION,
-    };
-  }
-
-  const honesty = applyOnboardingReportHonesty({
-    modelAvailable: true,
-    queryOk: true,
-    permissionOk: true,
-  });
-
-  return {
-    ok: true,
-    status:
-      total.value === 0
-        ? ONBOARDING_REPORT_STATUS.EMPTY
-        : ONBOARDING_REPORT_STATUS.READY,
-    report: {
-      key: reportKey,
-      title:
-        ONBOARDING_REPORT_CATALOGUE.find((r) => r.key === reportKey)?.title ||
-        reportKey,
-      kpis: { totalProjects: total.value },
-    },
-    honesty: { ...honesty, reliability: 'AVAILABLE' },
-    definitionVersion: ONBOARDING_REPORT_VERSION,
-    domain: getOnboardingDomainContract(),
-  };
-}
-
-
-===== lib/admin/customerSuccess/onboarding/exports.js =====
-
-/**
- * Onboarding report exports — Phase 17 Wave 4.
- * Permission recheck; strip credentials / migration file contents.
- */
-
-import {
-  canManageOnboarding,
-  canViewOnboarding,
-  hasCustomerOnboardingProjectModel,
-  resolveOnboardingActor,
-} from './model.js';
-import { getOnboardingDomainContract } from './catalogue.js';
-import { ONBOARDING_REPORT_CATALOGUE } from './reports.js';
-
-const STRIP_KEYS = new Set([
-  'mraApiKey',
-  'credentialPassword',
-  'password',
-  'secret',
-  'apiKey',
-  'mraCredentials',
-  'migrationFileContents',
-  'migrationFile',
-  'credentials',
-  'token',
-]);
-
-function stripSensitive(row) {
-  if (!row || typeof row !== 'object') return row;
-  const out = {};
-  for (const [k, v] of Object.entries(row)) {
-    if (STRIP_KEYS.has(k) || /password|credential|secret|api[_-]?key/i.test(k)) {
-      continue;
-    }
-    if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
-      out[k] = stripSensitive(v);
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-
-function toCsv(rows) {
-  if (!rows.length) return 'onboardingNumber,status,tenantId,customerId\n';
-  const keys = ['onboardingNumber', 'status', 'tenantId', 'customerId', 'id'];
-  const header = keys.join(',');
-  const lines = rows.map((r) =>
-    keys.map((k) => JSON.stringify(r[k] ?? '')).join(',')
-  );
-  return [header, ...lines].join('\n');
-}
-
-/**
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ admin?: object, reportKey?: string, format?: string }} args
- */
-export async function exportOnboardingReport(prisma, args = {}) {
-  const admin = resolveOnboardingActor(args);
-  // Permission recheck — export requires manage (Super Admin / manageCases)
-  if (!canViewOnboarding(admin) || !canManageOnboarding(admin)) {
-    return {
-      ok: false,
-      forbidden: true,
-      error: 'onboarding_export_forbidden',
-    };
-  }
-
-  const reportKey = String(args.reportKey || 'overview').trim().toLowerCase();
-  if (!ONBOARDING_REPORT_CATALOGUE.some((r) => r.key === reportKey)) {
-    return { ok: false, error: 'unknown_report_key', reportKey };
-  }
-
-  if (!hasCustomerOnboardingProjectModel(prisma)) {
-    return {
-      ok: false,
-      error: 'customer_onboarding_project_model_unavailable',
-      status: 'UNAVAILABLE',
-    };
-  }
-
-  let rows = [];
-  try {
-    const raw = await prisma.customerOnboardingProject.findMany({});
-    rows = (raw || []).map((r) =>
-      stripSensitive({
-        id: r.id,
-        onboardingNumber: r.onboardingNumber,
-        status: r.status,
-        tenantId: r.tenantId,
-        customerId: r.customerId,
-        // intentionally drop sensitive fields even if present on row
-        mraApiKey: r.mraApiKey,
-        credentialPassword: r.credentialPassword,
-        migrationFileContents: r.migrationFileContents,
-      })
-    );
-  } catch {
-    return {
-      ok: false,
-      error: 'export_query_failed',
-      status: 'UNAVAILABLE',
-      body: null,
-    };
-  }
-
-  const format = String(args.format || 'csv').toLowerCase();
-  const body = format === 'xlsx' || format === 'json' ? JSON.stringify(rows) : toCsv(rows);
-
-  // Final sanitization pass
-  if (/sk-live|hunter2|credentialPassword|mraApiKey|SECRET_FILE/i.test(body)) {
-    return {
-      ok: false,
-      error: 'export_sanitization_failed',
-      body: null,
-    };
-  }
-
-  return {
-    ok: true,
-    reportKey,
-    format,
-    rows,
-    body,
-    strippedCredentials: true,
-    domain: getOnboardingDomainContract(),
-  };
-}
-
-
-===== lib/admin/customerSuccess/foundations.js =====
-
-/**
- * Onboarding / training / survey foundations — source-gated.
- * Empty → NOT_INSTRUMENTED. Never invent progress % from logins or engagement.
- * Phase 17 Wave 4: when CsOnboardingRecord.onboardingProjectId is set, project
- * CustomerOnboardingProject.status — never invent COMPLETED from historical rows.
- */
-
-import { CS_FOUNDATION_KIND, CS_FOUNDATION_STATUS } from './catalogue.js';
-import {
-  assertCsTenantAccess,
-  resolveCsAccess,
-  resolveCsPortfolioScope,
-  csTenantIdFilter,
-} from './authz.js';
-
-const MODEL_BY_KIND = Object.freeze({
-  [CS_FOUNDATION_KIND.ONBOARDING]: 'csOnboardingRecord',
-  [CS_FOUNDATION_KIND.TRAINING]: 'csTrainingRecord',
-  [CS_FOUNDATION_KIND.SURVEY]: 'csSurveyResponse',
-});
-
-function normalizeKind(kind) {
-  const k = String(kind || '')
-    .trim()
-    .toLowerCase();
-  if (k === 'surveys') return CS_FOUNDATION_KIND.SURVEY;
-  if (k === 'survey') return CS_FOUNDATION_KIND.SURVEY;
-  if (k === 'training') return CS_FOUNDATION_KIND.TRAINING;
-  if (k === 'onboarding') return CS_FOUNDATION_KIND.ONBOARDING;
-  return null;
-}
-
-function serializeRow(kind, row, project = null) {
-  if (!row) return null;
-  const linked = Boolean(row.onboardingProjectId && project);
-  return {
-    id: row.id,
-    tenantId: row.tenantId,
-    kind,
-    checklistKey: row.checklistKey || row.moduleKey || row.surveyKey || null,
-    // Project when linked — never invent COMPLETED from free-text legacy status
-    status: linked ? project.status || null : row.status || null,
-    completedAt:
-      linked
-        ? null
-        : row.completedAt
-          ? new Date(row.completedAt).toISOString()
-          : null,
-    sourceNote: row.sourceNote || null,
-    score: row.score != null ? row.score : null,
-    onboardingProjectId: row.onboardingProjectId || null,
-    migrationStatus: row.migrationStatus || null,
-    projectedFromProject: linked,
-    projectStatus: linked ? project.status || null : null,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
-  };
-}
-
-/**
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ admin: object, kind: string, tenantId?: string, now?: Date }} args
- */
-export async function getFoundationStatus(prisma, args = {}) {
-  const access = resolveCsAccess(args.admin);
-  if (!access.canView) {
-    return { ok: false, forbidden: true, reason: 'cs_forbidden' };
-  }
-
-  const kind = normalizeKind(args.kind);
-  if (!kind) {
-    return { ok: false, error: 'kind must be onboarding|training|survey' };
-  }
-
-  const modelName = MODEL_BY_KIND[kind];
-  const model = prisma?.[modelName];
-
-  if (!model || typeof model.findMany !== 'function') {
-    return {
-      ok: true,
-      kind,
-      status: CS_FOUNDATION_STATUS.NOT_INSTRUMENTED,
-      progressPercent: null,
-      items: [],
-      meta: {
-        reason: 'model_unavailable_or_empty',
-        inventProgressForbidden: true,
-      },
-    };
-  }
-
-  const where = {};
-  if (args.tenantId) {
-    const gate = await assertCsTenantAccess(prisma, args.admin, args.tenantId, {
-      now: args.now,
-    });
-    if (!gate.ok) {
-      return { ok: false, forbidden: true, reason: gate.reason };
-    }
-    where.tenantId = String(args.tenantId);
-  } else {
-    const scope = await resolveCsPortfolioScope(prisma, args.admin, { now: args.now });
-    const tenantFilter = csTenantIdFilter(scope);
-    if (tenantFilter) where.tenantId = tenantFilter;
-  }
-
-  let rows = [];
-  try {
-    rows = await model.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-  } catch {
-    try {
-      rows = await model.findMany({ where });
-    } catch {
-      rows = [];
-    }
-  }
-
-  if (!rows || rows.length === 0) {
-    return {
-      ok: true,
-      kind,
-      status: CS_FOUNDATION_STATUS.NOT_INSTRUMENTED,
-      progressPercent: null,
-      items: [],
-      meta: {
-        reason: 'no_source_rows',
-        inventProgressForbidden: true,
-      },
-    };
-  }
-
-  // Wave 4: project linked Project status for onboarding foundations
-  const projectById = new Map();
-  if (
-    kind === CS_FOUNDATION_KIND.ONBOARDING &&
-    typeof prisma.customerOnboardingProject?.findUnique === 'function'
-  ) {
-    const ids = [
-      ...new Set(
-        rows.map((r) => r.onboardingProjectId).filter((id) => id != null && id !== '')
-      ),
-    ];
-    for (const id of ids) {
-      try {
-        const project = await prisma.customerOnboardingProject.findUnique({
-          where: { id },
-        });
-        if (project) projectById.set(id, project);
-      } catch {
-        // leave unprojected
-      }
-    }
-  }
-
-  return {
-    ok: true,
-    kind,
-    status: CS_FOUNDATION_STATUS.INSTRUMENTED,
-    // Never derive a completion % — agents read discrete source rows only.
-    progressPercent: null,
-    items: rows.map((r) =>
-      serializeRow(kind, r, r.onboardingProjectId ? projectById.get(r.onboardingProjectId) : null)
-    ),
-    meta: {
-      count: rows.length,
-      inventProgressForbidden: true,
-      inventCompletedForbidden: true,
-      projectProjection: kind === CS_FOUNDATION_KIND.ONBOARDING,
-    },
-  };
-}
-
-export { normalizeKind, MODEL_BY_KIND };
-
-
-===== test/systemAdmin.cs.onboardingWave4.test.js =====
-
-/**
- * Phase 17 Wave 4 — UI hubs, metrics/reliability, DQ/recon, reports, Phase 8 migrate, i18n.
- * Gate fail → UNAVAILABLE / value: null (never false zero).
- * Portfolio My Work excludes other CS owners; search excludes inaccessible ONB;
- * export strips credentials; Phase 8 linked record projects Project status;
- * EN key smoke; certificate still idempotent.
- */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import {
-  applyOnboardingReportHonesty,
-  ONBOARDING_REPORT_STATUS,
-  getOnboardingMetric,
-  getOnboardingOverviewCards,
-  getOnboardingMyWork,
-  searchOnboardingIndex,
-  exportOnboardingReport,
-  migratePhase8OnboardingRecords,
-  getFoundationStatusWithProject,
-  issueCompletionCertificate,
-  getOnboardingDomainContract,
-} from '@/lib/admin/customerSuccess/onboarding';
-import { getFoundationStatus } from '@/lib/admin/customerSuccess/foundations.js';
-
-function superAdmin(id = 'super-onb-4') {
-  return {
-    id,
-    role: 'Super Admin',
-    permissions: {
-      'systemAdmin.customerSuccess.read': true,
-      'systemAdmin.customerSuccess.manageCases': true,
-    },
-  };
-}
-
-function csAgent(id = 'cs-agent-a') {
-  return {
-    id,
-    role: 'System Admin',
-    permissions: {
-      'systemAdmin.customerSuccess.read': true,
-      'systemAdmin.customerSuccess.manageCases': true,
-    },
-  };
-}
-
-function makeStoreCrud(store, idPrefix) {
-  return {
-    create: vi.fn(async ({ data }) => {
-      const row = {
-        id: data.id || `${idPrefix}-${store.length + 1}`,
-        createdAt: data.createdAt || new Date(),
-        updatedAt: data.updatedAt || new Date(),
-        ...data,
-      };
-      store.push(row);
-      return row;
-    }),
-    findUnique: vi.fn(async ({ where = {} } = {}) => {
-      if (where.id) return store.find((r) => r.id === where.id) || null;
-      if (where.idempotencyKey) {
-        return store.find((r) => r.idempotencyKey === where.idempotencyKey) || null;
-      }
-      if (where.projectId) {
-        return store.find((r) => r.projectId === where.projectId) || null;
-      }
-      return null;
-    }),
-    findFirst: vi.fn(async ({ where = {} } = {}) => {
-      let rows = [...store];
-      if (where.projectId) rows = rows.filter((r) => r.projectId === where.projectId);
-      if (where.idempotencyKey) {
-        rows = rows.filter((r) => r.idempotencyKey === where.idempotencyKey);
-      }
-      if (where.tenantId) rows = rows.filter((r) => r.tenantId === where.tenantId);
-      if (where.onboardingProjectId) {
-        rows = rows.filter((r) => r.onboardingProjectId === where.onboardingProjectId);
-      }
-      return rows[0] || null;
-    }),
-    findMany: vi.fn(async ({ where = {} } = {}) => {
-      let rows = [...store];
-      if (where.projectId) rows = rows.filter((r) => r.projectId === where.projectId);
-      if (where.tenantId) {
-        if (where.tenantId.in) {
-          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
-        } else {
-          rows = rows.filter((r) => r.tenantId === where.tenantId);
-        }
-      }
-      if (where.onboardingProjectId === null) {
-        rows = rows.filter((r) => r.onboardingProjectId == null);
-      }
-      if (where.status) rows = rows.filter((r) => r.status === where.status);
-      if (where.OR) {
-        rows = rows.filter((r) =>
-          where.OR.some((clause) => {
-            if (clause.onboardingNumber?.contains) {
-              return String(r.onboardingNumber || '').includes(clause.onboardingNumber.contains);
-            }
-            if (clause.requestNumber?.contains) {
-              return String(r.requestNumber || '').includes(clause.requestNumber.contains);
-            }
-            if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
-            if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
-            return false;
-          })
-        );
-      }
-      return rows;
-    }),
-    update: vi.fn(async ({ where = {}, data = {} } = {}) => {
-      const row = store.find((r) => r.id === where.id);
-      if (!row) throw new Error('not found');
-      Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
-      return row;
-    }),
-    count: vi.fn(async ({ where = {} } = {}) => {
-      let rows = [...store];
-      if (where.projectId) rows = rows.filter((r) => r.projectId === where.projectId);
-      if (where.tenantId) {
-        if (where.tenantId.in) {
-          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
-        } else {
-          rows = rows.filter((r) => r.tenantId === where.tenantId);
-        }
-      }
-      if (where.status) rows = rows.filter((r) => r.status === where.status);
-      if (where.csOwnerAdminId) {
-        rows = rows.filter((r) => r.csOwnerAdminId === where.csOwnerAdminId);
-      }
-      if (where.ownerAdminId) {
-        rows = rows.filter((r) => r.ownerAdminId === where.ownerAdminId);
-      }
-      if (where.OR) {
-        rows = rows.filter((r) =>
-          where.OR.some((clause) => {
-            if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
-            if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
-            return Object.entries(clause).every(([k, v]) => r[k] === v);
-          })
-        );
-      }
-      return rows.length;
-    }),
-  };
-}
-
-function makePrisma(overrides = {}) {
-  const projectStore = overrides._projectStore || [];
-  const requestStore = overrides._requestStore || [];
-  const certificateStore = overrides._certificateStore || [];
-  const completionStore = overrides._completionStore || [];
-  const handoverStore = overrides._handoverStore || [];
-  const migrationStore = overrides._migrationStore || [];
-  const goLiveStore = overrides._goLiveStore || [];
-  const csOnboardingStore = overrides._csOnboardingStore || [];
-  const projectHistoryStore = overrides._projectHistoryStore || [];
-
-  const prisma = {
-    $transaction: vi.fn(async (fn) => fn(prisma)),
-    _projectStore: projectStore,
-    _requestStore: requestStore,
-    _certificateStore: certificateStore,
-    _csOnboardingStore: csOnboardingStore,
-    customerOnboardingProject: {
-      ...makeStoreCrud(projectStore, 'onb'),
-      create: vi.fn(async ({ data }) => {
-        const row = {
-          id: data.id || `onb-${projectStore.length + 1}`,
-          status: data.status || 'IN_PROGRESS',
-          createdAt: data.createdAt || new Date(),
-          updatedAt: data.updatedAt || new Date(),
-          ...data,
-        };
-        projectStore.push(row);
-        return row;
-      }),
-      findUnique: vi.fn(async ({ where = {} } = {}) => {
-        if (where.id) return projectStore.find((r) => r.id === where.id) || null;
-        if (where.onboardingNumber) {
-          return projectStore.find((r) => r.onboardingNumber === where.onboardingNumber) || null;
-        }
-        return null;
-      }),
-      count: vi.fn(async ({ where = {} } = {}) => {
-        let rows = [...projectStore];
-        if (where.status) rows = rows.filter((r) => r.status === where.status);
-        if (where.tenantId?.in) {
-          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
-        } else if (where.tenantId) {
-          rows = rows.filter((r) => r.tenantId === where.tenantId);
-        }
-        if (where.csOwnerAdminId) {
-          rows = rows.filter((r) => r.csOwnerAdminId === where.csOwnerAdminId);
-        }
-        if (where.OR) {
-          rows = rows.filter((r) =>
-            where.OR.some((clause) => {
-              if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
-              if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
-              return Object.entries(clause).every(([k, v]) => r[k] === v);
-            })
-          );
-        }
-        return rows.length;
-      }),
-      findMany: vi.fn(async ({ where = {} } = {}) => {
-        let rows = [...projectStore];
-        if (where.tenantId?.in) {
-          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
-        } else if (where.tenantId) {
-          rows = rows.filter((r) => r.tenantId === where.tenantId);
-        }
-        if (where.status) rows = rows.filter((r) => r.status === where.status);
-        if (where.csOwnerAdminId) {
-          rows = rows.filter((r) => r.csOwnerAdminId === where.csOwnerAdminId);
-        }
-        if (where.OR) {
-          rows = rows.filter((r) =>
-            where.OR.some((clause) => {
-              if (clause.onboardingNumber?.contains) {
-                return String(r.onboardingNumber || '').includes(
-                  clause.onboardingNumber.contains
-                );
-              }
-              if (clause.csOwnerAdminId) return r.csOwnerAdminId === clause.csOwnerAdminId;
-              if (clause.ownerAdminId) return r.ownerAdminId === clause.ownerAdminId;
-              return Object.entries(clause).every(([k, v]) => r[k] === v);
-            })
-          );
-        }
-        if (where.onboardingNumber?.contains) {
-          rows = rows.filter((r) =>
-            String(r.onboardingNumber || '').includes(where.onboardingNumber.contains)
-          );
-        }
-        return rows;
-      }),
-      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
-        const row = projectStore.find((r) => r.id === where.id);
-        if (!row) throw new Error('not found');
-        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
-        return row;
-      }),
-    },
-    customerOnboardingRequest: {
-      ...makeStoreCrud(requestStore, 'onr'),
-      findMany: vi.fn(async ({ where = {} } = {}) => {
-        let rows = [...requestStore];
-        if (where.tenantId?.in) {
-          rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
-        }
-        if (where.requestNumber?.contains) {
-          rows = rows.filter((r) =>
-            String(r.requestNumber || '').includes(where.requestNumber.contains)
-          );
-        }
-        if (where.OR) {
-          rows = rows.filter((r) =>
-            where.OR.some((clause) => {
-              if (clause.requestNumber?.contains) {
-                return String(r.requestNumber || '').includes(clause.requestNumber.contains);
-              }
-              return false;
-            })
-          );
-        }
-        return rows;
-      }),
-      count: vi.fn(async ({ where = {} } = {}) => {
-        let rows = [...requestStore];
-        if (where.status) rows = rows.filter((r) => r.status === where.status);
-        return rows.length;
-      }),
-    },
-    customerOnboardingProjectStatusHistory: makeStoreCrud(projectHistoryStore, 'ph'),
-    customerOnboardingCompletion: makeStoreCrud(completionStore, 'cmp'),
-    customerOnboardingCompletionCertificate: makeStoreCrud(certificateStore, 'cert'),
-    customerOnboardingHandover: makeStoreCrud(handoverStore, 'ho'),
-    customerOnboardingMigration: makeStoreCrud(migrationStore, 'mig'),
-    customerOnboardingGoLive: makeStoreCrud(goLiveStore, 'gl'),
-    csOnboardingRecord: {
-      ...makeStoreCrud(csOnboardingStore, 'csob'),
-      findMany: vi.fn(async ({ where = {} } = {}) => {
-        let rows = [...csOnboardingStore];
-        if (where.tenantId) {
-          if (where.tenantId.in) {
-            rows = rows.filter((r) => where.tenantId.in.includes(r.tenantId));
-          } else {
-            rows = rows.filter((r) => r.tenantId === where.tenantId);
-          }
-        }
-        if (where.onboardingProjectId === null) {
-          rows = rows.filter((r) => r.onboardingProjectId == null);
-        }
-        return rows;
-      }),
-      update: vi.fn(async ({ where = {}, data = {} } = {}) => {
-        const row = csOnboardingStore.find((r) => r.id === where.id);
-        if (!row) throw new Error('not found');
-        Object.assign(row, data, { updatedAt: data.updatedAt || new Date() });
-        return row;
-      }),
-    },
-  };
-
-  return prisma;
-}
-
-describe('Phase 17 Wave 4 — metrics / reliability / hubs / Phase 8 / i18n', () => {
+describe('invoice revenue recognition adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('reliability gate fail → UNAVAILABLE / value null — never false zero', async () => {
-    const honesty = applyOnboardingReportHonesty({
-      modelAvailable: false,
-      permissionOk: true,
-      queryOk: true,
-    });
-    expect(honesty.kpiSafe).toBe(false);
-    expect(honesty.status).toBe(ONBOARDING_REPORT_STATUS.UNAVAILABLE);
-    expect(honesty.inventZeroesForbidden).toBe(true);
-    expect(honesty.falseZeroes).toBe(false);
-
-    const broken = makePrisma();
-    broken.customerOnboardingProject.count = vi.fn(async () => {
-      throw new Error('db down');
-    });
-
-    const metric = await getOnboardingMetric(broken, {
-      admin: superAdmin(),
-      metric: 'project_count',
-    });
-    expect(metric.status).toBe(ONBOARDING_REPORT_STATUS.UNAVAILABLE);
-    expect(metric.value).toBeNull();
-    expect(metric.value).not.toBe(0);
-
-    const cards = await getOnboardingOverviewCards(broken, {
-      admin: superAdmin(),
-    });
-    expect(cards.status).toBe(ONBOARDING_REPORT_STATUS.UNAVAILABLE);
-    const values = Object.values(cards.cards || {}).map((c) => c?.value);
-    for (const v of values) {
-      expect(v).not.toBe(0);
-      expect(v === null || v === undefined).toBe(true);
-    }
-  });
-
-  it('My Work portfolio scope excludes other CS owner projects', async () => {
-    const prisma = makePrisma();
-    const agentA = csAgent('cs-agent-a');
-    const agentB = csAgent('cs-agent-b');
-
-    await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-mine',
-        onboardingNumber: 'ONB-2026-000401',
-        status: 'IN_PROGRESS',
-        tenantId: 'tenant-a',
-        customerId: 'cust-a',
-        csOwnerAdminId: agentA.id,
-        ownerAdminId: agentA.id,
-      },
-    });
-    await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-other',
-        onboardingNumber: 'ONB-2026-000402',
-        status: 'IN_PROGRESS',
-        tenantId: 'tenant-b',
-        customerId: 'cust-b',
-        csOwnerAdminId: agentB.id,
-        ownerAdminId: agentB.id,
-      },
-    });
-
-    const mine = await getOnboardingMyWork(prisma, {
-      admin: agentA,
-      actorContext: { admin: agentA },
-    });
-    expect(mine.ok).toBe(true);
-    expect(mine.count).toBe(1);
-    expect(mine.projects.every((p) => p.id === 'onb-mine')).toBe(true);
-    expect(mine.projects.some((p) => p.id === 'onb-other')).toBe(false);
-  });
-
-  it('search excludes inaccessible ONB and never returns migration file contents or credentials', async () => {
-    const prisma = makePrisma();
-    const agentA = csAgent('cs-agent-a');
-
-    await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-vis',
-        onboardingNumber: 'ONB-2026-000410',
-        status: 'IN_PROGRESS',
-        tenantId: 'tenant-owned',
-        customerId: 'cust-1',
-        csOwnerAdminId: agentA.id,
-        migrationFileContents: 'SECRET_FILE_BLOB',
-        mraCredentials: { user: 'x', password: 'y' },
-      },
-    });
-    await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-hid',
-        onboardingNumber: 'ONB-2026-000411',
-        status: 'IN_PROGRESS',
-        tenantId: 'tenant-other',
-        customerId: 'cust-2',
-        csOwnerAdminId: 'cs-agent-b',
-      },
-    });
-
-    // Agent without Super Admin — portfolio scoped to owned tenant only via stub scope
-    const scoped = await searchOnboardingIndex(prisma, {
-      admin: agentA,
-      query: 'ONB-2026',
-      portfolioTenantIds: ['tenant-owned'],
-    });
-    expect(scoped.ok).toBe(true);
-    const ids = (scoped.results || []).map((r) => r.id);
-    expect(ids).toContain('onb-vis');
-    expect(ids).not.toContain('onb-hid');
-    const payload = JSON.stringify(scoped.results);
-    expect(payload).not.toMatch(/SECRET_FILE_BLOB|password|mraCredentials/i);
-  });
-
-  it('export strips credentials and rechecks permission', async () => {
-    const prisma = makePrisma();
-    const admin = superAdmin();
-    await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-exp',
-        onboardingNumber: 'ONB-2026-000420',
-        status: 'IN_PROGRESS',
-        tenantId: 'tenant-1',
-        customerId: 'cust-1',
-        mraApiKey: 'sk-live-secret',
-        credentialPassword: 'hunter2',
-      },
-    });
-
-    const denied = await exportOnboardingReport(prisma, {
-      admin: { id: 'no-perm', role: 'Viewer', permissions: {} },
-      reportKey: 'overview',
-      format: 'csv',
-    });
-    expect(denied.ok).toBe(false);
-    expect(denied.forbidden || denied.error).toBeTruthy();
-
-    const exported = await exportOnboardingReport(prisma, {
-      admin,
-      reportKey: 'overview',
-      format: 'csv',
-    });
-    expect(exported.ok).toBe(true);
-    const body = typeof exported.body === 'string' ? exported.body : JSON.stringify(exported.rows);
-    expect(body).not.toMatch(/sk-live-secret|hunter2|credentialPassword|mraApiKey/i);
-  });
-
-  it('Phase 8 linked CsOnboardingRecord projects Project status — never invent COMPLETED', async () => {
-    const prisma = makePrisma();
-    const admin = superAdmin();
-
-    await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-p8',
-        onboardingNumber: 'ONB-2026-000430',
-        status: 'IN_PROGRESS',
-        tenantId: 'tenant-p8',
-        customerId: 'cust-p8',
-      },
-    });
-    await prisma.csOnboardingRecord.create({
-      data: {
-        id: 'csob-1',
-        tenantId: 'tenant-p8',
-        checklistKey: 'kickoff',
-        status: 'COMPLETED', // historical free-text — must not invent completion via foundations
-        completedAt: new Date('2026-01-01'),
-        sourceNote: 'legacy',
-      },
-    });
-    await prisma.csOnboardingRecord.create({
-      data: {
-        id: 'csob-orphan',
-        tenantId: 'tenant-orphan',
-        checklistKey: 'unknown-item',
-        status: 'DONE',
-      },
-    });
-
-    const migrated = await migratePhase8OnboardingRecords(prisma, {
-      admin,
-      actorContext: { admin },
-    });
-    expect(migrated.ok).toBe(true);
-    expect(migrated.linked).toBeGreaterThanOrEqual(1);
-
-    const linked = prisma._csOnboardingStore.find((r) => r.id === 'csob-1');
-    expect(linked.onboardingProjectId).toBe('onb-p8');
-
-    const orphan = prisma._csOnboardingStore.find((r) => r.id === 'csob-orphan');
-    expect(orphan.onboardingProjectId == null || orphan.migrationStatus === 'UNKNOWN').toBe(true);
-    expect(orphan.status).not.toBe('COMPLETED'); // migrate must not invent COMPLETED on orphan
-
-    const foundation = await getFoundationStatus(prisma, {
-      admin,
-      kind: 'onboarding',
-      tenantId: 'tenant-p8',
-    });
-    expect(foundation.ok).toBe(true);
-    const item = foundation.items?.find((i) => i.id === 'csob-1');
-    expect(item).toBeTruthy();
-    expect(item.projectedFromProject).toBe(true);
-    expect(item.status).toBe('IN_PROGRESS');
-    expect(item.status).not.toBe('COMPLETED');
-
-    // Helper alias still available
-    const viaHelper = await getFoundationStatusWithProject(prisma, {
-      admin,
-      kind: 'onboarding',
-      tenantId: 'tenant-p8',
-    });
-    expect(viaHelper.items?.find((i) => i.id === 'csob-1')?.status).toBe('IN_PROGRESS');
-  });
-
-  it('EN i18n keys for onboarding surfaces resolve (smoke)', () => {
-    const en = JSON.parse(
-      readFileSync(join(process.cwd(), 'locales/en/admin-pages.json'), 'utf8')
+  it('builds Invoice-Revenue engine input keyed by payment id', async () => {
+    const { postInvoiceRevenueRecognitionAccounting } = await import(
+      '../lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js'
     );
-    const ny = JSON.parse(
-      readFileSync(join(process.cwd(), 'locales/ny/admin-pages.json'), 'utf8')
-    );
-    const keys = [
-      'customerSuccess.onboardingHub.title',
-      'customerSuccess.onboardingHub.overview',
-      'customerSuccess.onboardingHub.myWork',
-      'customerSuccess.onboardingHub.queues',
-      'customerSuccess.onboardingHub.reports',
-      'customerSuccess.onboardingHub.contextBar',
-    ];
-    for (const path of keys) {
-      const parts = path.split('.');
-      let nodeEn = en;
-      let nodeNy = ny;
-      for (const p of parts) {
-        nodeEn = nodeEn?.[p];
-        nodeNy = nodeNy?.[p];
-      }
-      expect(typeof nodeEn).toBe('string');
-      expect(nodeEn.length).toBeGreaterThan(0);
-      expect(typeof nodeNy).toBe('string');
-      expect(nodeNy.length).toBeGreaterThan(0);
-    }
-  });
 
-  it('completion certificate still idempotent after Wave 4', async () => {
-    const prisma = makePrisma();
-    const admin = superAdmin();
-    const project = await prisma.customerOnboardingProject.create({
-      data: {
-        id: 'onb-w4-cert',
-        onboardingNumber: 'ONB-2026-000440',
-        status: 'COMPLETION_PENDING',
-        tenantId: 'tenant-1',
-        customerId: 'cust-1',
-        subscriptionId: 'sub-1',
-        templateVersionId: 'tmplv-1',
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          invoiceId: 'inv-1',
+          paymentDate: new Date('2026-08-10T00:00:00.000Z'),
+          branchId: 'branch-1',
+          reference: 'RCPT-1',
+          invoice: {
+            id: 'inv-1',
+            clientId: 'customer-1',
+            invoiceNumber: 'INV-1',
+          },
+        }),
       },
-    });
-    await prisma.customerOnboardingHandover.create({
-      data: {
-        projectId: project.id,
-        status: 'ACCEPTED',
-        createdByAdminId: admin.id,
+      invoice: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'inv-1',
+          tenantId: 'tenant-1',
+          clientId: 'customer-1',
+          invoiceNumber: 'INV-1',
+        }),
       },
-    });
-    await prisma.customerOnboardingCompletion.create({
-      data: {
-        projectId: project.id,
-        status: 'READY',
-        customerSignOffAt: new Date('2026-09-15T12:00:00Z'),
-        customerSignOffByContactId: 'contact-1',
-        internalSignOffAt: new Date('2026-09-15T13:00:00Z'),
-        reconciliationStatus: 'PASSED',
-        createdByAdminId: admin.id,
-      },
-    });
-    await prisma.customerOnboardingMigration.create({
-      data: {
-        projectId: project.id,
-        status: 'COMPLETED',
-        reconciliationStatus: 'PASSED',
-      },
-    });
-    await prisma.customerOnboardingGoLive.create({
-      data: {
-        projectId: project.id,
-        status: 'COMPLETED',
-        outcome: 'SUCCESSFUL',
-      },
-    });
-
-    const args = {
-      actorContext: { admin },
-      projectId: project.id,
-      idempotencyKey: 'cert:onb-w4-cert:1',
     };
-    const first = await issueCompletionCertificate(prisma, args);
-    expect(first.ok).toBe(true);
-    expect(first.certificate.checksumSha256).toMatch(/^[a-f0-9]{64}$/i);
 
-    const second = await issueCompletionCertificate(prisma, args);
-    expect(second.ok).toBe(true);
-    expect(second.alreadyExists || second.idempotentReplay).toBe(true);
-    expect(second.certificate.id).toBe(first.certificate.id);
-    expect(second.certificate.checksumSha256).toBe(first.certificate.checksumSha256);
-    expect(prisma._certificateStore.length).toBe(1);
+    const result = await postInvoiceRevenueRecognitionAccounting({
+      db,
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      paymentId: 'pay-1',
+      invoiceId: 'inv-1',
+      recognizedNet: 500,
+      paymentDate: '2026-08-10',
+    });
 
-    expect(getOnboardingDomainContract().inventZeroesForbidden).toBe(true);
-    expect(getOnboardingDomainContract().wave).toBeGreaterThanOrEqual(4);
+    expect(submitViaCutover).toHaveBeenCalledTimes(1);
+    expect(result.input).toMatchObject({
+      sourceReference: {
+        sourceType: 'Invoice-Revenue',
+        sourceId: 'pay-1',
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      transactionDate: '2026-08-10',
+      requestedPostingDate: '2026-08-10',
+      totalAmount: '500.00',
+      taxAmount: '0.00',
+      dimensions: {
+        customerId: 'customer-1',
+        branchId: 'branch-1',
+      },
+      metadata: {
+        invoiceId: 'inv-1',
+        paymentId: 'pay-1',
+        recognizedNet: '500.00',
+      },
+    });
+  });
+
+  it('skips cutover when recognized net is not positive', async () => {
+    const { postInvoiceRevenueRecognitionAccounting } = await import(
+      '../lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js'
+    );
+
+    const result = await postInvoiceRevenueRecognitionAccounting({
+      db: {},
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      paymentId: 'pay-1',
+      invoiceId: 'inv-1',
+      recognizedNet: 0,
+    });
+
+    expect(submitViaCutover).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      skipped: 'recognized_net_non_positive',
+      paymentId: 'pay-1',
+      invoiceId: 'inv-1',
+      recognizedNet: 0,
+    });
+  });
+
+  it('rejects when provided invoiceId does not match the payment invoice link', async () => {
+    const { postInvoiceRevenueRecognitionAccounting } = await import(
+      '../lib/accountingV2/adapters/invoiceRevenueRecognitionAdapter.js'
+    );
+
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          invoiceId: 'inv-actual',
+          paymentDate: new Date('2026-08-10T00:00:00.000Z'),
+          branchId: 'branch-1',
+          reference: 'RCPT-1',
+          invoice: {
+            id: 'inv-actual',
+            clientId: 'customer-1',
+            invoiceNumber: 'INV-ACTUAL',
+          },
+        }),
+      },
+      invoice: {
+        findFirst: vi.fn(),
+      },
+    };
+
+    await expect(
+      postInvoiceRevenueRecognitionAccounting({
+        db,
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+        paymentId: 'pay-1',
+        invoiceId: 'inv-requested',
+        recognizedNet: 500,
+        paymentDate: '2026-08-10',
+      })
+    ).rejects.toThrow(/linked to invoice inv-actual, not inv-requested/i);
+
+    expect(submitViaCutover).not.toHaveBeenCalled();
   });
 });
 
+describe('invoice revenue recognition template + wiring', () => {
+  it('registers an ACTIVE template for INVOICE_REVENUE_RECOGNIZED', async () => {
+    const template = getActiveTemplate(AccountingEventType.INVOICE_REVENUE_RECOGNIZED);
+    expect(template).toBeTruthy();
+    expect(template.templateId).toBe('INVOICE_REVENUE_RECOGNITION');
+    expect(template.supportedSourceTypes).toContain('Invoice-Revenue');
+  });
 
-===== docs/admin-intelligence-crm/phase-17/FINAL_READINESS_DECISION.md =====
+  it('builds Dr deferred revenue / Cr sales revenue lines', async () => {
+    const template = getActiveTemplate(AccountingEventType.INVOICE_REVENUE_RECOGNIZED);
+    const draft = await template.buildDraft({
+      command: {
+        sourceReference: {
+          sourceModule: AccountingSourceModule.SALES,
+          sourceType: 'Invoice-Revenue',
+          sourceId: 'pay-1',
+          eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+        },
+        transactionDate: '2026-08-10',
+        requestedPostingDate: '2026-08-10',
+        currency: 'MWK',
+        totalAmount: '500.00',
+        taxAmount: '0.00',
+        description: 'Invoice revenue recognition',
+        dimensions: { customerId: 'customer-1' },
+        metadata: { recognizedNet: '500.00' },
+      },
+      source: {
+        id: 'pay-1',
+        invoiceNumber: 'INV-1',
+        clientId: 'customer-1',
+      },
+      resolvePurpose: async (purpose) => ({ id: `acct-${purpose}` }),
+    });
 
-# Final Readiness Decision — Exit Phase 17 / Enter Phase 18
+    expect(draft.lines).toHaveLength(2);
+    expect(draft.lines[0]).toMatchObject({
+      accountId: 'acct-DEFERRED_REVENUE',
+    });
+    expect(draft.lines[0].debit?.decimal).toBe('500.00');
+    expect(draft.lines[1]).toMatchObject({
+      accountId: 'acct-SALES_REVENUE',
+    });
+    expect(draft.lines[1].credit?.decimal).toBe('500.00');
+  });
 
-**Decision:** **READY_FOR_PHASE_18_WITH_BLOCKERS**
+  it('accepts Invoice-Revenue source validation on a completed payment', async () => {
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          status: 'Completed',
+          isReversal: false,
+          invoiceId: 'inv-1',
+          invoice: {
+            id: 'inv-1',
+            tenantId: 'tenant-1',
+            clientId: 'customer-1',
+            invoiceNumber: 'INV-1',
+          },
+        }),
+      },
+    };
 
-**Date:** 2026-07-31
+    const command = {
+      sourceReference: {
+        sourceModule: AccountingSourceModule.SALES,
+        sourceType: 'Invoice-Revenue',
+        sourceId: 'pay-1',
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      totalAmount: '500.00',
+      metadata: {
+        recognizedNet: '500.00',
+      },
+    };
 
-## Rationale
+    const source = await validateSource(
+      db,
+      createAccountingContext({ businessId: 'tenant-1', userId: 'user-1', sourceChannel: 'test' }),
+      command
+    );
 
-Phase 17 Waves 0–4 deliver a trustworthy Customer Onboarding plane:
+    expect(source).toMatchObject({
+      id: 'pay-1',
+      invoiceId: 'inv-1',
+    });
+  });
 
-1. **Wave 0** forensic pack + CONDITIONAL GO validated Phase 16 inputs.
-2. **Waves 1–3** deliver durable Request/Project saga, templates/materialisation, kick-off binding, readiness, go-live → stabilisation → handover → checksum certificate, with honesty boundaries (UNKNOWN ≠ READY; progress ≠ completion; no Tenant GL; no fabricated Training/migration complete).
-3. **Wave 4** delivers Overview/My Work/queues/Context Bar UI, reliability-gated metrics (gate fail → UNAVAILABLE / `value: null`), DQ/recon/lineage, report catalogue + credential-stripped exports, Phase 8 `CsOnboardingRecord` link (or UNKNOWN — never invent COMPLETED), EN+NY hub keys, and Phase 18 input pack.
-4. Vitest Waves 1–4 green (WORKING_TREE). Exit docs written.
+  it('rejects source validation when the payment is not linked to an invoice', async () => {
+    const db = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'pay-1',
+          tenantId: 'tenant-1',
+          status: 'Completed',
+          isReversal: false,
+          invoiceId: null,
+          invoice: null,
+        }),
+      },
+    };
 
-## Conditions for Phase 18
+    const command = {
+      sourceReference: {
+        sourceModule: AccountingSourceModule.SALES,
+        sourceType: 'Invoice-Revenue',
+        sourceId: 'pay-1',
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      totalAmount: '500.00',
+      metadata: {
+        invoiceId: 'inv-1',
+        recognizedNet: '500.00',
+      },
+    };
 
-1. Consume onboarding training coordination into Training domain without fabricating COMPLETED/DELIVERED/PASSED/CERTIFIED from onboarding alone.
-2. Never invent KPI zeroes on reliability gate failure.
-3. Never treat Phase 8 historical checklist COMPLETED as Project COMPLETED without linked Project evidence.
-4. Preserve accounting boundary, portal typed-unavailable, migration recon gate, certificate checksum idempotency.
-5. Treat portal / migration engine / MRA fiscal / payment/e-sign as explicit blockers until configured.
+    await expect(
+      validateSource(
+        db,
+        createAccountingContext({ businessId: 'tenant-1', userId: 'user-1', sourceChannel: 'test' }),
+        command
+      )
+    ).rejects.toThrow(/must be linked to an invoice/i);
+  });
 
-## Wave / pack completion
+  it('wires legacy scope and journal numbering', () => {
+    expect(LEGACY_SOURCE_SCOPE['Invoice-Revenue']).toMatchObject({
+      eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+    });
+    expect([
+      AccountingSourceModule.SALES,
+      AccountingSourceModule.RECEIVABLES,
+    ]).toContain(LEGACY_SOURCE_SCOPE['Invoice-Revenue'].moduleKey);
+    expect(journalNumberPrefix(AccountingEventType.INVOICE_REVENUE_RECOGNIZED)).toBe('REV');
+  });
+});
 
-- [x] Phase input validation PASS (Wave 0)
-- [x] CURRENT_* + ONBOARDING_* audits + matrices
-- [x] Gap register + IMPLEMENTATION_PLAN Waves 1–4
-- [x] Wave 1 application code
-- [x] Wave 2 application code
-- [x] Wave 3 application code
-- [x] Wave 4 application code + Phase 18 pack
-- [x] **READY_FOR_PHASE_18_WITH_BLOCKERS** recorded
+=== FULL ADAPTER ===
+/**
+ * Invoice payment-time revenue recognition → Posting Engine cutover.
+ *
+ * Recognizes earned revenue from deferred revenue when a customer payment is
+ * received against an invoice that was initially posted to deferred revenue.
+ */
 
-**Next:** Phase 18 may consume training coordination / onboarding certificates / reports under documented blockers.
+import { AccountingEventType, AccountingSourceModule } from '../domain/enums.js';
+import { amountString, contextFromSession, submitViaCutover, toIsoDate } from './baseAdapter.js';
 
-**Stop:** Do not fabricate Training complete from onboarding coordination; do not invent KPI zeroes on gate fail; do not invent Project COMPLETED from Phase 8 historical rows; do not post Tenant GL from onboarding.
+export async function postInvoiceRevenueRecognitionAccounting({
+  db,
+  tenantId,
+  userId,
+  paymentId,
+  invoiceId,
+  recognizedNet,
+  paymentDate,
+  hasPermission = () => true,
+  currency = 'MWK',
+}) {
+  if (!(Number(recognizedNet) > 0)) {
+    return {
+      skipped: 'recognized_net_non_positive',
+      paymentId,
+      invoiceId,
+      recognizedNet: Number(recognizedNet ?? 0),
+    };
+  }
 
-===== docs/admin-intelligence-crm/phase-17/PHASE_18_INPUTS.md =====
+  const payment = await db.payment.findFirst({
+    where: { id: paymentId, tenantId },
+    include: {
+      invoice: {
+        select: { id: true, clientId: true, invoiceNumber: true, tenantId: true },
+      },
+    },
+  });
+  if (!payment) {
+    throw new Error(`Invoice-Revenue payment not found: ${paymentId}`);
+  }
 
-# Phase 18 Inputs — from Customer Onboarding Phase 17
+  const linkedInvoiceId = payment.invoice?.id ?? payment.invoiceId ?? null;
+  if (!linkedInvoiceId) {
+    throw new Error(`Invoice-Revenue payment ${paymentId} must be linked to an invoice.`);
+  }
+  if (invoiceId && linkedInvoiceId !== invoiceId) {
+    throw new Error(
+      `Invoice-Revenue payment ${paymentId} is linked to invoice ${linkedInvoiceId}, not ${invoiceId}.`
+    );
+  }
 
-**Source exit:** `READY_FOR_PHASE_18_WITH_BLOCKERS` (see `FINAL_PHASE_17_REPORT.md`)  
-**Date:** 2026-07-31
+  const invoice = payment?.invoice
+    || await db.invoice.findFirst({
+      where: { id: linkedInvoiceId, tenantId },
+      select: { id: true, clientId: true, invoiceNumber: true, tenantId: true },
+    });
+  if (!invoice) {
+    throw new Error(
+      `Invoice-Revenue invoice ${linkedInvoiceId} could not be loaded for payment ${paymentId}.`
+    );
+  }
 
-## What Phase 18 may consume
+  const context = contextFromSession({
+    tenantId,
+    userId,
+    currency,
+    branchId: payment?.branchId ?? null,
+  });
 
-| Input | Location / contract | Notes |
-|-------|---------------------|-------|
-| CustomerOnboardingRequest / Project spine | `lib/admin/customerSuccess/onboarding/*` | ONR + ONB durable; handoff ≠ request ≠ project |
-| Phase 16 ONBOARDING handoff consume | `handoffConsume.js` | Idempotent; executionStatus remains NOT_STARTED at emit |
-| Template versions + materialisation | `templates.js`, `materialise.js` | ACTIVE immutable once applied |
-| Kick-off ↔ Phase 13 Meeting | `kickoff.js` | RSVP ≠ attendance; fail closed if Meeting unavailable |
-| Customer task evidence attestation | `evidence.js` | Portal typed `CUSTOMER_PORTAL_NOT_CONFIGURED` |
-| Training coordination row | `training.js` | COMPLETED requires Phase 18 Training-domain source |
-| Migration / MRA coordination | `migration.js`, `mraEis.js` | Engine / fiscal NOT_AVAILABLE; recon gate |
-| Go-live → stabilisation → handover | `goLive.js`, `stabilisation.js`, `handover.js` | Success → STABILISATION not COMPLETED |
-| Completion certificate | `completion.js` | Checksum stable; progress ≠ completion |
-| Health / progress / metrics | `health.js`, `progress.js`, `metrics.js` | Gate fail → UNAVAILABLE / `value: null` |
-| DQ / recon / lineage | `dataQuality.js`, `reconciliation.js`, `lineage.js` | Never invent zeroes |
-| Reports / exports | `reports.js`, `exports.js` | Credentials stripped; permission recheck |
-| Phase 8 foundation link | `phase8Migrate.js`, `foundations.js` | Project when linked; UNKNOWN if unresolved |
-| EN + NY hub keys | `locales/*/admin-pages.json` `customerSuccess.onboardingHub.*` | Smoke-covered |
+  const amount = amountString(recognizedNet);
+  const effectiveDate = paymentDate || payment?.paymentDate;
+  const sourceNumber = payment?.reference || invoice?.invoiceNumber || paymentId;
 
-## What Phase 18 must not assume
-
-- Customer evidence portal is configured
-- Training engine can mark DELIVERED/COMPLETED/PASSED/CERTIFIED from onboarding alone
-- Full data-migration engine is available or upload ≡ complete
-- MRA EIS Production fiscal submission is authorised from onboarding
-- Payment / e-sign providers are configured (carry from Phase 16)
-- Reliability gate failures may be rendered as zero KPIs
-- Phase 8 historical `CsOnboardingRecord.status=COMPLETED` implies Project COMPLETED
-
-## Suggested Phase 18 scope seeds
-
-1. **Customer Training Management** — consume onboarding training coordination; declare DELIVERED/COMPLETED/PASSED/CERTIFIED only from Training domain
-2. Trainer capacity, assessments, training certificates
-3. Optional: deepen Customer portal evidence path (replace `CUSTOMER_PORTAL_NOT_CONFIGURED`)
-4. Optional: wire migration engine callbacks → recon gates (still no fabricate complete)
-5. Keep invent-zeroes / handoff≠execute / accounting boundary / certificate checksum invariants
-
-## Carry gaps (explicit blockers)
-
-- Customer evidence portal → `CUSTOMER_PORTAL_NOT_CONFIGURED`
-- Training execution engine → Phase 18
-- Data migration engine → `NOT_AVAILABLE` typed
-- MRA EIS fiscal / credential store → boundary only
-- Payment provider / e-sign → `NOT_CONFIGURED` (Phase 16 carry)
-- Prisma EPERM on Windows generate/push → SQL fallback (`scripts/sql/cs-onboarding-phase17-wave4.sql`)
-- Rich UI polish beyond thin AdminShell hubs → product waves
-- AI-generated plans / ML health → out of scope
-
-## Honesty gates to preserve
-
-- Gate fail → `UNAVAILABLE` with `value: null` — never false zero
-- Training COMPLETED only from Training-domain source
-- Migration COMPLETED requires reconciliation
-- Go-live success → STABILISATION, not onboarding COMPLETED
-- Progress % ≠ completion; certificate checksum idempotent
-- No Tenant GL / OB / journals / stock from onboarding
-- No credentials in exports / search / general documents
-
-===== docs/admin-intelligence-crm/phase-17/FINAL_PHASE_17_REPORT.md =====
-
-# Final Phase 17 Report — Customer Onboarding
-
-**Date:** 2026-07-31  
-**Exit decision:** `READY_FOR_PHASE_18_WITH_BLOCKERS`  
-**Working tree:** in-place (no git commit required for wave close)
-
-## Summary
-
-Phase 17 delivers one authoritative Customer Onboarding plane (Request + Project spine) that consumes Phase 16 ONBOARDING handoffs and manages Customers from validation through kick-off, workstreams/tasks/evidence, readiness coordination, go-live → stabilisation → handover → completion certificate — without fabricating Customer actions, posting Tenant GL, executing Training/migration engines, or inventing KPI zeroes.
-
-| Wave | Delivered |
-|------|-----------|
-| 0 | Forensic audits, gap register, CONDITIONAL GO |
-| 1 | Request/Project models, numbering, handoff consume, accept/reject/convert, idempotency |
-| 2 | Templates/materialisation, kick-off↔Meeting, stakeholders, tasks/evidence, scope/CR |
-| 3 | Readiness, migration/MRA/training coord, testing/defects, go-live→stabilisation→handover→certificate |
-| 4 | UI hubs, metrics/reliability, DQ/recon/lineage, reports/exports, Phase 8 link, Phase 18 pack, EN+NY |
-
-## Wave 4 highlights
-
-- Overview / My Work / queues / Context Bar / Request+Project list-detail (thin AdminShell)
-- `metrics.js`, `reliabilityGate.js`, `dataQuality.js`, `reconciliation.js`, `lineage.js`, `reports.js`, `exports.js` (+ notifications/search/cache stubs)
-- Gate fail → `UNAVAILABLE` / `value: null` — never false zero
-- Phase 8: `CsOnboardingRecord.onboardingProjectId` when resolvable; else UNKNOWN; foundations project Project status
-- SQL: `scripts/sql/cs-onboarding-phase17-wave4.sql`
-- Vitest: `test/systemAdmin.cs.onboardingWave4.test.js` + Waves 1–3 regression
-
-## Explicit blockers for Phase 18
-
-- Customer evidence portal not configured
-- Training execution / certificates / assessments (Phase 18)
-- Full migration engine
-- MRA EIS Production fiscal / credential store
-- Payment / e-sign providers (Phase 16 carry)
-
-## Verification
-
-See `.superpowers/sdd/task-4-report.md` for RED/GREEN evidence and test counts.
-
-## Next
-
-Phase 18 Customer Training Management may consume training coordination + certificates under documented blockers. See `PHASE_18_INPUTS.md` and `PHASE_18_READINESS_CHECKLIST.md`.
+  return submitViaCutover({
+    db,
+    context,
+    moduleKey: AccountingSourceModule.SALES,
+    eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+    hasPermission,
+    buildEngineInput: async () => ({
+      sourceReference: {
+        sourceModule: AccountingSourceModule.SALES,
+        sourceType: 'Invoice-Revenue',
+        sourceId: paymentId,
+        sourceNumber,
+        eventType: AccountingEventType.INVOICE_REVENUE_RECOGNIZED,
+      },
+      transactionDate: toIsoDate(effectiveDate),
+      requestedPostingDate: toIsoDate(effectiveDate),
+      currency,
+      totalAmount: amount,
+      taxAmount: '0.00',
+      description: `Invoice revenue recognition${invoice?.invoiceNumber ? ` — ${invoice.invoiceNumber}` : ''}`,
+      dimensions: {
+        customerId: invoice?.clientId,
+        branchId: payment?.branchId ?? undefined,
+      },
+      metadata: {
+        paymentId,
+        invoiceId: invoice.id,
+        recognizedNet: amount,
+      },
+      payload: null,
+    }),
+  });
+}

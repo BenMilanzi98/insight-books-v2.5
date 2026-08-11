@@ -499,7 +499,7 @@ export default function PaymentChannelsPanel({
               GL {data.cash?.code} — {data.cash?.name}
             </p>
           </div>
-          <p className="text-xl font-bold tabular-nums text-slate-900">
+          <p className="min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-slate-900 sm:text-xl">
             {formatCurrency(data.cash?.totalBalance)}
           </p>
         </div>

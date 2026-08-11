@@ -9,6 +9,8 @@ import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
 import { postCustomerPaymentAccounting } from '@/lib/accountingV2/adapters';
+import { ensureInvoicePaymentRevenueRecognition } from '@/lib/ensureInvoicePaymentRevenueRecognition';
+import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
 import {
   postPaymentAdjustmentGlEntry,
   postPaymentTransferGlEntry,
@@ -79,6 +81,13 @@ async function recordPaymentTransaction({
   const description = notes?.trim() || undefined;
 
   if (type === 'invoice' && invoice) {
+    await ensureInvoiceSalesAccounting({
+      db: prisma,
+      tenantId,
+      userId,
+      invoiceId: invoice.id,
+      force: true,
+    });
     await postCustomerPaymentAccounting({
       db: prisma,
       tenantId,
@@ -88,6 +97,14 @@ async function recordPaymentTransaction({
       paymentAmount: numericAmount,
       paymentDate,
       paymentMethod: methodKey,
+    });
+    await ensureInvoicePaymentRevenueRecognition({
+      db: prisma,
+      tenantId,
+      userId,
+      invoiceId: invoice.id,
+      paymentId,
+      paymentAmount: numericAmount,
     });
     return;
   }

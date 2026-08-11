@@ -1602,17 +1602,17 @@ export const TaxSummaryReport = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             <div className="bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5 rounded-2xl border border-emerald-200/80 shadow-sm border-l-4 border-l-emerald-500">
               <h3 className="text-sm font-medium text-emerald-700 mb-1">Total collected tax</h3>
-              <p className="text-2xl font-semibold text-slate-800">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
+              <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
               <p className="text-xs text-slate-500 mt-1">From taxable amount of {formatCurrency(data.collectedTaxes.totalTaxableAmount)}</p>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-sm border-l-4 border-l-blue-500">
               <h3 className="text-sm font-medium text-blue-700 mb-1">Total tax paid</h3>
-              <p className="text-2xl font-semibold text-slate-800">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
+              <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
               <p className="text-xs text-slate-500 mt-1">From {data.paidTaxes.expenses.length} tax-related expenses</p>
             </div>
             <div className="bg-gradient-to-br from-violet-50 to-white p-4 sm:p-5 rounded-2xl border border-violet-200/80 shadow-sm border-l-4 border-l-violet-500">
               <h3 className="text-sm font-medium text-violet-700 mb-1">Net tax liability</h3>
-              <p className={`text-2xl font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
+              <p className={`min-w-0 break-words text-xl font-semibold leading-tight tabular-nums sm:text-2xl ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
               <p className="text-xs text-slate-500 mt-1">{data.netTaxLiability >= 0 ? 'Tax to be paid' : 'Tax credit'}</p>
             </div>
           </div>

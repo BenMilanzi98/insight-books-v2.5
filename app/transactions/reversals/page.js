@@ -25,6 +25,7 @@ import { getPermission } from '@/lib/permissions';
 import ReversalDetailDrawer from '@/components/TransactionReversal/ReversalDetailDrawer';
 import ReversalPendingApprovals from '@/components/TransactionReversal/ReversalPendingApprovals';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import StatCard from '@/components/ui/StatCard';
 
 const ReversalsPage = () => {
   const { t } = useI18n();
@@ -264,7 +265,7 @@ const ReversalsPage = () => {
   // If permissions haven't been determined yet, show loading
   if (pagePermissions.canViewReversals === undefined) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 flex items-center justify-center">
+      <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
           <p className="text-gray-500">Loading...</p>
@@ -277,7 +278,7 @@ const ReversalsPage = () => {
   if (!pagePermissions.canViewReversals) {
     return (
       <PermissionGuard permission="journalEntries.view">
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 flex items-center justify-center">
+        <div className="flex w-full items-center justify-center">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
@@ -293,7 +294,7 @@ const ReversalsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+    <div className="w-full">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* Header */}
         <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
@@ -324,61 +325,42 @@ const ReversalsPage = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Reversals</p>
-                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.count}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-rose-100">
-                <RotateCcw className="w-6 h-6 text-rose-600" />
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Amount</p>
-                <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">{formatCurrency(totals.totalAmount)}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-rose-100">
-                <DollarSign className="w-6 h-6 text-rose-600" />
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Expenses</p>
-                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.byType?.expense || 0}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-amber-100">
-                <Receipt className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Sales/Invoice</p>
-                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.byType?.sale || 0}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-emerald-100">
-                <FileText className="w-6 h-6 text-emerald-600" />
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Payroll</p>
-                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.byType?.payroll || 0}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-indigo-100">
-                <Users className="w-6 h-6 text-indigo-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Total Reversals"
+            value={totals.count}
+            icon={RotateCcw}
+            barClassName="from-rose-400 via-rose-500 to-pink-500"
+            iconWrapClassName="bg-rose-100 text-rose-600"
+          />
+          <StatCard
+            label="Total Amount"
+            value={formatCurrency(totals.totalAmount)}
+            icon={DollarSign}
+            valueClassName="text-rose-600"
+            barClassName="from-rose-400 via-rose-500 to-pink-500"
+            iconWrapClassName="bg-rose-100 text-rose-600"
+          />
+          <StatCard
+            label="Expenses"
+            value={totals.byType?.expense || 0}
+            icon={Receipt}
+            barClassName="from-amber-400 via-yellow-500 to-orange-500"
+            iconWrapClassName="bg-amber-100 text-amber-600"
+          />
+          <StatCard
+            label="Sales/Invoice"
+            value={totals.byType?.sale || 0}
+            icon={FileText}
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+            iconWrapClassName="bg-emerald-100 text-emerald-600"
+          />
+          <StatCard
+            label="Payroll"
+            value={totals.byType?.payroll || 0}
+            icon={Users}
+            barClassName="from-indigo-400 via-blue-500 to-violet-500"
+            iconWrapClassName="bg-indigo-100 text-indigo-600"
+          />
         </div>
 
         {/* Filters */}

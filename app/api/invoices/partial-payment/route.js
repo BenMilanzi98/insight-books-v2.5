@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { postCustomerPaymentAccounting } from '@/lib/accountingV2/adapters';
+import { ensureInvoicePaymentRevenueRecognition } from '@/lib/ensureInvoicePaymentRevenueRecognition';
+import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
@@ -95,6 +97,16 @@ export async function POST(request) {
     
     // Process payment in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Recognize revenue + COGS before cash application (covers Draft/Partial
+      // invoices that were never posted, and backfills missing Invoice-COGS).
+      await ensureInvoiceSalesAccounting({
+        db: tx,
+        tenantId: user.tenantId,
+        userId: user.id,
+        invoiceId,
+        force: true,
+      });
+
       // Create the payment record
       const payment = await tx.payment.create({
         data: {
@@ -106,7 +118,8 @@ export async function POST(request) {
           status: 'Completed',
           type: 'invoice',
           invoiceId: invoiceId,
-          tenantId: user.tenantId
+          tenantId: user.tenantId,
+          branchId: invoice.branchId ?? null,
         }
       });
 
@@ -155,8 +168,18 @@ export async function POST(request) {
         paymentMethod,
       });
 
+      await ensureInvoicePaymentRevenueRecognition({
+        db: tx,
+        tenantId: user.tenantId,
+        userId: user.id,
+        invoiceId,
+        paymentId: payment.id,
+        paymentAmount: numericAmount,
+        paymentDate: paymentDateObj,
+      });
+
       return { payment, invoice: updatedInvoice };
-    });
+    }, { maxWait: 15000, timeout: 120000 });
 
     const payment = result.payment;
     const updatedInvoice = result.invoice;

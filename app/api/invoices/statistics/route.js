@@ -45,7 +45,7 @@ export async function GET(request) {
       const startOfToday = new Date();
       startOfToday.setUTCHours(0, 0, 0, 0);
       
-      // Paid: status = Paid — true total amount of paid invoices
+      // Paid: status = Paid — full invoice totals collected
       const paidInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
@@ -55,7 +55,7 @@ export async function GET(request) {
         _sum: { total: true }
       });
       
-      // Pending: status = Pending AND dueDate >= today (not yet overdue)
+      // Pending / Overdue / Partial: outstanding still owed (remainingBalance)
       const pendingInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
@@ -63,10 +63,9 @@ export async function GET(request) {
           dueDate: { gte: startOfToday }
         },
         _count: true,
-        _sum: { total: true }
+        _sum: { remainingBalance: true }
       });
       
-      // Overdue: status = Overdue OR (status = Pending AND dueDate < today)
       const overdueInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
@@ -76,7 +75,7 @@ export async function GET(request) {
           ]
         },
         _count: true,
-        _sum: { total: true }
+        _sum: { remainingBalance: true }
       });
       
       // Draft (for completeness; not shown on cards)
@@ -89,14 +88,13 @@ export async function GET(request) {
         _sum: { total: true }
       });
       
-      // Partial: status = Partial — true total amount of partially paid invoices
       const partialInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
           status: 'Partial'
         },
         _count: true,
-        _sum: { total: true }
+        _sum: { remainingBalance: true }
       });
       
       // Return statistics with numeric amounts (frontend formats for display)
@@ -107,15 +105,15 @@ export async function GET(request) {
         },
         pending: {
           count: pendingInvoices._count,
-          amount: parseMoney(pendingInvoices._sum?.total)
+          amount: parseMoney(pendingInvoices._sum?.remainingBalance)
         },
         overdue: {
           count: overdueInvoices._count,
-          amount: parseMoney(overdueInvoices._sum?.total)
+          amount: parseMoney(overdueInvoices._sum?.remainingBalance)
         },
         partial: {
           count: partialInvoices._count,
-          amount: parseMoney(partialInvoices._sum?.total)
+          amount: parseMoney(partialInvoices._sum?.remainingBalance)
         },
         draft: {
           count: draftInvoices._count,

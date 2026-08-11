@@ -5332,6 +5332,12 @@
       "namedRegex": "^/api/expenses/cogs\\-settlement(?:/)?$"
     },
     {
+      "page": "/api/expenses/cogs-source",
+      "regex": "^/api/expenses/cogs\\-source(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/expenses/cogs\\-source(?:/)?$"
+    },
+    {
       "page": "/api/expenses/cogs-summary",
       "regex": "^/api/expenses/cogs\\-summary(?:/)?$",
       "routeKeys": {},
@@ -5954,6 +5960,12 @@
       "regex": "^/api/mra\\-eis/migration(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/mra\\-eis/migration(?:/)?$"
+    },
+    {
+      "page": "/api/mra-eis/nav-access",
+      "regex": "^/api/mra\\-eis/nav\\-access(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/mra\\-eis/nav\\-access(?:/)?$"
     },
     {
       "page": "/api/mra-eis/offline",

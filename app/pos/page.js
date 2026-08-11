@@ -66,6 +66,8 @@ import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
 import ClientModal from "@/components/ClientModal";
 import ClientSearchCombobox from "@/components/ClientSearchCombobox";
 import PermissionGuard from "@/components/PermissionGuard";
+import PosTillGateModals from "@/components/pos/PosTillGateModals";
+import { formatYmdInTimeZone } from "@/lib/dateUtils";
 import UnitBasedQuantityInput from "@/components/UnitBasedQuantityInput";
 import { getPermission } from "@/lib/permissions";
 import { getPaymentMethodName, paymentMethods } from '@/lib/paymentMethods';
@@ -105,10 +107,9 @@ const POSPage = () => {
   });
 
   // Daily POS report (one calendar day) for quick overview
-  const [dailyReportDate, setDailyReportDate] = useState(() => {
-    const t = new Date();
-    return t.toISOString().slice(0, 10);
-  });
+  const [dailyReportDate, setDailyReportDate] = useState(() =>
+    formatYmdInTimeZone(new Date(), 'Africa/Blantyre')
+  );
   const [dailyReport, setDailyReport] = useState(null);
   const [isLoadingDailyReport, setIsLoadingDailyReport] = useState(false);
   /** POS cash register (opening/closing/deposits) + daily report payload from /api/pos/cash-day */
@@ -117,6 +118,10 @@ const POSPage = () => {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositLines, setDepositLines] = useState([{ toAccountId: '', amount: '', notes: '' }]);
   const [posCashMessage, setPosCashMessage] = useState(null);
+  const [showTillClosePrompt, setShowTillClosePrompt] = useState(false);
+  const tillClosePromptShownRef = useRef(false);
+  const posBusinessToday = () => formatYmdInTimeZone(new Date(), 'Africa/Blantyre');
+  const tillIsOpen = Boolean(posCashDayState?.tillOpen);
   
   // Products
   const [products, setProducts] = useState([]);
@@ -864,44 +869,93 @@ const POSPage = () => {
     }
   };
 
-  const openPosRegisterDay = async () => {
+  const openPosRegisterDay = async (openingBalance) => {
     try {
       setPosCashActionLoading(true);
+      const businessDate = posBusinessToday();
       const res = await fetch('/api/pos/cash-day/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessDate: dailyReportDate }),
+        body: JSON.stringify({
+          businessDate,
+          ...(openingBalance !== undefined && openingBalance !== null
+            ? { openingBalance }
+            : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Could not open day');
-      setPosCashMessage('Day opened. Opening balance matches the system Cash account balance from Payment Management.');
-      await loadDailyReport(dailyReportDate);
+      if (!res.ok) throw new Error(data?.error || 'Could not open till');
+      setPosCashMessage(
+        `Till opened for ${businessDate}. Opening balance: MK ${Number(
+          data?.register?.openingBalance ?? openingBalance ?? 0
+        ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+      );
+      setDailyReportDate(businessDate);
+      await loadDailyReport(businessDate);
     } catch (e) {
-      alert(e?.message || 'Open day failed');
+      throw e instanceof Error ? e : new Error(e?.message || 'Open till failed');
     } finally {
       setPosCashActionLoading(false);
     }
   };
 
-  const closePosRegisterDay = async () => {
-    if (!window.confirm('Close this POS day? Closing balance will be recorded as opening + total sales.')) return;
+  const closePosRegisterDay = async ({ skipConfirm = false } = {}) => {
+    if (
+      !skipConfirm &&
+      !window.confirm(
+        'Close the till for this day? Closing balance will be recorded as opening + total sales. Undeposited cash will be swept.'
+      )
+    ) {
+      return;
+    }
     try {
       setPosCashActionLoading(true);
+      const businessDate = posCashDayState?.businessDate || posBusinessToday();
       const res = await fetch('/api/pos/cash-day/close', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessDate: dailyReportDate }),
+        body: JSON.stringify({ businessDate }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Could not close day');
-      setPosCashMessage('Day closed.');
-      await loadDailyReport(dailyReportDate);
+      if (!res.ok) throw new Error(data?.error || 'Could not close till');
+      setPosCashMessage('Till closed for the day.');
+      setShowTillClosePrompt(false);
+      await loadDailyReport(businessDate);
     } catch (e) {
-      alert(e?.message || 'Close day failed');
+      alert(e?.message || 'Close till failed');
     } finally {
       setPosCashActionLoading(false);
     }
   };
+
+  // Evening close reminder (Africa/Blantyre hour >= 17) while till remains open
+  useEffect(() => {
+    if (!posCashDayState?.tillOpen || tillClosePromptShownRef.current) return;
+    try {
+      const hourStr = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Africa/Blantyre',
+        hour: 'numeric',
+        hour12: false,
+      }).format(new Date());
+      const hour = Number(hourStr);
+      if (Number.isFinite(hour) && hour >= 17) {
+        tillClosePromptShownRef.current = true;
+        setShowTillClosePrompt(true);
+      }
+    } catch {
+      /* ignore TZ formatting errors */
+    }
+  }, [posCashDayState?.tillOpen]);
+
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!posCashDayState?.tillOpen) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [posCashDayState?.tillOpen]);
 
   const submitPosDeposits = async () => {
     const lines = depositLines
@@ -2097,6 +2151,11 @@ const POSPage = () => {
         return;
       }
 
+      if (!tillIsOpen) {
+        setSaleError('Open the till and enter an opening balance before completing a sale.');
+        return;
+      }
+
       // Create the sale (online)
       const result = await createSale(saleData);
 
@@ -2236,8 +2295,18 @@ const POSPage = () => {
   };
 
   return (
-    <PermissionGuard permission="sales.view">   
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 p-4 sm:p-6 lg:p-8">
+    <PermissionGuard permission="sales.view">
+      <PosTillGateModals
+        cashDayState={posCashDayState}
+        loadingState={isLoadingDailyReport}
+        actionLoading={posCashActionLoading}
+        onOpenTill={openPosRegisterDay}
+        onCloseTill={() => closePosRegisterDay({ skipConfirm: true })}
+        showClosePrompt={showTillClosePrompt}
+        onDismissClosePrompt={() => setShowTillClosePrompt(false)}
+        formatMoney={formatCurrency}
+      />   
+    <div className="w-full">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
         <div className="min-w-0 flex-1">
@@ -3511,7 +3580,7 @@ const POSPage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-6">
               <div>
                 <p className="text-xs text-gray-500 uppercase">Total Sales</p>
-                <p className="mt-1 text-lg font-semibold text-gray-900">
+                <p className="mt-1 min-w-0 break-words text-base font-semibold leading-tight tabular-nums text-gray-900 sm:text-lg">
                   {formatCurrency(dailyReport.totalSales || 0)}
                 </p>
               </div>
@@ -3529,7 +3598,7 @@ const POSPage = () => {
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Gross Profit</p>
-                <p className="mt-1 text-lg font-semibold text-gray-900">
+                <p className="mt-1 min-w-0 break-words text-base font-semibold leading-tight tabular-nums text-gray-900 sm:text-lg">
                   {formatCurrency(dailyReport.grossProfit || 0)}
                 </p>
               </div>
@@ -3543,11 +3612,15 @@ const POSPage = () => {
                     {!posCashDayState.register ? (
                       <button
                         type="button"
-                        onClick={openPosRegisterDay}
+                        onClick={() =>
+                          openPosRegisterDay(
+                            Number(posCashDayState.suggestedOpeningBalance ?? posCashDayState.liveCashBalance ?? 0)
+                          ).catch((e) => alert(e?.message || 'Open till failed'))
+                        }
                         disabled={posCashActionLoading}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white disabled:opacity-50"
                       >
-                        Open day (sync Cash balance)
+                        Open till
                       </button>
                     ) : posCashDayState.register.status === 'OPEN' ? (
                       <>
@@ -3561,15 +3634,17 @@ const POSPage = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={closePosRegisterDay}
+                          onClick={() => setShowTillClosePrompt(true)}
                           disabled={posCashActionLoading}
                           className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-800 text-white disabled:opacity-50"
                         >
-                          Close day
+                          Close till
                         </button>
                       </>
                     ) : (
-                      <span className="text-xs font-medium text-gray-600">Day closed</span>
+                      <span className="text-xs font-medium text-gray-600">
+                        Till closed{posCashDayState.register.autoClosed ? ' (auto at midnight)' : ''}
+                      </span>
                     )}
                   </div>
                 </div>

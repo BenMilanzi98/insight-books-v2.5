@@ -78,6 +78,17 @@ export default function AppShell({ children }) {
     };
   }, [isMobile, sidebarOpen, hide, closeMobile]);
 
+  useEffect(() => {
+    if (hide) {
+      document.body.classList.remove('tenant-app-active');
+      return undefined;
+    }
+    document.body.classList.add('tenant-app-active');
+    return () => {
+      document.body.classList.remove('tenant-app-active');
+    };
+  }, [hide]);
+
   const toggleSidebar = () => setSidebarOpen((v) => !v);
 
   return (
@@ -113,6 +124,7 @@ export default function AppShell({ children }) {
       <div
         className={cn(
           'flex min-h-screen w-full flex-1 flex-col overflow-auto transition-[margin] duration-200 ease-[var(--motion-ease)]',
+          !hide && 'tenant-shell-canvas',
           !hide && !isMobile && sidebarOpen && 'md:ml-[var(--sidebar-width)]'
         )}
       >

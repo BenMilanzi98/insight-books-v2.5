@@ -5,6 +5,7 @@ import { DollarSign, Plus, Eye, Edit, Trash2, Calendar, User, RefreshCw, AlertCi
 import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate, toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
+import StatCard from "@/components/ui/StatCard";
 
 export default function SalaryAdvancesManagement() {
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
@@ -234,34 +235,31 @@ export default function SalaryAdvancesManagement() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Active Advances</p>
-              <p className="text-2xl font-bold text-blue-600">{totalActiveCount}</p>
-              <p className="text-sm text-gray-500 mt-1">{formatCurrency(totalActive)} outstanding</p>
-            </div>
-            <AlertCircle className="w-8 h-8 text-blue-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Total Outstanding</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalActive)}</p>
-            </div>
-            <DollarSign className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Completed</p>
-              <p className="text-2xl font-bold text-green-600">{totalCompleted}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
+        <StatCard
+          label="Active Advances"
+          value={totalActiveCount}
+          icon={AlertCircle}
+          helper={`${formatCurrency(totalActive)} outstanding`}
+          valueClassName="text-blue-600"
+          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          iconWrapClassName="bg-blue-100 text-blue-600"
+        />
+        <StatCard
+          label="Total Outstanding"
+          value={formatCurrency(totalActive)}
+          icon={DollarSign}
+          valueClassName="text-orange-600"
+          barClassName="from-amber-400 via-orange-500 to-red-400"
+          iconWrapClassName="bg-orange-100 text-orange-600"
+        />
+        <StatCard
+          label="Completed"
+          value={totalCompleted}
+          icon={CheckCircle}
+          valueClassName="text-green-600"
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+          iconWrapClassName="bg-green-100 text-green-600"
+        />
       </div>
 
       {/* Actions and Filters */}

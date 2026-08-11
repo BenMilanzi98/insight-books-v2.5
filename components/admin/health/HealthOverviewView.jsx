@@ -144,7 +144,7 @@ export default function HealthOverviewView() {
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <AdminStatusBadge tone={bandTone(band)}>{band}</AdminStatusBadge>
                     </div>
-                    <p className="text-2xl font-bold tabular-nums text-[var(--admin-text)]">
+                    <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-[var(--admin-text)] sm:text-2xl">
                       {count}
                     </p>
                   </article>

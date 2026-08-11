@@ -1,121 +1,56 @@
-# Task 3 Report: API write enforcement
+# Task 3 Report: Return linked bill ids from receipts POST
 
 ## Status
 
-**DONE**
+**GREEN** — POST `/api/purchases/receipts` now returns linked bill fields on success.
 
 ## Summary
 
-Wired `assertActiveTaxTypeIds` + `collectTaxTypeIdsFromItems` into quotation, invoice, and sales write handlers so Inactive / unknown `taxTypeId`s are rejected with HTTP 400 `{ error, code }` before any item-tax rows are persisted. No commits.
+After the create transaction completes, the handler looks up `SupplierBill` by `goodsReceiptId` and adds `supplierBillId`, `billNumber`, and `billStatus` to the 201 response payload.
 
-## Files Modified
+## Changes Made
 
-| File | Change |
-|------|--------|
-| `app/api/quotations/route.js` | Import assert helpers; assert on `body.items` after field validation, before `$transaction` / `itemTaxes.create` |
-| `app/api/quotations/[id]/route.js` | Same on PUT, after totals calc, before item delete/recreate |
-| `app/api/invoices/route.js` | Assert on `body.items` after item validation, before income-account checks / create |
-| `app/api/invoices/[id]/route.js` | Assert on `normalizedItems` after item validation, before update transaction |
-| `app/api/sales/route.js` | Assert on `data.items` after item validation (covers `taxBreakdown` via collector), before sale create |
+### `app/api/purchases/receipts/route.js`
 
-## Pattern applied
+1. **Added** post-transaction lookup:
 
 ```js
-try {
-  await assertActiveTaxTypeIds(prisma, user.tenantId, collectTaxTypeIdsFromItems(items));
-} catch (e) {
-  if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
-    return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
-  }
-  throw e;
-}
+const linkedBill = goodsReceiptOut
+  ? await prisma.supplierBill.findFirst({
+      where: { tenantId: user.tenantId, goodsReceiptId: goodsReceiptOut.id },
+      select: { id: true, billNumber: true, status: true },
+    })
+  : null;
 ```
 
-`collectTaxTypeIdsFromItems` already gathers from `itemTaxes` / `taxes` / `taxBreakdown`, so sales taxBreakdown IDs are covered without a second collector.
+2. **Extended** `responsePayload` with:
+   - `supplierBillId: linkedBill?.id || null`
+   - `billNumber: linkedBill?.billNumber || null`
+   - `billStatus: linkedBill?.status || null`
 
-## Out of scope (intentionally unchanged)
+### Unchanged
 
-- GET / read paths
-- Quotation duplicate / convert routes (historical copy-from-existing)
-- Sales rate-match fallback that only selects from `status: 'Active'` rows
-
-## Verification
-
-### Call-site audit
-
-All five target files import and call `assertActiveTaxTypeIds` before persisting taxes. Example (quotations POST): assert at ~line 280, `$transaction` / `itemTaxes.create` afterward.
-
-### Unit tests
-
-```
-npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js
-→ Test Files 1 passed | Tests 4 passed
-```
-
-### Inactive reject (route-pattern + live DB)
-
-No auth cookies available for a full HTTP `POST /api/quotations` in this session. Verified the same try/catch mapping used by the routes against Prisma with a temporary Inactive `TaxType`:
-
-```json
-{
-  "status": 400,
-  "body": {
-    "error": "Tax \"TMP Inactive Task3 Verify\" is not active and cannot be used on new documents.",
-    "code": "INACTIVE_TAX"
-  }
-}
-```
-
-Temp Inactive tax was deleted after the check.
+- Transaction logic, inventory posting, service PO flows, GET handler, error handling
+- `return NextResponse.json({ goodsReceipt: responsePayload }, { status: 201 })`
 
 ## Self-Review
 
-### Strengths
+- Lookup runs **after** transaction commit, so auto-created bills from `applyGoodsReceiptInventoryPosting` are visible.
+- Scoped by `tenantId` + `goodsReceiptId` — matches schema index on `SupplierBill.goodsReceiptId`.
+- Null-safe when no bill exists (deferred posting, service receipts, or pre-bill edge cases).
+- Fields use `|| null` so missing bills surface as JSON `null`, not `undefined`.
+- No linter errors on modified file.
 
-- Assert runs before any write transaction that creates item tax rows.
-- Consistent 400 payload shape across all five handlers.
-- Sales uses shared collector so `taxBreakdown` is covered.
+## Tests
 
-### Concerns / residual risk
-
-- Editing a saved quotation/invoice that still carries an Inactive tax line will now 400 on save until the user removes/replaces that tax (matches spec write enforcement; may surprise users who only change non-tax fields).
-- Full authenticated HTTP POST smoke was not run here (empty cookie jar); recommend a quick manual POST once logged in.
-- Sales items with tax amount but empty `taxBreakdown` still use the Active-by-rate fallback and are not asserted (no client-supplied Inactive id to reject).
+- **Automated**: Not added (optional per brief).
+- **Manual smoke** (not run in this session): same-day inventory receive should yield `inventoryAppliedAt` set, non-null `supplierBillId`, `billStatus === "Unpaid"`. Deferred/future-dated receipts should return null bill fields until posting runs.
 
 ## Commits
 
-None (per constraint).
+None.
 
----
+## Concerns
 
-## Important review fix: PUT allowInactiveIds for historical taxes
-
-### Problem
-
-Quotation/invoice PUT called `assertActiveTaxTypeIds` on the full payload with no exception for taxes already on the document. Saving a historical doc that still carried Inactive tax lines returned 400.
-
-### Fix
-
-1. **`lib/taxManagement/assertActiveTaxTypes.js`** — optional 4th arg `allowInactiveIds` (array or Set). Those IDs must still exist for the tenant; Active check is skipped. Unknown IDs still reject. IDs not in the allow list still require Active.
-
-2. **PUT only**
-   - `app/api/quotations/[id]/route.js` — load existing `quotationItemTax.taxTypeId`s (tenant-scoped via quotation), pass as `allowInactiveIds`
-   - `app/api/invoices/[id]/route.js` — same for `invoiceItemTax`
-
-3. **Unchanged (strict)** — POST create on quotations/invoices and sales create (no allow list).
-
-### Unit tests
-
-```
-npx vitest run tests/unit/taxManagement/assertActiveTaxTypes.test.js
-→ Test Files 1 passed (1)
-→ Tests 6 passed (6)
-```
-
-Added cases:
-- Inactive id in `allowInactiveIds` → passes
-- Inactive id not in allow list → still rejects `INACTIVE_TAX`
-
-### Commits
-
-None (per constraint).
+- Service receipts that create bills via `createBillFromApprovedServicePO` (PO-level, not `goodsReceiptId`-linked) will still return null bill fields — expected; those bills are not keyed to the receipt.
+- If multiple bills ever share a `goodsReceiptId`, `findFirst` returns an arbitrary match; current idempotency in `autoCreateBillFromReceipt` should prevent duplicates.

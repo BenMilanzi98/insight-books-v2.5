@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Landmark, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import StatCard from '@/components/ui/StatCard';
 
 async function api(url, options) {
   const res = await fetch(url, options);
@@ -295,10 +296,11 @@ export default function LoanReadinessPage() {
       ) : null}
 
       <section className="grid md:grid-cols-3 gap-4">
-        <div className="rounded-lg border border-slate-200 p-4 bg-white">
-          <h2 className="text-sm font-medium text-slate-500">Configuration</h2>
-          <p className="mt-2 text-lg font-semibold">{config?.status || 'Not saved'}</p>
-          <div className="flex gap-2 mt-3">
+        <StatCard
+          label="Configuration"
+          value={config?.status || 'Not saved'}
+        >
+          <div className="mt-2 flex gap-2">
             <button type="button" onClick={saveConfig} className="px-2 py-1 text-xs rounded border">
               Save draft
             </button>
@@ -310,24 +312,21 @@ export default function LoanReadinessPage() {
               Approve
             </button>
           </div>
-        </div>
-        <div className="rounded-lg border border-slate-200 p-4 bg-white">
-          <h2 className="text-sm font-medium text-slate-500">Internal readiness score</h2>
-          <p className="mt-2 text-3xl font-semibold tabular-nums">
-            {score?.totalReadinessScore ?? '—'}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">{score?.band || 'Not calculated'}</p>
-          <p className="text-xs text-amber-700 mt-2">Not a lender approval or credit bureau score.</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 p-4 bg-white">
-          <h2 className="text-sm font-medium text-slate-500">Integrity / confidence</h2>
-          <p className="mt-2 text-lg font-semibold">
-            {preview?.integrityStatus || activeVersion?.integrityStatus || 'NOT_CALCULATED'}
-          </p>
-          <p className="text-xs text-slate-500 mt-1">
-            Confidence: {score?.confidence || preview?.dataQuality?.confidence || '—'}
-          </p>
-        </div>
+        </StatCard>
+        <StatCard
+          label="Internal readiness score"
+          value={score?.totalReadinessScore ?? '—'}
+          helper={score?.band || 'Not calculated'}
+          icon={Landmark}
+        >
+          <p className="mt-1 text-xs text-amber-700">Not a lender approval or credit bureau score.</p>
+        </StatCard>
+        <StatCard
+          label="Integrity / confidence"
+          value={preview?.integrityStatus || activeVersion?.integrityStatus || 'NOT_CALCULATED'}
+          helper={`Confidence: ${score?.confidence || preview?.dataQuality?.confidence || '—'}`}
+          icon={CheckCircle2}
+        />
       </section>
 
       <section className="rounded-lg border border-slate-200 p-4 bg-white space-y-4">
@@ -479,10 +478,7 @@ export default function LoanReadinessPage() {
             ['Affordability', capacity.affordabilityStatus],
             ['Min DSCR (projected)', preview?.dscr?.summary?.minimumDscrObserved],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500">{label}</div>
-              <div className="text-lg font-semibold tabular-nums break-all">{value ?? '—'}</div>
-            </div>
+            <StatCard key={label} label={label} value={value ?? '—'} />
           ))}
           <p className="sm:col-span-2 lg:col-span-4 text-xs text-slate-500">
             {capacity.label || capacity.disclaimer}

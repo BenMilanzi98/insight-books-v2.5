@@ -80,55 +80,38 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
       headers.forEach((header, index) => {
         let value = finalValues[index] || '';
         
-        // Convert numeric values based on field type
-        if (['price', 'cost', 'weight', 'discountamount'].includes(header)) {
-          value = parseFloat(value) || 0;
-        }
-        
-        // Convert integer values
-        if (['stocklevel', 'reorderpoint'].includes(header)) {
-          value = parseInt(value) || 0;
-        }
-        
-        // Convert boolean values
-        if (header === 'isperishable') {
-          value = value.toLowerCase() === 'true';
-        }
-        
         // Map header names to expected field names
         const fieldMap = {
           'product name*': 'name',
+          'product name': 'name',
           'name': 'name',
-          'sku*': 'sku',
-          'sku': 'sku',
           'category*': 'category',
           'category': 'category',
-          'description': 'description',
+          'order price': 'cost',
+          'cost': 'cost',
+          'selling price*': 'price',
+          'selling price': 'price',
           'price*': 'price',
           'price': 'price',
-          'cost': 'cost',
+          'quantity*': 'stockLevel',
+          'quantity': 'stockLevel',
           'stock level*': 'stockLevel',
           'stocklevel': 'stockLevel',
           'reorder point': 'reorderPoint',
-          'reorderpoint': 'reorderPoint',
-          'location': 'location',
-          'supplier': 'supplier',
-          'is perishable (true/false)': 'isPerishable',
-          'isperishable': 'isPerishable',
-          'expiry date (yyyy-mm-dd)': 'expiryDate',
-          'expirydate': 'expiryDate',
-          'discount amount': 'discountAmount',
-          'discountamount': 'discountAmount',
-          'weight (kg)': 'weight',
-          'weight': 'weight',
-          'dimensions (lxwxh)': 'dimensions',
-          'dimensions': 'dimensions',
-          'barcode': 'barcode',
-          'tags (comma-separated)': 'tags',
-          'tags': 'tags'
+          'reorderpoint': 'reorderPoint'
         };
 
         const fieldName = fieldMap[header] || header;
+
+        if (['price', 'cost'].includes(fieldName)) {
+          value = value === '' ? null : parseFloat(value);
+          if (value !== null && isNaN(value)) value = null;
+        }
+        if (fieldName === 'stockLevel' || fieldName === 'reorderPoint') {
+          value = value === '' ? null : parseInt(value, 10);
+          if (value !== null && isNaN(value)) value = null;
+        }
+
         row[fieldName] = value;
       });
 
@@ -167,57 +150,39 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
 
               const rowData = {};
               headers.forEach((header, index) => {
-                let value = row[index] || '';
-                
-                // Convert numeric values based on field type
-                if (['price', 'cost', 'weight', 'discountamount'].includes(header)) {
-                  value = parseFloat(value) || 0;
-                }
-                
-                // Convert integer values
-                if (['stocklevel', 'reorderpoint'].includes(header)) {
-                  value = parseInt(value) || 0;
-                }
-                
-                // Convert boolean values
-                if (header === 'isperishable') {
-                  value = String(value).toLowerCase() === 'true';
-                }
-                
-                // Map header names to expected field names
+                let value = row[index] != null ? String(row[index]).trim() : '';
+
                 const fieldMap = {
                   'product name*': 'name',
+                  'product name': 'name',
                   'name': 'name',
-                  'sku*': 'sku',
-                  'sku': 'sku',
                   'category*': 'category',
                   'category': 'category',
-                  'description': 'description',
+                  'order price': 'cost',
+                  'cost': 'cost',
+                  'selling price*': 'price',
+                  'selling price': 'price',
                   'price*': 'price',
                   'price': 'price',
-                  'cost': 'cost',
+                  'quantity*': 'stockLevel',
+                  'quantity': 'stockLevel',
                   'stock level*': 'stockLevel',
                   'stocklevel': 'stockLevel',
                   'reorder point': 'reorderPoint',
-                  'reorderpoint': 'reorderPoint',
-                  'location': 'location',
-                  'supplier': 'supplier',
-                  'is perishable (true/false)': 'isPerishable',
-                  'isperishable': 'isPerishable',
-                  'expiry date (yyyy-mm-dd)': 'expiryDate',
-                  'expirydate': 'expiryDate',
-                  'discount amount': 'discountAmount',
-                  'discountamount': 'discountAmount',
-                  'weight (kg)': 'weight',
-                  'weight': 'weight',
-                  'dimensions (lxwxh)': 'dimensions',
-                  'dimensions': 'dimensions',
-                  'barcode': 'barcode',
-                  'tags (comma-separated)': 'tags',
-                  'tags': 'tags'
+                  'reorderpoint': 'reorderPoint'
                 };
 
                 const fieldName = fieldMap[header] || header;
+
+                if (['price', 'cost'].includes(fieldName)) {
+                  value = value === '' ? null : parseFloat(value);
+                  if (value !== null && isNaN(value)) value = null;
+                }
+                if (fieldName === 'stockLevel' || fieldName === 'reorderPoint') {
+                  value = value === '' ? null : parseInt(value, 10);
+                  if (value !== null && isNaN(value)) value = null;
+                }
+
                 rowData[fieldName] = value;
               });
 
@@ -283,19 +248,27 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
         parsedData = await parseExcel(file);
       }
 
-      // Validate parsed data
+      // Validate — Product Name*, Category*, Selling Price*, Quantity* required; Order Price & Reorder Point optional
       const validationErrors = [];
       parsedData.forEach((row, index) => {
-        if (!row.name || !row.sku || !row.category || !row.price) {
-          validationErrors.push(`Row ${index + 2}: Missing required fields (name, sku, category, price)`);
+        const rowNum = index + 2;
+        if (!row.name) {
+          validationErrors.push(`Row ${rowNum}: Product Name is required`);
         }
-        
-        if (row.price && (isNaN(row.price) || row.price <= 0)) {
-          validationErrors.push(`Row ${index + 2}: Invalid price value`);
+        if (!row.category) {
+          validationErrors.push(`Row ${rowNum}: Category is required`);
         }
-        
-        if (row.stockLevel && (isNaN(row.stockLevel) || row.stockLevel < 0)) {
-          validationErrors.push(`Row ${index + 2}: Invalid stock level value`);
+        if (row.price == null || row.price === '' || isNaN(row.price) || row.price <= 0) {
+          validationErrors.push(`Row ${rowNum}: Valid Selling Price is required`);
+        }
+        if (row.stockLevel == null || row.stockLevel === '' || isNaN(row.stockLevel) || row.stockLevel < 0) {
+          validationErrors.push(`Row ${rowNum}: Valid Quantity is required`);
+        }
+        if (row.cost != null && row.cost !== '' && isNaN(row.cost)) {
+          validationErrors.push(`Row ${rowNum}: Order Price must be a valid number`);
+        }
+        if (row.reorderPoint != null && row.reorderPoint !== '' && (isNaN(row.reorderPoint) || row.reorderPoint < 0)) {
+          validationErrors.push(`Row ${rowNum}: Reorder Point must be a valid non-negative number`);
         }
       });
 
@@ -303,7 +276,13 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
         setErrors(validationErrors);
         showToast('error', 'Validation errors found', `Found ${validationErrors.length} errors in the file`);
       } else {
-        setPreviewData(parsedData);
+        setPreviewData(
+          parsedData.map((row) => ({
+            ...row,
+            cost: row.cost == null || row.cost === '' ? 0 : row.cost,
+            reorderPoint: row.reorderPoint == null || row.reorderPoint === '' ? 10 : row.reorderPoint,
+          }))
+        );
         showToast('success', 'File processed successfully', `Found ${parsedData.length} products`);
       }
     } catch (error) {
@@ -359,34 +338,19 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
     }
   };
 
-  // Download template
+  // Download template — Product Name*, Category*, Order Price, Selling Price*, Quantity*, Reorder Point
   const downloadTemplate = () => {
-    const templateData = [
-      {
-        name: 'Product Name*',
-        sku: 'SKU*',
-        category: 'Category*',
-        description: 'Description',
-        price: 'Price*',
-        cost: 'Cost',
-        stockLevel: 'Stock Level*',
-        reorderPoint: 'Reorder Point',
-        location: 'Location',
-        supplier: 'Supplier',
-        isPerishable: 'Is Perishable (true/false)',
-        expiryDate: 'Expiry Date (YYYY-MM-DD)',
-        discountAmount: 'Discount Amount',
-        weight: 'Weight (kg)',
-        dimensions: 'Dimensions (LxWxH)',
-        barcode: 'Barcode',
-        tags: 'Tags (comma-separated)'
-      }
+    const headers = ['Product Name*', 'Category*', 'Order Price', 'Selling Price*', 'Quantity*', 'Reorder Point'];
+    const sampleRows = [
+      ['Wireless Mouse', 'Electronics', '15.00', '25.00', '50', '10'],
+      ['Office Chair', 'Furniture', '120.00', '199.99', '10', '5'],
+      ['Notebook A5', 'Stationery', '2.50', '5.00', '100', '20']
     ];
 
-    // Convert to CSV
-    const csvContent = templateData.map(row => 
-      Object.values(row).map(value => `"${value}"`).join(',')
-    ).join('\n');
+    const csvContent = [
+      headers.map((h) => `"${h}"`).join(','),
+      ...sampleRows.map((row) => row.map((value) => `"${value}"`).join(','))
+    ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -450,9 +414,9 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• Upload Excel (.xlsx, .xls) or CSV files</li>
                   <li>• Maximum file size: 5MB</li>
-                  <li>• Required fields: Name, SKU, Category, Price, Stock Level</li>
+                  <li>• Columns: Product Name*, Category*, Order Price, Selling Price*, Quantity*, Reorder Point</li>
                   <li>• Download the template below for the correct format</li>
-                  <li>• New products apply across your whole business (all locations)</li>
+                  <li>• SKU is generated automatically; new products apply across all locations</li>
                 </ul>
               </div>
 
@@ -502,25 +466,23 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-gray-50">
                         <tr className="border-b border-gray-200">
-                          <th className="text-left py-2">Name</th>
-                          <th className="text-left py-2">SKU</th>
+                          <th className="text-left py-2">Product Name</th>
                           <th className="text-left py-2">Category</th>
-                          <th className="text-left py-2">Price</th>
-                          <th className="text-left py-2">Cost</th>
-                          <th className="text-left py-2">Stock</th>
-                          <th className="text-left py-2">Location</th>
+                          <th className="text-left py-2">Order Price</th>
+                          <th className="text-left py-2">Selling Price</th>
+                          <th className="text-left py-2">Quantity</th>
+                          <th className="text-left py-2">Reorder Point</th>
                         </tr>
                       </thead>
                       <tbody>
                         {previewData.map((item, index) => (
                           <tr key={index} className="border-b border-gray-100">
                             <td className="py-2 font-medium">{item.name || 'N/A'}</td>
-                            <td className="py-2 text-gray-600">{item.sku || 'N/A'}</td>
                             <td className="py-2 text-gray-600">{item.category || 'N/A'}</td>
-                            <td className="py-2 font-medium">${item.price ? Number(item.price).toFixed(2) : 'N/A'}</td>
-                            <td className="py-2 text-gray-600">${item.cost ? Number(item.cost).toFixed(2) : 'N/A'}</td>
-                            <td className="py-2 text-gray-600">{item.stockLevel || 'N/A'}</td>
-                            <td className="py-2 text-gray-600">{item.location || 'N/A'}</td>
+                            <td className="py-2 text-gray-600">{item.cost != null && item.cost !== '' ? `$${Number(item.cost).toFixed(2)}` : '—'}</td>
+                            <td className="py-2 font-medium">{item.price != null ? `$${Number(item.price).toFixed(2)}` : 'N/A'}</td>
+                            <td className="py-2 text-gray-600">{item.stockLevel != null ? item.stockLevel : 'N/A'}</td>
+                            <td className="py-2 text-gray-600">{item.reorderPoint != null ? item.reorderPoint : '—'}</td>
                           </tr>
                         ))}
                       </tbody>

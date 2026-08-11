@@ -2,11 +2,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { postInvoiceAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
-import { calculateCOGS } from '@/lib/inventoryCosting';
+import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
 import { reverseAndDeleteInvoiceRecord } from '@/lib/invoiceDeleteService';
 import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
-import { addMoney, parseMoney, subtractMoney, sumMoney } from '@/lib/money';
+import { parseMoney, subtractMoney, sumMoney } from '@/lib/money';
 import {
   requireInvoiceItemAccountIdColumn,
   buildInvoiceItemCreateData,
@@ -354,6 +353,7 @@ export async function PUT(request, { params }) {
     // Create a transaction to update invoice and items
     const updatedInvoice = await prisma.$transaction(async (tx) => {
       // 1. Update the invoice
+      const paidToDate = parseMoney(existingInvoice.totalPaid);
       const invoice = await tx.invoice.update({
         where: { id: invoiceId },
         data: {
@@ -365,6 +365,8 @@ export async function PUT(request, { params }) {
           taxAmount: calculations.taxAmount,
           totalDiscountAmount: calculations.totalDiscountAmount, // Enhanced: Total of all line item discounts
           total: calculations.total,
+          // Keep outstanding in sync when totals change (cash-basis AR).
+          remainingBalance: Math.max(0, subtractMoney(calculations.total, paidToDate)),
           status: body.status,
           notes: body.notes,
           footerPhoneOverride: body.footerPhoneOverride ?? undefined,
@@ -395,7 +397,7 @@ export async function PUT(request, { params }) {
       });
       
       // Create new items
-      const items = await Promise.all(
+      await Promise.all(
         itemsWithTitles.map(item =>
           tx.invoiceItem.create({
             data: {
@@ -406,106 +408,20 @@ export async function PUT(request, { params }) {
         )
       );
       
-      // 3. Create journal entry if status changed from Draft to something else
-      if (existingInvoice.status === 'Draft' && body.status && body.status !== 'Draft') {
+      // 3. Recognize revenue + COGS when leaving Draft (or repairing a posted invoice)
+      const finalStatus = String(body.status || invoice.status || '');
+      if (
+        finalStatus &&
+        finalStatus.toLowerCase() !== 'draft' &&
+        finalStatus.toUpperCase() !== 'PROFORMA'
+      ) {
         try {
-          // Check if journal entry already exists
-          const existingJournalEntry = await tx.journalEntry.findFirst({
-            where: {
-              tenantId: user.tenantId,
-              sourceType: 'Invoice',
-              sourceId: invoice.id,
-            },
+          await ensureInvoiceSalesAccounting({
+            db: tx,
+            tenantId: user.tenantId,
+            userId: user.id,
+            invoiceId: invoice.id,
           });
-
-          if (!existingJournalEntry) {
-            // Check if invoice has service items
-            let invoiceHasServices = false;
-            if (items.some(item => item.productId)) {
-              const productIds = items
-                .filter(item => item.productId)
-                .map(item => item.productId);
-              const products = await tx.product.findMany({
-                where: { id: { in: productIds }, tenantId: user.tenantId },
-                select: { id: true, isService: true }
-              });
-              invoiceHasServices = products.some(p => p.isService) || 
-                items.some(item => !item.productId);
-            } else {
-              invoiceHasServices = true; // All custom items
-            }
-
-            // Calculate total COGS for all inventory items
-            let totalCOGS = 0;
-            
-            for (const item of items) {
-              if (item.productId) {
-                try {
-                  // Check if product is a service (services don't have COGS)
-                  const product = await tx.product.findUnique({
-                    where: { id: item.productId },
-                    select: { id: true, isService: true }
-                  });
-                  
-                  // Only calculate COGS and deduct stock for non-service products
-                  if (product && !product.isService) {
-                    const cogsData = await calculateCOGS({
-                      productId: item.productId,
-                      tenantId: user.tenantId,
-                      quantitySold: item.quantity,
-                      tx,
-                    });
-                    totalCOGS = addMoney(totalCOGS, cogsData.cogsAmount);
-                    // Deduct stock when invoice is posted (reversal will restore)
-                    const qty = Number(item.quantity) || 0;
-                    if (qty > 0) {
-                      await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stockLevel: { decrement: qty } }
-                      });
-                      try {
-                        await tx.inventoryTransaction.create({
-                          data: {
-                            productId: item.productId,
-                            type: 'invoice',
-                            quantity: -Math.round(qty),
-                            notes: `Invoice ${existingInvoice.invoiceNumber}`,
-                            userId: user.id,
-                            tenantId: user.tenantId
-                          }
-                        });
-                      } catch (e) {
-                        if (!e.message?.includes('Unknown model')) console.warn('InventoryTransaction for invoice:', e?.message);
-                      }
-                    }
-                  }
-                } catch (cogsError) {
-                  console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);
-                  // Continue with other items
-                }
-              }
-            }
-
-            await postInvoiceAccounting({
-              db: tx,
-              tenantId: user.tenantId,
-              userId: user.id,
-              invoiceId: invoice.id,
-            });
-            if (totalCOGS > 0) {
-              await postCostOfSalesAccounting({
-                db: tx,
-                tenantId: user.tenantId,
-                userId: user.id,
-                documentKind: 'Invoice',
-                documentId: invoice.id,
-                documentNumber: invoice.invoiceNumber,
-                documentDate: invoice.issueDate,
-                cogsAmount: totalCOGS,
-                branchId: invoice.branchId || null,
-              });
-            }
-          }
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
           throw journalError;

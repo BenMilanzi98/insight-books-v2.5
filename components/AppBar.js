@@ -104,11 +104,18 @@ const AppBar = ({
     !skipUserFetch && user?.role && isPosDefaultLandingRole(user) ? "/pos" : "/dashboard";
   const atAppHome = pathname === appHomeHref;
   
-  // Get current page title from pathname
+  // Get current page title from pathname (friendly labels; keep /reports-v2 URL)
   const getPageTitle = () => {
     const path = pathname.split("/")[1];
     if (path === "" || !path) return "Dashboard";
-    return path.charAt(0).toUpperCase() + path.slice(1);
+    const titleMap = {
+      "reports-v2": "Reports",
+      "general-ledger-v2": "General Ledger",
+      "chart-of-accounts": "Chart of Accounts",
+      pos: "Point of Sale",
+    };
+    if (titleMap[path]) return titleMap[path];
+    return path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " ");
   };
   
   const handleToggleNotifications = () => {

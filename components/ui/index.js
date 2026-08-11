@@ -1,5 +1,7 @@
 export { default as Button, IconButton } from './Button';
 export { default as Card, SummaryCard } from './Card';
+export { default as StatCard } from './StatCard';
+export { default as ClickableStatCard } from './ClickableStatCard';
 export { default as Badge, StatusBadge } from './Badge';
 export { default as Dialog } from './Dialog';
 export { default as Drawer } from './Drawer';

@@ -6,6 +6,7 @@ import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 import ProductSearchSelect from "@/components/ProductSearchSelect";
 import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
 import PageHeader from "@/components/shell/PageHeader";
+import StatCard from "@/components/ui/StatCard";
 
 
 const statusColors = {
@@ -81,15 +82,7 @@ function orderHasGoodsReceiptActivity(order) {
   });
 }
 
-function SummaryCard({ label, value, helper }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 ">
-      <div className="text-sm font-medium text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div>
-      {helper && <div className="mt-1 text-xs text-gray-500">{helper}</div>}
-    </div>
-  );
-}
+
 
 async function fetchOrderById(id) {
   const res = await fetch(`/api/purchases/orders/${id}`, { cache: "no-store" });
@@ -1374,10 +1367,10 @@ export default function PurchaseOrdersPage() {
 
 
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Total Orders" value={stats.total} helper="All time" />
-        <SummaryCard label="Awaiting Approval" value={stats.awaitingApproval} />
-        <SummaryCard label="Awaiting Receipt" value={stats.awaitingReceipt} />
-        <SummaryCard
+        <StatCard label="Total Orders" value={stats.total} helper="All time" />
+        <StatCard label="Awaiting Approval" value={stats.awaitingApproval} />
+        <StatCard label="Awaiting Receipt" value={stats.awaitingReceipt} />
+        <StatCard
           label="Open Amount"
           value={`MWK ${stats.openAmount.toLocaleString()}`}
           helper="Excludes cancelled orders"

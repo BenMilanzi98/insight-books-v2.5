@@ -1,21 +1,29 @@
 'use client';
 
 /**
- * Financial Reports (Phase 7) — canonical reporting UI (R3-C sole hub).
+ * Financial Reports — canonical reporting UI (R3-C sole hub).
  *
  * Every figure on this page comes from /api/accounting-v2/reports/* — the same
  * Financial Reporting Engine that powers exports and the reconciliation
  * service. Report lines expand to their source accounts (code + name) and
  * drill down to General Ledger journal lines. Integrity status and unresolved
  * historical exceptions are always displayed — never hidden. Read-only.
- * Legacy /reports redirects here.
+ * Legacy /reports redirects here (/reports-v2).
  */
 
-import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  BarChart3,
+  Calendar,
+  Download,
+  FileText,
+  Loader2,
+  Printer,
+  RefreshCw,
+  AlertCircle,
+} from 'lucide-react';
 import { REPORT_TYPES } from '@/lib/accountingV2/reporting/reportTypes';
-import ReportLayout from '@/components/patterns/ReportLayout';
-
 
 const firstDayOfYear = () => `${new Date().getFullYear()}-01-01`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -77,7 +85,7 @@ function Badge({ tone = 'muted', children }) {
         : tone === 'bad'
           ? 'bg-red-100 text-red-800'
           : 'bg-slate-100 text-slate-700';
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${cls}`}>{children}</span>;
+  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{children}</span>;
 }
 
 const integrityTone = (s) =>
@@ -89,47 +97,69 @@ const fmt = (a) => {
   return n < 0 ? `(${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })})` : n.toLocaleString(undefined, { minimumFractionDigits: 2 });
 };
 
+/** Strip accidental "V2" / "Reports-v2" branding from API report names for display. */
+function displayReportName(name) {
+  if (!name) return 'Report';
+  return String(name)
+    .replace(/\bReports[\s_-]?[Vv]2\b/g, 'Reports')
+    .replace(/\b[Vv]2\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function DrillDownModal({ drill, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-4xl overflow-auto rounded-lg bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-start justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="max-h-[85vh] w-full max-w-4xl overflow-auto rounded-2xl border border-gray-100 bg-white/95 p-6 shadow-xl backdrop-blur-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold">Drill-down — {drill.lineLabel}</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-lg font-bold text-gray-900">Drill-down — {drill.lineLabel}</h2>
+            <p className="text-sm text-gray-500">
               Line {fmt(drill.lineAmount)} · Ledger {fmt(drill.ledgerTotal)}{' '}
               {drill.reconciles ? <Badge tone="ok">reconciles</Badge> : <Badge tone="bad">REP-025 difference</Badge>}
             </p>
           </div>
-          <button className="text-slate-500 hover:text-slate-800" onClick={onClose}>✕</button>
+          <button
+            type="button"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
         {drill.accounts.map((a) => (
           <div key={a.accountId} className="mb-4">
-            <h3 className="mb-1 font-semibold">
+            <h3 className="mb-1 font-semibold text-gray-900">
               {a.accountCode} — {a.accountName}
             </h3>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-left text-slate-500">
-                  <th className="py-1 pr-2">Date</th>
-                  <th className="py-1 pr-2">Journal</th>
-                  <th className="py-1 pr-2">Description</th>
-                  <th className="py-1 pr-2 text-right">Debit</th>
-                  <th className="py-1 pr-2 text-right">Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.lines.map((l) => (
-                  <tr key={l.lineId ?? `${l.journalId}-${l.lineNumber}`} className="border-b border-slate-100">
-                    <td className="py-1 pr-2">{String(l.date ?? l.postingDate ?? '').slice(0, 10)}</td>
-                    <td className="py-1 pr-2">{l.journalNumber ?? l.transactionId ?? l.journalEntryId ?? '—'}</td>
-                    <td className="py-1 pr-2">{l.description ?? '—'}</td>
-                    <td className="py-1 pr-2 text-right">{l.debit}</td>
-                    <td className="py-1 pr-2 text-right">{l.credit}</td>
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-xs">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <tr className="text-left text-gray-500">
+                    <th className="px-3 py-2 pr-2 font-semibold">Date</th>
+                    <th className="px-3 py-2 pr-2 font-semibold">Journal</th>
+                    <th className="px-3 py-2 pr-2 font-semibold">Description</th>
+                    <th className="px-3 py-2 pr-2 text-right font-semibold">Debit</th>
+                    <th className="px-3 py-2 pr-2 text-right font-semibold">Credit</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {a.lines.map((l) => (
+                    <tr key={l.lineId ?? `${l.journalId}-${l.lineNumber}`} className="border-t border-gray-100">
+                      <td className="px-3 py-1.5 pr-2">{String(l.date ?? l.postingDate ?? '').slice(0, 10)}</td>
+                      <td className="px-3 py-1.5 pr-2">{l.journalNumber ?? l.transactionId ?? l.journalEntryId ?? '—'}</td>
+                      <td className="px-3 py-1.5 pr-2">{l.description ?? '—'}</td>
+                      <td className="px-3 py-1.5 pr-2 text-right tabular-nums">{l.debit}</td>
+                      <td className="px-3 py-1.5 pr-2 text-right tabular-nums">{l.credit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
       </div>
@@ -149,7 +179,7 @@ function findReportByType(type) {
     : null;
 }
 
-function ReportsV2PageInner() {
+function ReportsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const typeFromUrl = searchParams?.get('type');
@@ -251,231 +281,355 @@ function ReportsV2PageInner() {
     </Badge>
   );
 
-  const warnings = useMemo(
-    () => [...(report?.integrityWarnings ?? []), ...(report?.unresolvedExceptions ?? []).map((e) => ({
-      code: e.findingCode ?? e.anomalyType,
-      message: `Open historical exception (${e.severity ?? 'unknown severity'})`,
-    }))],
-    [report]
-  );
-
   return (
-    <ReportLayout
-      title="Reports"
-      description="All figures derive from canonical posted journal lines through the Financial Reporting Engine. Exports use the same calculation service as this screen. This is the sole financial reporting hub."
-      period={
-        <p className="text-sm font-medium text-[var(--text-primary)]" aria-live="polite">
-          Current report: {selected.name}
-        </p>
-      }
-    >
-      <div className="flex flex-col gap-4 lg:flex-row">
+    <div className="w-full">
+      {/* Header — POS-style */}
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+              Reports
+            </h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/60 bg-white/80 px-3 py-1 text-xs font-semibold text-blue-800 shadow-sm backdrop-blur-sm">
+              <BarChart3 className="h-3.5 w-3.5" aria-hidden />
+              Financial
+            </span>
+          </div>
+          <p className="text-sm text-gray-600">
+            Canonical figures from posted journal lines · current report:{' '}
+            <span className="font-semibold text-gray-800">{selected.name}</span>
+          </p>
+        </div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="flex items-center rounded-lg border border-gray-300 bg-white/80 px-4 py-2.5 backdrop-blur-sm transition-all hover:bg-white hover:shadow-md disabled:opacity-60"
+          >
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            <span className="text-sm font-medium">Refresh</span>
+          </button>
+        </div>
+      </div>
 
-        <aside className="w-full shrink-0 lg:w-64" aria-label="Report selector">
-          {CATEGORIES.map((cat) => (
-            <div key={cat.name} className="mb-4">
-              <h2 className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">{cat.name}</h2>
-              {cat.reports.map((r) => (
-                <button
-                  key={r.type}
-                  type="button"
-                  onClick={() => selectReport(r)}
-                  title={r.description}
-                  aria-current={selected.type === r.type ? 'true' : undefined}
-                  className={`mb-1 block w-full rounded px-3 py-2 text-left text-sm ${
-                    selected.type === r.type ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {r.name}
-                </button>
-              ))}
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 border-l-4 border-l-red-500 bg-white/80 p-4 text-red-800 shadow-lg backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <p className="text-sm font-semibold">{error}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6 lg:flex-row">
+        {/* Report selector */}
+        <aside
+          className="relative w-full shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-xl backdrop-blur-sm lg:w-72"
+          aria-label="Report selector"
+        >
+          <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+          <div className="mb-4 flex items-center gap-2 pt-1">
+            <div className="rounded-lg bg-blue-100 p-2">
+              <FileText className="h-4 w-4 text-blue-700" />
             </div>
-          ))}
+            <h2 className="text-sm font-bold text-gray-900">Report types</h2>
+          </div>
+          <div className="max-h-[min(70vh,720px)] space-y-4 overflow-y-auto pr-1">
+            {CATEGORIES.map((cat) => (
+              <div key={cat.name}>
+                <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                  {cat.name}
+                </h3>
+                <div className="space-y-1">
+                  {cat.reports.map((r) => {
+                    const active = selected.type === r.type;
+                    return (
+                      <button
+                        key={r.type}
+                        type="button"
+                        onClick={() => selectReport(r)}
+                        title={r.description}
+                        aria-current={active ? 'true' : undefined}
+                        className={`block w-full rounded-xl px-3 py-2.5 text-left text-sm transition-all ${
+                          active
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white shadow-md'
+                            : 'bg-white/60 text-gray-700 hover:bg-blue-50 hover:text-blue-800'
+                        }`}
+                      >
+                        {r.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </aside>
 
-        <main className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-end gap-3 rounded-lg bg-white p-3 shadow-sm">
-            {!isAsOf && (
-              <label className="text-sm">
-                From
-                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="ml-2 rounded border px-2 py-1" />
+        {/* Main report panel */}
+        <main className="min-w-0 flex-1 space-y-4">
+          <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-xl backdrop-blur-sm sm:p-5">
+            <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500" />
+            <div className="mb-3 flex flex-wrap items-center gap-2 pt-1">
+              <Calendar className="h-4 w-4 text-emerald-700" />
+              <h2 className="text-sm font-bold text-gray-900">Period &amp; export</h2>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              {!isAsOf && (
+                <label className="text-sm font-medium text-gray-700">
+                  From
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="mt-1 block rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+              )}
+              <label className="text-sm font-medium text-gray-700">
+                {isAsOf ? 'As of' : 'To'}
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="mt-1 block rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
               </label>
-            )}
-            <label className="text-sm">
-              {isAsOf ? 'As of' : 'To'}
-              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="ml-2 rounded border px-2 py-1" />
-            </label>
-            {isTrialBalance && (
-              <label className="text-sm">
-                <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} className="mr-1" />
-                Include zero balances
-              </label>
-            )}
-            <button onClick={load} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
-              Generate
-            </button>
-            <div className="ml-auto flex gap-2">
-              {['csv', 'xlsx', 'pdf'].map((f) => (
-                <a key={f} href={exportUrl(f)} className="rounded border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                  {f.toUpperCase()}
-                </a>
-              ))}
-              <button onClick={() => window.print()} className="rounded border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                Print
+              {isTrialBalance && (
+                <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={includeZero}
+                    onChange={(e) => setIncludeZero(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Include zero balances
+                </label>
+              )}
+              <button
+                type="button"
+                onClick={load}
+                disabled={loading}
+                className="rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-60"
+              >
+                {loading ? 'Generating…' : 'Generate'}
               </button>
+              <div className="ml-auto flex flex-wrap gap-2">
+                {['csv', 'xlsx', 'pdf'].map((f) => (
+                  <a
+                    key={f}
+                    href={exportUrl(f)}
+                    className="inline-flex items-center rounded-lg border border-gray-300 bg-white/80 px-3 py-2 text-sm font-medium text-gray-700 backdrop-blur-sm transition-all hover:bg-white hover:shadow-md"
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    {f.toUpperCase()}
+                  </a>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center rounded-lg border border-gray-300 bg-white/80 px-3 py-2 text-sm font-medium text-gray-700 backdrop-blur-sm transition-all hover:bg-white hover:shadow-md"
+                >
+                  <Printer className="mr-1.5 h-3.5 w-3.5" />
+                  Print
+                </button>
+              </div>
             </div>
           </div>
 
-          {loading && <p className="p-4 text-slate-500">Generating from canonical journal lines…</p>}
-          {error && <p className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
+          {loading && (
+            <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white/80 p-6 text-gray-600 shadow-xl backdrop-blur-sm">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+              <p className="text-sm font-medium">Generating from canonical journal lines…</p>
+            </div>
+          )}
 
           {report && (
-            <div className="rounded-lg bg-white p-4 shadow-sm">
-              <div className="mb-3 flex flex-wrap items-center gap-3">
-                <h2 className="text-lg font-bold">{report.reportName}</h2>
+            <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-xl backdrop-blur-sm sm:p-6">
+              <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
+              <div className="mb-4 flex flex-wrap items-center gap-3 pt-1">
+                <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
+                  {displayReportName(report.reportName)}
+                </h2>
                 {statusBadge}
-                <span className="text-xs text-slate-500">
-                  Definition v{report.definitionVersion} · generated {String(report.generatedAt).slice(0, 19).replace('T', ' ')}
+                <span className="text-xs text-gray-500">
+                  Definition v{report.definitionVersion} · generated{' '}
+                  {String(report.generatedAt).slice(0, 19).replace('T', ' ')}
                 </span>
               </div>
 
-              {warnings.length > 0 && (
-                <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                  <strong>{warnings.length} integrity disclosure(s):</strong>
-                  <ul className="ml-4 list-disc">
-                    {warnings.slice(0, 8).map((w, i) => (
-                      <li key={i}>{w.code}: {w.message}</li>
-                    ))}
-                    {warnings.length > 8 && <li>… and {warnings.length - 8} more</li>}
-                  </ul>
-                </div>
-              )}
-
-              {isTrialBalance ? (
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b text-left text-slate-500">
-                      <th className="py-1 pr-2">Code</th>
-                      <th className="py-1 pr-2">Account</th>
-                      <th className="py-1 pr-2 text-right">Opening Dr</th>
-                      <th className="py-1 pr-2 text-right">Opening Cr</th>
-                      <th className="py-1 pr-2 text-right">Period Dr</th>
-                      <th className="py-1 pr-2 text-right">Period Cr</th>
-                      <th className="py-1 pr-2 text-right">Closing Dr</th>
-                      <th className="py-1 pr-2 text-right">Closing Cr</th>
-                      <th className="py-1" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.lines.map((r) => (
-                      <tr key={r.accountId} className="border-b border-slate-100">
-                        <td className="py-1 pr-2">{r.accountCode}</td>
-                        <td className="py-1 pr-2">
-                          {r.accountName} {r.warningStatus && <Badge tone="warn">{r.warningStatus}</Badge>}
-                        </td>
-                        <td className="py-1 pr-2 text-right">{fmt(r.openingDebit)}</td>
-                        <td className="py-1 pr-2 text-right">{fmt(r.openingCredit)}</td>
-                        <td className="py-1 pr-2 text-right">{fmt(r.periodDebit)}</td>
-                        <td className="py-1 pr-2 text-right">{fmt(r.periodCredit)}</td>
-                        <td className="py-1 pr-2 text-right">{fmt(r.closingDebit)}</td>
-                        <td className="py-1 pr-2 text-right">{fmt(r.closingCredit)}</td>
-                        <td className="py-1 text-right">
-                          <a
-                            className="text-blue-600 hover:underline"
-                            href={`/general-ledger-v2?accountId=${r.accountId}`}
-                          >
-                            View
-                          </a>
-                        </td>
+              <div className="overflow-x-auto rounded-xl border border-gray-100">
+                {isTrialBalance ? (
+                  <table className="w-full text-xs">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr className="text-left text-gray-500">
+                        <th className="px-3 py-2.5 font-semibold">Code</th>
+                        <th className="px-3 py-2.5 font-semibold">Account</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Opening Dr</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Opening Cr</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Period Dr</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Period Cr</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Closing Dr</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Closing Cr</th>
+                        <th className="px-3 py-2.5" />
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 font-bold">
-                      <td className="py-1 pr-2" colSpan={2}>TOTALS {report.totals.difference.minor !== 0 && <Badge tone="bad">Difference {fmt(report.totals.difference)}</Badge>}</td>
-                      <td className="py-1 pr-2 text-right">{fmt(report.totals.openingDebit)}</td>
-                      <td className="py-1 pr-2 text-right">{fmt(report.totals.openingCredit)}</td>
-                      <td className="py-1 pr-2 text-right">{fmt(report.totals.periodDebit)}</td>
-                      <td className="py-1 pr-2 text-right">{fmt(report.totals.periodCredit)}</td>
-                      <td className="py-1 pr-2 text-right">{fmt(report.totals.closingDebit)}</td>
-                      <td className="py-1 pr-2 text-right">{fmt(report.totals.closingCredit)}</td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-slate-500">
-                      <th className="py-1 pr-2">Line</th>
-                      <th className="py-1 pr-2 text-right">Amount</th>
-                      {report.lines.some((l) => l.comparativeAmount) && <th className="py-1 pr-2 text-right">Comparative</th>}
-                      <th className="py-1" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.lines.map((l) => (
-                      <Fragment key={l.lineId}>
-                        <tr className={`border-b border-slate-100 ${['GRAND_TOTAL', 'SUBTOTAL', 'CALCULATED_TOTAL'].includes(l.lineType) ? 'font-semibold' : ''} ${l.lineType === 'SECTION' ? 'bg-slate-50 font-bold uppercase' : ''}`}>
-                          <td className="py-1.5 pr-2">
-                            {l.label}
-                            {l.warningStatus && <Badge tone="warn">{l.warningStatus}</Badge>}
+                    </thead>
+                    <tbody>
+                      {report.lines.map((r) => (
+                        <tr key={r.accountId} className="border-t border-gray-100 hover:bg-blue-50/40">
+                          <td className="px-3 py-2 font-mono text-gray-700">{r.accountCode}</td>
+                          <td className="px-3 py-2">
+                            {r.accountName} {r.warningStatus && <Badge tone="warn">{r.warningStatus}</Badge>}
                           </td>
-                          <td className="py-1.5 pr-2 text-right">{l.lineType === 'SECTION' ? '' : fmt(l.currentAmount)}</td>
-                          {report.lines.some((x) => x.comparativeAmount) && (
-                            <td className="py-1.5 pr-2 text-right">{l.comparativeAmount ? fmt(l.comparativeAmount) : ''}</td>
-                          )}
-                          <td className="py-1.5 text-right text-xs">
-                            {(l.accounts?.length ?? 0) > 0 && (
-                              <>
-                                <button className="mr-2 text-blue-600 hover:underline" onClick={() => toggleExpand(l.lineId)}>
-                                  {expandedLines.has(l.lineId) ? 'Hide accounts' : `Accounts (${l.accounts.length})`}
-                                </button>
-                                <button className="text-blue-600 hover:underline" onClick={() => drillInto(l.lineId)}>
-                                  Drill down
-                                </button>
-                              </>
-                            )}
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(r.openingDebit)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(r.openingCredit)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(r.periodDebit)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(r.periodCredit)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(r.closingDebit)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fmt(r.closingCredit)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <a
+                              className="font-medium text-blue-600 hover:underline"
+                              href={`/general-ledger-v2?accountId=${r.accountId}`}
+                            >
+                              View
+                            </a>
                           </td>
                         </tr>
-                        {expandedLines.has(l.lineId) &&
-                          l.accounts.map((a) => (
-                            <tr key={`${l.lineId}-${a.accountId}`} className="border-b border-slate-50 bg-slate-50/50 text-xs">
-                              <td className="py-1 pl-6 pr-2 text-slate-600">
-                                {a.accountCode} — {a.accountName}
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 bg-gray-50/80 font-bold">
+                        <td className="px-3 py-2" colSpan={2}>
+                          TOTALS{' '}
+                          {report.totals.difference.minor !== 0 && (
+                            <Badge tone="bad">Difference {fmt(report.totals.difference)}</Badge>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(report.totals.openingDebit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(report.totals.openingCredit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(report.totals.periodDebit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(report.totals.periodCredit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(report.totals.closingDebit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(report.totals.closingCredit)}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr className="text-left text-gray-500">
+                        <th className="px-3 py-2.5 font-semibold">Line</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+                        {report.lines.some((l) => l.comparativeAmount) && (
+                          <th className="px-3 py-2.5 text-right font-semibold">Comparative</th>
+                        )}
+                        <th className="px-3 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.lines.map((l) => (
+                        <Fragment key={l.lineId}>
+                          <tr
+                            className={`border-t border-gray-100 ${
+                              ['GRAND_TOTAL', 'SUBTOTAL', 'CALCULATED_TOTAL'].includes(l.lineType)
+                                ? 'font-semibold'
+                                : ''
+                            } ${l.lineType === 'SECTION' ? 'bg-slate-50/80 font-bold uppercase' : 'hover:bg-blue-50/40'}`}
+                          >
+                            <td className="px-3 py-2.5">
+                              {l.label}
+                              {l.warningStatus && <Badge tone="warn">{l.warningStatus}</Badge>}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {l.lineType === 'SECTION' ? '' : fmt(l.currentAmount)}
+                            </td>
+                            {report.lines.some((x) => x.comparativeAmount) && (
+                              <td className="px-3 py-2.5 text-right tabular-nums">
+                                {l.comparativeAmount ? fmt(l.comparativeAmount) : ''}
                               </td>
-                              <td className="py-1 pr-2 text-right text-slate-600">{fmt(a.amount)}</td>
-                              {report.lines.some((x) => x.comparativeAmount) && <td />}
-                              <td className="py-1 text-right">
-                                <a className="text-blue-600 hover:underline" href={`/general-ledger-v2?accountId=${a.accountId}`}>
-                                  View GL
-                                </a>
-                              </td>
-                            </tr>
-                          ))}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                            )}
+                            <td className="px-3 py-2.5 text-right text-xs">
+                              {(l.accounts?.length ?? 0) > 0 && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="mr-2 font-medium text-blue-600 hover:underline"
+                                    onClick={() => toggleExpand(l.lineId)}
+                                  >
+                                    {expandedLines.has(l.lineId)
+                                      ? 'Hide accounts'
+                                      : `Accounts (${l.accounts.length})`}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="font-medium text-blue-600 hover:underline"
+                                    onClick={() => drillInto(l.lineId)}
+                                  >
+                                    Drill down
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                          {expandedLines.has(l.lineId) &&
+                            l.accounts.map((a) => (
+                              <tr
+                                key={`${l.lineId}-${a.accountId}`}
+                                className="border-t border-gray-50 bg-slate-50/50 text-xs"
+                              >
+                                <td className="px-3 py-1.5 pl-8 text-gray-600">
+                                  {a.accountCode} — {a.accountName}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">
+                                  {fmt(a.amount)}
+                                </td>
+                                {report.lines.some((x) => x.comparativeAmount) && <td />}
+                                <td className="px-3 py-1.5 text-right">
+                                  <a
+                                    className="font-medium text-blue-600 hover:underline"
+                                    href={`/general-ledger-v2?accountId=${a.accountId}`}
+                                  >
+                                    View GL
+                                  </a>
+                                </td>
+                              </tr>
+                            ))}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
         </main>
       </div>
 
       {drill && <DrillDownModal drill={drill} onClose={() => setDrill(null)} />}
-    </ReportLayout>
+    </div>
   );
 }
 
-export default function ReportsV2Page() {
+export default function ReportsPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-7xl p-4 text-sm text-slate-500">Loading financial reports…</div>
+        <div className="flex items-center justify-center p-8">
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white/80 px-6 py-4 text-sm text-gray-600 shadow-xl backdrop-blur-sm">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+            Loading reports…
+          </div>
+        </div>
       }
     >
-      <ReportsV2PageInner />
+      <ReportsPageInner />
     </Suspense>
   );
 }

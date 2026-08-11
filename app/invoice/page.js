@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react"; 
+import { useSearchParams } from "next/navigation";
 import { 
   PlusCircle, 
   Search, 
@@ -48,10 +49,20 @@ import {
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/dateUtils";
-import { parseMoney } from "@/lib/money";
+import { parseMoney, subtractMoney } from "@/lib/money";
 
 const formatInvoiceMoney = (amount) =>
   parseMoney(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function invoiceRemainingDue(invoice) {
+  const total = parseMoney(invoice.total);
+  const paid = parseMoney(invoice.totalPaid);
+  const fromApi = invoice.amountDue ?? invoice.remainingBalance;
+  if (fromApi != null && fromApi !== '') {
+    return parseMoney(fromApi);
+  }
+  return Math.max(0, subtractMoney(total, paid));
+}
 
 // Status badge component with improved styling
 const StatusBadge = ({ status }) => {
@@ -97,6 +108,7 @@ const TabButton = ({ active, onClick, label, count }) => (
 );
 
 const InvoicingPage = () => {
+  const searchParams = useSearchParams();
   // State management
   const [activeTab, setActiveTab] = useState("all");
   const [invoices, setInvoices] = useState([]);
@@ -214,6 +226,20 @@ const InvoicingPage = () => {
 
     fetchPermissions();
   }, []);
+
+  // Apply date filters from dashboard / deep links
+  useEffect(() => {
+    const dateFrom = searchParams.get('dateFrom') || '';
+    const dateTo = searchParams.get('dateTo') || '';
+    if (!dateFrom && !dateTo) return;
+    setFilterOptions((prev) => ({
+      ...prev,
+      dateFrom: dateFrom || prev.dateFrom,
+      dateTo: dateTo || prev.dateTo,
+    }));
+    setFilterOpen(true);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [searchParams]);
 
   // Handle send invoice - only open modal; capture starts when user clicks Send in modal
   const handleSendInvoice = (invoice) => {
@@ -503,7 +529,7 @@ const InvoicingPage = () => {
     loadClients();
     loadTemplates();
     loadBrandingSettings();
-  }, [activeTab, pagination.page, sortBy, sortOrder]);
+  }, [activeTab, pagination.page, sortBy, sortOrder, filterOptions.dateFrom, filterOptions.dateTo, filterOptions.client, filterOptions.status]);
 
   // Handle click outside to close dropdowns
   useEffect(() => {
@@ -1011,13 +1037,48 @@ const InvoicingPage = () => {
                           <div className="text-xs text-gray-500">{invoice.client.email}</div>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-bold text-gray-900">MWK {formatInvoiceMoney(invoice.total)}</div>
-                          {parseMoney(invoice.totalPaid) > 0 && (
-                            <div className="text-xs text-emerald-600">Paid: MWK {formatInvoiceMoney(invoice.totalPaid)}</div>
-                          )}
-                          {parseMoney(invoice.remainingBalance) > 0 && (
-                            <div className="text-xs text-red-500">Balance: MWK {formatInvoiceMoney(invoice.remainingBalance)}</div>
-                          )}
+                          {(() => {
+                            const total = parseMoney(invoice.total);
+                            const paid = parseMoney(invoice.totalPaid);
+                            const remaining = invoiceRemainingDue(invoice);
+                            const unpaidStatuses = ['Pending', 'Partial', 'Overdue'];
+                            const showRemainingPrimary =
+                              unpaidStatuses.includes(invoice.status) || (remaining > 0 && remaining < total - 0.005);
+
+                            if (showRemainingPrimary) {
+                              return (
+                                <>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    MWK {formatInvoiceMoney(remaining)}
+                                  </div>
+                                  <div className="text-xs text-amber-700">Remaining</div>
+                                  {(paid > 0 || Math.abs(remaining - total) > 0.005) && (
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      Total: MWK {formatInvoiceMoney(total)}
+                                    </div>
+                                  )}
+                                  {paid > 0 && (
+                                    <div className="text-xs text-emerald-600">
+                                      Paid: MWK {formatInvoiceMoney(paid)}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            }
+
+                            return (
+                              <>
+                                <div className="text-sm font-bold text-gray-900">
+                                  MWK {formatInvoiceMoney(total)}
+                                </div>
+                                {paid > 0 && (
+                                  <div className="text-xs text-emerald-600">
+                                    Paid: MWK {formatInvoiceMoney(paid)}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center hidden sm:table-cell">
                           <ReversalStatusBadge status={invoice.status} isReversed={invoice.isReversed} reversedAt={invoice.reversedAt} />

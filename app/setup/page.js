@@ -42,7 +42,7 @@ function SetupPageInner() {
 export default function SetupWizardPage() {
   return (
     <PermissionGuard permission="settings.view">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+      <div className="w-full">
         <Suspense
           fallback={
             <div className="flex min-h-[40vh] items-center justify-center text-slate-500">

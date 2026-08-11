@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/apply-deferred-goods-receipts",
       "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/pos-cash-day",
+      "schedule": "5 22 * * *"
     }
   ]
 } 

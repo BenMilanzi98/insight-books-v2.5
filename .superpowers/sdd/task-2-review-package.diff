@@ -1,105 +1,119 @@
-BASE: after Task1 WORKING_TREE\nHEAD: Task2 WORKING_TREE\n\n=== STATUS ===\n M app/pos/page.js
- M components/InvoiceModal.js
- M components/QuotationModal.js
-?? lib/taxTypesClient.js
-\n=== DIFF TRACKED ===\ndiff --git a/app/pos/page.js b/app/pos/page.js
-index 1908da25..e08459b7 100644
---- a/app/pos/page.js
-+++ b/app/pos/page.js
-@@ -62,6 +62,7 @@ import {
- import { calculateProductTaxes, calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
- import { isMalawiStandardVatRate, MALAWI_STANDARD_VAT_RATE } from "@/lib/malawiTaxCatalog";
- import { addMoney, multiplyMoney, percentOfMoney, roundMoney, subtractMoney } from "@/lib/money";
-+import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
- import ClientModal from "@/components/ClientModal";
- import ClientSearchCombobox from "@/components/ClientSearchCombobox";
- import PermissionGuard from "@/components/PermissionGuard";
-@@ -293,14 +294,11 @@ const POSPage = () => {
-   // Fetch active tax types and default tax for inflow (sales) for auto-population
-   const fetchPosTaxTypes = async () => {
-     try {
--      const [taxRes, defaultsRes] = await Promise.all([
--        fetch('/api/tax-types?status=Active'),
-+      const [taxTypes, defaultsRes] = await Promise.all([
-+        fetchActiveTaxTypes(),
-         fetch('/api/settings/tax-defaults').catch(() => null)
-       ]);
--      if (taxRes.ok) {
--        const data = await taxRes.json();
--        setPosTaxTypes(Array.isArray(data.taxTypes) ? data.taxTypes : []);
--      }
-+      setPosTaxTypes(Array.isArray(taxTypes) ? taxTypes : []);
-       if (defaultsRes?.ok) {
-         const defaults = await defaultsRes.json();
-         setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
-diff --git a/components/InvoiceModal.js b/components/InvoiceModal.js
-index 42bd6d1e..f925fcb3 100644
---- a/components/InvoiceModal.js
-+++ b/components/InvoiceModal.js
-@@ -11,6 +11,7 @@ import ClientSearchCombobox from "./ClientSearchCombobox";
- import InvoiceReceiptModal from "./InvoiceReceiptModal";
- import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
- import { fetchProductsForSaleAll } from "@/app/services/salesService";
-+import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
- 
- const lineTaxesOf = (item) =>
-   normalizeLineTaxes(item?.taxes || item?.itemTaxes || item?.productTaxes || []);
-@@ -369,17 +370,11 @@ const InvoiceModal = ({
-         // NEW: Load tax types and default tax for inflow (sales/invoices)
-         setIsLoadingTaxTypes(true);
-         try {
--          const [taxTypesResponse, taxDefaultsResponse] = await Promise.all([
--            fetch('/api/tax-types'),
-+          const [taxTypesData, taxDefaultsResponse] = await Promise.all([
-+            fetchActiveTaxTypes(),
-             fetch('/api/settings/tax-defaults').catch(() => null)
-           ]);
--          let taxTypesData = [];
--          if (taxTypesResponse.ok) {
--            const taxTypesJson = await taxTypesResponse.json();
--            taxTypesData = taxTypesJson.taxTypes || taxTypesJson || [];
--            if (!Array.isArray(taxTypesData)) taxTypesData = [];
--            setTaxTypes(taxTypesData);
--          }
-+          setTaxTypes(Array.isArray(taxTypesData) ? taxTypesData : []);
-           let defaultInflow = null;
-           if (taxDefaultsResponse?.ok) {
-             const defaults = await taxDefaultsResponse.json();
-diff --git a/components/QuotationModal.js b/components/QuotationModal.js
-index 7fb87ae9..570e209f 100644
---- a/components/QuotationModal.js
-+++ b/components/QuotationModal.js
-@@ -10,6 +10,7 @@ import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtra
- import ClientModal from "./ClientModal";
- import ClientSearchCombobox from "./ClientSearchCombobox";
- import { fetchProductsForSaleAll } from "@/app/services/salesService";
-+import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
- import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
- 
- const lineTaxesOf = (item) =>
-@@ -240,14 +241,11 @@ const QuotationModal = ({
-         // NEW: Load tax types and default tax for inflow
-         setIsLoadingTaxTypes(true);
-         try {
--          const [taxTypesResponse, taxDefaultsResponse] = await Promise.all([
--            fetch('/api/tax-types'),
-+          const [taxTypesData, taxDefaultsResponse] = await Promise.all([
-+            fetchActiveTaxTypes(),
-             fetch('/api/settings/tax-defaults').catch(() => null)
-           ]);
--          if (taxTypesResponse.ok) {
--            const taxTypesData = await taxTypesResponse.json();
--            setTaxTypes(taxTypesData.taxTypes || taxTypesData || []);
--          }
-+          setTaxTypes(taxTypesData);
-           if (taxDefaultsResponse?.ok) {
-             const defaults = await taxDefaultsResponse.json();
-             setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
-\n=== NEW FILE taxTypesClient.js ===\nexport async function fetchActiveTaxTypes() {
-  const response = await fetch('/api/tax-types?status=Active');
-  if (!response.ok) {
-    throw new Error(`Failed to load tax types: ${response.statusText}`);
-  }
-  const data = await response.json();
-  return Array.isArray(data) ? data : data.taxTypes || data.data || [];
+Review package Task 2 (working tree)
+
+?? lib/invoiceDeferredRevenue.js
+?? test/invoiceDeferredRevenue.test.js
+
+
+=== FILE lib/invoiceDeferredRevenue.js ===
+// lib/invoiceDeferredRevenue.js
+import { parseMoney, roundMoney, subtractMoney } from '@/lib/money';
+
+export function computePaymentRecognizedNet({
+  paymentAmount,
+  invoiceTotal,
+  invoiceTaxAmount,
+}) {
+  const total = parseMoney(invoiceTotal);
+  const tax = parseMoney(invoiceTaxAmount);
+  const net = subtractMoney(total, tax);
+  const pay = parseMoney(paymentAmount);
+  if (total <= 0 || pay <= 0 || net <= 0) return 0;
+  return roundMoney((pay * net) / total);
 }
+
+export function computeFinalPaymentRecognizedNet({
+  invoiceNet,
+  previouslyRecognizedNet,
+}) {
+  return roundMoney(
+    Math.max(0, subtractMoney(parseMoney(invoiceNet), parseMoney(previouslyRecognizedNet)))
+  );
+}
+
+
+=== FILE test/invoiceDeferredRevenue.test.js ===
+// test/invoiceDeferredRevenue.test.js
+import { describe, it, expect } from 'vitest';
+import {
+  computePaymentRecognizedNet,
+  computeFinalPaymentRecognizedNet,
+} from '../lib/invoiceDeferredRevenue.js';
+
+describe('invoice deferred revenue math', () => {
+  it('pro-rates net revenue by payment / total', () => {
+    // total 1180, tax 180, net 1000; pay 590 → recognize 500
+    expect(
+      computePaymentRecognizedNet({
+        paymentAmount: 590,
+        invoiceTotal: 1180,
+        invoiceTaxAmount: 180,
+      })
+    ).toBe(500);
+  });
+
+  it('final payment uses remaining net not a fresh multiply', () => {
+    expect(
+      computeFinalPaymentRecognizedNet({
+        invoiceNet: 1000,
+        previouslyRecognizedNet: 500,
+      })
+    ).toBe(500);
+  });
+});
+
+
+=== FULL lib/invoiceDeferredRevenue.js ===
+// lib/invoiceDeferredRevenue.js
+import { parseMoney, roundMoney, subtractMoney } from '@/lib/money';
+
+export function computePaymentRecognizedNet({
+  paymentAmount,
+  invoiceTotal,
+  invoiceTaxAmount,
+}) {
+  const total = parseMoney(invoiceTotal);
+  const tax = parseMoney(invoiceTaxAmount);
+  const net = subtractMoney(total, tax);
+  const pay = parseMoney(paymentAmount);
+  if (total <= 0 || pay <= 0 || net <= 0) return 0;
+  return roundMoney((pay * net) / total);
+}
+
+export function computeFinalPaymentRecognizedNet({
+  invoiceNet,
+  previouslyRecognizedNet,
+}) {
+  return roundMoney(
+    Math.max(0, subtractMoney(parseMoney(invoiceNet), parseMoney(previouslyRecognizedNet)))
+  );
+}
+
+=== FULL test/invoiceDeferredRevenue.test.js ===
+// test/invoiceDeferredRevenue.test.js
+import { describe, it, expect } from 'vitest';
+import {
+  computePaymentRecognizedNet,
+  computeFinalPaymentRecognizedNet,
+} from '../lib/invoiceDeferredRevenue.js';
+
+describe('invoice deferred revenue math', () => {
+  it('pro-rates net revenue by payment / total', () => {
+    // total 1180, tax 180, net 1000; pay 590 → recognize 500
+    expect(
+      computePaymentRecognizedNet({
+        paymentAmount: 590,
+        invoiceTotal: 1180,
+        invoiceTaxAmount: 180,
+      })
+    ).toBe(500);
+  });
+
+  it('final payment uses remaining net not a fresh multiply', () => {
+    expect(
+      computeFinalPaymentRecognizedNet({
+        invoiceNet: 1000,
+        previouslyRecognizedNet: 500,
+      })
+    ).toBe(500);
+  });
+});

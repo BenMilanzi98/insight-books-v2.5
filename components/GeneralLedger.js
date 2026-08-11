@@ -566,7 +566,7 @@ const GeneralLedger = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Transactions</p>
-                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{summary.totalTransactions}</p>
+                <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-slate-800 sm:text-3xl">{summary.totalTransactions}</p>
                 <p className="text-xs text-slate-400 mt-2">{formatDateDisplay(dateRange.startDate)} – {formatDateDisplay(dateRange.endDate)}</p>
               </div>
               <div className="p-3 rounded-xl bg-indigo-100">
@@ -578,7 +578,7 @@ const GeneralLedger = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Debits</p>
-                <p className="text-2xl sm:text-3xl font-bold text-amber-600 mt-1">{formatCurrency(summary.totalDebits)}</p>
+                <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-amber-600 sm:text-3xl">{formatCurrency(summary.totalDebits)}</p>
                 <p className="text-xs text-slate-400 mt-2">
                   {((summary.totalDebits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
                 </p>
@@ -592,7 +592,7 @@ const GeneralLedger = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Credits</p>
-                <p className="text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">{formatCurrency(summary.totalCredits)}</p>
+                <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-emerald-600 sm:text-3xl">{formatCurrency(summary.totalCredits)}</p>
                 <p className="text-xs text-slate-400 mt-2">
                   {((summary.totalCredits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
                 </p>

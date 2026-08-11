@@ -14,6 +14,7 @@ import {
   Calendar,
   Hash
 } from "lucide-react";
+import StatCard from "@/components/ui/StatCard";
 
 const COGSManagement = () => {
   // State management
@@ -162,42 +163,34 @@ const COGSManagement = () => {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-blue-100 p-3 rounded-full mr-4">
-            <TrendingUp size={20} className="text-blue-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{formatCurrency(summary?.summary?.totalCOGS || 0)}</span>
-            <span className="text-gray-600 text-sm">Total COGS</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-green-100 p-3 rounded-full mr-4">
-            <Package size={20} className="text-green-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{products.length}</span>
-            <span className="text-gray-600 text-sm">Total Products</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-purple-100 p-3 rounded-full mr-4">
-            <BarChart3 size={20} className="text-purple-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{summary?.summary?.transactionCount || 0}</span>
-            <span className="text-gray-600 text-sm">COGS Transactions</span>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow flex items-center">
-          <div className="bg-yellow-100 p-3 rounded-full mr-4">
-            <DollarSign size={20} className="text-yellow-600" />
-          </div>
-          <div>
-            <span className="text-xl font-bold block">{formatCurrency(summary?.summary?.totalCOGSExpenses || 0)}</span>
-            <span className="text-gray-600 text-sm">COGS Expenses</span>
-          </div>
-        </div>
+        <StatCard
+          label="Total COGS"
+          value={formatCurrency(summary?.summary?.totalCOGS || 0)}
+          icon={TrendingUp}
+          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          iconWrapClassName="bg-blue-100 text-blue-600"
+        />
+        <StatCard
+          label="Total Products"
+          value={products.length}
+          icon={Package}
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+          iconWrapClassName="bg-green-100 text-green-600"
+        />
+        <StatCard
+          label="COGS Transactions"
+          value={summary?.summary?.transactionCount || 0}
+          icon={BarChart3}
+          barClassName="from-violet-400 via-purple-500 to-indigo-500"
+          iconWrapClassName="bg-purple-100 text-purple-600"
+        />
+        <StatCard
+          label="COGS Expenses"
+          value={formatCurrency(summary?.summary?.totalCOGSExpenses || 0)}
+          icon={DollarSign}
+          barClassName="from-amber-400 via-yellow-500 to-orange-500"
+          iconWrapClassName="bg-yellow-100 text-yellow-600"
+        />
       </div>
 
       {/* Main Content Layout */}
@@ -241,11 +234,11 @@ const COGSManagement = () => {
                       <div className="flex items-center space-x-4">
                         <div className="text-right min-w-0">
                           <p className="text-xs text-gray-500 truncate">Order Price</p>
-                          <p className="text-sm font-medium truncate">{formatCurrency(product.cost)}</p>
+                          <p className="break-words text-sm font-medium tabular-nums">{formatCurrency(product.cost)}</p>
                         </div>
                         <div className="text-right min-w-0">
                           <p className="text-xs text-gray-500 truncate">Selling Price</p>
-                          <p className="text-sm font-medium truncate">{formatCurrency(product.price)}</p>
+                          <p className="break-words text-sm font-medium tabular-nums">{formatCurrency(product.price)}</p>
                         </div>
                         <div className="text-right min-w-0">
                           <p className="text-xs text-gray-500 truncate">Stock</p>
@@ -276,15 +269,15 @@ const COGSManagement = () => {
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-xs text-gray-600 truncate">Total Revenue:</span>
-                              <span className="text-sm font-medium truncate">{formatCurrency(product.totalRevenue || 0)}</span>
+                              <span className="break-words text-sm font-medium tabular-nums text-right">{formatCurrency(product.totalRevenue || 0)}</span>
                             </div>
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center gap-2">
                               <span className="text-xs text-gray-600 truncate">Total COGS:</span>
-                              <span className="text-sm font-medium truncate">{formatCurrency(product.totalCOGS || 0)}</span>
+                              <span className="break-words text-sm font-medium tabular-nums text-right">{formatCurrency(product.totalCOGS || 0)}</span>
                             </div>
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center gap-2">
                               <span className="text-xs text-gray-600 truncate">Gross Profit:</span>
-                              <span className="text-sm font-medium text-green-600 truncate">
+                              <span className="break-words text-sm font-medium tabular-nums text-right text-green-600">
                                 {formatCurrency((product.totalRevenue || 0) - (product.totalCOGS || 0))}
                               </span>
                             </div>
@@ -347,10 +340,10 @@ const COGSManagement = () => {
                                   <div className="flex items-center space-x-2 ml-2">
                                     <div className="text-right min-w-0">
                                       <p className="text-xs font-medium truncate">{sale.quantity} units</p>
-                                      <p className="text-xs text-gray-500 truncate">COGS: {formatCurrency(sale.cogs)}</p>
+                                      <p className="break-words text-xs text-gray-500 tabular-nums">COGS: {formatCurrency(sale.cogs)}</p>
                                     </div>
                                     <div className="text-right min-w-0">
-                                      <p className="text-xs font-medium truncate">{formatCurrency(sale.revenue)}</p>
+                                      <p className="break-words text-xs font-medium tabular-nums">{formatCurrency(sale.revenue)}</p>
                                       <p className="text-xs text-gray-500 truncate">Revenue</p>
                                     </div>
                                   </div>

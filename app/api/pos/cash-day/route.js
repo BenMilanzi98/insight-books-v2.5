@@ -36,6 +36,10 @@ export async function GET(request) {
         register: null,
         report,
         companyName: report.companyName,
+        tillOpen: false,
+        tillClosed: false,
+        requiresTillOpen: true,
+        suggestedOpeningBalance: 0,
         metrics: {
           openingBalance: 0,
           totalSales: report.totalSales || 0,

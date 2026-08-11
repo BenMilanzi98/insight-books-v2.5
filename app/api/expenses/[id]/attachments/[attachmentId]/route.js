@@ -6,10 +6,15 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
 // DELETE - Delete an attachment
-export async function DELETE(request, context) {
+export async function DELETE(request, { params }) {
   try {
-    // Use context.params instead of params directly
-    const { id: expenseId, attachmentId } = context.params;
+    const { id: expenseId, attachmentId } = await params;
+    if (!expenseId || !attachmentId) {
+      return NextResponse.json(
+        { error: 'Expense id and attachment id are required' },
+        { status: 400 }
+      );
+    }
     
     // Get user from session
     const user = await getUserFromSession(request);

@@ -365,7 +365,7 @@ const TrialBalance = () => {
 
   return (
     <PermissionGuard permission="trialBalance.view">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+      <div className="w-full">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

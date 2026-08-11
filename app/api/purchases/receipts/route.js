@@ -572,6 +572,16 @@ export async function POST(request) {
       },
     });
 
+    const linkedBill = goodsReceiptOut
+      ? await prisma.supplierBill.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            goodsReceiptId: goodsReceiptOut.id,
+          },
+          select: { id: true, billNumber: true, status: true },
+        })
+      : null;
+
     const hasInventoryItems =
       Array.isArray(goodsReceiptOut?.items) && goodsReceiptOut.items.length > 0;
     const inventoryNotApplied =
@@ -583,6 +593,9 @@ export async function POST(request) {
           deferredStockPosting:
             inventoryNotApplied && isReceiptDateStrictlyAfterTodayUTC(goodsReceiptOut.receiptDate),
           stockPostingPending: inventoryNotApplied,
+          supplierBillId: linkedBill?.id || null,
+          billNumber: linkedBill?.billNumber || null,
+          billStatus: linkedBill?.status || null,
         }
       : result;
 

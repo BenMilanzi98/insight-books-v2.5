@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { ArrowRightLeft, ArrowUpRight, ArrowDownRight, Filter, Download, Search, Calendar } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/dateUtils";
 import { paymentMethods } from "@/lib/paymentMethods";
+import StatCard from "@/components/ui/StatCard";
 
 const CapitalAccountTransfersPage = () => {
   const [transfers, setTransfers] = useState([]);
@@ -139,7 +140,7 @@ const CapitalAccountTransfersPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Transfers</h2>
@@ -156,7 +157,7 @@ const CapitalAccountTransfersPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="w-full">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
@@ -205,47 +206,26 @@ const CapitalAccountTransfersPage = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">💰</span>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-blue-600">Current Balance</p>
-                  <p className="text-2xl font-bold text-blue-900">
-                    {formatCurrency(capitalAccount?.balance || 0)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <div className="h-8 w-8 bg-green-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">📋</span>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-green-600">Account Code</p>
-                  <p className="text-lg font-semibold text-green-900">
-                    {capitalAccount?.code || 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <div className="h-8 w-8 bg-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">📊</span>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-purple-600">Total Transfers</p>
-                  <p className="text-lg font-semibold text-purple-900">
-                    {transfers.length > 0 ? transfers.length : '0'}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <StatCard
+              label="Current Balance"
+              value={formatCurrency(capitalAccount?.balance || 0)}
+              icon={ArrowRightLeft}
+              valueClassName="text-blue-900"
+              barClassName="from-blue-400 via-indigo-500 to-blue-600"
+              iconWrapClassName="bg-blue-100 text-blue-600"
+            />
+            <StatCard
+              label="Account Code"
+              value={capitalAccount?.code || 'N/A'}
+              barClassName="from-emerald-400 via-green-500 to-teal-500"
+              valueClassName="text-green-900"
+            />
+            <StatCard
+              label="Total Transfers"
+              value={transfers.length > 0 ? transfers.length : '0'}
+              barClassName="from-violet-400 via-purple-500 to-indigo-500"
+              valueClassName="text-purple-900"
+            />
           </div>
         </div>
 
@@ -258,16 +238,12 @@ const CapitalAccountTransfersPage = () => {
               .map((account) => {
                 const balance = typeof account.balance === 'number' ? account.balance : parseFloat(account.balance) || 0;
                 return (
-                  <div key={account.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div className="flex items-center mb-2">
-                      <span className="text-2xl mr-2">💰</span>
-                      <span className="font-medium text-sm text-gray-900">{account.name}</span>
-                    </div>
-                    <div className="text-sm text-gray-600 mb-1">Available Balance</div>
-                    <div className="text-xl font-bold text-gray-900">
-                      {formatCurrency(balance)}
-                    </div>
-                  </div>
+                  <StatCard
+                    key={account.id}
+                    label={account.name}
+                    value={formatCurrency(balance)}
+                    helper="Available Balance"
+                  />
                 );
               })}
           </div>

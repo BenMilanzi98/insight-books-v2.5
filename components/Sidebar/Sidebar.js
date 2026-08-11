@@ -56,7 +56,6 @@ import { getRouteRuleForPath } from "@/lib/tenantPageAccess";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
 import {
   TENANT_EIS_NAV_FULL,
-  TENANT_EIS_NAV_LOCKED,
   buildTenantEisNavMenuItem,
 } from "@/lib/mraEis/navConfig";
 import BusinessSwitcher from "./BusinessSwitcher";
@@ -662,22 +661,22 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     fetchSubscriptionStatus();
   }, []);
 
-  // MRA EIS management unlock (subscription OR entitlement)
+  // MRA EIS management unlock (active EIS subscription OR admin entitlement)
   useEffect(() => {
     let cancelled = false;
     const loadEisNav = async () => {
       try {
-        const response = await fetch('/api/mra-eis/availability');
+        const response = await fetch('/api/mra-eis/nav-access');
         if (!response.ok) return;
         const data = await response.json();
         if (!cancelled && data?.managementAccess) {
           setEisManagementAccess(data.managementAccess);
         }
       } catch {
-        /* hub-only fallback */
+        /* keep null — nav stays hidden until unlock is known */
       }
     };
-    loadEisNav();
+    if (user?.tenantId) loadEisNav();
     return () => {
       cancelled = true;
     };
@@ -967,6 +966,17 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         text: "Reports"
       });
     }
+
+    // MRA EIS: only when tenant has an active EIS package OR super-admin entitlement,
+    // and the user can open EIS settings routes (Owners/Admins always can).
+    const eisUnlocked = eisManagementAccess?.unlocked === true;
+    const canViewEisRoutes = canAccessRoute("/settings/integrations/mra-eis");
+    if (eisUnlocked && canViewEisRoutes) {
+      const navItems = eisManagementAccess?.navItems?.length
+        ? eisManagementAccess.navItems
+        : TENANT_EIS_NAV_FULL;
+      coreItems.push(buildTenantEisNavMenuItem(navItems));
+    }
     
     // Add Features section if there are any items
     if (coreItems.length > 0) {
@@ -978,14 +988,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
     // Accounting section extras (formerly Additional Features)
     const accountingSectionItems = [];
-
-    // MRA EIS Centre: hub when locked; full management when subscription OR entitlement unlocks.
-    if (canAccessRoute("/settings/integrations/mra-eis")) {
-      const navItems =
-        eisManagementAccess?.navItems ||
-        (eisManagementAccess?.unlocked ? TENANT_EIS_NAV_FULL : TENANT_EIS_NAV_LOCKED);
-      accountingSectionItems.push(buildTenantEisNavMenuItem(navItems));
-    }
 
     const budgetSubItems = filterSubItems([
       { href: "/budget-forecast/budgets", text: "Budgets", icon: "budgets", permission: "budgets.view" },

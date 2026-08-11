@@ -63,7 +63,7 @@ export default function MetricCard({ metric, className }) {
           {metric.status === 'NOT_INSTRUMENTED' ? 'Not instrumented' : 'Unavailable'}
         </p>
       ) : (
-        <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-[var(--admin-text)]">
+        <p className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums tracking-tight text-[var(--admin-text)] sm:text-2xl">
           {formatted}
         </p>
       )}

@@ -125,6 +125,22 @@
   --admin-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --admin-shadow-card: 0 8px 24px -16px rgba(2, 132, 199, 0.35);
   --admin-shadow-lift: 0 16px 32px -18px rgba(2, 132, 199, 0.45);
+
+  /* Tenant console — POS-aligned canvas (used by .tenant-shell-canvas) */
+  --tenant-bg: #f8fafc;
+  --tenant-bg-glow-a: rgba(0, 117, 190, 0.12);
+  --tenant-bg-glow-b: rgba(99, 102, 241, 0.10);
+  --tenant-bg-glow-c: rgba(0, 157, 215, 0.08);
+  --tenant-surface-glass: rgba(255, 255, 255, 0.82);
+  --tenant-surface-solid: #ffffff;
+  --tenant-border-soft: rgba(226, 232, 240, 0.95);
+  --tenant-shadow-card: 0 10px 28px -14px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(0, 91, 161, 0.06);
+  --tenant-shadow-modal: 0 24px 48px -16px rgba(15, 23, 42, 0.28), 0 8px 16px rgba(0, 91, 161, 0.10);
+  --tenant-radius-card: 1rem;
+  --tenant-accent-bar-a: linear-gradient(90deg, #3b82f6, #0ea5e9, #6366f1);
+  --tenant-accent-bar-b: linear-gradient(90deg, #22c55e, #10b981, #14b8a6);
+  --tenant-accent-bar-c: linear-gradient(90deg, #0ea5e9, #0284c7, #0369a1);
+  --tenant-header-bg: rgba(255, 255, 255, 0.82);
 }
 
 /* Admin control-plane motion (respects prefers-reduced-motion above) */
@@ -198,6 +214,152 @@
     radial-gradient(900px 500px at 92% 0%, var(--admin-bg-glow-b), transparent 50%),
     radial-gradient(800px 420px at 70% 100%, var(--admin-bg-glow-c), transparent 55%),
     linear-gradient(180deg, #eef6ff 0%, var(--admin-bg) 40%, #f3fbf7 100%);
+}
+
+/* Tenant AppShell — POS visual language for all tenant routes */
+.tenant-shell-canvas {
+  --surface-primary: var(--tenant-surface-glass);
+  --surface-elevated: var(--tenant-surface-solid);
+  --background-secondary: transparent;
+  --border-default: var(--tenant-border-soft);
+  --shadow-card: var(--tenant-shadow-card);
+  --shadow-modal: var(--tenant-shadow-modal);
+  --radius-lg: var(--tenant-radius-card);
+  --radius-md: 0.75rem;
+  background:
+    radial-gradient(1100px 520px at 6% -8%, var(--tenant-bg-glow-a), transparent 55%),
+    radial-gradient(900px 480px at 96% 4%, var(--tenant-bg-glow-b), transparent 52%),
+    radial-gradient(700px 400px at 60% 110%, var(--tenant-bg-glow-c), transparent 55%),
+    linear-gradient(160deg, #f8fafc 0%, #eff6ff 42%, #eef2ff 100%);
+  background-attachment: local;
+}
+
+.tenant-shell-canvas .app-bar {
+  background-color: var(--tenant-header-bg) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom-color: var(--tenant-border-soft) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 24px -20px rgba(15, 23, 42, 0.2) !important;
+}
+
+/* Shared glass card utility (pages + patterns) */
+.tenant-glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--tenant-radius-card);
+  border: 1px solid var(--tenant-border-soft);
+  background: var(--tenant-surface-glass);
+  box-shadow: var(--tenant-shadow-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.tenant-glass-card--accent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: var(--tenant-accent-bar-a);
+  pointer-events: none;
+}
+
+.tenant-glass-card--accent-green::before {
+  background: var(--tenant-accent-bar-b);
+}
+
+.tenant-glass-card--accent-rose::before {
+  background: var(--tenant-accent-bar-c);
+}
+
+/*
+ * ── Unified system modals ─────────────────────────────────────────────
+ * Canonical component: components/ui/Dialog.jsx (alias Modal.jsx)
+ * These rules also upgrade legacy ad-hoc overlays so the page is obscured.
+ */
+.ib-modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(14px) saturate(0.85) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(0.85) !important;
+}
+
+.ib-modal-panel {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  border-radius: var(--tenant-radius-card, 1rem);
+  box-shadow: var(--tenant-shadow-modal, 0 24px 48px -16px rgba(15, 23, 42, 0.35));
+  /* Opaque — never show page content through the panel */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Legacy overlay scrims → same heavy blur + darken (tenant + admin + portals) */
+.fixed.inset-0.bg-black\/40,
+.fixed.inset-0.bg-black\/45,
+.fixed.inset-0.bg-black\/50,
+.fixed.inset-0.bg-black\/60,
+.fixed.inset-0.bg-black\/70,
+.fixed.inset-0.bg-gray-500\/50,
+.fixed.inset-0.bg-gray-600\/50,
+.fixed.inset-0.bg-gray-900\/40,
+.fixed.inset-0.bg-gray-900\/50,
+.fixed.inset-0.bg-gray-900\/55,
+.fixed.inset-0.bg-black.bg-opacity-40,
+.fixed.inset-0.bg-black.bg-opacity-50,
+.fixed.inset-0.bg-black.bg-opacity-60,
+.fixed.inset-0.bg-gray-600.bg-opacity-50,
+.fixed.inset-0.bg-gray-900.bg-opacity-50,
+.fixed.inset-0.bg-gray-900.bg-opacity-55,
+.absolute.inset-0.bg-gray-500\/50,
+.absolute.inset-0.bg-black\/40,
+.absolute.inset-0.bg-black\/50,
+.absolute.inset-0.bg-black.bg-opacity-50 {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(14px) saturate(0.85) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(0.85) !important;
+}
+
+/* Absolute full-bleed scrims used inside modal wrappers (covered above) */
+.absolute.inset-0.bg-black\/40,
+.absolute.inset-0.bg-black\/50,
+.absolute.inset-0.bg-black.bg-opacity-50 {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(14px) saturate(0.85) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(0.85) !important;
+}
+
+/* Legacy white modal panels → opaque (no page bleed-through) */
+[role='dialog'].bg-white,
+[role='dialog'][class*='bg-white'],
+.fixed.inset-0 > .bg-white.rounded-lg,
+.fixed.inset-0 > .bg-white.rounded-xl,
+.fixed.inset-0 > .bg-white.rounded-2xl,
+.fixed.inset-0 > [class*='bg-white'].rounded-lg,
+.fixed.inset-0 > [class*='bg-white'].rounded-xl,
+.fixed.inset-0 > [class*='bg-white'].rounded-2xl,
+.fixed.inset-0 > [class*='bg-white'][class*='rounded'],
+.fixed.inset-0 > .bg-white\/80,
+.fixed.inset-0 > .bg-white\/95 {
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: var(--tenant-shadow-modal, 0 24px 48px -16px rgba(15, 23, 42, 0.35)) !important;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tenant-shell-canvas {
+    --surface-primary: #ffffff;
+  }
+  .tenant-glass-card,
+  .tenant-shell-canvas .app-bar {
+    background-color: #ffffff !important;
+  }
+  .ib-modal-backdrop,
+  .fixed.inset-0.bg-black\/50,
+  .fixed.inset-0.bg-black.bg-opacity-50 {
+    background-color: rgba(15, 23, 42, 0.88) !important;
+  }
 }
 
 .admin-sidebar-shell {

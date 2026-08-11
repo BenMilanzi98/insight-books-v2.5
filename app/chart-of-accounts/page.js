@@ -1602,6 +1602,18 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                 <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">
                   {account.accountType || account.type || '—'}
                 </span>
+                {(account.acceptsNewTransactions === false ||
+                  String(account.accountSubtype || '').toLowerCase() === 'group' ||
+                  ['1000', '2000', '3000', '4000', '5000'].includes(
+                    String(account.accountCode || account.code || '').trim()
+                  )) && (
+                  <span
+                    className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-200/70"
+                    title="Journals never post to this code. Activity lives on leaf accounts under it (e.g. 4100, 5110)."
+                  >
+                    Roll-up header — no direct postings
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -1639,7 +1651,15 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
             <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
               <p className={dl}>Posted activity</p>
               <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">{account.transactionCount ?? 0}</p>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500">Journal + GL lines on this code (detail API).</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                {(account.acceptsNewTransactions === false ||
+                  String(account.accountSubtype || '').toLowerCase() === 'group' ||
+                  ['1000', '2000', '3000', '4000', '5000'].includes(
+                    String(account.accountCode || account.code || '').trim()
+                  ))
+                  ? 'Lines on this header code only (should stay 0). See sub-account balances below for real postings.'
+                  : 'Journal + GL lines on this code (detail API).'}
+              </p>
             </div>
           </div>
         </div>

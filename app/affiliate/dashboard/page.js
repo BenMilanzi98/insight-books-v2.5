@@ -180,7 +180,7 @@ export default function AffiliateDashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Commissions</p>
-                <p className="text-2xl font-bold text-purple-600">MWK {stats.totalCommissions.toLocaleString()}</p>
+                <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-purple-600 sm:text-2xl">MWK {stats.totalCommissions.toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -192,7 +192,7 @@ export default function AffiliateDashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Pending Payouts</p>
-                <p className="text-2xl font-bold text-yellow-600">MWK {stats.pendingPayouts.toLocaleString()}</p>
+                <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-yellow-600 sm:text-2xl">MWK {stats.pendingPayouts.toLocaleString()}</p>
               </div>
             </div>
           </div>

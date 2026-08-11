@@ -6,10 +6,12 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
 // POST - Upload attachment for an expense
-export async function POST(request, context) {
+export async function POST(request, { params }) {
   try {
-    // Use context.params instead of params directly and await it
-    const { id: expenseId } = context.params;
+    const { id: expenseId } = await params;
+    if (!expenseId) {
+      return NextResponse.json({ error: 'Expense id is required' }, { status: 400 });
+    }
     
     // Get user from session
     const user = await getUserFromSession(request);
@@ -141,9 +143,12 @@ export async function POST(request, context) {
 }
 
 // GET - List attachments for an expense
-export async function GET(request, context) {
+export async function GET(request, { params }) {
   try {
-    const { id: expenseId } = context.params;
+    const { id: expenseId } = await params;
+    if (!expenseId) {
+      return NextResponse.json({ error: 'Expense id is required' }, { status: 400 });
+    }
     
     // Get user from session
     const user = await getUserFromSession(request);

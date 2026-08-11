@@ -43,7 +43,7 @@ export default function Drawer({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <DialogBackdrop className="fixed inset-0 bg-black/40" />
+          <DialogBackdrop className="ib-modal-backdrop fixed inset-0" />
         </TransitionChild>
 
         <div className="fixed inset-0 flex">
@@ -57,7 +57,7 @@ export default function Drawer({
           >
             <DialogPanel
               className={cn(
-                'flex h-full w-full max-w-md flex-col bg-[var(--surface-primary)] shadow-[var(--shadow-modal)]',
+                'ib-modal-panel flex h-full w-full max-w-md flex-col shadow-[var(--shadow-modal)]',
                 fromRight ? 'ml-auto' : 'mr-auto'
               )}
             >

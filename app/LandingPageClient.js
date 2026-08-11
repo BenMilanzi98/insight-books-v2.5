@@ -385,7 +385,7 @@ function HeroSection() {
                     <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-200/90 mb-1">
                       Revenue
                     </p>
-                    <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight truncate">
+                    <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight break-words leading-tight">
                       K{dashboardData.revenue.toLocaleString()}
                     </p>
                     <p
@@ -402,7 +402,7 @@ function HeroSection() {
                     <p className="text-[11px] font-medium uppercase tracking-wide text-sky-200/90 mb-1">
                       Expenses
                     </p>
-                    <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight truncate">
+                    <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight break-words leading-tight">
                       K{dashboardData.expenses.toLocaleString()}
                     </p>
                     <p

@@ -543,7 +543,7 @@ export default function TaxManagement() {
                           <h3 className="text-lg font-semibold text-orange-800 mb-2">
                             Outstanding Tax Liability
                           </h3>
-                          <p className="text-2xl font-bold text-orange-700 mb-2">
+                          <p className="mb-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-orange-700 sm:text-2xl">
                             {formatCurrency(taxData.netTaxLiability)}
                           </p>
                           <p className="text-sm text-orange-600">
@@ -571,7 +571,7 @@ export default function TaxManagement() {
                           <h3 className="text-lg font-semibold text-green-800 mb-2">
                             Tax Credit Available
                           </h3>
-                          <p className="text-2xl font-bold text-green-700 mb-2">
+                          <p className="mb-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-green-700 sm:text-2xl">
                             {formatCurrency(Math.abs(taxData.netTaxLiability))}
                           </p>
                           <p className="text-sm text-green-600">
@@ -588,7 +588,7 @@ export default function TaxManagement() {
                           <h3 className="text-lg font-semibold text-blue-800 mb-2">
                             Tax Status: Up to Date
                           </h3>
-                          <p className="text-2xl font-bold text-blue-700 mb-2">
+                          <p className="mb-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-blue-700 sm:text-2xl">
                             {formatCurrency(0)}
                           </p>
                           <p className="text-sm text-blue-600">

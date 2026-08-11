@@ -105,7 +105,7 @@ export default function AdminPieChart({
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
+            <div className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums tracking-tight text-slate-900 sm:text-2xl">
               {centerValue != null ? centerValue : total.toLocaleString()}
             </div>
             {centerLabel ? (

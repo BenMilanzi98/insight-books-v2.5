@@ -1,9 +1,11 @@
 "use client";
 import { scanReceipt } from "@/lib/receipt-scanner";
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import ExpensePartialPaymentModal from "@/components/ExpensePartialPaymentModal";
 import ExpensePaymentHistory from "@/components/ExpensePaymentHistory";
 import PageHeader from "@/components/shell/PageHeader";
+import ClickableStatCard from "@/components/ui/ClickableStatCard";
 
 import { 
   PlusCircle, 
@@ -237,12 +239,15 @@ async function deleteSalaryAdvancesWithOptionalCancel(advanceIds) {
 }
 
 const ExpensesPage = () => {
+  const searchParams = useSearchParams();
   // State management
   const [mainTab, setMainTab] = useState("expenses"); // Main tab: "expenses" or "cogs"
   const [activeTab, setActiveTab] = useState("all");
   /** Card filter: null | 'partially' | 'pending' | 'fullyPaid' | 'historical' */
   const [cardFilter, setCardFilter] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('dateFrom') || '');
+  const [dateTo, setDateTo] = useState(() => searchParams.get('dateTo') || '');
   const [expenses, setExpenses] = useState([]);
   const [recurringExpenseModalOpen, setRecurringExpenseModalOpen] = useState(false);
   const [isSubmittingRecurring, setIsSubmittingRecurring] = useState(false);
@@ -434,13 +439,21 @@ const ExpensesPage = () => {
   // Load expenses and statistics on initial render and when filters change
   useLayoutEffect(() => {
     setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
-  }, [activeTab, selectedCategory, showDeletedExpenses, cardFilter]);
+  }, [activeTab, selectedCategory, showDeletedExpenses, cardFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     loadExpenses();
     loadStatistics(true);
     loadRecurringExpenses();
-  }, [activeTab, selectedCategory, pagination.page, showDeletedExpenses, cardFilter]);
+  }, [activeTab, selectedCategory, pagination.page, showDeletedExpenses, cardFilter, dateFrom, dateTo]);
+
+  // Keep date filters in sync when navigating from dashboard KPI links
+  useEffect(() => {
+    const from = searchParams.get('dateFrom') || '';
+    const to = searchParams.get('dateTo') || '';
+    setDateFrom(from);
+    setDateTo(to);
+  }, [searchParams]);
 
   // Debounced search: reset to page 1 and reload (server merges search with branch OR correctly)
   useEffect(() => {
@@ -530,6 +543,8 @@ const ExpensesPage = () => {
           includeDeleted: false, // Explicitly exclude deleted expenses
           paymentStatus: paymentStatusByCard[cardFilter] || null,
           isHistorical: cardFilter === 'historical' ? true : null,
+          dateFrom: dateFrom || null,
+          dateTo: dateTo || null,
         };
         
         const response = await fetchExpenses(params);
@@ -820,6 +835,8 @@ const ExpensesPage = () => {
           : {}),
         ...(selectedCategory === 'salary-advance' ? { category: 'Salary Advance' } : {}),
         ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(dateFrom ? { dateFrom } : {}),
+        ...(dateTo ? { dateTo } : {}),
         ...(forceRefresh ? { _t: Date.now() } : {}),
       };
       const stats = await getExpenseStatistics(params);
@@ -1220,13 +1237,26 @@ const handleFileUpload = async (e) => {
 
   // Open upload modal for a specific expense
   const openUploadModal = (expense) => {
+    if (isCogsListRow(expense)) {
+      alert('Receipts cannot be attached to Cost of Goods Sold entries. COGS comes from inventory when items are sold.');
+      return;
+    }
     setSelectedExpense(expense);
     setUploadedFiles([]);
     setUploadModalOpen(true);
   };
 
-  // Open receipt viewer for a specific expense
+  // Open receipt viewer for a specific expense (virtual COGS PDFs open in a new tab)
   const viewReceipts = (expense) => {
+    if (isCogsListRow(expense)) {
+      const virtual = (expense.attachments || []).find((a) => a?.virtual && a?.url);
+      if (virtual?.url) {
+        window.open(virtual.url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      alert('No linked invoice or POS receipt found for this COGS entry.');
+      return;
+    }
     setSelectedExpense(expense);
     setViewReceiptModalOpen(true);
   };
@@ -1266,6 +1296,10 @@ const handleFileUpload = async (e) => {
   
   // Handle editing expense
   const handleEditExpense = (expense) => {
+    if (isCogsListRow(expense)) {
+      handleViewExpense(expense);
+      return;
+    }
     setSelectedExpenseForModal(expense);
     setExpenseModalMode("edit");
     setExpenseModalOpen(true);
@@ -1312,6 +1346,10 @@ const handleFileUpload = async (e) => {
   // Complete the upload process and attach to expense
   const completeUpload = async () => {
     if (uploadedFiles.length === 0) return;
+    if (isCogsListRow(selectedExpense)) {
+      alert('Receipts cannot be attached to Cost of Goods Sold entries.');
+      return;
+    }
     
     // Start uploading
     setIsUploading(true);
@@ -1415,6 +1453,7 @@ const handleFileUpload = async (e) => {
 
   // Handle partial payment
   const handlePartialPayment = (expense) => {
+    if (isCogsListRow(expense)) return;
     setSelectedExpenseForPayment(expense);
     setPartialPaymentModalOpen(true);
   };
@@ -1429,12 +1468,14 @@ const handleFileUpload = async (e) => {
 
   // Toggle payment history
   const togglePaymentHistory = (expense) => {
+    if (isCogsListRow(expense)) return;
     setSelectedExpenseForPayment(expense);
     setShowPaymentHistory(!showPaymentHistory);
   };
 
   // Helper function to check if expense is eligible for partial payment
   const isEligibleForPartialPayment = (expense) => {
+    if (isCogsListRow(expense)) return false;
     return expense.paymentStatus === 'Pending' || expense.paymentStatus === 'Partially';
   };
   
@@ -1799,8 +1840,8 @@ const handleFileUpload = async (e) => {
 
   return (
     <PermissionGuard permission="expenses.view">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full">
+        <div className="w-full">
       {/* Success notification */}
       {uploadSuccess && (
         <div className="fixed top-6 right-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-xl z-50 flex items-center animate-fadeIn max-w-md backdrop-blur-sm">
@@ -1897,8 +1938,6 @@ const handleFileUpload = async (e) => {
                   countLabel: 'partially paid',
                   amountClass: 'text-amber-700',
                   barClass: 'from-amber-400 via-yellow-500 to-orange-500',
-                  shadowClass: 'shadow-amber-200/50 hover:shadow-amber-200/60',
-                  activeRing: 'ring-2 ring-amber-400 ring-offset-2',
                 },
                 {
                   key: 'pending',
@@ -1908,8 +1947,6 @@ const handleFileUpload = async (e) => {
                   countLabel: 'awaiting payment',
                   amountClass: 'text-orange-700',
                   barClass: 'from-orange-400 via-amber-500 to-red-400',
-                  shadowClass: 'shadow-orange-200/50 hover:shadow-orange-200/60',
-                  activeRing: 'ring-2 ring-orange-400 ring-offset-2',
                 },
                 {
                   key: 'fullyPaid',
@@ -1919,8 +1956,6 @@ const handleFileUpload = async (e) => {
                   countLabel: 'fully paid',
                   amountClass: 'text-green-700',
                   barClass: 'from-green-400 via-emerald-500 to-teal-500',
-                  shadowClass: 'shadow-green-200/50 hover:shadow-green-200/60',
-                  activeRing: 'ring-2 ring-green-400 ring-offset-2',
                 },
                 {
                   key: 'historical',
@@ -1930,15 +1965,17 @@ const handleFileUpload = async (e) => {
                   countLabel: 'historical records',
                   amountClass: 'text-violet-700',
                   barClass: 'from-violet-400 via-purple-500 to-indigo-500',
-                  shadowClass: 'shadow-violet-200/50 hover:shadow-violet-200/60',
-                  activeRing: 'ring-2 ring-violet-400 ring-offset-2',
                 },
               ].map((card) => {
                 const isActive = cardFilter === card.key;
                 return (
-                  <button
+                  <ClickableStatCard
                     key={card.key}
-                    type="button"
+                    label={card.label}
+                    value={`MK ${card.amount}`}
+                    count={card.count}
+                    countLabel={card.countLabel}
+                    active={isActive}
                     onClick={() => {
                       const next = isActive ? null : card.key;
                       setCardFilter(next);
@@ -1946,33 +1983,10 @@ const handleFileUpload = async (e) => {
                       setShowDeletedExpenses(false);
                       setSelectedExpenses([]);
                     }}
-                    aria-pressed={isActive}
                     title={isActive ? `Clear ${card.label} filter` : `Show ${card.label} expenses`}
-                    className={`group w-full text-left bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg ${card.shadowClass} border border-white/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                      isActive ? card.activeRing : ''
-                    }`}
-                  >
-                    <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${card.barClass}`}></div>
-                    <div className="p-6">
-                      <div className="mb-3 flex items-start justify-between gap-2">
-                        <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">{card.label}</div>
-                        {isActive ? (
-                          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-                            Active
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className={`text-xl sm:text-2xl font-bold ${card.amountClass} truncate`} title={`MK ${card.amount}`}>
-                        MK {card.amount}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-2">
-                        <span className="font-semibold text-gray-700">{card.count}</span> {card.countLabel}
-                        <span className="block mt-1 text-[11px] text-gray-400">
-                          {isActive ? 'Click again to show all expenses' : 'Click to view these expenses'}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
+                    valueClassName={card.amountClass}
+                    barClassName={card.barClass}
+                  />
                 );
               })}
             </div>
@@ -2084,6 +2098,29 @@ const handleFileUpload = async (e) => {
                           <ChevronDown className="w-5 h-5 text-gray-500" />
                 </div>
               </div>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="px-3 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                title="From date"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="px-3 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                title="To date"
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="px-3 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm shadow-sm hover:bg-gray-50"
+                >
+                  Clear dates
+                </button>
+              )}
               <div className="flex gap-2">
                 <button 
                           className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm flex items-center hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm font-medium"
@@ -2164,7 +2201,7 @@ const handleFileUpload = async (e) => {
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    ID
+                    Description
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Date
@@ -2174,9 +2211,6 @@ const handleFileUpload = async (e) => {
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Merchant
-                  </th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Description
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Amount
@@ -2218,16 +2252,21 @@ const handleFileUpload = async (e) => {
                     }
                     onClick={() => handleExpenseSelect(expense)}
                   >
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
-                      <div className="flex items-center">
-                        {expense.id}
+                          <td className="px-4 sm:px-6 py-4 text-sm text-gray-900 max-w-sm">
+                      <div className="flex items-start gap-2">
+                        <span
+                          className="font-semibold text-gray-900 line-clamp-2"
+                          title={expense.description || expense.id}
+                        >
+                          {expense.description || '—'}
+                        </span>
                         {isCogsListRow(expense) && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">
+                          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">
                             COGS
                           </span>
                         )}
                         {expense.isHistorical && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <History className="w-3 h-3 mr-1" />
                             Historical
                           </span>
@@ -2259,9 +2298,6 @@ const handleFileUpload = async (e) => {
                     </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">
                       {expense.merchant || "-"}
-                    </td>
-                          <td className="px-4 sm:px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                      {expense.description}
                     </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
                             <span className="text-sm font-bold text-gray-900">MK {expense.amount}</span>
@@ -2299,7 +2335,23 @@ const handleFileUpload = async (e) => {
                     )}
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-center items-center gap-2">
-                        {expense.attachments && expense.attachments.length > 0 ? (
+                        {isCogsListRow(expense) ? (
+                          expense.attachments?.length > 0 ? (
+                            <button
+                              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 flex items-center text-sm transition-all rounded-lg px-2 py-1.5 font-medium"
+                              onClick={() => viewReceipts(expense)}
+                              title={
+                                expense.attachments[0]?.name ||
+                                'View linked invoice / POS receipt'
+                              }
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              <span className="hidden sm:inline">View</span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">N/A</span>
+                          )
+                        ) : expense.attachments && expense.attachments.length > 0 ? (
                           <>
                             <button 
                                     className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 flex items-center text-sm transition-all rounded-lg px-2 py-1.5 font-medium"
@@ -2337,7 +2389,8 @@ const handleFileUpload = async (e) => {
                             <div className="flex justify-end gap-1 sm:gap-2">
                         {!showDeletedExpenses ? (
                           <>
-                            {/* Payment History Button - Available for all expenses */}
+                            {/* Payment actions only for real expenses (not synthetic COGS rows) */}
+                            {!isCogsListRow(expense) && (
                               <button 
                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all rounded-lg p-2"
                               title="View Payment History"
@@ -2345,6 +2398,7 @@ const handleFileUpload = async (e) => {
                             >
                                 <FileText size={18} />
                             </button>
+                            )}
 
                             {/* Record Payment Button - only when Pending/Partially */}
                             {isEligibleForPartialPayment(expense) && (
@@ -2366,7 +2420,7 @@ const handleFileUpload = async (e) => {
                                 <Eye className="w-4 h-4" />
                               </button>
                             )}
-                            {pagePermissions.canUpdateExpenses && (
+                            {pagePermissions.canUpdateExpenses && !isCogsListRow(expense) && (
                               <button 
                                   className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 transition-all rounded-lg p-2"
                                 title="Edit Expense"
@@ -2378,7 +2432,7 @@ const handleFileUpload = async (e) => {
                             {pagePermissions.canDeleteExpenses && (
                               <button 
                                   className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all rounded-lg p-2"
-                                title="Delete Expense"
+                                title={isCogsListRow(expense) ? "Remove COGS entry" : "Delete Expense"}
                                 onClick={() => handleDeleteExpense(expense.id)}
                               >
                                   <Trash2 className="w-4 h-4" />
@@ -2982,9 +3036,15 @@ const handleFileUpload = async (e) => {
         onClose={() => setExpenseModalOpen(false)}
         expense={selectedExpenseForModal}
         mode={expenseModalMode}
-        title={expenseModalMode === "create" ? "Create New Expense" : 
-              expenseModalMode === "edit" ? "Edit Expense" : 
-              `Expense Details: ${selectedExpenseForModal?.id || ""}`}
+        title={
+          expenseModalMode === "create"
+            ? "Create New Expense"
+            : expenseModalMode === "edit"
+              ? "Edit Expense"
+              : selectedExpenseForModal?.displayTitle ||
+                selectedExpenseForModal?.description ||
+                "Expense Details"
+        }
         onSubmit={handleExpenseSubmit}
         onDelete={handleDeleteExpense}
         isLoading={isSubmitting}
@@ -3613,7 +3673,7 @@ const handleFileUpload = async (e) => {
       />
 
       {/* Payment History Modal */}
-      {showPaymentHistory && selectedExpenseForPayment && (
+      {showPaymentHistory && selectedExpenseForPayment && !isCogsListRow(selectedExpenseForPayment) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">

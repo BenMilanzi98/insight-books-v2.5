@@ -5,6 +5,7 @@ import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshC
 import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate, todayYmdLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
+import StatCard from "@/components/ui/StatCard";
 
 export default function GratuityManagement() {
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
@@ -185,33 +186,30 @@ export default function GratuityManagement() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Total Accrued</p>
-              <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalAccrued)}</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-blue-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Total Paid</p>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
-            </div>
-            <DollarSign className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Outstanding</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalOutstanding)}</p>
-            </div>
-            <Calculator className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
+        <StatCard
+          label="Total Accrued"
+          value={formatCurrency(totalAccrued)}
+          icon={TrendingUp}
+          valueClassName="text-blue-600"
+          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          iconWrapClassName="bg-blue-100 text-blue-600"
+        />
+        <StatCard
+          label="Total Paid"
+          value={formatCurrency(totalPaid)}
+          icon={DollarSign}
+          valueClassName="text-green-600"
+          barClassName="from-emerald-400 via-green-500 to-teal-500"
+          iconWrapClassName="bg-green-100 text-green-600"
+        />
+        <StatCard
+          label="Outstanding"
+          value={formatCurrency(totalOutstanding)}
+          icon={Calculator}
+          valueClassName="text-orange-600"
+          barClassName="from-amber-400 via-orange-500 to-red-400"
+          iconWrapClassName="bg-orange-100 text-orange-600"
+        />
       </div>
 
       {/* Actions */}

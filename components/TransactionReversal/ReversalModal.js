@@ -206,7 +206,7 @@ export default function ReversalModal({
                       {/* Original Amount */}
                       <div className="text-center">
                         <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Original Amount</p>
-                        <p className="text-2xl font-bold text-gray-700">
+                        <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-700 sm:text-2xl">
                           {formatCurrency(impact.originalAmount)}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">Positive (Debit)</p>
@@ -222,7 +222,7 @@ export default function ReversalModal({
                       {/* Reversal Amount */}
                       <div className="text-center">
                         <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Reversal Amount</p>
-                        <p className="text-2xl font-bold text-red-600">
+                        <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-red-600 sm:text-2xl">
                           {formatCurrency(impact.reversalAmount)}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">Negative (Credit)</p>

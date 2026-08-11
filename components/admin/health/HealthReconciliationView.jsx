@@ -88,7 +88,7 @@ export default function HealthReconciliationView() {
                   <h2 className="text-sm font-semibold text-[var(--admin-text)]">{card.label}</h2>
                   <AdminStatusBadge tone={statusTone(card.status)}>{card.status}</AdminStatusBadge>
                 </div>
-                <p className="text-xl font-bold tabular-nums text-[var(--admin-text)]">
+                <p className="min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-[var(--admin-text)] sm:text-xl">
                   {card.value == null ? t('admin-pages.customerHealth.naLabel') : String(card.value)}
                 </p>
                 {card.detail ? (

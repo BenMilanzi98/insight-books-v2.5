@@ -100,7 +100,7 @@ export default function CustomerReconciliationView() {
                   <h2 className="text-sm font-semibold text-[var(--admin-text)]">{card.label}</h2>
                   <AdminStatusBadge tone={statusTone(card.status)}>{card.status}</AdminStatusBadge>
                 </div>
-                <p className="text-2xl font-semibold text-[var(--admin-text)]">{formatValue(card)}</p>
+                <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-[var(--admin-text)] sm:text-2xl">{formatValue(card)}</p>
                 {card.source ? (
                   <p className="mt-1 text-xs text-[var(--admin-text-muted)]">{card.source}</p>
                 ) : null}

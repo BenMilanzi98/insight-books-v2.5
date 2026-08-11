@@ -26,7 +26,7 @@ function TaxAccountsHub() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="w-full">
       <div className="border-b border-gray-200 bg-white px-4 md:px-6">
         <div className="flex gap-1 overflow-x-auto pt-3">
           {TABS.map(({ id, label, icon: Icon }) => {

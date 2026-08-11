@@ -1052,15 +1052,13 @@ const StockManagement = () => {
   // Load recent transactions
   const loadRecentTransactions = async () => {
     try {
-      const data = await inventoryService.getTransactions({ limit: 5 }).catch(() => {
-        // Return dummy data as fallback
-        return { transactions: recentTransactions };
-      });
-      
+      const data = await inventoryService.getTransactions({ limit: 5 }).catch(() => ({
+        transactions: [],
+      }));
+
       setTransactions(data.transactions || []);
     } catch (error) {
       console.error("Error loading transactions:", error);
-      // Don't set error state for transactions, just log it
       showToast("warning", "Couldn't load recent transactions");
     }
   };
@@ -2570,12 +2568,12 @@ const StockManagement = () => {
 
               <button
                 type="button"
-                className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-indigo-200 hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200"
+                className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-blue-200 hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
                 onClick={handleOpenCreatePurchaseOrder}
                 title="Create a purchase order from stock"
               >
                 <ShoppingCart size={16} />
-                <span>New purchase order</span>
+                <span>New Purchase Order</span>
               </button>
               </>
               )}
@@ -3894,12 +3892,12 @@ const StockManagement = () => {
                     {!selectedItem.isService && (
                     <div>
                       <span className="text-sm text-gray-500">Order Price</span>
-                      <div className="text-lg font-bold">{formatCurrency(selectedItem.costPrice)}</div>
+                      <div className="min-w-0 break-words text-base font-bold leading-tight tabular-nums sm:text-lg">{formatCurrency(selectedItem.costPrice)}</div>
                     </div>
                     )}
                     <div>
                       <span className="text-sm text-gray-500">{selectedItem.isService ? "Rate" : "Selling Price"}</span>
-                      <div className="text-lg font-bold">{formatCurrency(selectedItem.unitPrice)}</div>
+                      <div className="min-w-0 break-words text-base font-bold leading-tight tabular-nums sm:text-lg">{formatCurrency(selectedItem.unitPrice)}</div>
                     </div>
                     {selectedItem.isService && (
                       <div>

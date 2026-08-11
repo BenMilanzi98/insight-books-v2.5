@@ -478,12 +478,26 @@ export default function SystemLedgerCoaTable({
                   System
                 </span>
               ) : null}
+              {isRoot || (hasStructChildren && primary && primary.acceptsNewTransactions === false) ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80"
+                  title="This code is a section header. Journals post to leaf sub-accounts (e.g. 4100 Product Sales, 5110 Purchases). The balance shown here is the roll-up of those children."
+                >
+                  Roll-up header
+                </span>
+              ) : null}
               {primary?.requiresReclassification ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-950 ring-1 ring-amber-200/80">
                   Needs reclassification
                 </span>
               ) : null}
             </div>
+            {(isRoot || (hasStructChildren && primary && primary.acceptsNewTransactions === false)) &&
+            Math.abs(Number(rowBalance) || 0) > COA_RECONCILE_TOLERANCE ? (
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                No direct journals on this code — total is from sub-accounts.
+              </p>
+            ) : null}
             {renderLedgerExtrasDropdown('Multiple database rows for this GL code', dupes)}
             {node.code === '1130' ? renderLedgerExtrasDropdown('Other bank & mobile GL accounts (e.g. 1130-03, 113001)', hExtra) : null}
             {paymentChannelExtra.length

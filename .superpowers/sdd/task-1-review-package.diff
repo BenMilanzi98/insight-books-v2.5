@@ -1,69 +1,139 @@
-BASE: f918aed627019ad3d669c92b382904d266e7bfb7 (working tree, no commit)\nHEAD: WORKING_TREE Task 1\n\n=== STAT ===\n M vitest.config.js
-?? lib/taxManagement/assertActiveTaxTypes.js
-?? tests/unit/taxManagement/assertActiveTaxTypes.test.js
-\n=== DIFF ===\ndiff --git a/lib/taxManagement/assertActiveTaxTypes.js b/lib/taxManagement/assertActiveTaxTypes.js
-new file mode 100644
-index 00000000..eb0d5a4f
---- /dev/null
-+++ b/lib/taxManagement/assertActiveTaxTypes.js
-@@ -0,0 +1,47 @@
-+/**
-+ * Ensure every taxTypeId belongs to tenant and is Active.
-+ * @param {import('@prisma/client').PrismaClient} db
-+ * @param {string} tenantId
-+ * @param {string[]} taxTypeIds
-+ */
-+export async function assertActiveTaxTypeIds(db, tenantId, taxTypeIds) {
-+  const ids = [...new Set((taxTypeIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
-+  if (ids.length === 0) return;
-+
-+  const rows = await db.taxType.findMany({
-+    where: { tenantId, id: { in: ids } },
-+    select: { id: true, status: true, taxName: true },
-+  });
-+  const byId = new Map(rows.map((r) => [r.id, r]));
-+
-+  for (const id of ids) {
-+    const row = byId.get(id);
-+    if (!row) {
-+      const err = new Error(`Unknown tax type: ${id}`);
-+      err.code = 'UNKNOWN_TAX';
-+      err.status = 400;
-+      throw err;
-+    }
-+    if (row.status !== 'Active') {
-+      const err = new Error(
-+        `Tax "${row.taxName || id}" is not active and cannot be used on new documents.`
-+      );
-+      err.code = 'INACTIVE_TAX';
-+      err.status = 400;
-+      throw err;
-+    }
-+  }
-+}
-+
-+/** Collect taxTypeIds from quotation/invoice item tax arrays. */
-+export function collectTaxTypeIdsFromItems(items) {
-+  const ids = [];
-+  for (const item of items || []) {
-+    const taxes = item.itemTaxes || item.taxes || item.taxBreakdown || [];
-+    for (const t of taxes) {
-+      const id = t.taxTypeId || t.id;
-+      if (id) ids.push(id);
-+    }
-+  }
-+  return ids;
-+}
-diff --git a/vitest.config.js b/vitest.config.js
-index 7fe620a4..799b6618 100644
---- a/vitest.config.js
-+++ b/vitest.config.js
-@@ -12,7 +12,7 @@ export default defineConfig({
-   },
-   test: {
-     environment: 'node',
--    include: ['test/**/*.test.js'],
-+    include: ['test/**/*.test.js', 'tests/**/*.test.js'],
-     // Phase 16: prefer exact decimals — discourage accidental float equality in new suites
-     sequence: { shuffle: false },
-   },
+Review package Task 1 (working tree, no commits)
+BASE: b4867a727432a4e1f43109f028959ca063aa0470
+
+ lib/coaPostingCodes.js                           | 1 +
+ lib/coaV2/application/purposeMappingReadiness.js | 1 +
+ lib/coaV2/domain/systemPurposes.js               | 8 ++++++++
+ lib/coaV2/templates/blueprintClassification.js   | 1 +
+ 4 files changed, 11 insertions(+)
+
+
+diff --git a/lib/coaPostingCodes.js b/lib/coaPostingCodes.js
+index 4ea0a23d..92f9bea9 100644
+--- a/lib/coaPostingCodes.js
++++ b/lib/coaPostingCodes.js
+@@ -21,20 +21,21 @@ export function isAccountsReceivableSubledgerLeaf(account, { hasChildren = false
+   const accountType = String(account?.accountType || account?.type || '').trim().toUpperCase();
+   return (
+     (accountType === 'ASSET' || accountType === 'Asset') &&
+     accountCode === CODE_ACCOUNTS_RECEIVABLE
+   );
+ }
+ export const CODE_ACCOUNTS_PAYABLE = '2110';
+ /** Goods Received Not Invoiced (accrued purchases clearing). */
+ export const CODE_GRNI = '2115';
+ export const CODE_CURRENT_LIABILITIES_GROUP = '2100';
++export const CODE_DEFERRED_REVENUE = '2150';
+ export const CODE_PRODUCT_SALES = '4100';
+ export const CODE_SERVICE_REVENUE = '4150';
+ export const CODE_SERVICE_REVENUE_LEGACY = '4200';
+ export const CODE_COST_OF_SALES = '5100';
+ export const CODE_REVENUE_ROOT = '4000';
+ 
+ /** Five top-level chart sections — must not receive direct postings (rollup / header only). */
+ export const COA_STRUCTURAL_ROOT_CODES = ['1000', '2000', '3000', '4000', '5000'];
+ 
+ /** @param {string|null|undefined} code */
+diff --git a/lib/coaV2/application/purposeMappingReadiness.js b/lib/coaV2/application/purposeMappingReadiness.js
+index e31a7023..0ed4f872 100644
+--- a/lib/coaV2/application/purposeMappingReadiness.js
++++ b/lib/coaV2/application/purposeMappingReadiness.js
+@@ -19,20 +19,21 @@ export const STANDARD_PURPOSE_MAPPINGS = Object.freeze([
+   'MOBILE_MONEY',
+   'ACCOUNTS_RECEIVABLE',
+   'ACCOUNTS_PAYABLE',
+   'GRNI',
+   'INVENTORY',
+   'SALES_REVENUE',
+   'SERVICE_REVENUE',
+   'COST_OF_SALES',
+   'VAT_INPUT',
+   'VAT_OUTPUT',
++  'DEFERRED_REVENUE',
+   'WITHHOLDING_TAX_PAYABLE',
+   'SALARIES_AND_WAGES',
+   'OWNER_CAPITAL',
+   'RETAINED_EARNINGS',
+   'OPENING_BALANCE_EQUITY',
+ ]);
+ 
+ /**
+  * @param {string} tenantId
+  * @param {import('@prisma/client').PrismaClient|object} [db]
+diff --git a/lib/coaV2/domain/systemPurposes.js b/lib/coaV2/domain/systemPurposes.js
+index df7df02c..e73c1a95 100644
+--- a/lib/coaV2/domain/systemPurposes.js
++++ b/lib/coaV2/domain/systemPurposes.js
+@@ -51,20 +51,28 @@ export const SYSTEM_ACCOUNT_PURPOSES = Object.freeze({
+   INVENTORY: { categories: [ASSET], behaviours: [POSTING, CONTROL], normalBalance: DEBIT, subTypes: [AccountSubType.CURRENT_ASSET], legacyCode: '1310' },
+   INVENTORY_ADJUSTMENT: { categories: [COST_OF_SALES, EXPENSE], behaviours: [POSTING], normalBalance: DEBIT, legacyCode: '5290' },
+ 
+   // Payables and statutory liabilities
+   ACCOUNTS_PAYABLE: { categories: [LIABILITY], behaviours: [CONTROL], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], protectedAccount: true, manualPostingRestricted: true, requiredDimension: 'supplierId', legacyCode: '2110' },
+   /** Goods Received Not Invoiced — accrual clearing between inventory receipt and supplier bill. */
+   GRNI: { categories: [LIABILITY], behaviours: [CONTROL, POSTING], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], protectedAccount: true, manualPostingRestricted: true, requiredDimension: 'supplierId', legacyCode: '2115', notes: 'Credit on goods receipt; debit when matched supplier bill posts. Never conflate with trade AP.' },
+   VAT_INPUT: { categories: [ASSET], behaviours: [POSTING, SYSTEM], normalBalance: DEBIT, subTypes: [AccountSubType.CURRENT_ASSET], legacyCode: '1240' },
+   VAT_OUTPUT: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2120', notes: 'Prefer VAT Payable leaf 2120; 2041 is tax-inflow header.' },
+   VAT_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2120' },
++  DEFERRED_REVENUE: {
++    categories: [LIABILITY],
++    behaviours: [POSTING, SYSTEM],
++    normalBalance: CREDIT,
++    subTypes: [AccountSubType.CURRENT_LIABILITY],
++    legacyCode: '2150',
++    notes: 'Unearned / deferred invoice revenue until payment recognition',
++  },
+   PAYE_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2130' },
+   PENSION_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+   SALARY_DEDUCTIONS_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+   WITHHOLDING_TAX_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING, SYSTEM], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY], legacyCode: '2045' },
+   INTEREST_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+   DIVIDENDS_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+   LOAN_LIABILITY: { categories: [LIABILITY], behaviours: [POSTING], normalBalance: CREDIT, legacyCode: '2510', notes: 'Never revenue: loan proceeds credit this account.' },
+   CORPORATE_TAX_PAYABLE: { categories: [LIABILITY], behaviours: [POSTING], normalBalance: CREDIT, subTypes: [AccountSubType.CURRENT_LIABILITY] },
+ 
+   // Revenue
+diff --git a/lib/coaV2/templates/blueprintClassification.js b/lib/coaV2/templates/blueprintClassification.js
+index 64578de9..f0742417 100644
+--- a/lib/coaV2/templates/blueprintClassification.js
++++ b/lib/coaV2/templates/blueprintClassification.js
+@@ -20,20 +20,21 @@ import { codeNumericPrefix } from '../domain/codeGovernance.js';
+ export const BLUEPRINT_PURPOSES = Object.freeze({
+   '1110': 'CASH_ON_HAND',
+   '1120': 'PETTY_CASH',
+   '1200': 'ACCOUNTS_RECEIVABLE',
+   '1216': 'SALARY_ADVANCE',
+   '1240': 'VAT_INPUT',
+   '1310': 'INVENTORY',
+   '2110': 'ACCOUNTS_PAYABLE',
+   '2115': 'GRNI',
+   '2120': 'VAT_PAYABLE',
++  '2150': 'DEFERRED_REVENUE',
+   '2130': 'PAYE_PAYABLE',
+   '3100': 'OWNER_CAPITAL',
+   '3190': 'OPENING_BALANCE_EQUITY',
+   '3200': 'RETAINED_EARNINGS',
+   '3300': 'CURRENT_YEAR_EARNINGS',
+   '3999': 'SUSPENSE_ACCOUNT',
+   '4100': 'SALES_REVENUE',
+   '4110': 'SALES_RETURNS',
+   '4150': 'SERVICE_REVENUE',
+   '5100': 'COST_OF_SALES',
+
+
+=== UNTRACKED test/coaDeferredRevenuePurpose.test.js ===
+// test/coaDeferredRevenuePurpose.test.js
+import { describe, it, expect } from 'vitest';
+import { SYSTEM_ACCOUNT_PURPOSES } from '../lib/coaV2/domain/systemPurposes.js';
+import { CODE_DEFERRED_REVENUE } from '../lib/coaPostingCodes.js';
+
+describe('DEFERRED_REVENUE purpose', () => {
+  it('is registered as a credit liability with legacy code 2150', () => {
+    expect(CODE_DEFERRED_REVENUE).toBe('2150');
+    const p = SYSTEM_ACCOUNT_PURPOSES.DEFERRED_REVENUE;
+    expect(p).toBeTruthy();
+    expect(p.legacyCode).toBe('2150');
+    expect(p.normalBalance).toBe('CREDIT');
+  });
+});
+

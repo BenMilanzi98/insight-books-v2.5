@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ClickableStatCard from '@/components/ui/ClickableStatCard';
+import StatCard from '@/components/ui/StatCard';
 
 const TABS = [
   { href: '/budget-forecast/budgets', label: 'Budgets' },
@@ -80,10 +81,8 @@ export function SummaryCard({ label, value, hint, onClick, active = false, title
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
-    </div>
+    <StatCard label={label} value={value} title={title}>
+      {hint ? <span className="mt-1 block text-xs text-gray-500">{hint}</span> : null}
+    </StatCard>
   );
 }

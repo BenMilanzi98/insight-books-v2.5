@@ -470,8 +470,8 @@ const AccountsPayable = () => {
                       ></div>
                     </div>
                   </div>
-                  <div className="w-32 text-right">
-                    <div className="text-sm font-semibold text-gray-900">{formatCurrency(period.amount)}</div>
+                  <div className="min-w-[7rem] max-w-[40%] shrink-0 text-right">
+                    <div className="break-words text-sm font-semibold tabular-nums text-gray-900">{formatCurrency(period.amount)}</div>
                     <div className="text-xs text-gray-500">
                       {((period.amount / (payables?.current || 1)) * 100).toFixed(1)}%
                     </div>

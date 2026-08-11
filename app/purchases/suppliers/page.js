@@ -12,6 +12,7 @@ import {
 } from "@/lib/goodsReceiptDateUtils";
 import { receiptUnitCostFromPurchaseOrderLine } from "@/lib/receiptUnitCostFromPoLine";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
+import StatCard from "@/components/ui/StatCard";
 
 async function updateSupplier(id, payload) {
   const res = await fetch(`/api/purchases/suppliers/${id}`, {
@@ -37,15 +38,7 @@ async function deleteSupplier(id) {
 
 const formatMoney = (value) => `MWK ${Number(value || 0).toLocaleString()}`;
 
-function SummaryCard({ label, value, helper }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 ">
-      <div className="text-sm font-medium text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div>
-      {helper && <div className="mt-1 text-xs text-gray-500">{helper}</div>}
-    </div>
-  );
-}
+
 
 function ConfirmDialog({ title, message, onConfirm, onCancel, loading }) {
   return (
@@ -119,7 +112,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                     <DollarSign size={16} className="text-indigo-600" />
                     Total Owed
                   </div>
-                  <div className="mt-2 text-2xl font-bold text-red-600">
+                  <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-red-600 sm:text-2xl">
                     {formatMoney(summary.totalOwed || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
@@ -131,7 +124,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                     <FileText size={16} className="text-blue-600" />
                     Total Billed
                   </div>
-                  <div className="mt-2 text-2xl font-bold text-gray-900">
+                  <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 sm:text-2xl">
                     {formatMoney(summary.totalBilled || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
@@ -143,7 +136,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                     <TrendingDown size={16} className="text-green-600" />
                     Total Paid
                   </div>
-                  <div className="mt-2 text-2xl font-bold text-green-600">
+                  <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-green-600 sm:text-2xl">
                     {formatMoney(summary.totalPaid || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
@@ -155,7 +148,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                     <TrendingUp size={16} className="text-orange-600" />
                     Current Balance
                   </div>
-                  <div className="mt-2 text-2xl font-bold text-orange-600">
+                  <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-orange-600 sm:text-2xl">
                     {formatMoney(summary.currentBalance || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
@@ -2801,9 +2794,9 @@ export default function SuppliersPage() {
 
       <>
           <div className="grid gap-4 md:grid-cols-3">
-            <SummaryCard label="Total Suppliers" value={stats.count} />
-            <SummaryCard label="Active Suppliers" value={stats.active} />
-            <SummaryCard
+            <StatCard label="Total Suppliers" value={stats.count} />
+            <StatCard label="Active Suppliers" value={stats.active} />
+            <StatCard
               label="Total Balance"
               value={`MWK ${stats.totalBalance.toLocaleString()}`}
               helper="Summed current balances"
@@ -3051,10 +3044,10 @@ export default function SuppliersPage() {
       {activeTab === "receipts" && (
         <>
           <div className="grid gap-4 md:grid-cols-4">
-            <SummaryCard label="Receipts" value={receiptsStats.total} helper="All statuses" />
-            <SummaryCard label="Draft" value={receiptsStats.draft} />
-            <SummaryCard label="Posted" value={receiptsStats.posted} />
-            <SummaryCard
+            <StatCard label="Receipts" value={receiptsStats.total} helper="All statuses" />
+            <StatCard label="Draft" value={receiptsStats.draft} />
+            <StatCard label="Posted" value={receiptsStats.posted} />
+            <StatCard
               label="Posted Inventory"
               value={`MWK ${receiptsStats.inventoryValue.toLocaleString()}`}
               helper="Added to stock"
@@ -3214,9 +3207,9 @@ export default function SuppliersPage() {
       {activeTab === "payments" && (
         <>
           <div className="grid gap-4 md:grid-cols-4">
-            <SummaryCard label="Payments Recorded" value={paymentsStats.total} />
-            <SummaryCard label="Total Disbursed" value={`MWK ${paymentsStats.totalPaid.toLocaleString()}`} />
-            <SummaryCard
+            <StatCard label="Payments Recorded" value={paymentsStats.total} />
+            <StatCard label="Total Disbursed" value={`MWK ${paymentsStats.totalPaid.toLocaleString()}`} />
+            <StatCard
               label="This Month"
               value={`MWK ${payments
                 .filter((payment) => {
@@ -3228,7 +3221,7 @@ export default function SuppliersPage() {
                 .reduce((sum, payment) => sum + Number(payment.totalAmount || 0), 0)
                 .toLocaleString()}`}
             />
-            <SummaryCard
+            <StatCard
               label="Average Payment"
               value={`MWK ${(paymentsStats.totalPaid / (paymentsStats.total || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             />
