@@ -18,26 +18,19 @@ import {
  */
 export default function SetupWizardStepContent({ stepId, facts, onSaved, onError }) {
   switch (stepId) {
-    case "startingDate":
-      return <StartingDateStep facts={facts} onSaved={onSaved} onError={onError} />;
-    case "capital":
-      return <CapitalStep facts={facts} onSaved={onSaved} onError={onError} />;
-    case "assets":
-      return <AssetsStep onSaved={onSaved} onError={onError} />;
-    case "liabilities":
-      return <LiabilitiesStep onSaved={onSaved} onError={onError} />;
-    case "paymentAccounts":
-      return <PaymentAccountsStep onSaved={onSaved} onError={onError} />;
-    case "taxes":
-      return <TaxesStep facts={facts} onSaved={onSaved} onError={onError} />;
+    case "accountSettings":
+      return <AccountSettingsStep facts={facts} onSaved={onSaved} onError={onError} />;
+    case "inventory":
+    case "openingStock":
+      return <OpeningStockStep onSaved={onSaved} onError={onError} />;
+    case "customers":
     case "clients":
       return <ClientsStep onSaved={onSaved} onError={onError} />;
     case "suppliers":
       return <SuppliersStep onSaved={onSaved} onError={onError} />;
-    case "openingStock":
-      return <OpeningStockStep onSaved={onSaved} onError={onError} />;
+    case "openingBalances":
     case "openingBalancesReview":
-      return <OpeningBalancesReviewStep facts={facts} onSaved={onSaved} onError={onError} />;
+      return <OpeningPaymentBalancesStep facts={facts} onSaved={onSaved} onError={onError} />;
     default:
       return null;
   }
@@ -873,7 +866,7 @@ function TaxesStep({ facts, onSaved, onError }) {
         type="button"
         disabled={syncing}
         onClick={sync}
-        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 px-5 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50"
       >
         {syncing ? (
           <>
@@ -1010,7 +1003,56 @@ function ClientsStep({ onSaved, onError }) {
         </div>
         <WizardSubmitButton saving={saving}>Add client</WizardSubmitButton>
       </form>
+      <ClientBulkUpload onSaved={onSaved} onError={onError} />
     </div>
+  );
+}
+
+function ClientBulkUpload({ onSaved, onError }) {
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!file) return;
+    setSaving(true);
+    setLocalError(null);
+    onError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("batchName", `Wizard-Clients-${Date.now()}`);
+      const res = await fetch("/api/clients/bulk-upload", {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Client import failed");
+      setFile(null);
+      await onSaved();
+    } catch (err) {
+      const msg = err.message || "Import failed";
+      setLocalError(msg);
+      onError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-4">
+      <p className="text-sm font-semibold text-rose-900">Bulk upload</p>
+      <a href="/api/clients/template" className="text-xs font-medium text-rose-800 underline">
+        Download CSV template
+      </a>
+      <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+      <WizardFormError message={localError} />
+      <WizardSubmitButton saving={saving} disabled={!file}>
+        Import customers
+      </WizardSubmitButton>
+    </form>
   );
 }
 
@@ -1135,7 +1177,57 @@ function SuppliersStep({ onSaved, onError }) {
         </div>
         <WizardSubmitButton saving={saving}>Add supplier</WizardSubmitButton>
       </form>
+      <SupplierBulkUpload onSaved={async () => { await load(); await onSaved(); }} onError={onError} />
     </div>
+  );
+}
+
+function SupplierBulkUpload({ onSaved, onError }) {
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!file) return;
+    setSaving(true);
+    setLocalError(null);
+    onError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/purchases/suppliers/bulk-upload", {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || data.message || "Supplier import failed");
+      }
+      setFile(null);
+      await onSaved();
+    } catch (err) {
+      const msg = err.message || "Import failed";
+      setLocalError(msg);
+      onError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-lime-200 bg-lime-50/40 p-4">
+      <p className="text-sm font-semibold text-lime-900">Bulk upload</p>
+      <a href="/api/purchases/suppliers/template" className="text-xs font-medium text-lime-800 underline">
+        Download CSV template
+      </a>
+      <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+      <WizardFormError message={localError} />
+      <WizardSubmitButton saving={saving} disabled={!file}>
+        Import suppliers
+      </WizardSubmitButton>
+    </form>
   );
 }
 
@@ -1354,6 +1446,242 @@ function OpeningStockStep({ onSaved, onError }) {
           <WizardSubmitButton saving={saving}>Record Stock In</WizardSubmitButton>
         </form>
       )}
+      <BulkStockUpload onSaved={onSaved} onError={onError} />
     </div>
+  );
+}
+
+function BulkStockUpload({ onSaved, onError }) {
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  const upload = async () => {
+    if (!file) return;
+    setSaving(true);
+    setLocalError(null);
+    onError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("purpose", "OPENING_STOCK");
+      const preview = await fetch("/api/stock/basic-import/preview", {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const previewData = await preview.json().catch(() => ({}));
+      if (!preview.ok) throw new Error(previewData.error || "Stock preview failed");
+      const confirm = await fetch("/api/stock/basic-import/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          batchId: previewData.batchId || previewData.batch?.id,
+          purpose: "OPENING_STOCK",
+        }),
+      });
+      const confirmData = await confirm.json().catch(() => ({}));
+      if (!confirm.ok) throw new Error(confirmData.error || "Stock import failed");
+      setFile(null);
+      await onSaved();
+    } catch (err) {
+      const msg = err.message || "Import failed";
+      setLocalError(msg);
+      onError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-4 space-y-3">
+      <p className="text-sm font-semibold text-sky-900">Option A — bulk opening stock</p>
+      <div className="flex flex-wrap gap-2">
+        <a
+          href="/api/stock/basic-import/template"
+          className="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-medium text-sky-800"
+        >
+          Download template
+        </a>
+      </div>
+      <input
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        className="text-sm"
+      />
+      <WizardFormError message={localError} />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          upload();
+        }}
+      >
+        <WizardSubmitButton saving={saving} disabled={!file}>
+          Upload opening stock
+        </WizardSubmitButton>
+      </form>
+    </div>
+  );
+}
+
+function AccountSettingsStep({ facts, onSaved, onError }) {
+  const [form, setForm] = useState({
+    name: facts?.tenantName || "",
+    businessPhone: facts?.businessPhone || "",
+    businessEmail: facts?.businessEmail || "",
+    businessAddress: facts?.businessAddress || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  useEffect(() => {
+    setForm({
+      name: facts?.tenantName || "",
+      businessPhone: facts?.businessPhone || "",
+      businessEmail: facts?.businessEmail || "",
+      businessAddress: facts?.businessAddress || "",
+    });
+  }, [facts]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setLocalError(null);
+    onError(null);
+    try {
+      const res = await fetch("/api/tenant/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not save account settings");
+      await onSaved();
+    } catch (err) {
+      const msg = err.message || "Save failed";
+      setLocalError(msg);
+      onError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-sm text-slate-600">Only fill what is missing. Existing values are prefilled.</p>
+      <WizardFormError message={localError} />
+      <WizardField label="Business name *">
+        <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+      </WizardField>
+      {!facts?.businessPhone && (
+        <WizardField label="Phone">
+          <input className={inputCls} value={form.businessPhone} onChange={(e) => setForm({ ...form, businessPhone: e.target.value })} />
+        </WizardField>
+      )}
+      {!facts?.businessEmail && (
+        <WizardField label="Email">
+          <input type="email" className={inputCls} value={form.businessEmail} onChange={(e) => setForm({ ...form, businessEmail: e.target.value })} />
+        </WizardField>
+      )}
+      {!facts?.businessAddress && (
+        <WizardField label="Address">
+          <input className={inputCls} value={form.businessAddress} onChange={(e) => setForm({ ...form, businessAddress: e.target.value })} />
+        </WizardField>
+      )}
+      <WizardSubmitButton saving={saving}>Save account settings</WizardSubmitButton>
+    </form>
+  );
+}
+
+function OpeningPaymentBalancesStep({ facts, onSaved, onError }) {
+  const [accounts, setAccounts] = useState([]);
+  const [amounts, setAmounts] = useState({});
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/payment-accounts", { credentials: "include" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setAccounts(data.accounts || data.paymentAccounts || data.data || []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setLocalError(null);
+    onError(null);
+    try {
+      let posted = 0;
+      for (const account of accounts) {
+        const amt = parseFloat(amounts[account.id]);
+        if (!(amt > 0) || !account.coaAccountId) continue;
+        await postTypedOpeningBalance({
+          type: "opening_payment_account",
+          accountId: account.coaAccountId,
+          amount: amt,
+          asOfDate,
+          description: `Opening balance — ${account.name}`,
+          metadata: { paymentAccountId: account.id },
+        });
+        posted += 1;
+      }
+      if (posted === 0 && !facts?.hasOpeningBalancesReview) {
+        throw new Error("Enter at least one opening amount for a payment account, or skip this step.");
+      }
+      await onSaved();
+    } catch (err) {
+      const msg = err.message || "Posting failed";
+      setLocalError(msg);
+      onError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <WizardStepLoading />;
+
+  return (
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+      <WizardFormError message={localError} />
+      <WizardField label="As-of date">
+        <input type="date" className={inputCls} value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
+      </WizardField>
+      {!accounts.length ? (
+        <p className="text-sm text-slate-600">No payment accounts yet. Add cash/bank accounts in Payment Accounts, then resume this step.</p>
+      ) : (
+        accounts.map((account) => (
+          <WizardField key={account.id} label={`${account.name} (${account.accountType || "Account"})`}>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className={inputCls}
+              placeholder="Leave blank to skip"
+              value={amounts[account.id] || ""}
+              onChange={(e) => setAmounts((prev) => ({ ...prev, [account.id]: e.target.value }))}
+            />
+          </WizardField>
+        ))
+      )}
+      <WizardSubmitButton saving={saving}>Post opening balances</WizardSubmitButton>
+    </form>
   );
 }

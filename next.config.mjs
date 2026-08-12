@@ -128,6 +128,16 @@ const nextConfig = {
         destination: '/tax-management',
         permanent: true,
       },
+      {
+        source: '/rentals/hiring',
+        destination: '/rentals/hirings?tab=customer',
+        permanent: false,
+      },
+      {
+        source: '/rentals/inbound-hiring',
+        destination: '/rentals/hirings?tab=supplier',
+        permanent: false,
+      },
     ];
   },
 };

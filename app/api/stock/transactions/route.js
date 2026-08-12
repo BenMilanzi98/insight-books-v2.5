@@ -6,6 +6,15 @@ import { createInventoryWriteOffJournalEntry } from '@/lib/inventoryWriteOffJour
 import { completeOpeningStockWizardStep } from '@/lib/setupWizardService';
 import { postOpeningBalance } from '@/lib/openingBalanceService';
 import { roundMoney } from '@/lib/money';
+import { AccountingV2Error } from '@/lib/accountingV2/domain/errors.js';
+
+function branchProductWhere(tenantId, currentBranchId) {
+  if (!currentBranchId) return { tenantId };
+  return {
+    tenantId,
+    OR: [{ branchId: currentBranchId }, { branchId: null }],
+  };
+}
 
 // In-memory request deduplication cache (prevents double processing)
 // Key: `${userId}-${productId}-${type}-${quantity}-${unitCost}`
@@ -95,14 +104,13 @@ export async function GET(request) {
         action: { in: ['INVENTORY_STOCK_IN', 'INVENTORY_STOCK_OUT', 'INVENTORY_ADJUSTMENT'] }
       };
       
-      // Add branch filtering - filter by products that belong to the current branch
+      // Add branch filtering - include tenant-wide (null branch) products
       if (user?.currentBranchId && productId) {
-        // If filtering by productId, check if product belongs to branch
+        // If filtering by productId, check if product belongs to branch or is tenant-wide
         const product = await prisma.product.findFirst({
           where: {
             id: productId,
-            tenantId: user.tenantId,
-            branchId: user.currentBranchId
+            ...branchProductWhere(user.tenantId, user.currentBranchId),
           },
           select: { id: true }
         });
@@ -114,12 +122,9 @@ export async function GET(request) {
           });
         }
       } else if (user?.currentBranchId) {
-        // Filter by products in the current branch
+        // Filter by products in the current branch (plus tenant-wide stock)
         const branchProducts = await prisma.product.findMany({
-          where: {
-            tenantId: user.tenantId,
-            branchId: user.currentBranchId
-          },
+          where: branchProductWhere(user.tenantId, user.currentBranchId),
           select: { id: true }
         });
         const productIds = branchProducts.map(p => p.id);
@@ -134,7 +139,7 @@ export async function GET(request) {
         }
       }
       
-      if (productId && !user?.currentBranchId) {
+      if (productId) {
         whereClause.entityId = productId;
       }
       
@@ -165,9 +170,9 @@ export async function GET(request) {
             id: { in: productIds },
             tenantId: user.tenantId
           };
-          // Add branch filter if branch is selected
+          // Add branch filter if branch is selected (include tenant-wide products)
           if (user?.currentBranchId) {
-            productWhere.branchId = user.currentBranchId;
+            productWhere.OR = [{ branchId: user.currentBranchId }, { branchId: null }];
           }
           const products = await prisma.product.findMany({
             where: productWhere,
@@ -184,9 +189,9 @@ export async function GET(request) {
           id: productId,
           tenantId: user.tenantId
         };
-        // Add branch filter if branch is selected
+        // Add branch filter if branch is selected (include tenant-wide products)
         if (user?.currentBranchId) {
-          productWhere.branchId = user.currentBranchId;
+          productWhere.OR = [{ branchId: user.currentBranchId }, { branchId: null }];
         }
         const product = await prisma.product.findFirst({
           where: productWhere,
@@ -241,14 +246,10 @@ export async function GET(request) {
       whereClause.productId = productId;
     }
     
-    // Add branch filtering for InventoryTransaction
+    // Add branch filtering for InventoryTransaction (include tenant-wide products)
     if (user?.currentBranchId) {
-      // Filter by products in the current branch
       const branchProducts = await prisma.product.findMany({
-        where: {
-          tenantId: user.tenantId,
-          branchId: user.currentBranchId
-        },
+        where: branchProductWhere(user.tenantId, user.currentBranchId),
         select: { id: true }
       });
       const productIds = branchProducts.map(p => p.id);
@@ -371,7 +372,7 @@ export async function POST(request) {
     }
     
     // Check if product exists and belongs to the tenant
-    const product = await prisma.product.findUnique({
+    const product = await prisma.product.findFirst({
       where: {
         id: body.productId,
         tenantId: user.tenantId
@@ -488,67 +489,144 @@ export async function POST(request) {
             data: { stockLevel: newStockLevel }
           });
         }
+      } else if (product.isService) {
+        updatedProduct = await tx.product.findUnique({
+          where: { id: body.productId },
+          select: { id: true, stockLevel: true, updatedAt: true },
+        });
       } else {
-        // For other transaction types (Stock Out, Adjustment, etc.), update stock directly
+        let fifoCogsAmount = 0;
+        if (stockChange < 0) {
+          const decreaseQty = Math.abs(stockChange);
+          try {
+            const { consumeFifoForSale } = await import('@/lib/fifoCosting');
+            const fifo = await consumeFifoForSale({
+              tenantId: user.tenantId,
+              branchId: product.branchId || null,
+              productId: product.id,
+              quantitySold: decreaseQty,
+              tx,
+              updateSoldQty: false,
+            });
+            fifoCogsAmount = Number(fifo?.cogsAmount) || 0;
+          } catch (fifoErr) {
+            console.warn('[Stock Transaction] FIFO consume skipped:', fifoErr?.message || fifoErr);
+          }
+        } else if (stockChange > 0 && body.type === 'Adjustment') {
+          const adjUnitCost = body.unitCost ? Number(body.unitCost) : (Number(product.cost) || 0);
+          try {
+            const { createFifoBatch } = await import('@/lib/fifoCosting');
+            await createFifoBatch({
+              tenantId: user.tenantId,
+              branchId: product.branchId || null,
+              productId: product.id,
+              quantityPurchased: stockChange,
+              unitCost: adjUnitCost,
+              purchaseDate: new Date(),
+              sourceType: 'StockAdjustment',
+              sourceId: `adj-in-${user.id}-${product.id}-${stockChange}-${Date.now()}`,
+              tx,
+            });
+          } catch (fifoErr) {
+            console.warn('[Stock Transaction] FIFO batch for positive adjustment skipped:', fifoErr?.message || fifoErr);
+          }
+        }
+
         updatedProduct = await tx.product.update({
           where: { id: body.productId },
           data: { stockLevel: newStockLevel }
         });
-      }
 
-      // Post expense for stock decreases (manual Stock Out / negative Adjustment)
-      if (!product.isService && stockChange < 0) {
-        const decreaseQty = Math.abs(stockChange);
-        const basisUnitCost = Number.isFinite(unitCost) && unitCost >= 0 ? unitCost : (Number(product.cost) || 0);
-        const lossAmount = Math.round(decreaseQty * Math.max(0, basisUnitCost) * 100) / 100;
-        if (lossAmount > 0) {
-          const sourceId = `manual-stockout-${user.id}-${body.productId}-${body.type}-${decreaseQty}-${basisUnitCost}`;
-          const journal = await createInventoryWriteOffJournalEntry({
-            tenantId: user.tenantId,
-            userId: user.id,
-            amount: lossAmount,
-            description: `Manual ${body.type} inventory loss`,
-            sourceType: 'InventoryManualStockOut',
-            sourceId,
-            sourceBatchId: null,
-            tx,
+        try {
+          const { recomputeProductStockValue } = await import('@/lib/inventoryWriteOffService');
+          await recomputeProductStockValue(tx, user.tenantId, product.id);
+          updatedProduct = await tx.product.findUnique({
+            where: { id: body.productId },
+            select: { id: true, stockLevel: true, updatedAt: true },
           });
-          lossJournalEntryId = journal?.id || null;
-          const lossAccountId =
-            journal?.lines?.find((line) => Number(line.debitAmount || 0) > 0)?.accountId || null;
-          const expenseReference = `inventory-stockout:${sourceId}`;
-          const existingExpense = await tx.expense.findFirst({
-            where: {
-              tenantId: user.tenantId,
-              originalReference: expenseReference,
-              isDeleted: false,
-            },
-            select: { id: true },
-          });
-          if (!existingExpense) {
-            await tx.expense.create({
-              data: {
+        } catch (valErr) {
+          console.warn('[Stock Transaction] totalStockValue recompute skipped:', valErr?.message || valErr);
+        }
+
+        if (stockChange < 0) {
+          const decreaseQty = Math.abs(stockChange);
+          const basisUnitCost = Number.isFinite(unitCost) && unitCost >= 0 ? unitCost : (Number(product.cost) || 0);
+          const lossAmount = fifoCogsAmount > 0
+            ? Math.round(fifoCogsAmount * 100) / 100
+            : Math.round(decreaseQty * Math.max(0, basisUnitCost) * 100) / 100;
+          if (lossAmount > 0) {
+            const sourceId = `manual-stockout-${user.id}-${body.productId}-${body.type}-${decreaseQty}-${lossAmount}`;
+            try {
+              const journal = await createInventoryWriteOffJournalEntry({
                 tenantId: user.tenantId,
-                submittedById: user.id,
-                branchId: product.branchId || null,
-                description: `Manual ${body.type} inventory loss`,
+                userId: user.id,
                 amount: lossAmount,
-                date: new Date(),
-                category: 'Inventory Adjustment Loss',
-                expenseAccountId: lossAccountId,
-                status: 'Approved',
-                paymentStatus: 'Fully paid',
-                paymentMethod: 'journal',
-                paidAmount: lossAmount,
-                originalReference: expenseReference,
-                notes: body.notes || null,
-              },
-            });
+                description: `Manual ${body.type} inventory loss`,
+                sourceType: 'InventoryManualStockOut',
+                sourceId,
+                sourceBatchId: null,
+                tx,
+              });
+              lossJournalEntryId = journal?.id || journal?.journalEntryId || null;
+              const lossAccountId =
+                journal?.lines?.find((line) => Number(line.debitAmount || 0) > 0)?.accountId || null;
+              const expenseReference = `inventory-stockout:${sourceId}`;
+              const existingExpense = await tx.expense.findFirst({
+                where: {
+                  tenantId: user.tenantId,
+                  originalReference: expenseReference,
+                  isDeleted: false,
+                },
+                select: { id: true },
+              });
+              if (!existingExpense) {
+                await tx.expense.create({
+                  data: {
+                    tenantId: user.tenantId,
+                    submittedById: user.id,
+                    branchId: product.branchId || null,
+                    description: `Manual ${body.type} inventory loss`,
+                    amount: lossAmount,
+                    date: new Date(),
+                    category: 'Inventory Adjustment Loss',
+                    expenseAccountId: lossAccountId,
+                    status: 'Approved',
+                    paymentStatus: 'Fully paid',
+                    paymentMethod: 'journal',
+                    paidAmount: lossAmount,
+                    originalReference: expenseReference,
+                    notes: body.notes || null,
+                  },
+                });
+              }
+            } catch (journalErr) {
+              console.error('[Stock Transaction] GL posting failed; stock quantity still updated:', journalErr);
+            }
           }
         }
       }
+
+      const movementQuantity = body.type === 'Stock In' ? quantity : body.type === 'Stock Out' ? -quantity : stockChange;
+      const movementNotes = body.notes || (body.type === 'Adjustment' ? `Adjusted to ${quantity} units (was ${product.stockLevel || 0})` : null);
+      let movementId = null;
+      try {
+        const movement = await tx.inventoryTransaction.create({
+          data: {
+            type: body.type,
+            quantity: movementQuantity,
+            notes: movementNotes,
+            productId: body.productId,
+            userId: user.id,
+            tenantId: user.tenantId,
+            branchId: product.branchId || null
+          }
+        });
+        movementId = movement.id;
+      } catch (invErr) {
+        console.warn('InventoryTransaction create failed inside stock tx:', invErr?.message || invErr);
+      }
       
-      return { updatedProduct, lossJournalEntryId };
+      return { updatedProduct, lossJournalEntryId, movementId };
     });
     
     const updatedProduct = result.updatedProduct;
@@ -594,25 +672,6 @@ export async function POST(request) {
       });
     }
 
-    // Record in InventoryTransaction for Stock Movement History (stock ins, outs, adjustments)
-    const movementQuantity = body.type === 'Stock In' ? quantity : body.type === 'Stock Out' ? -quantity : stockChange;
-    const movementNotes = body.notes || (body.type === 'Adjustment' ? `Adjusted to ${quantity} units (was ${product.stockLevel || 0})` : null);
-    try {
-      await prisma.inventoryTransaction.create({
-        data: {
-          type: body.type,
-          quantity: movementQuantity,
-          notes: movementNotes,
-          productId: body.productId,
-          userId: user.id,
-          tenantId: user.tenantId,
-          branchId: product.branchId || null
-        }
-      });
-    } catch (invErr) {
-      console.warn('InventoryTransaction create (non-fatal):', invErr?.message || invErr);
-    }
-
     if (body.type === 'Stock In' && quantity > 0) {
       const unitCost = body.unitCost ? Number(body.unitCost) : (Number(product.cost) || 0);
       const openingStockValue = roundMoney(quantity * unitCost);
@@ -651,7 +710,7 @@ export async function POST(request) {
     return NextResponse.json({
       message: 'Stock update recorded successfully',
       transaction: {
-        id: 'temp-' + Date.now(), // Temporary ID since we don't have a real transaction
+        id: result.movementId || 'temp-' + Date.now(),
         type: body.type,
         quantity: body.quantity,
         notes: body.notes || null,
@@ -673,8 +732,17 @@ export async function POST(request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error recording inventory transaction:', error);
+    if (error instanceof AccountingV2Error) {
+      return NextResponse.json(
+        {
+          error: error.userMessage || error.message,
+          code: error.code,
+        },
+        { status: error.httpStatus || 500 }
+      );
+    }
     return NextResponse.json(
-      { error: 'Failed to record transaction. Please try again.' },
+      { error: error?.message || 'Failed to record transaction. Please try again.' },
       { status: 500 }
     );
   }

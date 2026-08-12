@@ -1781,6 +1781,7 @@ model PaymentAccount {
   coaAccount              Account?            @relation("PaymentAccountCoa", fields: [coaAccountId], references: [id], onDelete: SetNull)
   allocations             PaymentAllocation[]
   posCashDaysAsSystemCash PosCashDay[]        @relation("PosCashDaySystemCash")
+  posCashDaysAsTillFloat  PosCashDay[]        @relation("PosCashDayTillFloat")
   posCashDayDepositsTo    PosCashDayDeposit[] @relation("PosCashDayDepositTo")
 
   /// Same display name allowed; account number (`reference`) must be unique per tenant when set.
@@ -1801,6 +1802,13 @@ model PosCashDay {
   businessDate           String
   status                 String    @default("OPEN")
   systemCashAccountId    String
+  tillFloatAccountId     String?
+  openFundingJournalId   String?
+  closeSweepJournalId    String?
+  fundingCashAmount      Float?
+  fundingCapitalAmount   Float?
+  openCount              Int       @default(1)
+  reopenedAt             DateTime?
   openingBalance         Float
   openedAt               DateTime  @default(now())
   openedById             String?
@@ -1816,6 +1824,7 @@ model PosCashDay {
 
   tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   systemCashAccount PaymentAccount      @relation("PosCashDaySystemCash", fields: [systemCashAccountId], references: [id], onDelete: Restrict)
+  tillFloatAccount  PaymentAccount?     @relation("PosCashDayTillFloat", fields: [tillFloatAccountId], references: [id], onDelete: SetNull)
   openedBy          User?               @relation("PosCashDayOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
   closedBy          User?               @relation("PosCashDayClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   deposits          PosCashDayDeposit[]

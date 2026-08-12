@@ -137,7 +137,7 @@ const AIAssistant = () => {
         {!isExpanded && (
           <button
             onClick={handleToggle}
-            className="bg-gradient-to-br from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-110"
+            className="bg-gradient-to-br from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-110"
             style={{
               width: '60px',
               height: '60px',
@@ -163,7 +163,7 @@ const AIAssistant = () => {
             }}
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-t-lg flex items-center justify-between">
+            <div className="bg-gradient-to-r from-blue-600 to-sky-500 text-white p-4 rounded-t-lg flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                   <Bot size={20} />
@@ -203,7 +203,7 @@ const AIAssistant = () => {
                       <div
                         className={`max-w-[80%] rounded-lg px-4 py-2 ${
                           message.role === 'user'
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-blue-600 text-white'
                             : message.error
                             ? 'bg-red-50 text-red-800 border border-red-200'
                             : 'bg-white text-gray-800 border border-gray-200'
@@ -222,7 +222,7 @@ const AIAssistant = () => {
                     <div className="flex justify-start">
                       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
                         <div className="flex items-center gap-2">
-                          <Loader2 size={16} className="animate-spin text-indigo-600" />
+                          <Loader2 size={16} className="animate-spin text-blue-600" />
                           <span className="text-sm text-gray-600">Thinking...</span>
                         </div>
                       </div>
@@ -240,14 +240,14 @@ const AIAssistant = () => {
                       onChange={(e) => setInput(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder="Ask me anything about InsightBooks..."
-                      className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       rows={2}
                       disabled={isLoading}
                     />
                     <button
                       onClick={handleSend}
                       disabled={!input.trim() || isLoading}
-                      className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 transition-colors duration-200 flex items-center justify-center"
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 transition-colors duration-200 flex items-center justify-center"
                       title="Send message"
                     >
                       {isLoading ? (

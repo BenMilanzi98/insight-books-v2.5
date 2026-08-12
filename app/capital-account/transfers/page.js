@@ -223,8 +223,8 @@ const CapitalAccountTransfersPage = () => {
             <StatCard
               label="Total Transfers"
               value={transfers.length > 0 ? transfers.length : '0'}
-              barClassName="from-violet-400 via-purple-500 to-indigo-500"
-              valueClassName="text-purple-900"
+              barClassName="from-blue-400 via-sky-500 to-indigo-500"
+              valueClassName="text-blue-900"
             />
           </div>
         </div>

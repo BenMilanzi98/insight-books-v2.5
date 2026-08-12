@@ -17,6 +17,7 @@ import {
   OWNERS_CAPITAL_GL_NAME,
 } from '@/lib/capitalCoaHelpers';
 import { postGlEntry, AccountingEngineError } from '@/lib/accountingEngine';
+import { AccountingV2Error } from '@/lib/accountingV2/domain/errors.js';
 
 // GET - Get capital account information and balance
 export async function GET(request) {
@@ -346,7 +347,7 @@ export async function POST(request) {
     const entryDate = new Date();
     await assertPeriodOpen(user.tenantId, entryDate, prisma);
 
-    const reference = 'INIT-CAP';
+    const reference = `INIT-CAP:${equityAccountForCredit.id}`;
     const txDescription = 'Initial capital contribution';
 
     const capitalLines = [
@@ -424,7 +425,7 @@ export async function POST(request) {
           contributionAccountCode: equityAccountForCredit.accountCode,
           cashAccountId: cashAccount.id,
           cashAccountName: cashAccount.accountName || cashAccount.name,
-          transactionId: transaction.id,
+          transactionId: transaction?.journalEntryId || transaction?.id || null,
         }),
       },
     });
@@ -446,9 +447,24 @@ export async function POST(request) {
     if (error instanceof AccountingEngineError || error.message?.includes('period') || error.message?.includes('closed')) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    if (error instanceof AccountingV2Error) {
+      console.error('Initial capital accounting error:', {
+        code: error.code,
+        message: error.userMessage,
+        diagnostic: error.diagnostic,
+      });
+      return NextResponse.json(
+        {
+          error: error.userMessage || error.message,
+          code: error.code,
+          retryable: Boolean(error.retryable),
+        },
+        { status: error.httpStatus || 500 }
+      );
+    }
     console.error('Error setting initial capital:', error);
     return NextResponse.json(
-      { error: 'Failed to set initial capital balance' },
+      { error: error?.message || 'Failed to set initial capital balance' },
       { status: 500 }
     );
   }

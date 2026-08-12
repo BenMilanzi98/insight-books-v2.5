@@ -1,10 +1,5 @@
-import RentalsClient from "../RentalsClient";
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: "Quantity rentals | InsightBooks",
-  description: "Outbound equipment pool rentals with quantity-aware booking and invoicing.",
-};
-
-export default function HiringPage() {
-  return <RentalsClient mode="hiring" />;
+export default function LegacyHiringRedirect() {
+  redirect('/rentals/hirings?tab=customer');
 }

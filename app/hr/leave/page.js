@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { toYmdLocal } from '@/lib/dateUtils';
 import { PlusIcon, PencilIcon, TrashIcon, EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function LeaveManagement() {
   const [activeTab, setActiveTab] = useState('policies');
@@ -156,10 +158,10 @@ export default function LeaveManagement() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
-        <p className="text-gray-600">Manage leave policies and requests</p>
-      </div>
+      <PosStylePageHeader
+        title="Leave Management"
+        description="Manage leave policies and requests"
+      />
 
       {/* Tabs */}
       <div className="mb-6">
@@ -226,7 +228,7 @@ export default function LeaveManagement() {
             </button>
           </div>
 
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <PosStylePanel className="overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -279,7 +281,7 @@ export default function LeaveManagement() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </PosStylePanel>
         </div>
       )}
 
@@ -300,7 +302,7 @@ export default function LeaveManagement() {
             </button>
           </div>
 
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <PosStylePanel className="overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -368,7 +370,7 @@ export default function LeaveManagement() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </PosStylePanel>
         </div>
       )}
 
@@ -502,7 +504,7 @@ function LeaveBalancesTab() {
       ) : (
         <div className="space-y-4">
           {Object.values(balancesByEmployee).map(({ employee, policies }) => (
-            <div key={employee.id} className="bg-white shadow rounded-lg p-4">
+            <div key={employee.id} className="tenant-glass-card p-4">
               <h3 className="font-semibold text-gray-900 mb-3">
                 {employee.name} {employee.employeeId && `(${employee.employeeId})`}
               </h3>
@@ -610,7 +612,7 @@ function LeaveCalendarTab({ requests }) {
         </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <PosStylePanel className="overflow-hidden">
         <div className="grid grid-cols-7 gap-px bg-gray-200">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="bg-gray-50 p-2 text-center text-sm font-medium text-gray-700">
@@ -644,7 +646,7 @@ function LeaveCalendarTab({ requests }) {
             );
           })}
         </div>
-      </div>
+      </PosStylePanel>
     </div>
   );
 }

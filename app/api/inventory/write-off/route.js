@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { executeInventoryWriteOff } from '@/lib/inventoryWriteOffService';
+import { AccountingV2Error } from '@/lib/accountingV2/domain/errors.js';
 
 export async function POST(request) {
   try {
@@ -37,13 +38,20 @@ export async function POST(request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error('[inventory write-off]', error);
+    if (error instanceof AccountingV2Error) {
+      return NextResponse.json(
+        { error: error.userMessage || error.message, code: error.code },
+        { status: error.httpStatus || 500 }
+      );
+    }
     const msg = error?.message || 'Write-off failed';
     let status = 500;
     if (msg.includes('not found') || msg.includes('Batch not found')) status = 404;
     else if (
       msg.includes('Nothing to write off') ||
       msg.includes('exceeds') ||
-      msg.includes('Invalid')
+      msg.includes('Invalid') ||
+      msg.includes('Branch mismatch')
     ) {
       status = 400;
     }

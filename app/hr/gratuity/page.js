@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate, todayYmdLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 import StatCard from "@/components/ui/StatCard";
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function GratuityManagement() {
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
@@ -171,10 +173,25 @@ export default function GratuityManagement() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Gratuity Management</h1>
-        <p className="text-gray-600">Track and manage employee gratuity accruals and payments</p>
-      </div>
+      <PosStylePageHeader
+        title="Gratuity Management"
+        description="Track and manage employee gratuity accruals and payments"
+        actions={
+          <>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
+            >
+              <Plus size={20} className="mr-2" />
+              Create/Update Gratuity Account
+            </button>
+            <PosStyleHeaderButton type="button" onClick={fetchGratuityAccounts}>
+              <RefreshCw size={20} className="mr-2" />
+              Refresh
+            </PosStyleHeaderButton>
+          </>
+        }
+      />
 
       {notification && (
         <div className={`mb-4 p-4 rounded-lg ${
@@ -191,7 +208,7 @@ export default function GratuityManagement() {
           value={formatCurrency(totalAccrued)}
           icon={TrendingUp}
           valueClassName="text-blue-600"
-          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          barClassName="from-blue-400 via-sky-500 to-blue-600"
           iconWrapClassName="bg-blue-100 text-blue-600"
         />
         <StatCard
@@ -212,26 +229,8 @@ export default function GratuityManagement() {
         />
       </div>
 
-      {/* Actions */}
-      <div className="mb-6 flex gap-3">
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Create/Update Gratuity Account
-        </button>
-        <button
-          onClick={fetchGratuityAccounts}
-          className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
-        >
-          <RefreshCw size={20} />
-          Refresh
-        </button>
-      </div>
-
       {/* Gratuity Accounts Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <PosStylePanel className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -324,7 +323,7 @@ export default function GratuityManagement() {
             </tbody>
           </table>
         </div>
-      </div>
+      </PosStylePanel>
 
       {/* Create/Update Modal */}
       {showCreateModal && (

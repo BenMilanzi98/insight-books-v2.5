@@ -40,6 +40,14 @@ export async function GET(request) {
         tillClosed: false,
         requiresTillOpen: true,
         suggestedOpeningBalance: 0,
+        tillFloatAccount: null,
+        canReopen: false,
+        fundingPreview: {
+          cashAvailable: 0,
+          capitalFallback: true,
+          note:
+            'Entered float is funded from Cash first; any shortfall comes from Owner Capital.',
+        },
         metrics: {
           openingBalance: 0,
           totalSales: report.totalSales || 0,

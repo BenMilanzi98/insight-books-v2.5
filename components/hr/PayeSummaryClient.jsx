@@ -14,6 +14,8 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 const MONTHS = [
   { value: '01', label: 'January' },
@@ -76,7 +78,7 @@ function statusBadge(status, isProvisional) {
 
 function journalBadge(status) {
   const map = {
-    Posted: 'bg-indigo-100 text-indigo-800',
+    Posted: 'bg-blue-100 text-blue-800',
     'Not posted': 'bg-gray-100 text-gray-600',
     'Pending post': 'bg-yellow-100 text-yellow-800',
     Reversed: 'bg-red-100 text-red-800',
@@ -261,7 +263,7 @@ export default function PayeSummaryClient() {
     { label: 'Employees in payroll', value: summary.employeeCount ?? 0, format: 'number' },
     { label: 'Total gross pay', value: summary.totalGrossPay, format: 'currency' },
     { label: 'Total taxable income', value: summary.totalTaxableIncome, format: 'currency' },
-    { label: 'Total PAYE deducted', value: summary.totalPayeDeducted, format: 'currency', highlight: 'indigo' },
+    { label: 'Total PAYE deducted', value: summary.totalPayeDeducted, format: 'currency', highlight: 'blue' },
     { label: 'Total net pay', value: summary.totalNetPay, format: 'currency' },
     { label: 'Pension (employee)', value: summary.totalPensionEmployee, format: 'currency' },
     { label: 'Pension (employer)', value: summary.totalPensionEmployer, format: 'currency' },
@@ -273,50 +275,42 @@ export default function PayeSummaryClient() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-x-hidden">
-        <div className="mb-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">PAYE Summary</h1>
-            <p className="text-gray-600 mt-1">
-              Statutory PAYE report from finalized payroll records — filterable, exportable, and
-              aligned with accounting postings.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <BusinessScopeSelector
-              mode={businessScope}
-              selectedTenantIds={businessTenantIds}
-              onChange={setBusinessScope}
-              compact
-            />
-            <button
-              type="button"
-              onClick={fetchReport}
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExport('xlsx')}
-              disabled={!!exporting || !filteredRows.length}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {exporting === 'xlsx' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-              Excel
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExport('pdf')}
-              disabled={!!exporting || !filteredRows.length}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              PDF
-            </button>
-          </div>
-        </div>
+        <PosStylePageHeader
+          title="PAYE Summary"
+          description="Statutory PAYE report from finalized payroll records — filterable, exportable, and aligned with accounting postings."
+          actions={
+            <>
+              <BusinessScopeSelector
+                mode={businessScope}
+                selectedTenantIds={businessTenantIds}
+                onChange={setBusinessScope}
+                compact
+              />
+              <PosStyleHeaderButton type="button" onClick={fetchReport} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </PosStyleHeaderButton>
+              <button
+                type="button"
+                onClick={() => handleExport('xlsx')}
+                disabled={!!exporting || !filteredRows.length}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {exporting === 'xlsx' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExport('pdf')}
+                disabled={!!exporting || !filteredRows.length}
+                className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md disabled:opacity-50"
+              >
+                {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                PDF
+              </button>
+            </>
+          }
+        />
 
         {summary.provisionalCount > 0 && (
           <div className="mb-4 flex items-start gap-2 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm">
@@ -334,7 +328,7 @@ export default function PayeSummaryClient() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+        <PosStylePanel className="p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Period type</label>
@@ -485,14 +479,14 @@ export default function PayeSummaryClient() {
               <span className="ml-3 text-gray-400">· {report.scope.businessLabel}</span>
             )}
           </div>
-        </div>
+        </PosStylePanel>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-6">
           {summaryCards.map((card) => (
             <div
               key={card.label}
               className={`bg-white rounded-xl shadow-sm border p-4 ${
-                card.highlight === 'indigo' ? 'border-indigo-200 bg-indigo-50/30' : 'border-gray-100'
+                card.highlight === 'blue' ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'
               }`}
             >
               <p className="text-xs font-medium text-gray-500">{card.label}</p>
@@ -516,7 +510,7 @@ export default function PayeSummaryClient() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <PosStylePanel className="overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-900">Payroll detail</h2>
             <span className="text-sm text-gray-500">{filteredRows.length} line(s)</span>
@@ -564,7 +558,7 @@ export default function PayeSummaryClient() {
                       <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums">{formatCurrency(row.nonTaxableAllowances)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums">{formatCurrency(row.grossPay)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums">{formatCurrency(row.taxableIncome)}</td>
-                      <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums font-medium text-indigo-700">{formatCurrency(row.payeDeducted)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums font-medium text-blue-700">{formatCurrency(row.payeDeducted)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums">{formatCurrency(row.pensionEmployee)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums">{formatCurrency(row.otherDeductions)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-right tabular-nums font-medium">{formatCurrency(row.netPay)}</td>
@@ -576,7 +570,7 @@ export default function PayeSummaryClient() {
                           href={`/api/payroll/${row.payrollId}/payslip`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center text-indigo-600 hover:text-indigo-800"
+                          className="inline-flex items-center text-blue-600 hover:text-blue-800"
                           title="Download payslip"
                         >
                           <Download className="w-4 h-4" />
@@ -592,7 +586,7 @@ export default function PayeSummaryClient() {
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(filteredRows.reduce((s, r) => s + r.grossPay, 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(filteredRows.reduce((s, r) => s + r.taxableIncome, 0))}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-indigo-700">{formatCurrency(filteredRows.reduce((s, r) => s + r.payeDeducted, 0))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-blue-700">{formatCurrency(filteredRows.reduce((s, r) => s + r.payeDeducted, 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(filteredRows.reduce((s, r) => s + r.pensionEmployee, 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(filteredRows.reduce((s, r) => s + r.otherDeductions, 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(filteredRows.reduce((s, r) => s + r.netPay, 0))}</td>
@@ -602,10 +596,10 @@ export default function PayeSummaryClient() {
               </table>
             </div>
           )}
-        </div>
+        </PosStylePanel>
 
         {(report?.byEmployee?.length ?? 0) > 0 && (
-          <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <PosStylePanel className="mt-6 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">PAYE by employee</h2>
             </div>
@@ -629,7 +623,7 @@ export default function PayeSummaryClient() {
                         <div className="text-xs text-gray-500">{emp.employeeNumber}</div>
                       </td>
                       <td className="px-4 py-2 text-gray-600">{emp.department}</td>
-                      <td className="px-4 py-2 text-right tabular-nums font-medium text-indigo-700">{formatCurrency(emp.totalPaye)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-700">{formatCurrency(emp.totalPaye)}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(emp.totalGross)}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(emp.totalNet)}</td>
                       <td className="px-4 py-2 text-center text-gray-600">{emp.periods?.length ?? 0}</td>
@@ -638,7 +632,7 @@ export default function PayeSummaryClient() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </PosStylePanel>
         )}
       </main>
     </div>

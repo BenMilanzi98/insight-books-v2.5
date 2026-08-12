@@ -22,7 +22,10 @@ import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessSc
 import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
 import { getPermission } from "@/lib/permissions";
 import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
-import { getDefaultCustomRange } from "@/lib/dateUtils";
+import { getDefaultCustomRange, calculateDateRange, toYmdLocal } from "@/lib/dateUtils";
+import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
+import PosStylePageHeader, { PosStyleHeaderButton } from "@/components/shell/PosStylePageHeader";
+import PosStylePanel from "@/components/shell/PosStylePanel";
 
 function formatJournalAmountCell(amount) {
   return formatCurrency(coerceJournalAmount(amount));
@@ -45,7 +48,7 @@ const JournalEntries = () => {
   const [limit, setLimit] = useState(50);
   
   // Filters
-  const [dateRange, setDateRange] = useState("This Year");
+  const [dateRange, setDateRange] = useState("thisYear");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -88,13 +91,13 @@ const JournalEntries = () => {
   // Fetch journal entries when filters change
   useEffect(() => {
     if (!businessScopeHydrated) return;
-    if (dateRange === "Custom Range" && (!customStartDate || !customEndDate)) return;
+    if (dateRange === "custom" && (!customStartDate || !customEndDate)) return;
     fetchJournalEntries();
   }, [page, limit, dateRange, customStartDate, customEndDate, statusFilter, sourceTypeFilter, searchTerm, businessScopeMode, businessScopeTenantIds, businessScopeHydrated]);
 
   // Initialize custom range dates when first selected
   useEffect(() => {
-    if (dateRange === "Custom Range" && (!customStartDate || !customEndDate)) {
+    if (dateRange === "custom" && (!customStartDate || !customEndDate)) {
       const def = getDefaultCustomRange();
       setCustomStartDate(def.startDate);
       setCustomEndDate(def.endDate);
@@ -103,50 +106,15 @@ const JournalEntries = () => {
   
   // Calculate date range based on selected option
   const getDateRangeParams = () => {
-    const now = new Date();
-    let startDate, endDate;
-    
-    switch (dateRange) {
-      case "Today":
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
-        endDate = now.toISOString().split('T')[0];
-        break;
-      case "This Week": {
-        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        startDate = weekStart.toISOString().split('T')[0];
-        endDate = weekEnd.toISOString().split('T')[0];
-        break;
-      }
-      case "This Month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-        break;
-      case "Last Month":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-        break;
-      case "This Quarter": {
-        const quarter = Math.floor(now.getMonth() / 3);
-        startDate = new Date(now.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
-        endDate = new Date(now.getFullYear(), (quarter + 1) * 3, 0).toISOString().split('T')[0];
-        break;
-      }
-      case "This Year":
-        startDate = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-        endDate = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
-        break;
-      case "Custom Range":
-        startDate = customStartDate;
-        endDate = customEndDate;
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    }
-    
-    return { startDate, endDate };
+    const customRange =
+      dateRange === "custom" && customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : null;
+    const { startDate, endDate } = calculateDateRange(dateRange, false, customRange);
+    return {
+      startDate: toYmdLocal(startDate),
+      endDate: toYmdLocal(endDate),
+    };
   };
   
   // Fetch journal entries from API
@@ -433,15 +401,7 @@ const handleDeleteEntry = async (entryId) => {
   ];
   
   // Date range options for the filter dropdown
-  const dateRangeOptions = [
-    "Today",
-    "This Week",
-    "This Month",
-    "Last Month",
-    "This Quarter",
-    "This Year",
-    "Custom Range"
-  ];
+  // Date range options provided by UniversalDateRangeFilter
   
   if (!accessChecked) {
     return null;
@@ -472,49 +432,37 @@ const handleDeleteEntry = async (entryId) => {
                 </div>
               )}
 
-              <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                      <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-                    </div>
-                    <div>
-                      <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Journal Entries</h1>
-                      <p className="text-indigo-100 text-sm mt-0.5">View and manage general ledger entries</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+              <PosStylePageHeader
+                title="Journal Entries"
+                description="View and manage general ledger entries"
+                actions={
+                  <>
                     <BusinessScopeSelector
                       mode={businessScopeMode}
                       selectedTenantIds={businessScopeTenantIds}
                       onChange={setBusinessScope}
                       compact
-                      className="[&_button]:bg-white/95 [&_button]:border-white/30"
                     />
                     {pagePermissions.canCreateJournal && (
                       <Link
                         href="/journal-entries/new"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold transition-all shadow-lg"
+                        className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
                       >
-                        <Plus size={18} />
+                        <Plus size={18} className="mr-2" />
                         New Entry
                       </Link>
                     )}
                     {pagePermissions.canExportJournal && (
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium transition-all border border-white/20"
-                        onClick={() => handleExport('csv')}
-                      >
-                        <Download size={18} />
+                      <PosStyleHeaderButton type="button" onClick={() => handleExport('csv')}>
+                        <Download size={18} className="mr-2" />
                         Export
-                      </button>
+                      </PosStyleHeaderButton>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </>
+                }
+              />
 
-              <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
+              <PosStylePanel className="mb-6 p-4 sm:p-6">
                 <div className="flex flex-col lg:flex-row gap-4 mb-4">
                   <div className="flex-1">
                     <div className="relative">
@@ -522,29 +470,24 @@ const handleDeleteEntry = async (entryId) => {
                       <input
                         type="text"
                         placeholder="Search journal entries..."
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 focus:bg-white"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 focus:bg-white"
                         value={searchTerm}
                         onChange={handleSearchChange}
                       />
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <div className="relative min-w-[140px]">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                      <select
-                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
-                        value={dateRange}
-                        onChange={handleDateRangeChange}
-                      >
-                        {dateRangeOptions.map(option => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <UniversalDateRangeFilter
+                      timeframe={dateRange}
+                      onTimeframeChange={handleDateRangeChange}
+                      onCustomDateChange={handleCustomDateChange}
+                      showRefresh={false}
+                      size="default"
+                    />
                     <div className="relative min-w-[120px]">
                       <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                       <select
-                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-blue-500/50 appearance-none cursor-pointer"
                         value={statusFilter}
                         onChange={handleStatusFilterChange}
                       >
@@ -556,7 +499,7 @@ const handleDeleteEntry = async (entryId) => {
                     <div className="relative min-w-[120px]">
                       <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                       <select
-                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-blue-500/50 appearance-none cursor-pointer"
                         value={sourceTypeFilter}
                         onChange={handleSourceTypeFilterChange}
                       >
@@ -570,7 +513,7 @@ const handleDeleteEntry = async (entryId) => {
 
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center py-20">
-                    <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+                    <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
                     <p className="text-slate-500 font-medium">Loading entries...</p>
                   </div>
                 ) : error ? (
@@ -608,11 +551,11 @@ const handleDeleteEntry = async (entryId) => {
                   const sourceTypeColors = {
                     'Sale': 'bg-blue-100 text-blue-800',
                     'Expense': 'bg-red-100 text-red-800',
-                    'Invoice': 'bg-purple-100 text-purple-800',
+                    'Invoice': 'bg-blue-100 text-blue-800',
                     'InvoicePayment': 'bg-green-100 text-green-800',
                     'LiabilityPayment': 'bg-orange-100 text-orange-800',
                     'SupplierPayment': 'bg-yellow-100 text-yellow-800',
-                    'Asset': 'bg-indigo-100 text-indigo-800',
+                    'Asset': 'bg-sky-100 text-sky-800',
                     'Payroll': 'bg-cyan-100 text-cyan-800',
                     'Transaction': 'bg-slate-100 text-slate-800',
                     'Manual': 'bg-gray-100 text-gray-800',
@@ -632,7 +575,7 @@ const handleDeleteEntry = async (entryId) => {
                     const accountName = line.account?.accountName || line.account?.name || line.accountName || 'Unnamed Account';
 
                     return (
-                      <tr key={`${entry.id}-${line.id || index}`} className="border-t border-slate-100 hover:bg-indigo-50/30 transition-colors">
+                      <tr key={`${entry.id}-${line.id || index}`} className="border-t border-slate-100 hover:bg-blue-50/40 transition-colors">
                         {index === 0 && (
                           <>
                             <td className="p-3 text-blue-600" rowSpan={rowSpan}>{entry.referenceNumber || '—'}</td>
@@ -760,7 +703,7 @@ const handleDeleteEntry = async (entryId) => {
                       type="button"
                       className={`min-w-[2.25rem] px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
                         pageNumber === page
-                          ? 'bg-indigo-600 text-white shadow-sm'
+                          ? 'bg-blue-600 text-white shadow-sm'
                           : 'border border-slate-200 bg-white hover:bg-slate-50'
                       }`}
                       onClick={() => handlePageChange(pageNumber)}
@@ -782,7 +725,7 @@ const handleDeleteEntry = async (entryId) => {
             </div>
           </div>
         )}
-      </div>
+      </PosStylePanel>
 
       {/* View Journal Entry Modal */}
       {showViewModal && viewEntry && (

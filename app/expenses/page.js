@@ -1266,6 +1266,29 @@ const handleFileUpload = async (e) => {
     setViewReceiptModalOpen(true);
   };
   
+  const downloadExpenseAttachment = async (attachment) => {
+    if (!attachment?.url) {
+      alert('No receipt file is available to download.');
+      return;
+    }
+    try {
+      const res = await fetch(attachment.url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = attachment.name || 'receipt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.error('Expense receipt download failed:', err);
+      alert('Could not download this receipt. Try again or re-upload the file.');
+    }
+  };
+
   // Open individual attachment preview
   const openAttachmentPreview = (attachment) => {
     setSelectedAttachment(attachment);
@@ -1968,8 +1991,8 @@ const handleFileUpload = async (e) => {
                   amount: statistics.historical?.amount ?? '0.00',
                   count: statistics.historical?.count ?? 0,
                   countLabel: 'historical records',
-                  amountClass: 'text-violet-700',
-                  barClass: 'from-violet-400 via-purple-500 to-indigo-500',
+                  amountClass: 'text-blue-700',
+                  barClass: 'from-blue-500 via-sky-500 to-indigo-500',
                 },
               ].map((card) => {
                 const isActive = cardFilter === card.key;
@@ -1999,7 +2022,7 @@ const handleFileUpload = async (e) => {
             {/* Main Content Card */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden">
               {/* Sub Tab Navigation */}
-              <div className="px-4 sm:px-6 py-3 border-b border-gray-100/50 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5">
+              <div className="px-4 sm:px-6 py-3 border-b border-gray-100/50 bg-gradient-to-r from-blue-500/5 via-transparent to-indigo-500/5">
                 <div className="flex gap-2 overflow-x-auto">
           <button 
                     className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 ${
@@ -2297,7 +2320,7 @@ const handleFileUpload = async (e) => {
                       </div>
                     </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {expense.category}
                             </span>
                     </td>
@@ -2895,16 +2918,14 @@ const handleFileUpload = async (e) => {
                         >
                           <Download className="w-4 h-4" />
                         </button> */}
-                        <a
-                            href={attachment.url}
-                            download
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <button
+                            type="button"
+                            onClick={() => downloadExpenseAttachment(attachment)}
                             className="text-blue-600 hover:text-blue-800 p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
                             title="Download"
                           >
                           <Download className="w-4 h-4" />
-                        </a>
+                        </button>
                         <button 
                           className="text-red-600 hover:text-red-800 p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full" 
                           title="Delete"
@@ -3000,30 +3021,28 @@ const handleFileUpload = async (e) => {
                 <FileText className="w-24 h-24 mx-auto mb-4 text-blue-500" />
                 <h3 className="text-xl font-bold mb-2">{selectedAttachment.name}</h3>
                 <p className="text-gray-600 mb-6">PDF documents cannot be previewed here</p>
-                <a 
-                  href={selectedAttachment.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => downloadExpenseAttachment(selectedAttachment)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center mx-auto inline-flex"
                 >
                   <Download className="w-5 h-5 mr-2" />
                   Download PDF
-                </a>
+                </button>
               </div>
             ) : (
               <div className="bg-white p-12 rounded-lg shadow-xl text-center">
                 <File className="w-24 h-24 mx-auto mb-4 text-blue-500" />
                 <h3 className="text-xl font-bold mb-2">{selectedAttachment.name}</h3>
                 <p className="text-gray-600 mb-6">This file type cannot be previewed</p>
-                <a 
-                  href={selectedAttachment.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => downloadExpenseAttachment(selectedAttachment)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center mx-auto inline-flex"
                 >
                   <Download className="w-5 h-5 mr-2" />
                   Download File
-                </a>
+                </button>
               </div>
             )}
           </div>

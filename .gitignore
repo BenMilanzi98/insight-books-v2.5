@@ -15,7 +15,8 @@
 /coverage
 
 # next.js — commit production build so VPS can pull + reload without building.
-# Exclude cache + build diagnostics (not required for `next start`; often >100MB).
+# Exclude dev server output and cache (often >1GB; never deploy these).
+/.next/dev/
 /.next/cache/
 /.next/trace
 /.next/trace-build

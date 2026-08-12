@@ -73,7 +73,7 @@ export function PaymentAccountFormModal({
   const mobileOptions = catalog?.mobile || [];
   const needsChannel =
     form.accountType !== "Cash" &&
-    ["Bank", "Mobile Money", "Wallet"].includes(form.accountType);
+    ["Bank", "Mobile Money", "Wallet", "POS Terminal"].includes(form.accountType);
 
   const channelOptions =
     form.accountType === "Mobile Money"
@@ -95,6 +95,9 @@ export function PaymentAccountFormModal({
         throw new Error(
           "Account number is required. You can reuse the same name if the account number is different."
         );
+      }
+      if (needsChannel && !form.parentGlCode) {
+        throw new Error("Select a bank or mobile money channel so the GL account can be created.");
       }
       const body = {
         name: form.name.trim(),

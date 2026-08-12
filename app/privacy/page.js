@@ -95,7 +95,7 @@ export default function PrivacyPolicy() {
           <div className="lg:col-span-3">
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               {/* Content Header */}
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-8">
+              <div className="bg-gradient-to-r from-blue-600 to-sky-600 text-white p-8">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="bg-white/20 p-2 rounded-lg">
                     <Shield size={24} />

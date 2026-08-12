@@ -180,7 +180,7 @@ export default function VerifyEmailClient() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* Left branding panel */}
-      <div className="hidden md:flex md:w-2/5 bg-gradient-to-br from-indigo-800 via-indigo-700 to-indigo-900 text-white p-10 flex-col justify-between">
+      <div className="hidden md:flex md:w-2/5 bg-gradient-to-br from-blue-800 via-sky-700 to-blue-950 text-white p-10 flex-col justify-between">
         <div>
           <img
             src="/logo.png"

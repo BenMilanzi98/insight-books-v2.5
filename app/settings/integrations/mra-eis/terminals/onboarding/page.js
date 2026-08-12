@@ -349,7 +349,7 @@ export default function MraEisOnboardingWizardPage() {
           <button
             type="button"
             disabled={busy || tac.length < 4}
-            className="mt-4 rounded bg-indigo-800 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
             onClick={submitTac}
           >
             Submit TAC securely

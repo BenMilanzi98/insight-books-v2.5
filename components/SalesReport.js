@@ -55,8 +55,8 @@ export const SalesReport = ({
               <h3 className="text-sm font-medium text-blue-700 mb-1">Average sale value</h3>
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.summary.averageSaleValue)}</p>
             </div>
-            <div className="bg-gradient-to-br from-violet-50 to-white p-4 sm:p-5 rounded-2xl border border-violet-200/80 shadow-sm border-l-4 border-l-violet-500">
-              <h3 className="text-sm font-medium text-violet-700 mb-1">Total tax collected</h3>
+            <div className="bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 rounded-2xl border border-sky-200/80 shadow-sm border-l-4 border-l-sky-500">
+              <h3 className="text-sm font-medium text-sky-700 mb-1">Total tax collected</h3>
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.summary.totalTax)}</p>
               <p className="text-xs text-slate-500 mt-1">
                 {data.summary.totalTax > 0 ? ((data.summary.totalTax / data.summary.totalRevenue) * 100).toFixed(1) : 0}% of revenue

@@ -995,10 +995,8 @@ const POSPage = () => {
 
   // Load products
   const loadProducts = async () => {
-    // v2: services excluded from POS (invoice-only)
-    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v2';
-    const onlyPosProducts = (list) =>
-      (Array.isArray(list) ? list : []).filter((p) => p && !p.isService);
+    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v3';
+    const onlyPosProducts = (list) => (Array.isArray(list) ? list : []).filter(Boolean);
     try {
       setIsLoadingProducts(true);
       setProductsError(null);
@@ -1174,7 +1172,7 @@ const POSPage = () => {
     }
 
     // Stock check only for regular products (unit-managed will validate per-unit in UI)
-    if (!isUnitManaged && detailedProduct.stockLevel !== null && detailedProduct.stockLevel < parsedQty) {
+    if (!detailedProduct.isService && !isUnitManaged && detailedProduct.stockLevel !== null && detailedProduct.stockLevel < parsedQty) {
       setSaleError(`Only ${detailedProduct.stockLevel} units of ${detailedProduct.name} available in stock`);
       return;
     }
@@ -1468,7 +1466,8 @@ const POSPage = () => {
   
   // Handle quick add of a product
   const handleQuickAdd = (product) => {
-    if (!product || (product.stockLevel !== null && product.stockLevel <= 0)) {
+    if (!product) return;
+    if (!product.isService && product.stockLevel !== null && product.stockLevel <= 0) {
       return; // Don't add out-of-stock products
     }
     
@@ -1486,7 +1485,7 @@ const POSPage = () => {
     const product = products.find(p => p.id === productId);
     
     // Check if the new quantity exceeds stock level
-    if (product && product.stockLevel !== null && parsedQty > product.stockLevel) {
+    if (product && !product.isService && product.stockLevel !== null && parsedQty > product.stockLevel) {
       setSaleError(`Cannot set quantity to ${parsedQty}. Only ${product.stockLevel} units of ${product.name} available.`);
       return;
     }
@@ -2460,7 +2459,7 @@ const POSPage = () => {
         {/* Left Column - New Sale Form */}
         {pagePermissions.canCreateSales && (
           <div className="lg:col-span-9 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-5 lg:p-6 border border-gray-100 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500"></div>
           <div>
             <div className="flex flex-wrap gap-2 mb-6 bg-gray-50 p-1 rounded-xl">
               <button
@@ -2787,7 +2786,7 @@ const POSPage = () => {
                       // Add first matching product on Enter
                       if (e.key === 'Enter' && filteredProducts.length > 0) {
                         const product = filteredProducts[0];
-                        if (!(product.stockLevel !== null && product.stockLevel <= 0)) {
+                        if (product.isService || !(product.stockLevel !== null && product.stockLevel <= 0)) {
                           handleQuickAdd(product);
                         }
                       }
@@ -2813,8 +2812,8 @@ const POSPage = () => {
                         filteredProducts.map(product => (
                           <div 
                             key={product.id}
-                            className={`p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition-colors ${product.stockLevel <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            onClick={() => product.stockLevel > 0 && handleQuickAdd(product)}
+                            className={`p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition-colors ${!product.isService && product.stockLevel <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            onClick={() => (product.isService || product.stockLevel > 0) && handleQuickAdd(product)}
                           >
                             <div className="flex-1">
                               <div className="flex flex-wrap items-center gap-2">
@@ -2823,14 +2822,14 @@ const POSPage = () => {
                               </div>
                               <div className="flex flex-wrap text-xs text-gray-500 gap-3 mt-1">
                                 {product.sku && <span>SKU: {product.sku}</span>}
-                                <span className={product.stockLevel !== null && product.stockLevel > 0 ? 'text-green-600' : 'text-red-600'}>
-                                  Stock: {product.stockLevel !== null ? product.stockLevel : 'N/A'}
+                                <span className={product.isService || (product.stockLevel !== null && product.stockLevel > 0) ? 'text-green-600' : 'text-red-600'}>
+                                  {product.isService ? 'Service' : `Stock: ${product.stockLevel !== null ? product.stockLevel : 'N/A'}`}
                                 </span>
                               </div>
                             </div>
                             <div className="text-right ml-4">
                               <p className="font-bold text-gray-900">{formatCurrency(product.price)}</p>
-                              {product.stockLevel <= 0 ? (
+                              {!product.isService && product.stockLevel <= 0 ? (
                                 <span className="text-xs text-red-600 font-medium">Out of stock</span>
                               ) : (
                                 <button 
@@ -3617,9 +3616,7 @@ const POSPage = () => {
                       <button
                         type="button"
                         onClick={() =>
-                          openPosRegisterDay(
-                            Number(posCashDayState.suggestedOpeningBalance ?? posCashDayState.liveCashBalance ?? 0)
-                          ).catch((e) => alert(e?.message || 'Open till failed'))
+                          openPosRegisterDay(0).catch((e) => alert(e?.message || 'Open till failed'))
                         }
                         disabled={posCashActionLoading}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white disabled:opacity-50"
@@ -3830,7 +3827,7 @@ const POSPage = () => {
 
       {/* Recent Sales Section - Full Width at Bottom */}
       <div className="mt-6 lg:mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500"></div>
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500"></div>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Recent Sales</h2>
         </div>
@@ -3924,7 +3921,7 @@ const POSPage = () => {
                           )}
                           {pagePermissions.canRefundSales && sale.status === 'completed' && (
                             <button
-                              className="text-purple-600 hover:text-purple-800 p-1.5 rounded-lg hover:bg-purple-100 transition-colors"
+                              className="text-blue-600 hover:text-blue-800 p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
                               onClick={() => {
                                 setSelectedSaleForAction(sale);
                                 setShowRefundModal(true);
@@ -4294,7 +4291,7 @@ const POSPage = () => {
               <p className="text-gray-600 mb-2">
                 Are you sure you want to refund sale {selectedSaleForAction?.saleNumber}?
               </p>
-              <p className="text-sm text-purple-600">
+              <p className="text-sm text-blue-600">
                 This action will reverse the sale, restore inventory, and adjust financial records.
               </p>
             </div>
@@ -4319,7 +4316,7 @@ const POSPage = () => {
                 Cancel
               </button>
               <button 
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center justify-center"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
                 onClick={handleRefundSale}
                 disabled={isProcessingRefund || !refundReason.trim()}
               >

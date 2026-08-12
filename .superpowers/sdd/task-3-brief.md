@@ -1,61 +1,67 @@
-### Task 3: Return linked bill ids from receipts POST
+### Task 3: Sidebar — three hubs + redirects + route permissions
 
 **Files:**
-- Modify: `app/api/purchases/receipts/route.js` (POST success payload near end of handler)
-- Test: extend unit coverage optionally; manual verification listed below
+- Modify: `components/Sidebar/Sidebar.js` (all three nav definitions: expandable subItems, `rental` group, `rentalSubItems`)
+- Modify: `next.config.mjs` redirects
+- Modify: path permission map in Sidebar (`"/rentals/hirings"`, `"/rentals/reports"`)
 
 **Interfaces:**
-- Consumes: created `goodsReceipt.id` after transaction
-- Produces: response `goodsReceipt.supplierBillId`, `goodsReceipt.billNumber` (nullable when no bill yet, e.g. deferred / service)
+- Produces: operators only see three links; old URLs redirect.
 
-- [ ] **Step 1: Look up auto-created bill after create**
-
-After `goodsReceiptOut` is loaded (existing `findFirst` near the end of POST), before building `responsePayload`, add:
+- [ ] **Step 1: Update sidebar subItems everywhere to**
 
 ```js
-    const linkedBill = goodsReceiptOut
-      ? await prisma.supplierBill.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            goodsReceiptId: goodsReceiptOut.id,
-          },
-          select: { id: true, billNumber: true, status: true },
-        })
-      : null;
+{ href: "/rentals", text: "Rentals", icon: "Rentals", permission: "rentals.view" },
+{ href: "/rentals/hirings", text: "Hirings", icon: "Hiring", permission: "rentals.view" },
+{ href: "/rentals/reports", text: "Reports", icon: "Reports", permission: "rentals.view" },
 ```
 
-- [ ] **Step 2: Include bill fields on response payload**
+Remove Contracts V2, Quotations V2, Rental reconcile, Quantity rentals, Supplier hiring from sidebar arrays. Keep `ROUTE_PERMISSIONS` entries for deep-link pages if they still need access when visited directly.
 
-Update `responsePayload` construction:
+Add:
 
 ```js
-    const responsePayload = goodsReceiptOut
-      ? {
-          ...goodsReceiptOut,
-          receiptType: hasInventoryItems ? 'inventory' : 'service',
-          deferredStockPosting:
-            inventoryNotApplied && isReceiptDateStrictlyAfterTodayUTC(goodsReceiptOut.receiptDate),
-          stockPostingPending: inventoryNotApplied,
-          supplierBillId: linkedBill?.id || null,
-          billNumber: linkedBill?.billNumber || null,
-          billStatus: linkedBill?.status || null,
-        }
-      : result;
+"/rentals/hirings": ["rentals.view"],
+"/rentals/reports": ["rentals.view"],
 ```
 
-Keep `return NextResponse.json({ goodsReceipt: responsePayload }, { status: 201 });`.
+- [ ] **Step 2: Redirects in `next.config.mjs`**
 
-- [ ] **Step 3: Smoke-check response shape**
+```js
+{
+  source: '/rentals/hiring',
+  destination: '/rentals/hirings?tab=customer',
+  permanent: false,
+},
+{
+  source: '/rentals/inbound-hiring',
+  destination: '/rentals/hirings?tab=supplier',
+  permanent: false,
+},
+```
 
-With `npm run dev` running, after a same-day inventory receive, confirm JSON includes:
+Note: Next.js redirects may strip query on some versions — if `?tab=` is unreliable, implement thin pages at old paths that `redirect()` from `next/navigation` with tab query instead.
 
-- `goodsReceipt.inventoryAppliedAt` set (stock posted)
-- `goodsReceipt.supplierBillId` non-null
-- `goodsReceipt.billStatus === "Unpaid"`
+Preferred fallback — replace `app/rentals/hiring/page.js`:
 
-- [ ] **Step 4: Commit**
+```js
+import { redirect } from 'next/navigation';
+export default function LegacyHiringRedirect() {
+  redirect('/rentals/hirings?tab=customer');
+}
+```
 
-Skip unless the user explicitly asks to commit.
+And `app/rentals/inbound-hiring/page.js` → redirect to supplier tab (move UI into extracted component first in Task 4, then redirect this file).
+
+- [ ] **Step 3: Manual check**
+
+With `npm run dev`, open sidebar under Rental & Hiring — only three items. Hit `/rentals/hiring` — lands on Hirings customer tab (after Task 4 page exists; until then redirect may 404 — order Task 4 immediately after or create stub page in this task).
+
+- [ ] **Step 4: Stub pages if Task 4 not yet done**
+
+Create minimal `app/rentals/hirings/page.js` and `app/rentals/reports/page.js` placeholders (“Coming soon”) so redirects do not 404; Task 4/5 replace stubs.
+
+- [ ] **Step 5: Commit only if user asked**
 
 ---
 

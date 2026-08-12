@@ -1,104 +1,613 @@
-﻿diff --git a/lib/goodsReceiptFollowOn.js b/lib/goodsReceiptFollowOn.js
-index f127aa38..c1c25a30 100644
---- a/lib/goodsReceiptFollowOn.js
-+++ b/lib/goodsReceiptFollowOn.js
-@@ -1,14 +1,12 @@
- // Shared follow-on effects for goods receipts (bills, assets).
- import { Prisma } from '@prisma/client';
--import { isPurchasesGrniEnabled } from '@/lib/purchases/grniPolicy';
+# Task 2 review package WORKING_TREE
+
+ M app/api/invoices/void/route.js
+ M app/api/rentals/cancel/route.js
+ M app/rentals/RentalsClient.js
+?? lib/invoiceVoidService.js
+?? lib/rentalReverseService.js
+?? test/rentalReverseService.test.js
+
+=== DIFF tracked ===
+diff --git a/app/api/invoices/void/route.js b/app/api/invoices/void/route.js
+index 87bf3d8b..b0c1fa01 100644
+--- a/app/api/invoices/void/route.js
++++ b/app/api/invoices/void/route.js
+@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
+ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+ import { reverseSourceJournals } from '@/lib/accountingV2/application/reverseSourceJournals.js';
+ import { addMoney } from '@/lib/money';
++import { voidInvoiceInTransaction } from '@/lib/invoiceVoidService';
+ 
+ export async function POST(request) {
+   try {
+@@ -91,44 +92,19 @@ export async function POST(request) {
+       postingDate: voidDate.toISOString().slice(0, 10),
+     });
+ 
+-    const result = await prisma.$transaction(async (tx) => {
+-      const originalTotal = invoice.total;
 -
- export async function ensureDefaultAssetCategory(tenantId, userId, tx) {
-   let category = await tx.assetCategory.findFirst({
-     where: { tenantId },
-     orderBy: { createdAt: 'asc' }
-   });
-   if (category) return category;
- 
-   category = await tx.assetCategory.create({
-     data: {
-       tenantId,
-@@ -117,71 +115,64 @@ export async function autoCreateBillFromReceipt({
-   const paymentTerms =
-     supplier.paymentTerms ?? purchaseOrder?.paymentTerms ?? 30;
-   const billDate =
-     goodsReceipt.receiptDate instanceof Date
-       ? goodsReceipt.receiptDate
-       : new Date(goodsReceipt.receiptDate);
-   const dueDate = new Date(billDate);
-   dueDate.setDate(dueDate.getDate() + paymentTerms);
- 
-   const billNumber = await allocateGoodsReceiptBillNumber(tx, goodsReceipt);
--  const grniEnabled = await isPurchasesGrniEnabled(tx, tenantId);
--
--  // GRNI mode: receipt already accrued inventory vs GRNI. Auto-bill is a draft
--  // payable document awaiting supplier invoice / match / post ΓÇö do not share the
--  // receipt journal or inflate supplier AP balance until the bill posts.
--  const billStatus = grniEnabled ? 'Draft' : 'Unpaid';
--  const billJournalId = grniEnabled ? null : journalEntryId || null;
- 
-+  // Product decision (2026-08-11): auto-bill from goods receipt is always Unpaid
-+  // and immediately payable, even when purchases GRNI is enabled.
-   const bill = await tx.supplierBill.create({
-     data: {
-       tenantId,
-       supplierId: supplier.id,
-       purchaseOrderId:
-         goodsReceipt.purchaseOrderId || purchaseOrder?.id || null,
-       goodsReceiptId: goodsReceipt.id,
-       billNumber,
-       billDate,
-       dueDate,
-       billType: 'inventory',
-       supplierInvoiceNumber: goodsReceipt.supplierReference || null,
-       subtotal,
-       taxAmount: 0,
-       totalAmount: subtotal,
-       amountPaid: 0,
--      status: billStatus,
-+      status: 'Unpaid',
-       paymentTerms,
-       currency: supplier.currency || 'MWK',
-       notes: goodsReceipt.notes || null,
-       createdById: userId,
--      finalizedAt: grniEnabled ? null : new Date(),
--      finalizedById: grniEnabled ? null : userId,
--      journalEntryId: billJournalId,
-+      finalizedAt: new Date(),
-+      finalizedById: userId,
-+      journalEntryId: journalEntryId || null,
-       items: {
-         create: goodsReceipt.items.map((item, index) => ({
-           lineNumber: index + 1,
-           productId: item.productId,
-           description: item.notes || '',
-           quantity: Number(item.quantityReceived || 0),
-           unitCost: Number(item.unitCost || 0),
-           lineTotal:
-             Number(item.quantityReceived || 0) * Number(item.unitCost || 0),
-           taxRate: 0,
-           taxAmount: 0
-         }))
-       }
-     }
-   });
- 
--  if (!grniEnabled) {
--    await tx.supplier.update({
--      where: { id: supplier.id },
--      data: {
--        currentBalance: {
--          increment: subtotal
+-      const updatedInvoice = await tx.invoice.update({
+-        where: { id: invoiceId },
+-        data: {
+-          status: 'void',
+-          voidedAt: voidDate,
+-          voidedById: user.id,
+-          voidReason: reversalReason,
+-          originalTotal: originalTotal,
+-          updatedAt: voidDate
 -        }
-+  await tx.supplier.update({
-+    where: { id: supplier.id },
-+    data: {
-+      currentBalance: {
-+        increment: subtotal
-       }
+-      });
+-
+-      await tx.auditLog.create({
+-        data: {
+-          action: 'INVOICE_VOID',
+-          entityType: 'INVOICE',
+-          entityId: invoiceId,
+-          userId: user.id,
+-          tenantId: user.tenantId,
+-          details: JSON.stringify({
+-            invoiceNumber: invoice.invoiceNumber,
+-            clientName: invoice.client.name,
+-            originalTotal: originalTotal,
+-            voidReason: reversalReason,
+-            voidedBy: user.email,
+-            v2JournalsReversed: v2Reversal.reversed.map((r) => r.originalJournalId),
+-            v2JournalsSkipped: v2Reversal.skippedAlreadyReversed,
+-          }),
+-          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+-          timestamp: new Date()
+-        }
+-      });
+-
+-      return updatedInvoice;
 -    });
--  }
-+    }
-+  });
++    const result = await prisma.$transaction((tx) =>
++      voidInvoiceInTransaction({
++        tx,
++        invoice,
++        tenantId: user.tenantId,
++        userId: user.id,
++        reason: reversalReason,
++        voidDate,
++        v2Reversal,
++        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
++        userEmail: user.email,
++      })
++    );
  
-   return bill;
- }
+     return NextResponse.json({
+       success: true,
+diff --git a/app/api/rentals/cancel/route.js b/app/api/rentals/cancel/route.js
+index 210a0b3e..c9adc2c0 100644
+--- a/app/api/rentals/cancel/route.js
++++ b/app/api/rentals/cancel/route.js
+@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
+ import prisma from '@/lib/prisma';
+ import { getUserFromSession, hasPermission } from '@/lib/auth';
+ import { requireStandardAccess } from '@/lib/accessControl';
++import { reverseRentalBooking } from '@/lib/rentalReverseService';
+ 
+-/**
+- * Cancel a **draft** booking only: removes availability and deletes the draft invoice (cascade removes rental transaction).
+- * Posted invoices must be voided from Invoicing (reverses GL) before deleting operational data.
+- */
+ export async function POST(request) {
+   try {
+     const accessError = await requireStandardAccess(request);
+@@ -21,46 +18,26 @@ export async function POST(request) {
+     }
+ 
+     const body = await request.json().catch(() => ({}));
+-    const { transactionId } = body;
++    const { transactionId, reason } = body;
+     if (!transactionId) {
+       return NextResponse.json({ error: 'transactionId is required' }, { status: 400 });
+     }
+ 
+-    const rt = await prisma.rentalTransaction.findFirst({
+-      where: { id: transactionId, tenantId: user.tenantId },
+-      include: { items: { include: { rentalAsset: true } }, invoice: true },
+-    });
+-    if (!rt) {
+-      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+-    }
+-    if (['completed', 'cancelled'].includes(rt.status)) {
+-      return NextResponse.json({ error: 'Transaction already closed' }, { status: 400 });
+-    }
+-
+-    const invStatus = String(rt.invoice?.status || '').toLowerCase();
+-    if (invStatus !== 'draft') {
+-      return NextResponse.json(
+-        {
+-          error:
+-            'Only draft rental invoices can be cancelled here. Void the invoice from Invoicing if it was already posted.',
+-        },
+-        { status: 400 }
+-      );
+-    }
+-
+-    await prisma.$transaction(async (tx) => {
+-      for (const item of rt.items) {
+-        if (item.rentalAsset.kind === 'rental') {
+-          await tx.rentalAsset.update({
+-            where: { id: item.rentalAssetId },
+-            data: { status: 'available' },
+-          });
+-        }
+-      }
+-      await tx.invoice.delete({ where: { id: rt.invoiceId } });
++    const result = await reverseRentalBooking({
++      prisma,
++      tenantId: user.tenantId,
++      userId: user.id,
++      transactionId,
++      reason: reason?.trim() || 'Rental booking reversed',
+     });
++    if (result.ok) return NextResponse.json(result);
+ 
+-    return NextResponse.json({ ok: true, transactionId });
++    const statusByCode = {
++      NOT_FOUND: 404,
++      NEED_CREDIT_REFUND: 409,
++      CLOSED: 400,
++    };
++    return NextResponse.json(result, { status: statusByCode[result.code] || 500 });
+   } catch (e) {
+     console.error('[rentals cancel]', e);
+     return NextResponse.json({ error: 'Failed to cancel' }, { status: 500 });
+diff --git a/app/rentals/RentalsClient.js b/app/rentals/RentalsClient.js
+index c7527086..798c768f 100644
+--- a/app/rentals/RentalsClient.js
++++ b/app/rentals/RentalsClient.js
+@@ -431,8 +431,8 @@ export default function RentalsClient({ mode }) {
+     }
+   };
+ 
+-  const cancelDraft = async (id) => {
+-    if (!confirm("Cancel this draft booking? The draft invoice will be removed.")) return;
++  const reverseBooking = async (id) => {
++    if (!confirm("Reverse this booking? Draft invoices are deleted; unpaid posted invoices are voided.")) return;
+     setErr(null);
+     try {
+       const res = await fetch("/api/rentals/cancel", {
+@@ -441,6 +441,9 @@ export default function RentalsClient({ mode }) {
+         body: JSON.stringify({ transactionId: id }),
+       });
+       const data = await res.json();
++      if (res.status === 409) {
++        throw new Error("Invoice has payments — refund/credit on /invoices first, then reverse.");
++      }
+       if (!res.ok) throw new Error(data.error || "Failed");
+       await load();
+     } catch (e) {
+@@ -731,13 +734,13 @@ export default function RentalsClient({ mode }) {
+                                 Complete
+                               </button>
+                             )}
+-                            {t.invoice?.status?.toLowerCase?.() === "draft" && (
++                            {["booked", "active", "overdue"].includes(t.status) && (
+                               <button
+                                 type="button"
+                                 className="ml-2 text-xs font-semibold text-rose-600 hover:underline"
+-                                onClick={() => cancelDraft(t.id)}
++                                onClick={() => reverseBooking(t.id)}
+                               >
+-                                Cancel draft
++                                Reverse
+                               </button>
+                             )}
+                           </td>
+
+=== FILE lib/rentalReverseService.js ===
+import { voidPostedInvoice as defaultVoidPostedInvoice } from '@/lib/invoiceVoidService.js';
+import { resolveOutboundInvoiceSource } from '@/lib/rentalSourceTags.js';
+
+const DRAFT_INVOICE_STATUS = 'draft';
+const VOID_INVOICE_STATUS = 'void';
+
+function totalCompletedPayments(invoice) {
+  return (invoice?.payments || []).reduce((total, payment) => total + Number(payment.amount || 0), 0);
+}
+
+export async function reverseRentalBooking({
+  prisma,
+  tenantId,
+  userId,
+  transactionId,
+  reason,
+  voidPostedInvoice = defaultVoidPostedInvoice,
+}) {
+  const rentalTransaction = await prisma.rentalTransaction.findFirst({
+    where: { id: transactionId, tenantId },
+    include: {
+      items: { include: { rentalAsset: true } },
+      invoice: { include: { payments: { where: { status: 'Completed' } } } },
+    },
+  });
+
+  if (!rentalTransaction) {
+    return { ok: false, code: 'NOT_FOUND', error: 'Transaction not found' };
+  }
+
+  if (rentalTransaction.status === 'cancelled') {
+    return {
+      ok: true,
+      transactionId,
+      alreadyReversed: true,
+      invoiceAction: 'already_cancelled',
+      invoiceId: rentalTransaction.invoiceId,
+    };
+  }
+
+  if (rentalTransaction.status === 'completed') {
+    return {
+      ok: false,
+      code: 'CLOSED',
+      error: 'Completed bookings cannot be reversed here',
+    };
+  }
+
+  if (totalCompletedPayments(rentalTransaction.invoice) > 0) {
+    return {
+      ok: false,
+      code: 'NEED_CREDIT_REFUND',
+      error: 'Invoice has payments. Process a refund or credit before reversing this booking.',
+    };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const invoice = rentalTransaction.invoice;
+    const invoiceStatus = String(invoice?.status || '').toLowerCase();
+    const shouldDeleteInvoice = !invoice || invoiceStatus === DRAFT_INVOICE_STATUS;
+    const invoiceAlreadyVoided = invoiceStatus === VOID_INVOICE_STATUS;
+    const invoiceAction = shouldDeleteInvoice ? 'deleted_draft' : 'voided';
+
+    if (shouldDeleteInvoice) {
+      if (invoice) {
+        await tx.invoice.delete({ where: { id: invoice.id } });
+      }
+    } else if (!invoiceAlreadyVoided) {
+      await voidPostedInvoice({
+        db: tx,
+        invoice,
+        invoiceId: invoice.id,
+        tenantId,
+        userId,
+        reason,
+      });
+    }
+
+    await tx.rentalAssetAvailability.deleteMany({
+      where: { rentalTransactionId: transactionId },
+    });
+
+    for (const item of rentalTransaction.items) {
+      if (item.rentalAsset?.kind === 'rental') {
+        await tx.rentalAsset.update({
+          where: { id: item.rentalAssetId },
+          data: { status: 'available' },
+        });
+      }
+    }
+
+    const updateData = {
+      status: 'cancelled',
+      ...(shouldDeleteInvoice ? { invoiceId: null } : {}),
+    };
+    await tx.rentalTransaction.update({
+      where: { id: transactionId },
+      data: updateData,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: 'RENTAL_BOOKING_REVERSED',
+        entityType: 'RENTAL_TRANSACTION',
+        entityId: transactionId,
+        userId,
+        tenantId,
+        details: JSON.stringify({
+          reason,
+          invoiceAction,
+          invoiceId: shouldDeleteInvoice ? null : invoice.id,
+          source: resolveOutboundInvoiceSource(rentalTransaction.kind),
+        }),
+      },
+    });
+
+    return {
+      ok: true,
+      transactionId,
+      invoiceAction,
+      invoiceId: shouldDeleteInvoice ? null : invoice.id,
+    };
+  });
+}
+
+=== FILE test/rentalReverseService.test.js ===
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { reverseRentalBooking } from '../lib/rentalReverseService.js';
+
+function buildPrisma({
+  status = 'booked',
+  kind = 'hiring',
+  invoiceStatus = 'Pending',
+  totalPaid = 0,
+  invoiceId = 'inv-1',
+  items = [
+    {
+      id: 'ri-1',
+      rentalAssetId: 'asset-1',
+      quantity: 2,
+      rentalAsset: { id: 'asset-1', kind: 'hiring', status: 'available' },
+    },
+  ],
+} = {}) {
+  const rt = {
+    id: 'rt-1',
+    tenantId: 't1',
+    status,
+    kind,
+    invoiceId,
+    items,
+    invoice: invoiceId
+      ? {
+          id: invoiceId,
+          status: invoiceStatus,
+          payments: totalPaid > 0 ? [{ status: 'Completed', amount: totalPaid }] : [],
+        }
+      : null,
+  };
+
+  const tx = {
+    rentalTransaction: {
+      findFirst: vi.fn().mockResolvedValue(rt),
+      update: vi.fn().mockResolvedValue({ ...rt, status: 'cancelled' }),
+    },
+    rentalAssetAvailability: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    rentalAsset: {
+      update: vi.fn().mockResolvedValue({}),
+    },
+    invoice: {
+      delete: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    auditLog: {
+      create: vi.fn().mockResolvedValue({}),
+    },
+  };
+
+  return {
+    prisma: {
+      $transaction: async (fn) => fn(tx),
+      rentalTransaction: tx.rentalTransaction,
+    },
+    tx,
+  };
+}
+
+const input = {
+  tenantId: 't1',
+  userId: 'u1',
+  transactionId: 'rt-1',
+  reason: 'customer cancelled',
+};
+
+describe('reverseRentalBooking', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns NOT_FOUND when the booking is absent', async () => {
+    const { prisma } = buildPrisma();
+    prisma.rentalTransaction.findFirst.mockResolvedValue(null);
+
+    await expect(reverseRentalBooking({ prisma, ...input })).resolves.toMatchObject({
+      ok: false,
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('is idempotent when already cancelled', async () => {
+    const { prisma, tx } = buildPrisma({ status: 'cancelled' });
+
+    await expect(reverseRentalBooking({ prisma, ...input })).resolves.toMatchObject({
+      ok: true,
+      alreadyReversed: true,
+      invoiceAction: 'already_cancelled',
+    });
+    expect(tx.rentalAssetAvailability.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('blocks before releasing stock when invoice has payments', async () => {
+    const { prisma, tx } = buildPrisma({ totalPaid: 100, invoiceStatus: 'Paid' });
+
+    await expect(reverseRentalBooking({ prisma, ...input })).resolves.toMatchObject({
+      ok: false,
+      code: 'NEED_CREDIT_REFUND',
+    });
+    expect(tx.rentalAssetAvailability.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('blocks completed bookings', async () => {
+    const { prisma, tx } = buildPrisma({ status: 'completed' });
+
+    await expect(reverseRentalBooking({ prisma, ...input })).resolves.toMatchObject({
+      ok: false,
+      code: 'CLOSED',
+    });
+    expect(tx.rentalAssetAvailability.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('deletes a draft invoice, frees availability, and restocks a space asset', async () => {
+    const { prisma, tx } = buildPrisma({
+      kind: 'rental',
+      invoiceStatus: 'draft',
+      items: [
+        {
+          id: 'ri-1',
+          rentalAssetId: 'asset-1',
+          quantity: 1,
+          rentalAsset: { id: 'asset-1', kind: 'rental', status: 'booked' },
+        },
+      ],
+    });
+
+    await expect(reverseRentalBooking({ prisma, ...input })).resolves.toMatchObject({
+      ok: true,
+      invoiceAction: 'deleted_draft',
+      invoiceId: null,
+    });
+    expect(tx.invoice.delete).toHaveBeenCalledWith({ where: { id: 'inv-1' } });
+    expect(tx.rentalAssetAvailability.deleteMany).toHaveBeenCalledWith({
+      where: { rentalTransactionId: 'rt-1' },
+    });
+    expect(tx.rentalAsset.update).toHaveBeenCalledWith({
+      where: { id: 'asset-1' },
+      data: { status: 'available' },
+    });
+    expect(tx.rentalTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'rt-1' },
+        data: expect.objectContaining({ status: 'cancelled', invoiceId: null }),
+      })
+    );
+  });
+
+  it('voids a posted unpaid invoice and keeps the invoice link for reporting', async () => {
+    const voidHook = vi.fn().mockResolvedValue({ ok: true });
+    const { prisma, tx } = buildPrisma({ invoiceStatus: 'Pending', totalPaid: 0 });
+
+    await expect(
+      reverseRentalBooking({ prisma, ...input, voidPostedInvoice: voidHook })
+    ).resolves.toMatchObject({
+      ok: true,
+      invoiceAction: 'voided',
+      invoiceId: 'inv-1',
+    });
+    expect(voidHook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: tx,
+        invoiceId: 'inv-1',
+        tenantId: 't1',
+        userId: 'u1',
+      })
+    );
+    expect(tx.rentalAssetAvailability.deleteMany).toHaveBeenCalledWith({
+      where: { rentalTransactionId: 'rt-1' },
+    });
+    expect(tx.rentalTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'cancelled' }),
+      })
+    );
+    expect(tx.rentalTransaction.update.mock.calls[0][0].data).not.toHaveProperty('invoiceId');
+  });
+
+  it('does not free stock when the posted invoice period is closed', async () => {
+    const periodLocked = Object.assign(
+      new Error('Cannot void in closed accounting period: August 2026'),
+      { code: 'PERIOD_LOCKED' }
+    );
+    const voidHook = vi.fn().mockRejectedValue(periodLocked);
+    const { prisma, tx } = buildPrisma({ invoiceStatus: 'Pending', totalPaid: 0 });
+
+    await expect(
+      reverseRentalBooking({ prisma, ...input, voidPostedInvoice: voidHook })
+    ).rejects.toMatchObject({ code: 'PERIOD_LOCKED' });
+
+    expect(voidHook).toHaveBeenCalledWith(expect.objectContaining({ db: tx }));
+    expect(tx.rentalAssetAvailability.deleteMany).not.toHaveBeenCalled();
+    expect(tx.rentalAsset.update).not.toHaveBeenCalled();
+    expect(tx.rentalTransaction.update).not.toHaveBeenCalled();
+  });
+});
+
+=== FILE lib/invoiceVoidService.js ===
+import { reverseSourceJournals } from '@/lib/accountingV2/application/reverseSourceJournals.js';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+
+export async function voidInvoiceInTransaction({
+  tx,
+  invoice,
+  tenantId,
+  userId,
+  reason,
+  voidDate = new Date(),
+  v2Reversal,
+  ipAddress,
+  userEmail,
+}) {
+  const updatedInvoice = await tx.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      status: 'void',
+      voidedAt: voidDate,
+      voidedById: userId,
+      voidReason: reason,
+      originalTotal: invoice.total,
+      updatedAt: voidDate,
+    },
+  });
+
+  await tx.auditLog.create({
+    data: {
+      action: 'INVOICE_VOID',
+      entityType: 'INVOICE',
+      entityId: invoice.id,
+      userId,
+      tenantId,
+      details: JSON.stringify({
+        invoiceNumber: invoice.invoiceNumber,
+        clientName: invoice.client?.name,
+        originalTotal: invoice.total,
+        voidReason: reason,
+        voidedBy: userEmail,
+        v2JournalsReversed: v2Reversal.reversed.map((entry) => entry.originalJournalId),
+        v2JournalsSkipped: v2Reversal.skippedAlreadyReversed,
+      }),
+      ipAddress,
+      timestamp: voidDate,
+    },
+  });
+
+  return updatedInvoice;
+}
+
+export async function voidPostedInvoice({
+  db,
+  invoice,
+  invoiceId = invoice?.id,
+  tenantId,
+  userId,
+  reason,
+  voidDate = new Date(),
+  ipAddress,
+  userEmail,
+}) {
+  await assertPeriodOpen(tenantId, voidDate, db);
+
+  const v2Reversal = await reverseSourceJournals({
+    tenantId,
+    userId,
+    reason,
+    sourceTypes: ['Invoice', 'Invoice-COGS'],
+    sourceIds: [invoiceId],
+    requireJournals: true,
+    postingDate: voidDate.toISOString().slice(0, 10),
+    db,
+  });
+
+  return voidInvoiceInTransaction({
+    tx: db,
+    invoice: { ...invoice, id: invoiceId },
+    tenantId,
+    userId,
+    reason,
+    voidDate,
+    v2Reversal,
+    ipAddress,
+    userEmail,
+  });
+}

@@ -193,7 +193,7 @@ export default function TenantMraEisSettingsPage() {
             />
           </label>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className="rounded bg-indigo-700 px-3 py-2 text-sm text-white" onClick={() => participation('opt_in')}>
+            <button type="button" className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700" onClick={() => participation('opt_in')}>
               Opt in
             </button>
             <button type="button" className="rounded bg-amber-700 px-3 py-2 text-sm text-white" onClick={() => participation('pause')}>
@@ -227,7 +227,7 @@ export default function TenantMraEisSettingsPage() {
           <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
             <a
               href="/settings/integrations/mra-eis/terminals"
-              className="inline-block rounded bg-indigo-800 px-3 py-2 text-sm font-medium text-white"
+              className="inline-block rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               Manage terminals & onboarding
             </a>
@@ -245,13 +245,13 @@ export default function TenantMraEisSettingsPage() {
             </a>
             <a
               href="/settings/integrations/mra-eis/sales-bridge"
-              className="inline-block rounded bg-indigo-900 px-3 py-2 text-sm font-medium text-white"
+              className="inline-block rounded bg-sky-700 px-3 py-2 text-sm font-medium text-white hover:bg-sky-800"
             >
               Sales eligibility & bridge
             </a>
             <a
               href="/settings/integrations/mra-eis/fiscal-snapshots"
-              className="inline-block rounded bg-violet-900 px-3 py-2 text-sm font-medium text-white"
+              className="inline-block rounded bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800"
             >
               Fiscal snapshots & sequences
             </a>

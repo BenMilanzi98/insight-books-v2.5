@@ -5,6 +5,8 @@ import { Download, FileSpreadsheet, Search, User, Loader } from "lucide-react";
 import { downloadPDF, downloadExcel } from "@/lib/exportUtils";
 import { todayYmdLocal, calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 function formatCurrency(amount) {
   return `MWK ${Number(amount || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
@@ -376,14 +378,12 @@ export default function PensionManagementPage() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Pension (NPS) Management</h1>
-          <p className="text-gray-600">View and export pension contributions (employee + employer) from payroll</p>
-        </div>
-      </div>
+      <PosStylePageHeader
+        title="Pension (NPS) Management"
+        description="View and export pension contributions (employee + employer) from payroll"
+      />
 
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <PosStylePanel className="p-6 mb-6">
         {/* Pension Rate Settings */}
         <div className="mb-6 border-b pb-4">
           <div className="flex items-center justify-between mb-3">
@@ -391,7 +391,7 @@ export default function PensionManagementPage() {
             <button
               onClick={savePensionSettings}
               disabled={savingSettings || settingsLoading}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savingSettings ? "Saving..." : "Save Rates"}
             </button>
@@ -512,7 +512,7 @@ export default function PensionManagementPage() {
             <button
               onClick={() => setClearModalOpen(true)}
               disabled={selectedClearEmployeeIds.length === 0}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Clear employer pension contributions for selected employees (creates Pension expense + payment and marks payrolls as cleared)"
             >
               Clear Pension (Selected)
@@ -527,9 +527,9 @@ export default function PensionManagementPage() {
               <div className="text-sm text-blue-700">Employee Contributions</div>
               <div className="text-xl font-semibold text-blue-900">{formatCurrency(reportSummary.npsEmployeeTotal)}</div>
             </div>
-            <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
-              <div className="text-sm text-purple-700">Employer Contributions</div>
-              <div className="text-xl font-semibold text-purple-900">{formatCurrency(reportSummary.npsEmployerTotal)}</div>
+            <div className="bg-sky-50 border border-sky-100 rounded-lg p-4">
+              <div className="text-sm text-sky-700">Employer Contributions</div>
+              <div className="text-xl font-semibold text-sky-900">{formatCurrency(reportSummary.npsEmployerTotal)}</div>
             </div>
             <div className="bg-green-50 border border-green-100 rounded-lg p-4">
               <div className="text-sm text-green-700">Total Pension</div>
@@ -683,7 +683,7 @@ export default function PensionManagementPage() {
                 <button
                   onClick={confirmClearPension}
                   disabled={clearingPension || selectedClearEmployeeIds.length === 0}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {clearingPension ? "Clearing..." : "Confirm Clear"}
                 </button>
@@ -692,7 +692,7 @@ export default function PensionManagementPage() {
           </div>
         )}
 
-      </div>
+      </PosStylePanel>
     </div>
   );
 }

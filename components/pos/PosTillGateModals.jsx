@@ -22,26 +22,37 @@ export default function PosTillGateModals({
   onDismissClosePrompt,
   formatMoney = formatCurrency,
 }) {
-  const suggested = Number(cashDayState?.suggestedOpeningBalance ?? cashDayState?.liveCashBalance ?? 0);
-  const [openingBalance, setOpeningBalance] = useState(
-    Number.isFinite(suggested) ? String(suggested) : '0'
+  const suggested = Number(
+    cashDayState?.fundingPreview?.cashAvailable ??
+      cashDayState?.suggestedOpeningBalance ??
+      cashDayState?.liveCashBalance ??
+      0
   );
+  const [openingBalance, setOpeningBalance] = useState('');
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (cashDayState?.requiresTillOpen) {
-      const s = Number(cashDayState?.suggestedOpeningBalance ?? cashDayState?.liveCashBalance ?? 0);
-      setOpeningBalance(Number.isFinite(s) ? String(s) : '0');
+      setOpeningBalance('');
       setError(null);
     }
-  }, [cashDayState?.requiresTillOpen, cashDayState?.businessDate, cashDayState?.suggestedOpeningBalance, cashDayState?.liveCashBalance]);
+  }, [cashDayState?.requiresTillOpen, cashDayState?.businessDate]);
 
   const requiresOpen = Boolean(cashDayState?.requiresTillOpen);
   const registerOpen = Boolean(cashDayState?.tillOpen);
 
   const handleOpen = async () => {
     setError(null);
-    const n = Number(String(openingBalance).replace(/,/g, ''));
+    const trimmed = String(openingBalance).trim();
+    if (trimmed === '') {
+      try {
+        await onOpenTill(0);
+      } catch (e) {
+        setError(e?.message || 'Could not open till');
+      }
+      return;
+    }
+    const n = Number(trimmed.replace(/,/g, ''));
     if (!Number.isFinite(n) || n < 0) {
       setError('Enter a valid non-negative opening balance.');
       return;
@@ -88,43 +99,41 @@ export default function PosTillGateModals({
             <div className="px-5 py-5 space-y-4">
               {cashDayState?.tillClosed && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  Today&apos;s till was already closed. You cannot reopen the same day. Come back tomorrow after midnight auto-close opens a new business date.
+                  Today&apos;s till was closed. You can reopen it and optionally fund float again.
                 </div>
               )}
-              {!cashDayState?.tillClosed && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Opening balance (cash float)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={openingBalance}
-                      onChange={(e) => setOpeningBalance(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                    />
-                    <p className="mt-1.5 text-xs text-slate-500">
-                      Suggested from system Cash ledger: {formatMoney(suggested)}
-                    </p>
-                  </div>
-                  {error && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                      {error}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleOpen}
-                    disabled={actionLoading || cashDayState?.tillClosed}
-                    className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5"
-                  >
-                    {actionLoading ? 'Opening…' : 'Open till'}
-                  </button>
-                </>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Opening balance (cash float)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={openingBalance}
+                  onChange={(e) => setOpeningBalance(e.target.value)}
+                  placeholder="0 (optional)"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Optional. Suggested from Cash: {formatMoney(suggested)}. Funded from Cash first;
+                  shortfall from Owner Capital.
+                </p>
+              </div>
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </div>
               )}
+              <button
+                type="button"
+                onClick={handleOpen}
+                disabled={actionLoading}
+                className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5"
+              >
+                {actionLoading ? 'Opening…' : cashDayState?.tillClosed ? 'Reopen till' : 'Open till'}
+              </button>
             </div>
           </div>
         </div>
@@ -156,8 +165,8 @@ export default function PosTillGateModals({
             </div>
             <div className="px-5 py-5 space-y-3 text-sm text-slate-700">
               <p>
-                End-of-day close records opening + sales and sweeps undeposited cash. If you leave the till open, it will{' '}
-                <strong>auto-close at midnight</strong> (Africa/Blantyre).
+                Closing sweeps the Till Float balance back to Cash and records the day.
+                If you leave the till open, it will <strong>auto-close after midnight</strong> (Africa/Blantyre).
               </p>
               <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 grid grid-cols-2 gap-2 text-xs">
                 <div>

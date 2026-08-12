@@ -1,151 +1,125 @@
 import { NextResponse } from 'next/server';
-import { getAdminFromRequest } from '@/lib/adminAuth';
+import { getAdminFromRequest, adminHasPermission } from '@/lib/adminAuth';
+import { SYSTEM_ADMIN_PERMISSIONS } from '@/lib/admin/permissions';
 import prisma from '@/lib/prisma';
 
+/**
+ * Soft-delete a tenant user.
+ * Hard delete is unsafe: users are FK parents of sales, journals, invoices, etc.
+ * Soft delete deactivates the account, frees the email unique slot, and preserves history.
+ */
 export async function POST(request) {
   try {
-    console.log('Delete user endpoint called');
-    const body = await request.json();
-    console.log('Request body:', body);
+    const body = await request.json().catch(() => ({}));
     const { userId } = body;
-    
+
     if (!userId) {
       return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
     }
 
     const admin = await getAdminFromRequest(request);
     if (!admin) {
-      console.log('Admin authentication failed');
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log('Admin authenticated:', admin.email);
-    console.log('Attempting to delete user with ID:', userId);
 
-    // Check if user exists
+    if (!adminHasPermission(admin, SYSTEM_ADMIN_PERMISSIONS.users.archive)) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient admin privileges' },
+        { status: 403 }
+      );
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        tenant: {
-          select: { id: true, name: true }
-        },
-        role: {
-          select: { id: true, name: true }
-        }
-      }
+        tenant: { select: { id: true, name: true } },
+        role: { select: { id: true, name: true } },
+      },
     });
 
     if (!existingUser) {
-      console.log('User not found:', userId);
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    console.log('User found, proceeding with deletion');
+    if (existingUser.status === 'deleted') {
+      return NextResponse.json({
+        success: true,
+        message: 'User already deleted',
+      });
+    }
 
-    // Use a transaction to ensure all operations succeed or fail together
-    const result = await prisma.$transaction(async (tx) => {
-      try {
-        // Create admin audit log for user deletion
-        await tx.adminAuditLog.create({
-          data: {
-            adminId: admin.id,
-            action: 'USER_DELETE',
-            entityType: 'USER',
-            entityId: userId,
-            details: `Deleted user: ${existingUser.name} (${existingUser.email}) from tenant: ${existingUser.tenant?.name || 'Unknown'}`,
-            ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-            userAgent: request.headers.get('user-agent') || 'unknown',
-            timestamp: new Date()
-          }
-        });
+    const ipAddress =
+      request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const stamp = Date.now();
+    // Keep email unique per tenant after soft delete (@@unique([tenantId, email])).
+    const freedEmail = `deleted+${stamp}.${existingUser.email}`.slice(0, 190);
 
-        console.log('Admin audit log created, proceeding with deletion');
-        
-        // Handle foreign key constraints by deleting related records first
-        // Delete user audit logs
-        const auditLogsDeleted = await tx.auditLog.deleteMany({
-          where: { userId: userId }
-        });
-        console.log(`Deleted ${auditLogsDeleted.count} user audit logs`);
-        
-        // Delete user-related records from other tables
-        // Delete expenses submitted by the user
-        const expensesDeleted = await tx.expense.deleteMany({
-          where: { submittedById: userId }
-        });
-        console.log(`Deleted ${expensesDeleted.count} expenses`);
-        
-        // Delete expense attachments uploaded by the user
-        const attachmentsDeleted = await tx.expenseAttachment.deleteMany({
-          where: { uploadedById: userId }
-        });
-        console.log(`Deleted ${attachmentsDeleted.count} expense attachments`);
-        
-        // Delete inventory transactions created by the user
-        const inventoryTransactionsDeleted = await tx.inventoryTransaction.deleteMany({
-          where: { userId: userId }
-        });
-        console.log(`Deleted ${inventoryTransactionsDeleted.count} inventory transactions`);
-        
-        // Delete invoices created by the user
-        const invoicesDeleted = await tx.invoice.deleteMany({
-          where: { createdById: userId }
-        });
-        console.log(`Deleted ${invoicesDeleted.count} invoices`);
-        
-        // Delete quotations created by the user
-        const quotationsDeleted = await tx.quotation.deleteMany({
-          where: { createdById: userId }
-        });
-        console.log(`Deleted ${quotationsDeleted.count} quotations`);
-        
-        // Delete recurring expenses created by the user
-        const recurringExpensesDeleted = await tx.recurringExpense.deleteMany({
-          where: { createdById: userId }
-        });
-        console.log(`Deleted ${recurringExpensesDeleted.count} recurring expenses`);
-        
-        // Delete sales created by the user
-        const salesDeleted = await tx.sale.deleteMany({
-          where: { createdById: userId }
-        });
-        console.log(`Deleted ${salesDeleted.count} sales`);
-        
-        // Delete affiliate referrals by the user
-        const affiliateReferralsDeleted = await tx.affiliateReferral.deleteMany({
-          where: { userId: userId }
-        });
-        console.log(`Deleted ${affiliateReferralsDeleted.count} affiliate referrals`);
-        
-        console.log('All user-related records deleted successfully');
-        
-        // Now delete the user
-        await tx.user.delete({
-          where: { id: userId }
-        });
-        
-        console.log('User deleted successfully:', userId);
-        
-        return { success: true };
-      } catch (error) {
-        console.error('Error during transaction:', error);
-        throw error; // Re-throw to trigger transaction rollback
+    await prisma.$transaction(async (tx) => {
+      await tx.adminAuditLog.create({
+        data: {
+          adminId: admin.id,
+          action: 'USER_SOFT_DELETE',
+          entityType: 'USER',
+          entityId: userId,
+          details: `Soft-deleted user: ${existingUser.name} (${existingUser.email}) from tenant: ${existingUser.tenant?.name || 'Unknown'}`,
+          ipAddress,
+          userAgent,
+          timestamp: new Date(),
+        },
+      });
+
+      await tx.tenant.updateMany({
+        where: { ownerUserId: userId },
+        data: { ownerUserId: null },
+      });
+
+      if (tx.tenantMembership) {
+        await tx.tenantMembership.deleteMany({ where: { userId } });
       }
+      if (tx.userBranch) {
+        await tx.userBranch.deleteMany({ where: { userId } });
+      }
+
+      // Drop many-to-many tenant membership join if present
+      try {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            tenants: { set: [] },
+          },
+        });
+      } catch {
+        /* relation may not support set on this client shape */
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          isActive: false,
+          status: 'deleted',
+          email: freedEmail,
+          resetToken: null,
+          resetTokenExpiry: null,
+          otpCode: null,
+          otpExpiry: null,
+          defaultBranchId: null,
+        },
+      });
     });
 
-    // Transaction completed successfully
-    console.log('Transaction completed successfully');
-    
     return NextResponse.json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User deleted successfully',
     });
-
   } catch (error) {
     console.error('Error deleting user:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to delete user: ' + error.message 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to delete user: ' + (error?.message || 'Unknown error'),
+      },
+      { status: 500 }
+    );
   }
 }

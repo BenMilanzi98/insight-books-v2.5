@@ -65,7 +65,5 @@ export async function POST(request) {
       { success: false, error: 'Failed to delete subscription: ' + error.message },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

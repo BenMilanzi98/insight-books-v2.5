@@ -5,9 +5,16 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 import { withClientStatus } from '@/lib/clientStatus';
 
+const VOID_STATUSES = new Set(['void', 'cancelled', 'draft', 'refunded']);
+
+function isVoidStatus(status) {
+  return VOID_STATUSES.has(String(status || '').toLowerCase());
+}
+
 /**
  * GET /api/clients/[id]/record
- * Full client record: profile, totals, invoices, payments, sales.
+ * One ledger per client: invoices + POS sales + payments + credit notes/refunds.
+ * Outstanding = unpaid invoice AR only (POS cash sales do not create AR).
  */
 export async function GET(request, context) {
   try {
@@ -48,7 +55,7 @@ export async function GET(request, context) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    const [invoices, sales] = await Promise.all([
+    const [invoices, sales, creditNotes] = await Promise.all([
       prisma.invoice.findMany({
         where: { clientId, tenantId: user.tenantId },
         select: {
@@ -61,7 +68,7 @@ export async function GET(request, context) {
           totalPaid: true,
           remainingBalance: true,
           payments: {
-            where: { status: 'Completed' },
+            where: { status: { equals: 'Completed', mode: 'insensitive' }, isReversal: false },
             select: {
               id: true,
               amount: true,
@@ -79,12 +86,15 @@ export async function GET(request, context) {
         where: { clientId, tenantId: user.tenantId },
         select: {
           id: true,
-          reference: true,
+          saleNumber: true,
           saleDate: true,
           total: true,
           status: true,
+          isReversal: true,
+          voidedAt: true,
+          refundedAt: true,
           payments: {
-            where: { status: 'Completed' },
+            where: { status: { equals: 'Completed', mode: 'insensitive' }, isReversal: false },
             select: {
               id: true,
               amount: true,
@@ -97,22 +107,70 @@ export async function GET(request, context) {
         },
         orderBy: { saleDate: 'desc' },
       }),
+      prisma.creditNote.findMany({
+        where: {
+          clientId,
+          tenantId: user.tenantId,
+          status: { notIn: ['Draft', 'Void', 'Cancelled', 'void', 'cancelled'] },
+        },
+        select: {
+          id: true,
+          noteNumber: true,
+          amount: true,
+          noteDate: true,
+          reason: true,
+          status: true,
+          invoiceId: true,
+          saleId: true,
+        },
+        orderBy: { noteDate: 'desc' },
+      }),
     ]);
 
-    const totalInvoiced = invoices.reduce((s, inv) => addMoney(s, inv.total), 0);
-    const totalPaidInvoices = invoices.reduce((s, inv) => {
+    const activeInvoices = invoices.filter((inv) => !isVoidStatus(inv.status));
+    const activeSales = sales.filter(
+      (sale) =>
+        !sale.isReversal &&
+        !sale.voidedAt &&
+        !sale.refundedAt &&
+        !isVoidStatus(sale.status)
+    );
+
+    const creditByInvoice = new Map();
+    for (const note of creditNotes) {
+      if (!note.invoiceId) continue;
+      creditByInvoice.set(
+        note.invoiceId,
+        addMoney(creditByInvoice.get(note.invoiceId) || 0, note.amount)
+      );
+    }
+
+    const totalInvoiced = activeInvoices.reduce((s, inv) => addMoney(s, inv.total), 0);
+    const totalPaidInvoices = activeInvoices.reduce((s, inv) => {
       const paid = (inv.payments || []).reduce((p, pay) => addMoney(p, pay.amount), 0);
       return addMoney(s, paid);
     }, 0);
-    const outstanding = Math.max(0, subtractMoney(totalInvoiced, totalPaidInvoices));
-    const totalSales = sales.reduce((s, sale) => addMoney(s, sale.total), 0);
+    const totalPaidSales = activeSales.reduce((s, sale) => {
+      const paid = (sale.payments || []).reduce((p, pay) => addMoney(p, pay.amount), 0);
+      return addMoney(s, paid);
+    }, 0);
+    const totalCreditsOnInvoices = activeInvoices.reduce(
+      (s, inv) => addMoney(s, creditByInvoice.get(inv.id) || 0),
+      0
+    );
+    const outstanding = Math.max(
+      0,
+      subtractMoney(subtractMoney(totalInvoiced, totalPaidInvoices), totalCreditsOnInvoices)
+    );
+    const totalSales = activeSales.reduce((s, sale) => addMoney(s, sale.total), 0);
 
     const invoiceRows = invoices.map((inv) => {
       const paid = (inv.payments || []).reduce((p, pay) => addMoney(p, pay.amount), 0);
-      const balance =
-        inv.remainingBalance != null
-          ? parseMoney(inv.remainingBalance)
-          : Math.max(0, subtractMoney(inv.total, paid));
+      const credits = creditByInvoice.get(inv.id) || 0;
+      const computed = Math.max(0, subtractMoney(subtractMoney(inv.total, paid), credits));
+      const balance = isVoidStatus(inv.status)
+        ? 0
+        : computed;
       return {
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
@@ -120,6 +178,7 @@ export async function GET(request, context) {
         dueDate: inv.dueDate,
         total: parseMoney(inv.total),
         paid,
+        credits,
         outstanding: balance,
         status: inv.status,
       };
@@ -151,7 +210,7 @@ export async function GET(request, context) {
           reference: p.reference,
           status: p.status || 'Completed',
           sourceType: 'Sale',
-          sourceNumber: sale.reference || sale.id,
+          sourceNumber: sale.saleNumber || sale.reference || sale.id,
           sourceId: sale.id,
         });
       }
@@ -160,10 +219,23 @@ export async function GET(request, context) {
 
     const saleRows = sales.map((sale) => ({
       id: sale.id,
-      reference: sale.reference || sale.id,
+      reference: sale.saleNumber || sale.reference || sale.id,
       saleDate: sale.saleDate,
       total: parseMoney(sale.total),
       status: sale.status,
+      paid: (sale.payments || []).reduce((p, pay) => addMoney(p, pay.amount), 0),
+      outstanding: 0,
+    }));
+
+    const creditNoteRows = creditNotes.map((note) => ({
+      id: note.id,
+      noteNumber: note.noteNumber,
+      noteDate: note.noteDate,
+      amount: parseMoney(note.amount),
+      reason: note.reason,
+      status: note.status,
+      invoiceId: note.invoiceId,
+      saleId: note.saleId,
     }));
 
     return NextResponse.json({
@@ -172,15 +244,17 @@ export async function GET(request, context) {
         totalPurchases: addMoney(totalInvoiced, totalSales),
         totalInvoiced,
         totalSales,
-        totalPaid: totalPaidInvoices,
+        totalPaid: addMoney(totalPaidInvoices, totalPaidSales),
         outstanding,
-        invoiceCount: invoices.length,
+        invoiceCount: activeInvoices.length,
         paymentCount: payments.length,
-        salesCount: sales.length,
+        salesCount: activeSales.length,
+        creditNoteCount: creditNotes.length,
       },
       invoices: invoiceRows,
       payments,
       sales: saleRows,
+      creditNotes: creditNoteRows,
     });
   } catch (error) {
     console.error('Error fetching client record:', error);

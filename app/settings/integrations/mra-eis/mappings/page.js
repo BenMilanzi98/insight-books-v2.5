@@ -210,7 +210,7 @@ export default function MraEisMappingsPage() {
             <button
               type="button"
               disabled={busy}
-              className="rounded bg-indigo-800 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               onClick={() => suggest('SITE')}
             >
               Generate site suggestions

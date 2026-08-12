@@ -294,12 +294,12 @@ export default function TaxAccountDetailPage() {
           </p>
         </div>
         
-        <div className="bg-purple-50 rounded-lg p-6">
+        <div className="bg-blue-50 rounded-lg p-6">
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="text-purple-600" size={24} />
+            <TrendingUp className="text-blue-600" size={24} />
             <h3 className="text-sm font-medium text-gray-700">Net due (period)</h3>
           </div>
-          <p className="text-2xl font-bold text-purple-600">
+          <p className="text-2xl font-bold text-blue-600">
             {formatCurrency(
               summary.netDueInPeriod ?? Math.max(0, summary.netPayable || 0)
             )}

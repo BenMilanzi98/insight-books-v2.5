@@ -86,7 +86,7 @@ export default function MraEisTerminalsPage() {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                <Link className="font-medium text-indigo-700 underline" href={`/settings/integrations/mra-eis/terminals/${t.id}`}>
+                <Link className="font-medium text-blue-700 underline underline-offset-2" href={`/settings/integrations/mra-eis/terminals/${t.id}`}>
                   View health
                 </Link>
                 {!['ACTIVE', 'REVOKED'].includes(t.status) && (

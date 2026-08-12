@@ -1,45 +1,24 @@
-# Task 5 Report: Regression check — stock path still runs
+# Task 5 Report: Rental reports service, API, and page
 
 ## Status
-**Complete** — verify-only; no code changes.
+Complete. Implemented the tenant-scoped rental and hiring reporting service, authenticated API, and reports hub UI. No commit was created.
 
-## Call order (`applyGoodsReceiptInventoryPosting.js`)
+## Delivered
+- `lib/rentalReportsService.js` aggregates recognised outbound invoice revenue/tax, void reversals, damage/loss charges, repair-tagged expenses, utilisation, and supplier hire cost.
+- Supplier hire spending uses the real hiring-v2 `HireAccrual` model. The action route writes accruals there and associates an existing `SupplierBill` only during clearing, so a direct bill query cannot reliably identify hire costs without double-counting.
+- `GET /api/rentals/reports?from=&to=&type=` requires `rentals.view`, validates filters, and scopes every query to the session tenant.
+- `/rentals/reports` now supplies date/type filters, glass metric cards, utilisation/source panels, invoice links, activity rows, and the repair note convention (`source=REPAIR` or `RENTAL_REPAIR`).
 
-Verified inside one transaction, per receipt line then post-loop steps:
-
-| # | Step | Location | OK |
-|---|------|----------|-----|
-| 1 | `createFifoBatch(...)` per line | lines 82–107 (loop) | ✓ |
-| 2 | `inventoryTransaction.create` (`type: 'goods_receipt'`) | lines 110–120 (loop) | ✓ |
-| 3 | `createPurchaseReceiptJournalEntry(...)` | lines 123–131 | ✓ |
-| 4 | Set `inventoryAppliedAt` (+ `journalEntryId`) | lines 133–139 | ✓ |
-| 5 | `autoCreateBillFromReceipt(...)` | lines 146–154 | ✓ |
-
-- No reordering observed.
-- No payment creation added (only bill follow-on).
-- Early return when `inventoryAppliedAt` already set (idempotent skip at entry).
-
-## Unit tests
-
-```bash
-npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
-```
-
-**PASS** — 1 file, 4/4 tests (3.17s).
-
-## Success criteria checklist
-
-| Criterion | Result | Evidence |
-|-----------|--------|----------|
-| Stock increases on same-day receive | ✓ | `createFifoBatch` increments `Product.stockLevel` (fifoCosting.js) before journal/bill |
-| Unpaid bill on Bills | ✓ | `autoCreateBillFromReceipt` creates `status: 'Unpaid'` (unit test) |
-| Bill selectable on Payments | ✓ (code path) | Auto-bill creates `supplierBill` with `journalEntryId`; UI wiring is Task 3/4 — not re-tested manually here |
-| Works with GRNI on | ✓ | Unit test: "creates Unpaid bill … when GRNI is enabled" |
-| No payment auto-created | ✓ | `goodsReceiptFollowOn.js` creates `supplierBill` + supplier balance increment only; no `supplierPayment` / payment APIs |
-| Idempotent bill | ✓ | Unit test: "returns existing bill without creating a second one" |
-
-## Commits
-None (per task constraints).
+## Tests and smoke checks
+- `npx vitest run test/rentalReportsService.test.js` — PASS, 1 file / 2 tests.
+- `npx eslint "lib/rentalReportsService.js" "app/api/rentals/reports/route.js" "app/rentals/reports/page.js" "test/rentalReportsService.test.js"` — PASS, exit 0.
+- Unauthenticated `GET /api/rentals/reports` against the running development server — 401, confirming the auth boundary responds.
 
 ## Concerns
-None. Stock posting and auto-bill coupling unchanged; call order matches spec.
+- Browser/API data rendering was not authenticated manually; the service unit tests cover the aggregation behavior, while the smoke request deliberately exercised the unauthenticated path.
+
+## Important findings fixes
+- Voided rental invoices now create reversals only when `voidedAt` is within the requested period, preventing an August-issued/September-voided invoice from being counted in both months.
+- Added regression coverage for that cross-month case: the August report has no reversal and the September report records the reversal without revenue.
+- The reports page now builds initial calendar defaults from local date fields rather than UTC ISO serialization.
+- `npx vitest run test/rentalReportsService.test.js` — PASS, 1 file / 3 tests.

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Plus, Search, X, Clock, CheckCircle, XCircle, Calendar, User, Edit, Trash2, FileText, Download, FileSpreadsheet } from "lucide-react";
 import { downloadPDF, downloadExcel } from "@/lib/exportUtils";
 import { toYmdLocal, todayYmdLocal, calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function AttendancePage() {
   const [employees, setEmployees] = useState([]);
@@ -116,7 +118,6 @@ export default function AttendancePage() {
       const data = await res.json();
       if (res.ok) {
         const records = data.attendance || [];
-        console.log('Loaded attendance records:', records.length, 'for date:', selectedDate);
         // Log records with clockIn to debug
         records.forEach(r => {
           if (r.clockIn) {
@@ -809,38 +810,35 @@ export default function AttendancePage() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Attendance Management</h1>
-          <p className="text-gray-600">Mark employee attendance and record time</p>
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md"
-          />
-          <button
-            onClick={() => setShowReportSection(!showReportSection)}
-            className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
-          >
-            <FileText size={18} />
-            {showReportSection ? 'Hide Report' : 'View Report'}
-          </button>
-          <button
-            onClick={() => openModal()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
-          >
-            <Plus size={18} />
-            Add Record
-          </button>
-        </div>
-      </div>
+      <PosStylePageHeader
+        title="Attendance Management"
+        description="Mark employee attendance and record time"
+        actions={
+          <>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white/80 px-4 py-2.5 text-sm backdrop-blur-sm"
+            />
+            <PosStyleHeaderButton type="button" onClick={() => setShowReportSection(!showReportSection)}>
+              <FileText size={18} className="mr-2" />
+              {showReportSection ? 'Hide Report' : 'View Report'}
+            </PosStyleHeaderButton>
+            <button
+              onClick={() => openModal()}
+              className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
+            >
+              <Plus size={18} className="mr-2" />
+              Add Record
+            </button>
+          </>
+        }
+      />
 
       {/* Attendance Report Section */}
       {showReportSection && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <PosStylePanel className="p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold">Attendance Report</h2>
             <button
@@ -991,11 +989,11 @@ export default function AttendancePage() {
               Click "Generate Report" to view attendance data
             </div>
           )}
-        </div>
+        </PosStylePanel>
       )}
 
       {/* Search */}
-      <div className="mb-4">
+      <PosStylePanel className="mb-4 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <input
@@ -1006,7 +1004,7 @@ export default function AttendancePage() {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-      </div>
+      </PosStylePanel>
 
       {/* Attendance List */}
       {loading ? (
@@ -1014,7 +1012,7 @@ export default function AttendancePage() {
       ) : error ? (
         <div className="text-center py-12 text-red-600">{error}</div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <PosStylePanel className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -1181,7 +1179,7 @@ export default function AttendancePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </PosStylePanel>
       )}
 
       {/* Add/Edit Modal */}

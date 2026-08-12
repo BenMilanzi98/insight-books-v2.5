@@ -115,7 +115,7 @@ const ReferralPage = ({ params }) => {
 
         {/* CTA Section */}
         <div className="text-center">
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-8 text-white">
+          <div className="bg-gradient-to-r from-blue-600 to-sky-600 rounded-lg p-8 text-white">
             <h2 className="text-2xl font-bold mb-4">
               Ready to try Insight Books for free?
             </h2>

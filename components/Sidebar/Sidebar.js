@@ -92,6 +92,8 @@ const POS_ONLY_NAV_PERMISSIONS = new Set([
 const NAV_ROUTE_PERMISSION_OVERRIDES = {
   "/quotations": ["quotations.view"],
   "/rentals": ["rentals.view"],
+  "/rentals/hirings": ["rentals.view"],
+  "/rentals/reports": ["rentals.view"],
   "/rentals/hiring": ["rentals.view"],
   "/rentals/contracts-v2": ["rentals.view"],
   "/rentals/quotations-v2": ["rentals.view"],
@@ -453,12 +455,9 @@ const navigationByPermission = {
           text: "Rental & Hiring",
           expandable: true,
           subItems: [
-            { href: "/rentals", text: "Rentals", icon: "Rentals" },
-            { href: "/rentals/hiring", text: "Quantity rentals", icon: "Hiring" },
-            { href: "/rentals/contracts-v2", text: "Contracts V2", icon: "Contracts V2" },
-            { href: "/rentals/quotations-v2", text: "Quotations V2", icon: "Quotations V2" },
-            { href: "/rentals/reconcile", text: "Rental reconcile", icon: "Rental reconcile" },
-            { href: "/rentals/inbound-hiring", text: "Supplier hiring", icon: "Supplier hiring" },
+            { href: "/rentals", text: "Rentals", icon: "Rentals", permission: "rentals.view" },
+            { href: "/rentals/hirings", text: "Hirings", icon: "Hiring", permission: "rentals.view" },
+            { href: "/rentals/reports", text: "Reports", icon: "Reports", permission: "rentals.view" },
           ],
         },
         { href: "/reports-v2", icon: "reports", text: "Reports" },
@@ -537,12 +536,9 @@ const navigationByPermission = {
   rental: {
     label: "Rental & Hiring",
     items: [
-      { href: "/rentals", icon: "rental", text: "Rentals", permission: "rentals.view" },
-      { href: "/rentals/hiring", icon: "rental", text: "Quantity rentals", permission: "rentals.view" },
-      { href: "/rentals/contracts-v2", icon: "rental", text: "Contracts V2", permission: "rentals.view" },
-      { href: "/rentals/quotations-v2", icon: "rental", text: "Quotations V2", permission: "rentals.view" },
-      { href: "/rentals/reconcile", icon: "rental", text: "Rental reconcile", permission: "rentals.view" },
-      { href: "/rentals/inbound-hiring", icon: "rental", text: "Supplier hiring", permission: "rentals.view" },
+      { href: "/rentals", icon: "Rentals", text: "Rentals", permission: "rentals.view" },
+      { href: "/rentals/hirings", icon: "Hiring", text: "Hirings", permission: "rentals.view" },
+      { href: "/rentals/reports", icon: "Reports", text: "Reports", permission: "rentals.view" },
     ],
   },
   assets: {
@@ -941,11 +937,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
     const rentalSubItems = filterSubItems([
       { href: "/rentals", text: "Rentals", icon: "Rentals", permission: "rentals.view" },
-      { href: "/rentals/hiring", text: "Quantity rentals", icon: "Hiring", permission: "rentals.view" },
-      { href: "/rentals/contracts-v2", text: "Contracts V2", icon: "Contracts V2", permission: "rentals.view" },
-      { href: "/rentals/quotations-v2", text: "Quotations V2", icon: "Quotations V2", permission: "rentals.view" },
-      { href: "/rentals/reconcile", text: "Rental reconcile", icon: "Rental reconcile", permission: "rentals.view" },
-      { href: "/rentals/inbound-hiring", text: "Supplier hiring", icon: "Supplier hiring", permission: "rentals.view" },
+      { href: "/rentals/hirings", text: "Hirings", icon: "Hiring", permission: "rentals.view" },
+      { href: "/rentals/reports", text: "Reports", icon: "Reports", permission: "rentals.view" },
     ]);
 
     if (rentalSubItems.length > 0) {

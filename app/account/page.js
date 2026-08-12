@@ -426,17 +426,22 @@ function AccountContent() {
     : '';
 
   return (
-    <div className="w-full">
-      <div className="max-w-6xl mx-auto p-6">
+    <div className="min-h-screen bg-[var(--background-secondary)]">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* Header - always visible */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Account Settings</h1>
-          <p className="text-gray-600">Manage your business information, receipt settings, and account preferences.</p>
+        <div className="mb-8 overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+          <div className="h-1.5 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500" />
+          <div className="px-6 py-6 sm:px-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Account Settings</h1>
+            <p className="max-w-3xl text-sm text-gray-600 sm:text-base">
+              Manage your business information, receipt settings, and account preferences.
+            </p>
+          </div>
         </div>
 
         {/* Status Messages */}
         {saveStatus && (
-          <div className={`mb-6 p-4 rounded-lg flex items-center ${
+          <div className={`mb-6 flex items-center rounded-2xl border px-4 py-3 shadow-sm ${
             saveStatus.type === 'success' 
               ? 'bg-green-50 text-green-800 border border-green-200' 
               : 'bg-red-50 text-red-800 border border-red-200'
@@ -451,8 +456,8 @@ function AccountContent() {
         )}
 
         {/* Tab Navigation - always visible so users can see and switch tabs */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
-          <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50/80" role="tablist">
+        <div className="mb-6 overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-sm backdrop-blur-xl">
+          <div className="flex overflow-x-auto border-b border-slate-200/80 bg-slate-50/80" role="tablist">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -466,10 +471,10 @@ function AccountContent() {
                     setActiveTab(tab.id);
                     router.replace(`/account?tab=${tab.id}`, { scroll: false });
                   }}
-                  className={`flex items-center px-5 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap min-w-0 ${
+                  className={`flex min-w-0 items-center px-5 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     isActive
-                      ? 'border-blue-500 text-blue-700 bg-white shadow-sm -mb-px'
-                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      ? 'border-blue-500 bg-white text-blue-700 shadow-sm -mb-px'
+                      : 'border-transparent text-gray-600 hover:bg-white/80 hover:text-gray-900'
                   }`}
                 >
                   <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -481,7 +486,7 @@ function AccountContent() {
         </div>
 
         {isLoading ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 flex items-center justify-center min-h-[320px]">
+          <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-white/70 bg-white/90 p-12 shadow-sm backdrop-blur-xl">
             <div className="text-center">
               <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-blue-600" />
               <p className="text-gray-600">Loading account settings...</p>
@@ -493,9 +498,11 @@ function AccountContent() {
           {activeTab === "business" && (
             <div className="space-y-6">
               {/* Business Information Section */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <Building className="w-6 h-6 text-blue-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <Building className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Business Information</h2>
                 </div>
                 
@@ -628,9 +635,11 @@ function AccountContent() {
               </div>
 
               {/* Business Address Section */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <MapPin className="w-6 h-6 text-green-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+                    <MapPin className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Business Address</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
@@ -731,10 +740,10 @@ function AccountContent() {
               </div>
 
               {/* Banking & tax - exactly as /customization?tab=business */}
-              <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
-                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <section className="overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-sm backdrop-blur-xl">
+                <div className="border-b border-slate-200/70 bg-slate-50/70 px-4 py-4 sm:px-6">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                       <Landmark className="w-5 h-5" />
                     </div>
                     <div>
@@ -753,7 +762,7 @@ function AccountContent() {
                         name="defaultBankDetails"
                         rows={5}
                         placeholder={`Bank: Standard Bank\nAccount name: Your Company Ltd\nAccount number: 1234567890\nBranch: Blantyre`}
-                        className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[120px]"
+                        className="min-h-[120px] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         value={settings.defaultBankDetails || ""}
                         onChange={(e) => handleChange('defaultBankDetails', e.target.value)}
                       />
@@ -784,9 +793,11 @@ function AccountContent() {
           {activeTab === "receipt" && (
             <div className="space-y-6">
               {/* Receipt Customization Section */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <FileText className="w-6 h-6 text-purple-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <FileText className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Receipt Customization</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
@@ -834,9 +845,11 @@ function AccountContent() {
               </div>
 
               {/* Business Settings Section */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <Settings className="w-6 h-6 text-gray-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                    <Settings className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Business Settings</h2>
                 </div>
                 
@@ -885,9 +898,11 @@ function AccountContent() {
           {/* Account Tab */}
           {activeTab === "account" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <User className="w-6 h-6 text-blue-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <User className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Account Information</h2>
                 </div>
                 
@@ -938,9 +953,11 @@ function AccountContent() {
           {/* Notifications Tab */}
           {activeTab === "notifications" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <Bell className="w-6 h-6 text-orange-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <Bell className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Notification Preferences</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
@@ -988,7 +1005,7 @@ function AccountContent() {
                   
                   <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div className="flex items-center">
-                      <Bell className="w-5 h-5 text-purple-600 mr-3" />
+                      <Bell className="w-5 h-5 text-blue-600 mr-3" />
                       <div>
                         <h3 className="font-medium text-gray-900">In-App Notifications</h3>
                         <p className="text-sm text-gray-600">Receive notifications within the application</p>
@@ -1012,9 +1029,11 @@ function AccountContent() {
           {/* Legal Tab */}
           {activeTab === "legal" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
                 <div className="flex items-center mb-6">
-                  <Shield className="w-6 h-6 text-gray-600 mr-3" />
+                  <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                    <Shield className="h-5 w-5" />
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900">Legal Information</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
@@ -1054,7 +1073,7 @@ function AccountContent() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 px-6 py-3 font-medium text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-700 hover:to-sky-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSaving ? (
                   <>

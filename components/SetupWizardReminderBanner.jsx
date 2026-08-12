@@ -71,7 +71,7 @@ export default function SetupWizardReminderBanner() {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-amber-950">Finish your business setup</p>
             <p className="mt-1 text-xs text-amber-900/90">
-              Optional: capital, assets, payments, taxes, clients & suppliers. Still pending:{" "}
+              Resume account, stock, customers, suppliers, or opening balances. Still pending:{" "}
               <span className="font-medium">{preview}</span>
               {more}.
             </p>

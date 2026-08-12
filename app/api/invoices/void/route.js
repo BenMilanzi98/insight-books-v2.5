@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { reverseSourceJournals } from '@/lib/accountingV2/application/reverseSourceJournals.js';
 import { addMoney } from '@/lib/money';
+import { voidInvoiceInTransaction } from '@/lib/invoiceVoidService';
 
 export async function POST(request) {
   try {
@@ -80,6 +82,11 @@ export async function POST(request) {
     const reversalReason = reason.trim();
     await assertPeriodOpen(user.tenantId, voidDate);
 
+    const canAdminVoid =
+      isFullAccessTenantRole(user) ||
+      hasPermission(user, 'invoices.delete') ||
+      hasPermission(user, 'invoices.void');
+
     // V2 reverse first (own posting boundary), then mark invoice void.
     const v2Reversal = await reverseSourceJournals({
       tenantId: user.tenantId,
@@ -89,46 +96,29 @@ export async function POST(request) {
       sourceIds: [invoiceId],
       requireJournals: true,
       postingDate: voidDate.toISOString().slice(0, 10),
+      approvalOverride: canAdminVoid
+        ? {
+            approvedById: user.id,
+            approvedAt: voidDate.toISOString(),
+            createdById: null,
+            allowSelfApproval: true,
+          }
+        : null,
     });
 
-    const result = await prisma.$transaction(async (tx) => {
-      const originalTotal = invoice.total;
-
-      const updatedInvoice = await tx.invoice.update({
-        where: { id: invoiceId },
-        data: {
-          status: 'void',
-          voidedAt: voidDate,
-          voidedById: user.id,
-          voidReason: reversalReason,
-          originalTotal: originalTotal,
-          updatedAt: voidDate
-        }
-      });
-
-      await tx.auditLog.create({
-        data: {
-          action: 'INVOICE_VOID',
-          entityType: 'INVOICE',
-          entityId: invoiceId,
-          userId: user.id,
-          tenantId: user.tenantId,
-          details: JSON.stringify({
-            invoiceNumber: invoice.invoiceNumber,
-            clientName: invoice.client.name,
-            originalTotal: originalTotal,
-            voidReason: reversalReason,
-            voidedBy: user.email,
-            v2JournalsReversed: v2Reversal.reversed.map((r) => r.originalJournalId),
-            v2JournalsSkipped: v2Reversal.skippedAlreadyReversed,
-          }),
-          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-          timestamp: new Date()
-        }
-      });
-
-      return updatedInvoice;
-    });
+    const result = await prisma.$transaction((tx) =>
+      voidInvoiceInTransaction({
+        tx,
+        invoice,
+        tenantId: user.tenantId,
+        userId: user.id,
+        reason: reversalReason,
+        voidDate,
+        v2Reversal,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userEmail: user.email,
+      })
+    );
 
     return NextResponse.json({
       success: true,
@@ -172,6 +162,17 @@ export async function POST(request) {
     if (error.code === 'ALREADY_REVERSED' || error.name === 'SourceAlreadyPostedError') {
       return NextResponse.json(
         { success: false, error: error.message || 'Invoice journals have already been reversed.' },
+        { status: 409 }
+      );
+    }
+
+    if (error.code === 'APPROVAL_REQUIRED' || error.name === 'ApprovalRequiredError') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message || 'Invoice void requires approval.',
+          details: { code: 'APPROVAL_REQUIRED' },
+        },
         { status: 409 }
       );
     }

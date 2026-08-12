@@ -6,8 +6,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Landmark, Users, Plus, RefreshCw, AlertCircle, CheckCircle2, Scale } from 'lucide-react';
-import PageHeader from '@/components/shell/PageHeader';
+import { Landmark, Users, Plus, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import StatCard from '@/components/ui/StatCard';
 
 
@@ -171,23 +172,18 @@ export default function EquityManagementPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background-secondary)] py-2 md:py-4">
+    <div className="w-full">
       <div className="mx-auto max-w-6xl space-y-6">
-        <PageHeader
+        <PosStylePageHeader
           title="Equity Management"
           description="Owners, capital, drawings, and dividends post through the Accounting Posting Engine. Balances derive from journals — never typed independently. Contributions are not revenue; drawings are not expenses; dividends are not operating expenses."
-          breadcrumb={<Scale className="h-5 w-5 text-[var(--action-primary)]" aria-hidden="true" />}
           actions={
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm font-medium"
-            >
-              <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
-            </button>
+            <PosStyleHeaderButton type="button" onClick={load}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+              Refresh
+            </PosStyleHeaderButton>
           }
         />
-
 
         {error ? (
           <div className="flex gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -201,7 +197,7 @@ export default function EquityManagementPage() {
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`rounded-md px-3 py-1.5 font-medium capitalize ${tab === t ? 'bg-indigo-700 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
+              className={`rounded-md px-3 py-1.5 font-medium capitalize ${tab === t ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white/80 text-slate-700 backdrop-blur-sm hover:bg-white hover:shadow-md'}`}
             >
               {t}
             </button>
@@ -214,7 +210,7 @@ export default function EquityManagementPage() {
             <StatCard label="Contributions posted" value={dashboard.contributionsPosted ?? '—'} icon={Landmark} />
             <StatCard label="Drawings posted" value={dashboard.drawingsPosted ?? '—'} />
             <StatCard label="Dividends paid" value={dashboard.dividendsPaid ?? '—'} />
-            <div className="sm:col-span-2 lg:col-span-4 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <PosStylePanel className="p-4 text-sm text-slate-600 sm:col-span-2 lg:col-span-4">
               {dashboard.note}
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={runRecon} className="rounded-md bg-slate-800 px-3 py-1.5 text-xs text-white">
@@ -227,12 +223,12 @@ export default function EquityManagementPage() {
                   </span>
                 ) : null}
               </div>
-            </div>
+            </PosStylePanel>
           </section>
         ) : null}
 
         {tab === 'config' ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-3 max-w-lg">
+          <PosStylePanel className="max-w-lg space-y-3 p-4" as="section">
             <h2 className="text-sm font-semibold">Business equity configuration</h2>
             <label className="block text-xs text-slate-500">Legal structure
               <select className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={cfgForm.legalStructure} onChange={(e) => setCfgForm((f) => ({ ...f, legalStructure: e.target.value }))}>
@@ -250,14 +246,14 @@ export default function EquityManagementPage() {
                 <option value="HYBRID_APPROVED_MODEL">Hybrid</option>
               </select>
             </label>
-            <button type="button" onClick={saveConfig} className="rounded-md bg-indigo-700 px-3 py-2 text-sm text-white">Save configuration</button>
+            <button type="button" onClick={saveConfig} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Save configuration</button>
             {config ? <p className="text-xs text-slate-500">Current: {config.legalStructure} / {config.equityModel}</p> : null}
-          </section>
+          </PosStylePanel>
         ) : null}
 
         {tab === 'owners' ? (
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <PosStylePanel className="p-4">
               <h2 className="text-sm font-semibold flex items-center gap-2"><Plus className="h-4 w-4" /> Add owner / partner / shareholder</h2>
               <div className="mt-3 space-y-2">
                 <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Name" value={ownerForm.partyName} onChange={(e) => setOwnerForm((f) => ({ ...f, partyName: e.target.value }))} />
@@ -266,10 +262,10 @@ export default function EquityManagementPage() {
                   <option value="PARTNER">Partner</option>
                   <option value="SHAREHOLDER">Shareholder</option>
                 </select>
-                <button type="button" onClick={createOwner} className="rounded-md bg-indigo-700 px-3 py-2 text-sm text-white">Create</button>
+                <button type="button" onClick={createOwner} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Create</button>
               </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            </PosStylePanel>
+            <PosStylePanel className="p-4">
               <h2 className="text-sm font-semibold">Register</h2>
               <ul className="mt-2 max-h-80 overflow-auto text-sm divide-y">
                 {owners.map((o) => (
@@ -279,13 +275,13 @@ export default function EquityManagementPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </PosStylePanel>
           </section>
         ) : null}
 
         {tab === 'transactions' ? (
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-2">
+            <PosStylePanel className="space-y-2 p-4">
               <h2 className="text-sm font-semibold">New equity transaction</h2>
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={txForm.transactionType} onChange={(e) => setTxForm((f) => ({ ...f, transactionType: e.target.value }))}>
                 <option value="CAPITAL_CONTRIBUTION">Capital contribution</option>
@@ -304,10 +300,10 @@ export default function EquityManagementPage() {
               <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Bank/Cash CoA account id" value={txForm.bankAccountId} onChange={(e) => setTxForm((f) => ({ ...f, bankAccountId: e.target.value }))} />
               <input type="date" className="w-full rounded-md border px-3 py-2 text-sm" value={txForm.transactionDate} onChange={(e) => setTxForm((f) => ({ ...f, transactionDate: e.target.value }))} />
               <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Description" value={txForm.description} onChange={(e) => setTxForm((f) => ({ ...f, description: e.target.value }))} />
-              <button type="button" onClick={createAndPostContribution} className="rounded-md bg-indigo-700 px-3 py-2 text-sm text-white">Create → approve → preview → post</button>
+              <button type="button" onClick={createAndPostContribution} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Create → approve → preview → post</button>
               <p className="text-xs text-slate-500">Accounting preview runs server-side before post. Posted journals are immutable.</p>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            </PosStylePanel>
+            <PosStylePanel className="p-4">
               <h2 className="text-sm font-semibold">Recent transactions</h2>
               <ul className="mt-2 max-h-96 overflow-auto text-xs divide-y">
                 {transactions.map((t) => (
@@ -318,7 +314,7 @@ export default function EquityManagementPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </PosStylePanel>
           </section>
         ) : null}
       </div>

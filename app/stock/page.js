@@ -2409,7 +2409,7 @@ const StockManagement = () => {
         icon = <AlertCircle className="w-3.5 h-3.5 mr-1" />;
         break;
       case "Service":
-        badgeClass = "bg-violet-50 text-violet-800 border border-violet-200";
+        badgeClass = "bg-blue-50 text-blue-800 border border-blue-200";
         icon = <Briefcase className="w-3.5 h-3.5 mr-1" />;
         break;
       default:
@@ -2503,7 +2503,7 @@ const StockManagement = () => {
               type="button"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 stockCatalog === "services"
-                  ? "bg-violet-600 text-white shadow"
+                  ? "bg-blue-600 text-white shadow"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
               onClick={() => setStockCatalog("services")}
@@ -2603,7 +2603,7 @@ const StockManagement = () => {
               {stockCatalog === "services" && pagePermissions.canCreateStock && (
                 <button
                   type="button"
-                  className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-violet-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-violet-200 hover:from-violet-700 hover:to-violet-800 transition-all duration-200"
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all duration-200"
                   onClick={handleAddService}
                 >
                   <Plus size={16} />
@@ -2667,7 +2667,7 @@ const StockManagement = () => {
           )}
           
           <button 
-            className="px-4 py-2.5 bg-white text-purple-700 rounded-lg font-medium flex items-center gap-2 shadow-sm border border-gray-200 hover:bg-purple-50 hover:shadow-md transition-all duration-200"
+            className="px-4 py-2.5 bg-white text-blue-700 rounded-lg font-medium flex items-center gap-2 shadow-sm border border-gray-200 hover:bg-blue-50 hover:shadow-md transition-all duration-200"
             onClick={() => setIsBulkTaxModalOpen(true)}
           >
             <Settings size={16} />
@@ -2704,10 +2704,10 @@ const StockManagement = () => {
           }
           icon={stockCatalog === "services" ? Briefcase : Package}
           active={stockCatalog === "products" && statusFilter === "All"}
-          iconWrapClassName={stockCatalog === "services" ? "bg-violet-50 text-violet-600" : "bg-blue-50 text-blue-600"}
+          iconWrapClassName="bg-blue-50 text-blue-600"
           barClassName={
             stockCatalog === "services"
-              ? "from-violet-400 via-purple-500 to-indigo-500"
+              ? "from-blue-500 via-sky-500 to-indigo-500"
               : "from-[var(--brand-blue-light)] via-[var(--brand-blue)] to-[var(--brand-blue-dark)]"
           }
           onClick={() => {
@@ -2743,8 +2743,8 @@ const StockManagement = () => {
               value={statisticsLoading ? "…" : formatCurrency(statistics.totalValue)}
               countLabel={`GL ${statistics.glAccount?.code || "1310"} — ${statistics.glAccount?.name || "Stock on Hand"}`}
               icon={BarChart2}
-              iconWrapClassName="bg-purple-50 text-purple-600"
-              barClassName="from-purple-400 via-violet-500 to-indigo-500"
+              iconWrapClassName="bg-blue-50 text-blue-600"
+              barClassName="from-blue-500 via-sky-500 to-indigo-500"
               title="Open Chart of Accounts inventory account"
               onClick={() => {
                 const code = statistics.glAccount?.code || "1310";
@@ -3056,9 +3056,9 @@ const StockManagement = () => {
                             <span>Service name</span>
                             {sortField === "name" &&
                               (sortDirection === "asc" ? (
-                                <ArrowUp size={12} className="text-violet-600" />
+                                <ArrowUp size={12} className="text-blue-600" />
                               ) : (
-                                <ArrowDown size={12} className="text-violet-600" />
+                                <ArrowDown size={12} className="text-blue-600" />
                               ))}
                           </div>
                         </th>
@@ -3076,9 +3076,9 @@ const StockManagement = () => {
                             <span>Rate</span>
                             {sortField === "unitPrice" &&
                               (sortDirection === "asc" ? (
-                                <ArrowUp size={12} className="text-violet-600" />
+                                <ArrowUp size={12} className="text-blue-600" />
                               ) : (
-                                <ArrowDown size={12} className="text-violet-600" />
+                                <ArrowDown size={12} className="text-blue-600" />
                               ))}
                           </div>
                         </th>
@@ -3201,7 +3201,7 @@ const StockManagement = () => {
                         <>
                           <td className="px-4 py-4">
                             <div className="flex items-center min-w-0">
-                              <div className="w-10 h-10 rounded-lg bg-violet-50 text-violet-700 flex items-center justify-center mr-3 shrink-0">
+                              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center mr-3 shrink-0">
                                 <Briefcase className="w-5 h-5" />
                               </div>
                               <div className="min-w-0">
@@ -3218,7 +3218,7 @@ const StockManagement = () => {
                             </span>
                           </td>
                           <td className="px-4 py-4 text-sm text-gray-700">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-violet-50 text-violet-800 border border-violet-100">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-100">
                               {formatBillingLabel(item.serviceBillingType)}
                             </span>
                           </td>
@@ -3331,7 +3331,7 @@ const StockManagement = () => {
               <div className="py-16 text-center">
                 <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
                   {stockCatalog === "services" ? (
-                    <Briefcase className="w-10 h-10 text-violet-300" />
+                    <Briefcase className="w-10 h-10 text-blue-300" />
                   ) : (
                     <Package className="w-10 h-10 text-gray-300" />
                   )}
@@ -3351,7 +3351,7 @@ const StockManagement = () => {
                 {stockCatalog === "services" ? (
                   pagePermissions.canCreateStock && (
                     <button 
-                      className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-violet-700 text-white rounded-lg font-medium shadow-lg shadow-violet-200 hover:from-violet-700 hover:to-violet-800 transition-all duration-200 flex items-center gap-2 mx-auto"
+                      className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 mx-auto"
                       onClick={handleAddService}
                     >
                       <Plus size={18} />

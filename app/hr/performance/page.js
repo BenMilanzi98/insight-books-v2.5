@@ -16,6 +16,8 @@ import {
   Calendar,
   User
 } from 'lucide-react';
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function PerformanceManagement() {
   const [activeTab, setActiveTab] = useState('reviews');
@@ -276,7 +278,7 @@ export default function PerformanceManagement() {
       case 'active': return 'bg-blue-100 text-blue-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       case 'on-hold': return 'bg-yellow-100 text-yellow-800';
-      case 'submitted': return 'bg-purple-100 text-purple-800';
+      case 'submitted': return 'bg-blue-100 text-blue-800';
       case 'reviewed': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -291,10 +293,10 @@ export default function PerformanceManagement() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Performance Management</h1>
-        <p className="text-gray-600">Manage performance reviews, goals, and feedback</p>
-      </div>
+      <PosStylePageHeader
+        title="Performance Management"
+        description="Manage performance reviews, goals, and feedback"
+      />
 
       {/* Tabs */}
       <div className="mb-6">
@@ -338,7 +340,8 @@ export default function PerformanceManagement() {
       </div>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap gap-4 items-end">
+      <PosStylePanel className="mb-4 p-4">
+      <div className="flex flex-wrap gap-4 items-end">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
           <select
@@ -417,6 +420,7 @@ export default function PerformanceManagement() {
           </select>
         </div>
       </div>
+      </PosStylePanel>
 
       {/* Reviews Tab */}
       {activeTab === 'reviews' && (
@@ -440,7 +444,7 @@ export default function PerformanceManagement() {
           ) : reviews.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No performance reviews found</div>
           ) : (
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <PosStylePanel className="overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -518,7 +522,7 @@ export default function PerformanceManagement() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </PosStylePanel>
           )}
         </div>
       )}
@@ -547,7 +551,7 @@ export default function PerformanceManagement() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {goals.map((goal) => (
-                <div key={goal.id} className="bg-white shadow rounded-lg p-4">
+                <div key={goal.id} className="tenant-glass-card p-4">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-semibold text-gray-900">{goal.title}</h3>
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(goal.status)}`}>
@@ -625,7 +629,7 @@ export default function PerformanceManagement() {
           ) : feedback.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No feedback found</div>
           ) : (
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <PosStylePanel className="overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -685,7 +689,7 @@ export default function PerformanceManagement() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </PosStylePanel>
           )}
         </div>
       )}

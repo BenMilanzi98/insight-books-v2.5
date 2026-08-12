@@ -1,131 +1,73 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { X, ArrowRight } from "lucide-react";
 import { useSetupWizardContext } from "@/components/setup/SetupWizardContext";
+import SetupWizard from "@/components/setup/SetupWizard";
 
-const LS_PROCEEDED = "insightBooks_setupWelcome_proceeded";
-const SS_DISMISS = "insightBooks_setupWelcome_sessionDismiss";
+const SS_DISMISS = "insightBooks_setupWizard_sessionDismiss";
 
 /**
- * A3 hybrid launcher: soft welcome banner on dashboard; primary path is full-page /setup.
- * Does not force completed businesses into setup on login.
+ * Auto-opens the 5-step dashboard wizard after login when setup is incomplete.
+ * Skip for Now dismisses for this session; the dashboard banner can resume.
+ * Does not open the advanced /setup 23-step wizard.
  */
 export default function SetupWizardHost() {
   const ctx = useSetupWizardContext();
   const closeWizard = ctx?.closeWizard ?? (() => {});
+  const openWizard = ctx?.openWizard ?? (() => {});
   const open = ctx?.open ?? false;
-  const router = useRouter();
+  const initialStepId = ctx?.initialStepId ?? null;
 
-  const [autoEligible, setAutoEligible] = useState(false);
   const [statusChecked, setStatusChecked] = useState(false);
-  const [bannerOpen, setBannerOpen] = useState(false);
-
-  const goToSetup = useCallback(() => {
-    try {
-      window.localStorage.setItem(LS_PROCEEDED, "1");
-      window.sessionStorage.setItem(SS_DISMISS, "1");
-    } catch {
-      /* ignore */
-    }
-    closeWizard();
-    router.push("/setup");
-  }, [closeWizard, router]);
 
   const refreshEligibility = useCallback(async () => {
     try {
       const res = await fetch("/api/tenant/setup-wizard-status", { credentials: "include" });
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.showWelcomeSetupModal) {
-        setAutoEligible(true);
-      } else {
-        setAutoEligible(false);
+      if (!res.ok) return;
+      if (typeof window !== "undefined" && window.sessionStorage.getItem(SS_DISMISS)) {
+        return;
+      }
+      if (json.showWelcomeSetupModal || (json.isTenantOwner && json.pendingCount > 0 && !json.allComplete)) {
+        openWizard();
       }
     } catch {
-      setAutoEligible(false);
+      /* ignore */
     } finally {
       setStatusChecked(true);
     }
-  }, []);
+  }, [openWizard]);
 
   useEffect(() => {
     refreshEligibility();
   }, [refreshEligibility]);
 
-  useEffect(() => {
-    const onOpen = () => goToSetup();
-    window.addEventListener("setup-wizard-open", onOpen);
-    return () => window.removeEventListener("setup-wizard-open", onOpen);
-  }, [goToSetup]);
-
-  useEffect(() => {
-    if (open) {
-      goToSetup();
-    }
-  }, [open, goToSetup]);
-
-  useEffect(() => {
-    if (!statusChecked) return;
-    if (typeof window === "undefined") return;
-    if (!autoEligible) return;
-    if (window.localStorage.getItem(LS_PROCEEDED)) return;
-    if (window.sessionStorage.getItem(SS_DISMISS)) return;
-    setBannerOpen(true);
-  }, [statusChecked, autoEligible]);
-
-  const dismissBanner = () => {
+  const handleClose = useCallback(() => {
     try {
       window.sessionStorage.setItem(SS_DISMISS, "1");
     } catch {
       /* ignore */
     }
-    setBannerOpen(false);
-  };
+    closeWizard();
+    try {
+      window.dispatchEvent(new CustomEvent("setup-wizard-updated"));
+    } catch {
+      /* ignore */
+    }
+  }, [closeWizard]);
 
-  if (!bannerOpen) return null;
+  if (!statusChecked || !open) return null;
 
   return (
     <div
-      className="fixed bottom-4 left-4 right-4 z-[180] mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-4 shadow-lg sm:left-auto"
+      className="fixed inset-0 overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm"
+      style={{ zIndex: "var(--z-modal, 500)" }}
       role="dialog"
-      aria-label="Continue business setup"
+      aria-modal="true"
+      aria-labelledby="setup-wizard-modal-title"
     >
-      <button
-        type="button"
-        onClick={dismissBanner}
-        className="absolute right-2 top-2 rounded-md p-1 text-slate-400 hover:text-slate-700"
-        aria-label="Dismiss setup reminder"
-      >
-        <X className="h-4 w-4" />
-      </button>
-      <p className="pr-8 text-sm font-semibold text-slate-900">Finish business setup</p>
-      <p className="mt-1 text-sm text-slate-600">
-        Configure your profile, calendar, and opening balances in the Setup Wizard. You can leave
-        and resume anytime.
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={goToSetup}
-          className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-        >
-          Continue setup <ArrowRight className="h-4 w-4" aria-hidden />
-        </button>
-        <Link
-          href="/setup"
-          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
-          onClick={() => {
-            try {
-              window.localStorage.setItem(LS_PROCEEDED, "1");
-            } catch {
-              /* ignore */
-            }
-          }}
-        >
-          Open /setup
-        </Link>
+      <div className="mx-auto mt-6 max-w-6xl rounded-2xl bg-white p-4 shadow-2xl sm:p-6">
+        <SetupWizard embedded onClose={handleClose} initialStepId={initialStepId} />
       </div>
     </div>
   );

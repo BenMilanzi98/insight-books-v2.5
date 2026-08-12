@@ -757,7 +757,7 @@ const SalesListPage = () => {
                         <div className="flex items-center justify-end gap-1">
                           {sale.status === 'completed' && (
                             <button
-                              className="p-1.5 rounded-lg text-purple-600 hover:text-purple-800 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={(e) => pagePermissions.canRefundSales && openRefundModal(sale, e)}
                               title={pagePermissions.canRefundSales ? 'Process Refund' : 'You do not have permission to refund sales'}
                               disabled={!pagePermissions.canRefundSales}

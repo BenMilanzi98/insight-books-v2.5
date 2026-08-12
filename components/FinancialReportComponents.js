@@ -1302,8 +1302,8 @@ export const BalanceSheetReport = ({
                   </p>
                   <p className="text-xs text-slate-500 mt-1">(Cash + AR) ÷ Current Liabilities</p>
                 </div>
-                <div className="p-3 rounded-xl bg-white/80 border border-violet-100">
-                  <p className="text-sm text-violet-700 mb-1">Debt-to-equity</p>
+                <div className="p-3 rounded-xl bg-white/80 border border-sky-100">
+                  <p className="text-sm text-sky-700 mb-1">Debt-to-equity</p>
                   <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.debtToEquity ? (data.ratios.debtToEquity < 0.01 ? data.ratios.debtToEquity.toFixed(4) : data.ratios.debtToEquity.toFixed(2)) : 'N/A'}
                   </p>
@@ -1610,8 +1610,8 @@ export const TaxSummaryReport = ({
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
               <p className="text-xs text-slate-500 mt-1">From {data.paidTaxes.expenses.length} tax-related expenses</p>
             </div>
-            <div className="bg-gradient-to-br from-violet-50 to-white p-4 sm:p-5 rounded-2xl border border-violet-200/80 shadow-sm border-l-4 border-l-violet-500">
-              <h3 className="text-sm font-medium text-violet-700 mb-1">Net tax liability</h3>
+            <div className="bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 rounded-2xl border border-sky-200/80 shadow-sm border-l-4 border-l-sky-500">
+              <h3 className="text-sm font-medium text-sky-700 mb-1">Net tax liability</h3>
               <p className={`min-w-0 break-words text-xl font-semibold leading-tight tabular-nums sm:text-2xl ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
               <p className="text-xs text-slate-500 mt-1">{data.netTaxLiability >= 0 ? 'Tax to be paid' : 'Tax credit'}</p>
             </div>
@@ -1893,7 +1893,7 @@ export const AgingReportTable = ({
     >
       {data && (
         <>
-          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-violet-50/60 border border-slate-200">
+          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-sky-50/60 border border-slate-200">
             <div className="flex flex-wrap justify-between items-center gap-2 border-l-4 border-blue-500 pl-3">
               <h3 className="font-semibold text-slate-800">
                 {type === 'receivable' ? 'Outstanding invoices' : 'Outstanding bills'}
@@ -1905,8 +1905,8 @@ export const AgingReportTable = ({
                 <p className="text-sm text-blue-700 mb-1">Total {type === 'receivable' ? 'receivables' : 'payables'}</p>
                 <p className="text-xl font-semibold text-slate-800">{formatCurrency(grandTotal)}</p>
               </div>
-              <div className="p-3 rounded-xl bg-white/80 border border-violet-100">
-                <p className="text-sm text-violet-700 mb-1">{type === 'receivable' ? 'Customers' : 'Vendors'} with outstanding balances</p>
+              <div className="p-3 rounded-xl bg-white/80 border border-sky-100">
+                <p className="text-sm text-sky-700 mb-1">{type === 'receivable' ? 'Customers' : 'Vendors'} with outstanding balances</p>
                 <p className="text-xl font-semibold text-slate-800">{groupedData.length}</p>
               </div>
             </div>

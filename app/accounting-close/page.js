@@ -7,8 +7,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, RefreshCw, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
-import PageHeader from '@/components/shell/PageHeader';
+import { RefreshCw, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 
 async function api(url, options) {
@@ -164,25 +165,18 @@ export default function AccountingClosePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background-secondary)] py-2 md:py-4">
+    <div className="w-full">
       <div className="mx-auto max-w-6xl space-y-6">
-        <PageHeader
+        <PosStylePageHeader
           title="Year-End Close"
           description="Period-end close stays on Financial Calendar. This workspace owns year-end closing journals, profit transfer, post-closing trial balance, and FY lock."
-          breadcrumb={<ClipboardCheck className="h-5 w-5 text-teal-700" aria-hidden="true" />}
           actions={
-            <button
-              type="button"
-              onClick={load}
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <PosStyleHeaderButton type="button" onClick={load} disabled={busy}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
               Refresh
-            </button>
+            </PosStyleHeaderButton>
           }
         />
-
 
         {error && (
           <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -191,7 +185,7 @@ export default function AccountingClosePage() {
           </div>
         )}
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+        <PosStylePanel className="space-y-3 p-4" as="section">
           <h2 className="font-medium text-slate-900">1. Financial year</h2>
           <select
             className="w-full max-w-md rounded border border-slate-300 px-3 py-2 text-sm"
@@ -216,9 +210,9 @@ export default function AccountingClosePage() {
             value={financialYearId}
             onChange={(e) => setFinancialYearId(e.target.value)}
           />
-        </section>
+        </PosStylePanel>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+        <PosStylePanel className="space-y-3 p-4" as="section">
           <h2 className="font-medium text-slate-900">2. Closing configuration</h2>
           <p className="text-xs text-slate-500">
             CYE model: calculated reporting line (MODEL A). Profit transfers once via Closing Journals.
@@ -274,9 +268,9 @@ export default function AccountingClosePage() {
               <span className="text-sm text-slate-600 self-center">Status: {config.status}</span>
             )}
           </div>
-        </section>
+        </PosStylePanel>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+        <PosStylePanel className="space-y-3 p-4" as="section">
           <h2 className="font-medium text-slate-900">3. Close readiness</h2>
           {readiness ? (
             <div className="space-y-2">
@@ -304,9 +298,9 @@ export default function AccountingClosePage() {
           ) : (
             <p className="text-sm text-slate-500">Select a financial year to assess readiness.</p>
           )}
-        </section>
+        </PosStylePanel>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+        <PosStylePanel className="space-y-3 p-4" as="section">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-medium text-slate-900">4. Year-end close run</h2>
             <button
@@ -394,10 +388,10 @@ export default function AccountingClosePage() {
           ) : (
             <p className="text-sm text-slate-500">No close run yet for this year.</p>
           )}
-        </section>
+        </PosStylePanel>
 
         {preview && (
-          <section className="rounded-lg border border-slate-200 bg-white p-4 space-y-2">
+          <PosStylePanel className="space-y-2 p-4" as="section">
             <h2 className="font-medium text-slate-900">Closing journal preview</h2>
             <p className="text-sm">
               Profit/(loss): {preview.calculatedProfitOrLoss} · Dr {preview.totalDebitMinor} / Cr{' '}
@@ -410,7 +404,7 @@ export default function AccountingClosePage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </PosStylePanel>
         )}
       </div>
     </div>

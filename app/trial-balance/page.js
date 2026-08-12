@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Calendar, 
   Download, 
-  FileText, 
   Printer, 
   RefreshCw, 
   Search,
@@ -16,6 +15,7 @@ import Link from "next/link";
 import { fetchTrialBalance, exportTrialBalance } from "@/app/services/trialBalanceService";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { getTimeframeLabel, getDefaultCustomRange } from "@/lib/dateUtils";
+import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
@@ -24,10 +24,12 @@ import ConsolidationDisclosure from "@/components/reports/ConsolidationDisclosur
 import MultiBusinessComparisonPanel, {
   TRIAL_BALANCE_COMPARE_COLUMNS,
 } from "@/components/reports/MultiBusinessComparisonPanel";
+import PosStylePageHeader, { PosStyleHeaderButton } from "@/components/shell/PosStylePageHeader";
+import PosStylePanel from "@/components/shell/PosStylePanel";
+import PortalPopover from "@/components/ui/PortalPopover";
 
 const TrialBalance = () => {
   const [timeframe, setTimeframe] = useState("thisMonth");
-  const [displayTimeframe, setDisplayTimeframe] = useState("This Month");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,19 +86,7 @@ const TrialBalance = () => {
     fetchPermissions();
   }, []);
   const printFrameRef = useRef(null);
-
-  // Map of user-friendly timeframe options to API timeframes
-  const timeframeMapping = {
-    "Today": "today",
-    "This Week": "thisWeek",
-    "This Month": "thisMonth",
-    "Last Month": "lastMonth",
-    "This Quarter": "thisQuarter",
-    "Last Quarter": "lastQuarter",
-    "This Year": "thisYear",
-    "Last Year": "lastYear",
-    "Custom Range": "custom"
-  };
+  const exportTriggerRef = useRef(null);
 
   // Helper function to normalize account types
   const normalizeAccountType = (type) => {
@@ -149,13 +139,11 @@ const TrialBalance = () => {
       setIsLoading(true);
       setError(null);
       
-      // Convert display timeframe to API timeframe
-      const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
-      const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
+      const customRange = timeframe === "custom" && customStartDate && customEndDate
         ? { startDate: customStartDate, endDate: customEndDate }
         : null;
       
-      const data = await fetchTrialBalance(apiTimeframe, customRange, businessScope);
+      const data = await fetchTrialBalance(timeframe, customRange, businessScope);
       console.log('Trial balance data received:', data);
       setByTenant(data?.byTenant || null);
       setConsolidation(data?.consolidation || null);
@@ -211,20 +199,20 @@ const TrialBalance = () => {
     }
   };
 
-  // When switching to Custom Range, initialize dates to current month if not set
+  // When switching to custom, initialize dates if not set
   useEffect(() => {
-    if (displayTimeframe === "Custom Range" && (!customStartDate || !customEndDate)) {
+    if (timeframe === "custom" && (!customStartDate || !customEndDate)) {
       const def = getDefaultCustomRange();
       setCustomStartDate(def.startDate);
       setCustomEndDate(def.endDate);
     }
-  }, [displayTimeframe]);
+  }, [timeframe]);
 
   // Initialize data on component mount and when timeframe or custom dates change
   useEffect(() => {
-    if (displayTimeframe === "Custom Range" && (!customStartDate || !customEndDate)) return;
+    if (timeframe === "custom" && (!customStartDate || !customEndDate)) return;
     fetchData();
-  }, [displayTimeframe, customStartDate, customEndDate, businessScopeMode, businessScopeTenantIds, reportingCurrency]);
+  }, [timeframe, customStartDate, customEndDate, businessScopeMode, businessScopeTenantIds, reportingCurrency]);
 
   const handleRefresh = () => {
     fetchData();
@@ -237,13 +225,12 @@ const TrialBalance = () => {
       setSelectedAccount(account);
       setShowHistoryModal(true);
 
-      // Get date range for current timeframe (include custom range when Custom Range is selected)
-      const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
+      // Get date range for current timeframe
       const { calculateDateRange } = await import('@/lib/dateUtils');
-      const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
+      const customRange = timeframe === "custom" && customStartDate && customEndDate
         ? { startDate: customStartDate, endDate: customEndDate }
         : null;
-      const { startDate, endDate } = calculateDateRange(apiTimeframe, false, customRange);
+      const { startDate, endDate } = calculateDateRange(timeframe, false, customRange);
       
       // Format dates as YYYY-MM-DD
       const formatDate = (date) => {
@@ -282,8 +269,14 @@ const TrialBalance = () => {
     setSearchTerm(e.target.value);
   };
 
-  const handleTimeframeChange = (e) => {
-    setDisplayTimeframe(e.target.value);
+  const handleTimeframeChange = (next) => {
+    setTimeframe(next);
+  };
+
+  const handleCustomDateChange = (range) => {
+    setCustomStartDate(range.startDate);
+    setCustomEndDate(range.endDate);
+    setTimeframe('custom');
   };
 
   const handlePrint = () => {
@@ -297,11 +290,10 @@ const TrialBalance = () => {
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
-      const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
+      const customRange = timeframe === "custom" && customStartDate && customEndDate
         ? { startDate: customStartDate, endDate: customEndDate }
         : null;
-      const blob = await exportTrialBalance(apiTimeframe, exportFormat, customRange, businessScope);
+      const blob = await exportTrialBalance(timeframe, exportFormat, customRange, businessScope);
       
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -336,16 +328,7 @@ const TrialBalance = () => {
     );
   });
 
-  // Date range options for the filter dropdown
-  const dateRangeOptions = [
-    "Today",
-    "This Week",
-    "This Month",
-    "Last Month",
-    "This Quarter",
-    "This Year",
-    "Custom Range"
-  ];
+  // Date range handled by UniversalDateRangeFilter (Dashboard design)
 
   // Calculate totals
   const totalDebits = filteredAccounts.reduce((total, account) => total + (account.debit || 0), 0);
@@ -367,79 +350,76 @@ const TrialBalance = () => {
     <PermissionGuard permission="trialBalance.view">
       <div className="w-full">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-          <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                  <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Trial Balance</h1>
-                  <p className="text-indigo-100 text-sm mt-0.5">Debits and credits by account for the selected period</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
+          <PosStylePageHeader
+            title="Trial Balance"
+            description="Debits and credits by account for the selected period"
+            actions={
+              <>
                 <BusinessScopeSelector
                   mode={businessScopeMode}
                   selectedTenantIds={businessScopeTenantIds}
                   onChange={setBusinessScope}
                   compact
-                  className="[&_button]:bg-white/95 [&_button]:border-white/30"
                 />
                 {isMultiBusinessScope ? (
                   <ReportingCurrencySelector
                     value={reportingCurrency}
                     onChange={setReportingCurrency}
                     visible
-                    className="min-w-[160px] [&_select]:bg-white/95 [&_select]:border-white/30"
+                    className="min-w-[160px]"
                   />
                 ) : null}
-                <button
+                <PosStyleHeaderButton
                   type="button"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-all"
                   onClick={handlePrint}
                   disabled={isLoading || isPrinting}
                 >
-                  <Printer size={18} />
+                  <Printer size={18} className="mr-2" />
                   Print
-                </button>
+                </PosStyleHeaderButton>
                 {pagePermissions.canExportTrial && (
-                  <div className="relative">
-                    <button
+                  <div className="relative" ref={exportTriggerRef}>
+                    <PosStyleHeaderButton
                       type="button"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-medium transition-all"
                       onClick={() => setShowExportOptions(!showExportOptions)}
                       disabled={isLoading || isExporting}
                     >
-                      <Download size={18} />
+                      <Download size={18} className="mr-2" />
                       Export
-                    </button>
-                    {showExportOptions && (
-                      <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-lg bg-white border border-slate-200 p-3 z-10">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>
-                        <select
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 mb-3"
-                          value={exportFormat}
-                          onChange={(e) => setExportFormat(e.target.value)}
-                        >
-                          <option value="pdf">PDF</option>
-                          <option value="csv">CSV</option>
-                          <option value="xlsx">Excel</option>
-                        </select>
-                        <button
-                          type="button"
-                          className="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-                          onClick={handleExport}
-                        >
-                          {isExporting ? "Exporting..." : "Download"}
-                        </button>
-                      </div>
-                    )}
+                    </PosStyleHeaderButton>
+                    <PortalPopover
+                      open={showExportOptions}
+                      onClose={() => setShowExportOptions(false)}
+                      anchorRef={exportTriggerRef}
+                      align="end"
+                      estimatedWidth={192}
+                      estimatedHeight={160}
+                      className="w-48 rounded-xl"
+                      variant="dashboard"
+                    >
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>
+                      <select
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 mb-3 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        value={exportFormat}
+                        onChange={(e) => setExportFormat(e.target.value)}
+                      >
+                        <option value="pdf">PDF</option>
+                        <option value="csv">CSV</option>
+                        <option value="xlsx">Excel</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="w-full py-2 px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                        onClick={handleExport}
+                      >
+                        {isExporting ? "Exporting..." : "Download"}
+                      </button>
+                    </PortalPopover>
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          />
 
           {(byTenant?.length > 1 || isMultiBusinessScope) && consolidation ? (
             <ConsolidationDisclosure consolidation={consolidation} className="mb-6" />
@@ -454,45 +434,22 @@ const TrialBalance = () => {
             />
           ) : null}
 
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
+          <PosStylePanel className="mb-6 p-4 sm:p-6">
             <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-4">
               <div className="flex flex-wrap gap-2 items-center">
-                <div className="relative min-w-[140px]">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                  <select
-                    className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
-                    value={displayTimeframe}
-                    onChange={handleTimeframeChange}
-                  >
-                    {dateRangeOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </div>
-                {displayTimeframe === "Custom Range" && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-sm text-slate-600 whitespace-nowrap">From</label>
-                    <input
-                      type="date"
-                      className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                    />
-                    <label className="text-sm text-slate-600 whitespace-nowrap">To</label>
-                    <input
-                      type="date"
-                      className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                    />
-                  </div>
-                )}
+                <UniversalDateRangeFilter
+                  timeframe={timeframe}
+                  onTimeframeChange={handleTimeframeChange}
+                  onCustomDateChange={handleCustomDateChange}
+                  showRefresh={false}
+                  size="default"
+                />
                 <div className="relative flex-1 min-w-[160px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search accounts..."
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
                     value={searchTerm}
                     onChange={handleSearchChange}
                   />
@@ -502,7 +459,7 @@ const TrialBalance = () => {
                 <span>Last updated: {formatDate(lastUpdated)}</span>
                 <button
                   type="button"
-                  className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                  className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-50"
                   onClick={handleRefresh}
                   disabled={isLoading}
                 >
@@ -520,7 +477,7 @@ const TrialBalance = () => {
 
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+                <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
                 <p className="text-slate-500 font-medium">Loading trial balance...</p>
               </div>
             ) : (
@@ -588,7 +545,7 @@ const TrialBalance = () => {
             )}
           </>
         )}
-          </div>
+          </PosStylePanel>
 
           {/* Hidden print iframe - only used when printing */}
           <iframe

@@ -359,10 +359,10 @@ const JournalEntryForm = ({ existingEntry = null }) => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-sky-50/40">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 pb-12">
         {/* Header */}
-        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+        <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-500 shadow-xl shadow-blue-200/50 p-6 sm:p-8 mb-6">
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -378,7 +378,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                 {isEditing ? 'Edit Journal Entry' : 'New Journal Entry'}
               </h1>
-              <p className="text-indigo-100 text-sm mt-0.5">Create or edit a general ledger entry</p>
+              <p className="text-blue-100 text-sm mt-0.5">Create or edit a general ledger entry</p>
             </div>
           </div>
         </div>
@@ -418,7 +418,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                 name="date"
                 value={formData.date}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
                 required
               />
             </div>
@@ -429,7 +429,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                 name="entryType"
                 value={formData.entryType}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
                 required
               >
                 <option value="Correction">Correction</option>
@@ -446,7 +446,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                 placeholder="Enter a description for this journal entry"
                 value={formData.description}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
                 required
               />
             </div>
@@ -459,7 +459,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                 placeholder="Optional internal reference or tag"
                 value={formData.internalReference}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
               />
             </div>
           </div>
@@ -470,7 +470,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               <button
                 type="button"
                 onClick={addEntry}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-100 text-blue-700 font-medium hover:bg-blue-200 transition-colors"
               >
                 <Plus size={18} />
                 Add Line
@@ -490,7 +490,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {formData.lines.map((entry, index) => (
-                    <tr key={index} className="hover:bg-indigo-50/30 transition-colors">
+                    <tr key={index} className="hover:bg-blue-50/40 transition-colors">
                       <td className="px-4 py-3">
                         {isLoadingAccounts ? (
                           <div className="animate-pulse h-10 bg-slate-200 rounded-lg" />
@@ -498,7 +498,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                           <select
                             value={entry.accountId}
                             onChange={(e) => handleEntryChange(index, 'accountId', e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                             required
                           >
                             <option value="">Select an account</option>
@@ -535,7 +535,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                           placeholder="Line description (optional)"
                           value={entry.description}
                           onChange={(e) => handleEntryChange(index, 'description', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -546,7 +546,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                           placeholder="0.00"
                           value={entry.debit}
                           onChange={(e) => handleEntryChange(index, 'debit', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-right focus:ring-2 focus:ring-indigo-500/50 text-amber-700"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-right focus:ring-2 focus:ring-blue-500/50 text-amber-700"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -557,7 +557,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                           placeholder="0.00"
                           value={entry.credit}
                           onChange={(e) => handleEntryChange(index, 'credit', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-right focus:ring-2 focus:ring-indigo-500/50 text-emerald-700"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-right focus:ring-2 focus:ring-blue-500/50 text-emerald-700"
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -611,7 +611,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || !totals.isBalanced || isPosted}
             >
               {isLoading ? (

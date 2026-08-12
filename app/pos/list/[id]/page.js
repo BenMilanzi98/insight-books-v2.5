@@ -408,10 +408,10 @@ const handleDeleteSale = async () => {
                         Void Sale
                       </button>
                       <button 
-                        className="w-full text-left px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 flex items-center"
+                        className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center"
                         onClick={() => setShowRefundModal(true)}
                       >
-                        <RotateCcw className="w-4 h-4 mr-2 text-purple-500" />
+                        <RotateCcw className="w-4 h-4 mr-2 text-blue-500" />
                         Process Refund
                       </button>
                     </>
@@ -670,7 +670,7 @@ const handleDeleteSale = async () => {
                   </button>
                   
                   <button 
-                    className="w-full px-4 py-2 border border-purple-500 text-purple-600 bg-white rounded-md flex items-center justify-center hover:bg-purple-50"
+                    className="w-full px-4 py-2 border border-blue-500 text-blue-600 bg-white rounded-md flex items-center justify-center hover:bg-blue-50"
                     onClick={() => setShowRefundModal(true)}
                   >
                     <RotateCcw className="w-4 h-4 mr-2" />
@@ -799,7 +799,7 @@ const handleDeleteSale = async () => {
                 Cancel
               </button>
               <button 
-                className="px-4 py-2 bg-purple-600 text-white rounded-md flex items-center"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
                 onClick={handleRefundSale}
                 disabled={
                   isSubmitting ||

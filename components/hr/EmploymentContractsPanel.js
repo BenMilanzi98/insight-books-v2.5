@@ -108,7 +108,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
           <button
             type="button"
             onClick={() => setShowForm((v) => !v)}
-            className="inline-flex items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
+            className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
           >
             <Plus size={12} /> {showForm ? 'Cancel' : 'New contract'}
           </button>

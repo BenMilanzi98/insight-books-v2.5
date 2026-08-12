@@ -10,12 +10,9 @@ import {
   CheckCircle2,
   ChevronRight,
   Circle,
-  CreditCard,
   Loader2,
   PartyPopper,
   Package,
-  Receipt,
-  Scale,
   SkipForward,
   Sparkles,
   Truck,
@@ -27,49 +24,37 @@ import { SETUP_WIZARD_STEP_DEFS, getSetupStepDef } from "@/lib/setupWizardStepsM
 import SetupWizardStepContent from "@/components/setup/SetupWizardStepContent";
 
 const STEP_ICONS = {
-  capital: Wallet,
-  assets: Building2,
-  liabilities: Scale,
-  paymentAccounts: CreditCard,
-  taxes: Receipt,
+  accountSettings: Building2,
+  inventory: Package,
+  customers: Users,
   clients: Users,
   suppliers: Truck,
+  openingBalances: Wallet,
   openingStock: Package,
 };
 
 function factLabel(stepId, facts) {
   if (!facts) return null;
   switch (stepId) {
-    case "capital":
-      return facts.capitalConfigured ? "Capital linked to GL" : "Not configured yet";
-    case "assets":
-      return facts.assetCount > 0
-        ? `${facts.assetCount} asset${facts.assetCount === 1 ? "" : "s"} registered`
-        : "No assets yet";
-    case "liabilities":
-      return facts.liabilityCount > 0
-        ? `${facts.liabilityCount} liabilit${facts.liabilityCount === 1 ? "y" : "ies"} tracked`
-        : "No liabilities yet";
-    case "paymentAccounts":
-      return facts.paymentAccountCount > 0
-        ? `${facts.paymentAccountCount} payment account${facts.paymentAccountCount === 1 ? "" : "s"} ready`
-        : "No payment accounts linked";
-    case "taxes":
-      return facts.taxConfigured
-        ? `${facts.taxTypeCount} active tax type${facts.taxTypeCount === 1 ? "" : "s"}`
-        : "Tax catalog not synced";
-    case "clients":
-      return facts.clientCount > 0
-        ? `${facts.clientCount} client${facts.clientCount === 1 ? "" : "s"}`
-        : "No clients yet";
-    case "suppliers":
-      return facts.supplierCount > 0
-        ? `${facts.supplierCount} supplier${facts.supplierCount === 1 ? "" : "s"}`
-        : "No suppliers yet";
+    case "accountSettings":
+      return facts.accountSettingsComplete ? facts.tenantName || "Account ready" : "Add business details";
+    case "inventory":
     case "openingStock":
       return facts.hasOpeningStock
         ? `${facts.stockedProductCount} product${facts.stockedProductCount === 1 ? "" : "s"} with stock`
         : "No opening stock recorded";
+    case "customers":
+    case "clients":
+      return facts.clientCount > 0
+        ? `${facts.clientCount} customer${facts.clientCount === 1 ? "" : "s"}`
+        : "No customers yet";
+    case "suppliers":
+      return facts.supplierCount > 0
+        ? `${facts.supplierCount} supplier${facts.supplierCount === 1 ? "" : "s"}`
+        : "No suppliers yet";
+    case "openingBalances":
+    case "openingBalancesReview":
+      return facts.hasOpeningBalancesReview ? "Opening balances posted" : "No opening cash posted";
     default:
       return null;
   }
@@ -216,9 +201,13 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
     try {
       setBusy("complete");
       await postStep({ action: "complete", stepId: activeStep.id });
+      if (activeIndex >= steps.length - 1) {
+        finishWizard();
+        return;
+      }
       const next = steps.slice(activeIndex + 1).find((s) => s.status === "pending");
       if (next) setActiveStep(next.id);
-      else if (activeIndex < steps.length - 1) goNext();
+      else goNext();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -345,17 +334,17 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-indigo-700">
             <Sparkles className="h-3.5 w-3.5" />
-            Optional setup
+            Get started
           </div>
           <h1
             id={embedded ? "setup-wizard-modal-title" : undefined}
             className={`mt-3 font-bold tracking-tight text-slate-900 ${embedded ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`}
           >
-            Build your financial foundation
+            Complete your setup
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
-            Eight quick areas — configure everything here without leaving this wizard. Skip anything
-            you&apos;ll set up later.
+            Five steps: account, stock, customers, suppliers, and opening cash balances. Skip for now
+            and resume anytime from the dashboard.
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
@@ -364,17 +353,16 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
           </span>
           <div className="h-2.5 w-48 overflow-hidden rounded-full bg-slate-200/80 sm:w-56">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-blue-600 to-sky-500 transition-all duration-500 ease-out"
               style={{ width: `${progressPct}%` }}
             />
           </div>
           <button
             type="button"
-            onClick={handleSkipAll}
-            disabled={!!busy || pendingIds.length === 0}
-            className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline disabled:opacity-40"
+            onClick={finishWizard}
+            className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
           >
-            Skip entire wizard
+            Skip for Now
           </button>
         </div>
       </div>
@@ -406,7 +394,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                     onClick={() => setActiveStep(step.id)}
                     className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all ${
                       isActive
-                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25"
+                        ? "bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-md shadow-blue-500/25"
                         : "text-slate-700 hover:bg-slate-50"
                     }`}
                   >
@@ -513,7 +501,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50 sm:flex-none"
                 >
                   {busy === "complete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Mark step as done
+                  {activeIndex === steps.length - 1 ? "Complete Setup" : "Mark step as done"}
                 </button>
                 <button
                   type="button"
@@ -522,7 +510,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:flex-none"
                 >
                   {busy === "skip" ? <Loader2 className="h-4 w-4 animate-spin" /> : <SkipForward className="h-4 w-4" />}
-                  Skip for now
+                  Skip this step
                 </button>
               </div>
             )}

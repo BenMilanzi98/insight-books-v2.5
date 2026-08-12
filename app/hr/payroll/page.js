@@ -10,6 +10,8 @@ import { effectiveNpsRatePercentForPayroll } from "@/lib/npsTenantRates";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
 import StatCard from "@/components/ui/StatCard";
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function PayrollProcessing() {
   const router = useRouter();
@@ -904,32 +906,29 @@ export default function PayrollProcessing() {
           {toast.message}
         </div>
       )}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Payroll Processing</h1>
-          <p className="text-gray-600">Process payroll with Malawi tax compliance (PAYE & NPS)</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/hr/payroll/paye-summary"
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
-          >
-            <FileBarChart size={20} />
-            PAYE Summary
-          </Link>
-          <button
-            onClick={async () => {
-              await loadAccounts();
-              await loadPaymentAccounts();
-              setShowProcessModal(true);
-            }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-          >
-            <Play size={20} />
-            Process Payroll
-          </button>
-        </div>
-      </div>
+      <PosStylePageHeader
+        title="Payroll Processing"
+        description="Process payroll with Malawi tax compliance (PAYE & NPS)"
+        actions={
+          <>
+            <PosStyleHeaderButton as={Link} href="/hr/payroll/paye-summary">
+              <FileBarChart size={20} className="mr-2" />
+              PAYE Summary
+            </PosStyleHeaderButton>
+            <button
+              onClick={async () => {
+                await loadAccounts();
+                await loadPaymentAccounts();
+                setShowProcessModal(true);
+              }}
+              className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
+            >
+              <Play size={20} className="mr-2" />
+              Process Payroll
+            </button>
+          </>
+        }
+      />
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -937,7 +936,7 @@ export default function PayrollProcessing() {
           label="Payroll Runs"
           value={totalStats.totalRuns}
           icon={Calendar}
-          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          barClassName="from-blue-400 via-sky-500 to-blue-600"
           iconWrapClassName="bg-blue-100 text-blue-600"
         />
         <StatCard
@@ -958,13 +957,13 @@ export default function PayrollProcessing() {
           label="Total Net Pay"
           value={formatCurrency(totalStats.totalNet)}
           icon={DollarSign}
-          barClassName="from-violet-400 via-purple-500 to-indigo-500"
-          iconWrapClassName="bg-purple-100 text-purple-600"
+          barClassName="from-blue-500 via-sky-500 to-indigo-500"
+          iconWrapClassName="bg-blue-100 text-blue-600"
         />
       </div>
 
       {/* Payroll Runs Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <PosStylePanel className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b bg-white">
           <div className="text-sm font-medium text-gray-700">Runs</div>
           <div className="flex items-center gap-2">
@@ -1085,7 +1084,7 @@ export default function PayrollProcessing() {
             <p className="text-gray-600">Loading payroll runs...</p>
           </div>
         )}
-      </div>
+      </PosStylePanel>
 
       {/* Process Payroll Modal */}
       {showProcessModal && (

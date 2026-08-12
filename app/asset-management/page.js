@@ -843,7 +843,7 @@ const AssetManagement = () => {
     
     try {
       const payload = { ...assetFormData };
-      if (!assetEditId && assetCategoryInlineMode) {
+      if (assetCategoryInlineMode) {
         if (!inlineAssetCategoryName.trim()) {
           throw new Error('Enter a name for the new category or switch to an existing category.');
         }
@@ -1692,7 +1692,7 @@ const AssetManagement = () => {
                           <span>{asset.name}</span>
                           {(String(asset.notes || "").toUpperCase().includes("AUTO_ASSET_FROM_GR:") ||
                             String(asset.notes || "").toUpperCase().includes("[PO_ASSET:")) && (
-                            <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                            <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                               From PO
                             </span>
                           )}
@@ -1736,7 +1736,7 @@ const AssetManagement = () => {
                           {hasMultipleBusinesses && asset.status === "active" && (
                             <button
                               type="button"
-                              className="text-violet-600 hover:text-violet-800"
+                              className="text-blue-600 hover:text-blue-800"
                               title="Transfer to another business"
                               onClick={() => openTransferModal(asset)}
                             >
@@ -2214,8 +2214,7 @@ const AssetManagement = () => {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-sm font-medium">Category *</label>
-                        {!assetEditId && (
-                          <button
+                        <button
                             type="button"
                             className="text-xs font-medium text-blue-600 hover:text-blue-800"
                             onClick={() => {
@@ -2228,9 +2227,8 @@ const AssetManagement = () => {
                           >
                             {assetCategoryInlineMode ? "Use existing category" : "+ New category"}
                           </button>
-                        )}
                       </div>
-                      {assetCategoryInlineMode && !assetEditId ? (
+                      {assetCategoryInlineMode ? (
                         <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
                           <input
                             type="text"
@@ -2819,7 +2817,7 @@ const AssetManagement = () => {
                   <button
                     type="submit"
                     disabled={transferSubmitting || !transferTargetTenantId}
-                    className="px-4 py-2 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                   >
                     {transferSubmitting ? "Transferring…" : "Confirm transfer"}
                   </button>

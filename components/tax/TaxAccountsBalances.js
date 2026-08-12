@@ -297,7 +297,7 @@ export default function TaxAccountsBalances() {
         </div>
         <div>
           <p className="text-xs text-gray-500 mb-1">Net due (period)</p>
-          <p className="text-lg font-semibold text-purple-600">
+          <p className="text-lg font-semibold text-blue-600">
             {formatCurrency(account.netDueInPeriod ?? Math.max(0, account.netPayable || 0))}
           </p>
         </div>
@@ -472,12 +472,12 @@ export default function TaxAccountsBalances() {
             </p>
           </div>
           
-          <div className="bg-purple-50 rounded-lg p-6">
+          <div className="bg-blue-50 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="text-purple-600" size={24} />
+              <TrendingUp className="text-blue-600" size={24} />
               <h3 className="text-sm font-medium text-gray-700">Net due (period)</h3>
             </div>
-            <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-purple-600 sm:text-2xl">
+            <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-blue-600 sm:text-2xl">
               {formatCurrency(
                 summary.totalNetDueInPeriod ?? Math.max(0, summary.totalNetPayable || 0)
               )}

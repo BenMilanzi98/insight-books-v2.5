@@ -250,39 +250,20 @@ export default function AdminSubscriptions() {
       });
 
       console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-      
-      // Check if response is ok before trying to parse JSON
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response not ok. Status:', response.status, 'Body:', errorText);
-        alert(`Server error: ${response.status} - ${errorText}`);
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || result?.success === false) {
+        const message = result?.error || `Server error: ${response.status}`;
+        console.error('Delete subscription failed:', message, result);
+        alert(typeof message === 'string' ? message : 'Failed to delete subscription');
         return;
       }
 
-      const responseText = await response.text();
-      console.log('Raw response text:', responseText);
-      
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Response that failed to parse:', responseText);
-        alert('Invalid response from server. Check console for details.');
-        return;
-      }
-
-      console.log('Parsed result:', result);
-
-      if (result.success) {
-        setShowDeleteModal(false);
-        setSelectedSubscription(null);
-        fetchSubscriptions();
-        alert('Subscription deleted successfully!');
-      } else {
-        alert(`Failed to delete subscription: ${result.error}`);
-      }
+      setShowDeleteModal(false);
+      setSelectedSubscription(null);
+      fetchSubscriptions();
+      alert('Subscription deleted successfully!');
     } catch (error) {
       console.error('Delete error:', error);
       alert('Network error. Please try again.');

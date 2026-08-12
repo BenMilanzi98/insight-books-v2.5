@@ -25,6 +25,8 @@ import {
   Mail,
   Printer
 } from "lucide-react";
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import { formatDate, calculateDateRange, toYmdLocal } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
@@ -78,7 +80,7 @@ export default function HRReports() {
       name: 'Payroll Summary',
       description: 'Complete payroll breakdown by period',
       icon: TrendingUp,
-      color: 'purple',
+      color: 'blue',
       requiresEmployee: false,
       requiresDateRange: true
     },
@@ -96,7 +98,7 @@ export default function HRReports() {
       name: 'Employee Summary',
       description: 'Comprehensive employee information and statistics',
       icon: Users,
-      color: 'indigo',
+      color: 'sky',
       requiresEmployee: false,
       requiresDateRange: false
     },
@@ -566,13 +568,13 @@ export default function HRReports() {
     <div className="flex w-full">
       <Sidebar />
       <main className="flex-1 p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">HR Reports</h1>
-          <p className="text-gray-600 mt-1">Generate comprehensive HR and payroll reports</p>
-        </div>
+        <PosStylePageHeader
+          title="HR Reports"
+          description="Generate comprehensive HR and payroll reports"
+        />
 
       {/* Payslip Generation Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <PosStylePanel className="p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <FileText size={24} className="text-blue-600" />
           Employee Payslip Generator
@@ -707,7 +709,7 @@ export default function HRReports() {
             )}
           </button>
         </div>
-      </div>
+      </PosStylePanel>
 
       {/* Notification */}
       {notification && (
@@ -739,7 +741,7 @@ export default function HRReports() {
       )}
 
       {/* Report Type Selection */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <PosStylePanel className="p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <BarChart3 size={20} />
           Select Report Type
@@ -785,11 +787,11 @@ export default function HRReports() {
             );
           })}
         </div>
-      </div>
+      </PosStylePanel>
 
       {/* Filters Section */}
       {reportType && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <PosStylePanel className="p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Filter size={20} />
             Report Filters
@@ -893,12 +895,12 @@ export default function HRReports() {
               </>
             )}
           </div>
-        </div>
+        </PosStylePanel>
       )}
 
       {/* Export Format Selection */}
       {reportType && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <PosStylePanel className="p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Export Format</h2>
           <div className="flex flex-wrap gap-3">
             <button
@@ -924,12 +926,12 @@ export default function HRReports() {
               Excel
             </button>
           </div>
-        </div>
+        </PosStylePanel>
       )}
 
       {/* Action Buttons */}
       {reportType && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <PosStylePanel className="p-6 mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Ready to Generate Report</h3>
@@ -977,7 +979,7 @@ export default function HRReports() {
               </button>
             </div>
           </div>
-        </div>
+        </PosStylePanel>
       )}
 
       {/* Preview Modal */}
@@ -1043,7 +1045,7 @@ export default function HRReports() {
                 <span><strong>Statutory Remittances:</strong> Summary of PAYE and NPS contributions for tax authority submission</span>
               </li>
               <li className="flex items-start">
-                <span className="mr-2 text-purple-600">•</span>
+                <span className="mr-2 text-blue-600">•</span>
                 <span><strong>Payroll Summary:</strong> Complete payroll breakdown including all employees and totals</span>
               </li>
             </ul>
@@ -1056,7 +1058,7 @@ export default function HRReports() {
                 <span><strong>Attendance Report:</strong> Employee attendance records, hours worked, and overtime</span>
               </li>
               <li className="flex items-start">
-                <span className="mr-2 text-indigo-600">•</span>
+                <span className="mr-2 text-sky-600">•</span>
                 <span><strong>Employee Summary:</strong> Comprehensive employee information and statistics</span>
               </li>
               <li className="flex items-start">
@@ -1173,9 +1175,9 @@ function ReportPreviewContent({ reportType, data }) {
                   <p className="text-sm text-gray-600">Total PAYE</p>
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(data.summary.totalPAYE || 0)}</p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="bg-sky-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-600">Total NPS</p>
-                  <p className="text-2xl font-bold text-purple-600">{formatCurrency(data.summary.totalNPS || 0)}</p>
+                  <p className="text-2xl font-bold text-sky-600">{formatCurrency(data.summary.totalNPS || 0)}</p>
                 </div>
                 <div className="bg-orange-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-600">Total Statutory</p>
@@ -1206,9 +1208,9 @@ function ReportPreviewContent({ reportType, data }) {
                   <p className="text-sm text-gray-600">Total Deductions</p>
                   <p className="text-2xl font-bold text-red-600">{formatCurrency(data.summary.totalDeductions || 0)}</p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="bg-blue-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-600">Total Net Pay</p>
-                  <p className="text-2xl font-bold text-purple-600">{formatCurrency(data.summary.totalNetPay || 0)}</p>
+                  <p className="text-2xl font-bold text-blue-600">{formatCurrency(data.summary.totalNetPay || 0)}</p>
                 </div>
               </div>
               
@@ -1307,9 +1309,9 @@ function ReportPreviewContent({ reportType, data }) {
                   <p className="text-sm text-gray-600">Absent Days</p>
                   <p className="text-2xl font-bold text-red-600">{data.summary.totalAbsent || 0}</p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="bg-sky-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-600">Total Hours</p>
-                  <p className="text-2xl font-bold text-purple-600">{data.summary.totalHours || 0}</p>
+                  <p className="text-2xl font-bold text-sky-600">{data.summary.totalHours || 0}</p>
                 </div>
               </div>
               {data.employeeStatistics && data.employeeStatistics.length > 0 && (
@@ -1352,9 +1354,9 @@ function ReportPreviewContent({ reportType, data }) {
                     {data.employees.filter(e => e.status === 'Active').length}
                   </p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="bg-sky-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-600">Departments</p>
-                  <p className="text-2xl font-bold text-purple-600">
+                  <p className="text-2xl font-bold text-sky-600">
                     {new Set(data.employees.map(e => e.department).filter(Boolean)).size}
                   </p>
                 </div>

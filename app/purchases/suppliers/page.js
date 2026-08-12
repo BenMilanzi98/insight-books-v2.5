@@ -84,7 +84,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-blue-50 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-blue-50 to-sky-50 px-6 py-4">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{supplier.supplierName}</h2>
             <p className="text-sm text-gray-600 mt-1">Code: {supplier.supplierCode}</p>

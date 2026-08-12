@@ -103,7 +103,7 @@ function rangeOverlapsEvents(startIso, endIso, events) {
   });
 }
 
-export default function RentalsClient({ mode }) {
+export default function RentalsClient({ mode, embedded = false }) {
   const kind = mode === "hiring" ? "hiring" : "rental";
   const [stats, setStats] = useState(null);
   const [assets, setAssets] = useState([]);
@@ -431,8 +431,8 @@ export default function RentalsClient({ mode }) {
     }
   };
 
-  const cancelDraft = async (id) => {
-    if (!confirm("Cancel this draft booking? The draft invoice will be removed.")) return;
+  const reverseBooking = async (id) => {
+    if (!confirm("Reverse this booking? Draft invoices are deleted; unpaid posted invoices are voided.")) return;
     setErr(null);
     try {
       const res = await fetch("/api/rentals/cancel", {
@@ -441,10 +441,74 @@ export default function RentalsClient({ mode }) {
         body: JSON.stringify({ transactionId: id }),
       });
       const data = await res.json();
+      if (res.status === 409) {
+        throw new Error("Invoice has payments — refund/credit on /invoices first, then reverse.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed");
       await load();
     } catch (e) {
       setErr(e.message);
+    }
+  };
+
+  const recordCharge = async (event, transaction) => {
+    const amount = window.prompt(`Enter the ${event.toLowerCase()} amount`);
+    if (amount == null) return;
+    const description = window.prompt(`Describe the ${event.toLowerCase()}`);
+    if (description == null) return;
+    const parsedAmount = Number(String(amount).replace(/,/g, ""));
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !description.trim()) {
+      setErr("Enter a positive amount and description.");
+      return;
+    }
+
+    let rentalAssetId = transaction.items?.[0]?.rentalAssetId;
+    const repairItems = (transaction.items || []).filter((item) => item.rentalAssetId);
+    if (event === "REPAIR" && repairItems.length > 1) {
+      const choice = window.prompt(
+        `Select the asset to repair:\n${repairItems
+          .map((item, index) => `${index + 1}. ${item.rentalAsset?.name || item.rentalAssetId}`)
+          .join("\n")}`,
+        "1"
+      );
+      if (choice == null) return;
+      const selectedIndex = Number(choice) - 1;
+      if (!Number.isInteger(selectedIndex) || !repairItems[selectedIndex]) {
+        setErr("Select a listed rental asset.");
+        return;
+      }
+      rentalAssetId = repairItems[selectedIndex].rentalAssetId;
+    }
+
+    const payload =
+      event === "DAMAGE"
+        ? { transactionId: transaction.id, amount: parsedAmount, description: description.trim() }
+        : {
+            transactionId: transaction.id,
+            rentalAssetId,
+            amount: parsedAmount,
+            description: description.trim(),
+          };
+    if (event === "REPAIR" && !payload.rentalAssetId) {
+      setErr("This booking has no rental asset to repair.");
+      return;
+    }
+
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/rentals/charges/${event.toLowerCase()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Failed to record ${event.toLowerCase()}`);
+      await load();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -501,55 +565,61 @@ export default function RentalsClient({ mode }) {
     <PermissionGuard permissions={["rentals.view", "invoices.view", "invoices.create"]}>
       <div className="min-h-screen bg-slate-50">
         <div className="w-full max-w-none px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
-          <header className="mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">
-                Rental &amp; Hiring
-              </p>
-              <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-                {kind === "rental" ? (
-                  <Building2 className="h-8 w-8 text-indigo-600" />
-                ) : (
-                  <Wrench className="h-8 w-8 text-amber-600" />
-                )}
-                {title}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">{subtitle}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  href="/rentals"
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                    kind === "rental"
-                      ? "bg-indigo-600 text-white"
-                      : "bg-white text-slate-700 ring-1 ring-slate-200"
-                  }`}
-                >
-                  Rentals
-                </Link>
-                <Link
-                  href="/rentals/hiring"
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                    kind === "hiring"
-                      ? "bg-amber-600 text-white"
-                      : "bg-white text-slate-700 ring-1 ring-slate-200"
-                  }`}
-                >
-                  Quantity rentals
-                </Link>
-                <Link
-                  href="/rentals/inbound-hiring"
-                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200 hover:bg-amber-50"
-                >
-                  Supplier hiring
-                </Link>
-                <Link
-                  href="/invoice"
-                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
-                >
-                  Invoicing
-                </Link>
+          <header
+            className={`mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between ${
+              embedded ? 'sm:justify-end' : ''
+            }`}
+          >
+            {!embedded && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
+                  Rental &amp; Hiring
+                </p>
+                <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+                  {kind === "rental" ? (
+                    <Building2 className="h-8 w-8 text-blue-600" />
+                  ) : (
+                    <Wrench className="h-8 w-8 text-amber-600" />
+                  )}
+                  {title}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">{subtitle}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href="/rentals"
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                      kind === "rental"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-slate-700 ring-1 ring-slate-200"
+                    }`}
+                  >
+                    Rentals
+                  </Link>
+                  <Link
+                    href="/rentals/hirings?tab=customer"
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                      kind === "hiring"
+                        ? "bg-amber-600 text-white"
+                        : "bg-white text-slate-700 ring-1 ring-slate-200"
+                    }`}
+                  >
+                    Customer hire
+                  </Link>
+                  <Link
+                    href="/rentals/hirings?tab=supplier"
+                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200 hover:bg-amber-50"
+                  >
+                    Supplier hire
+                  </Link>
+                  <Link
+                    href="/invoice"
+                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                  >
+                    Invoicing
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -582,7 +652,7 @@ export default function RentalsClient({ mode }) {
                   }));
                   setShowBook(true);
                 }}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
               >
                 <Plus className="h-4 w-4" />
                 New booking
@@ -626,7 +696,7 @@ export default function RentalsClient({ mode }) {
 
               <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
-                  <CalendarRange className="h-5 w-5 text-indigo-600" />
+                  <CalendarRange className="h-5 w-5 text-blue-600" />
                   <h2 className="text-lg font-bold text-slate-900">Calendar</h2>
                   <span className="text-xs text-slate-500">(next 6 weeks)</span>
                 </div>
@@ -691,7 +761,7 @@ export default function RentalsClient({ mode }) {
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-indigo-600" />
+                  <ClipboardList className="h-5 w-5 text-blue-600" />
                   <h2 className="text-lg font-bold text-slate-900">Recent bookings</h2>
                 </div>
                 <div className="overflow-x-auto">
@@ -725,19 +795,39 @@ export default function RentalsClient({ mode }) {
                             {["booked", "active", "overdue"].includes(t.status) && (
                               <button
                                 type="button"
-                                className="text-xs font-semibold text-indigo-600 hover:underline"
+                                className="text-xs font-semibold text-blue-600 hover:underline"
                                 onClick={() => completeTx(t.id)}
                               >
                                 Complete
                               </button>
                             )}
-                            {t.invoice?.status?.toLowerCase?.() === "draft" && (
+                            {["booked", "active", "overdue"].includes(t.status) && (
                               <button
                                 type="button"
                                 className="ml-2 text-xs font-semibold text-rose-600 hover:underline"
-                                onClick={() => cancelDraft(t.id)}
+                                onClick={() => reverseBooking(t.id)}
                               >
-                                Cancel draft
+                                Reverse
+                              </button>
+                            )}
+                            {["booked", "active", "overdue"].includes(t.status) && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                className="ml-2 text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50"
+                                onClick={() => recordCharge("DAMAGE", t)}
+                              >
+                                Damage
+                              </button>
+                            )}
+                            {["booked", "active", "overdue"].includes(t.status) && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                className="ml-2 text-xs font-semibold text-slate-700 hover:underline disabled:opacity-50"
+                                onClick={() => recordCharge("REPAIR", t)}
+                              >
+                                Repair
                               </button>
                             )}
                           </td>
@@ -864,7 +954,7 @@ export default function RentalsClient({ mode }) {
                       </label>
                       <button
                         type="button"
-                        className="text-xs font-semibold text-indigo-600 hover:underline"
+                        className="text-xs font-semibold text-blue-600 hover:underline"
                         onClick={() => {
                           setBookForm((f) => ({ ...f, checkInDate: "", checkOutDate: "" }));
                           setDatePickStep("checkIn");
@@ -944,8 +1034,8 @@ export default function RentalsClient({ mode }) {
                                   blocked
                                     ? "cursor-not-allowed border-red-300 bg-red-100 text-red-800 line-through"
                                     : inRange
-                                      ? "border-indigo-400 bg-indigo-100 text-indigo-900"
-                                      : "border-slate-200 bg-white text-slate-800 hover:border-indigo-300"
+                                      ? "border-blue-400 bg-blue-100 text-blue-900"
+                                      : "border-slate-200 bg-white text-slate-800 hover:border-blue-300"
                                 } ${ymd === todayYmd ? "ring-2 ring-amber-400 ring-offset-1" : ""}`}
                               >
                                 <span>{d.getDate()}</span>
@@ -980,7 +1070,7 @@ export default function RentalsClient({ mode }) {
                   <label className="block text-xs font-semibold text-slate-600">Tax (from tax management)</label>
                   <Link
                     href="/tax-management"
-                    className="text-xs font-semibold text-indigo-600 hover:underline"
+                    className="text-xs font-semibold text-blue-600 hover:underline"
                   >
                     Open tax management
                   </Link>
@@ -1013,7 +1103,7 @@ export default function RentalsClient({ mode }) {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="text-xs font-semibold text-indigo-600 hover:underline"
+                    className="text-xs font-semibold text-blue-600 hover:underline"
                     onClick={() => setShowCreateTax(true)}
                   >
                     Create custom tax…
@@ -1067,7 +1157,7 @@ export default function RentalsClient({ mode }) {
                     !!hourlyConflict ||
                     (!isHourlyAsset && !!bookForm.rentalAssetId && assetCalendarLoading)
                   }
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   onClick={submitBooking}
                 >
                   {saving ? "Saving…" : "Confirm"}
@@ -1141,7 +1231,7 @@ export default function RentalsClient({ mode }) {
                 <button
                   type="button"
                   disabled={createTaxSaving}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   onClick={submitCreateTax}
                 >
                   {createTaxSaving ? "Saving…" : "Save tax type"}

@@ -150,11 +150,11 @@ export default function MraEisTerminalDetailPage() {
       </section>
 
       <div className="flex flex-wrap gap-4 text-sm">
-        <Link className="font-medium text-indigo-700 underline" href={`/settings/integrations/mra-eis/terminals/${id}/configuration`}>
+        <Link className="font-medium text-blue-700 underline underline-offset-2" href={`/settings/integrations/mra-eis/terminals/${id}/configuration`}>
           Configuration health & sync
         </Link>
         {!['ACTIVE', 'REVOKED'].includes(health?.status) && (
-          <Link className="font-medium text-indigo-700 underline" href={`/settings/integrations/mra-eis/terminals/onboarding?terminalId=${id}`}>
+          <Link className="font-medium text-blue-700 underline underline-offset-2" href={`/settings/integrations/mra-eis/terminals/onboarding?terminalId=${id}`}>
             Resume onboarding
           </Link>
         )}

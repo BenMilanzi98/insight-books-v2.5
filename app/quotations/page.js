@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import QuotationModal from "@/components/QuotationModal";
 import SendQuotationModal from "@/components/SendQuotationModal";
+import PortalPopover from "@/components/ui/PortalPopover";
+import { DashboardMenuItem } from "@/components/ui/DashboardMenuPanel";
 import { 
   fetchQuotations, 
   createQuotation, 
@@ -61,7 +63,7 @@ const StatusBadge = ({ status }) => {
     "Expired": { class: "bg-slate-50 text-slate-700 border border-slate-200", icon: AlertCircle, iconClass: "text-slate-500" },
     "Rejected": { class: "bg-red-50 text-red-700 border border-red-200", icon: Ban, iconClass: "text-red-500" },
     "Converted": { class: "bg-blue-50 text-blue-700 border border-blue-200", icon: CornerDownRight, iconClass: "text-blue-500" },
-    "Draft": { class: "bg-purple-50 text-purple-700 border border-purple-200", icon: FileText, iconClass: "text-purple-500" },
+    "Draft": { class: "bg-slate-50 text-slate-700 border border-slate-200", icon: FileText, iconClass: "text-slate-500" },
   };
 
   const config = statusConfig[status] || statusConfig["Pending"];
@@ -557,7 +559,7 @@ const QuotationsPage = () => {
   const statCards = [
     { key: 'pending', label: 'Pending', icon: Clock, barClassName: 'from-amber-400 via-yellow-500 to-orange-500', valueClassName: 'text-amber-700', iconWrapClassName: 'bg-amber-100 text-amber-600' },
     { key: 'approved', label: 'Approved', icon: CheckCircle, barClassName: 'from-emerald-400 via-green-500 to-teal-500', valueClassName: 'text-emerald-700', iconWrapClassName: 'bg-emerald-100 text-emerald-600' },
-    { key: 'converted', label: 'Converted', icon: CornerDownRight, barClassName: 'from-blue-400 via-indigo-500 to-blue-600', valueClassName: 'text-blue-700', iconWrapClassName: 'bg-blue-100 text-blue-600' },
+    { key: 'converted', label: 'Converted', icon: CornerDownRight, barClassName: 'from-blue-500 via-sky-500 to-indigo-500', valueClassName: 'text-blue-700', iconWrapClassName: 'bg-blue-100 text-blue-600' },
     { key: 'expired', label: 'Expired', icon: AlertCircle, barClassName: 'from-slate-400 via-gray-500 to-slate-600', valueClassName: 'text-slate-700', iconWrapClassName: 'bg-slate-100 text-slate-600' },
   ];
 
@@ -566,23 +568,13 @@ const QuotationsPage = () => {
     setCurrentPage(1);
   };
 
-  // Filter refs for click outside handling
+  // Filter/sort trigger refs (panels render in a portal above glass cards)
   const filterRef = useRef(null);
   const sortRef = useRef(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [clients, setClients] = useState([]);
   const [successMessage, setSuccessMessage] = useState(null);
-
-  // Handle click outside to close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (filterRef.current && !filterRef.current.contains(event.target)) setFilterOpen(false);
-      if (sortRef.current && !sortRef.current.contains(event.target)) setSortOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Clear success message after timeout
   useEffect(() => {
@@ -739,112 +731,133 @@ const QuotationsPage = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {/* Filter dropdown */}
-              <div className="relative" ref={filterRef}>
+              <div className="relative">
                 <button 
+                  ref={filterRef}
+                  type="button"
                   className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                  onClick={() => setFilterOpen(!filterOpen)}
+                  onClick={() => { setFilterOpen(!filterOpen); setSortOpen(false); }}
                 >
                   <Filter size={16} className="mr-2 text-gray-500" />
                   Filter
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
-                {filterOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-10 p-5">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-semibold text-gray-900">Filter Quotations</h3>
-                      <button className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
-                        <X size={18} />
-                      </button>
+                <PortalPopover
+                  open={filterOpen}
+                  onClose={() => setFilterOpen(false)}
+                  anchorRef={filterRef}
+                  align="end"
+                  variant="dashboard"
+                  estimatedWidth={320}
+                  estimatedHeight={320}
+                  className="w-80"
+                >
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-semibold text-gray-900">Filter Quotations</h3>
+                    <button type="button" className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
+                      <X size={18} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
+                      <select 
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={filterConfig.clientId || ""}
+                        onChange={(e) => handleFilterChange('clientId', e.target.value || null)}
+                      >
+                        <option value="">All Clients</option>
+                        {clients.map(client => (
+                          <option key={client.id} value={client.id}>{client.name}</option>
+                        ))}
+                      </select>
                     </div>
                     
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
-                        <select 
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
+                        <input 
+                          type="date"
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={filterConfig.clientId || ""}
-                          onChange={(e) => handleFilterChange('clientId', e.target.value || null)}
-                        >
-                          <option value="">All Clients</option>
-                          {clients.map(client => (
-                            <option key={client.id} value={client.id}>{client.name}</option>
-                          ))}
-                        </select>
+                          value={filterConfig.dateFrom || ""}
+                          onChange={(e) => handleFilterChange('dateFrom', e.target.value || null)}
+                        />
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
-                          <input 
-                            type="date"
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={filterConfig.dateFrom || ""}
-                            onChange={(e) => handleFilterChange('dateFrom', e.target.value || null)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
-                          <input 
-                            type="date"
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={filterConfig.dateTo || ""}
-                            onChange={(e) => handleFilterChange('dateTo', e.target.value || null)}
-                          />
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
+                        <input 
+                          type="date"
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={filterConfig.dateTo || ""}
+                          onChange={(e) => handleFilterChange('dateTo', e.target.value || null)}
+                        />
                       </div>
-                    </div>
-                    
-                    <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
-                      <button 
-                        className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        onClick={resetFilters}
-                      >
-                        Reset
-                      </button>
-                      <button 
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        onClick={applyFilters}
-                      >
-                        Apply Filters
-                      </button>
                     </div>
                   </div>
-                )}
+                  
+                  <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
+                    <button 
+                      type="button"
+                      className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      onClick={resetFilters}
+                    >
+                      Reset
+                    </button>
+                    <button 
+                      type="button"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      onClick={applyFilters}
+                    >
+                      Apply Filters
+                    </button>
+                  </div>
+                </PortalPopover>
               </div>
               
               {/* Sort dropdown */}
-              <div className="relative" ref={sortRef}>
+              <div className="relative">
                 <button 
+                  ref={sortRef}
+                  type="button"
                   className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                  onClick={() => setSortOpen(!sortOpen)}
+                  onClick={() => { setSortOpen(!sortOpen); setFilterOpen(false); }}
                 >
                   <ArrowUpDown size={16} className="mr-2 text-gray-500" />
                   Sort
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
-                {sortOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 z-10 p-2">
-                    {[
-                      { field: 'date', label: 'Date' },
-                      { field: 'validUntil', label: 'Valid Until' },
-                      { field: 'amount', label: 'Amount' },
-                      { field: 'clientName', label: 'Client' }
-                    ].map((option) => (
-                      <button 
-                        key={option.field}
-                        className={`w-full text-left px-3 py-2.5 text-sm rounded-md hover:bg-gray-50 flex items-center justify-between ${sortConfig.field === option.field ? 'bg-blue-50 text-blue-600' : ''}`}
-                        onClick={() => handleSortChange(option.field)}
-                      >
-                        <span>{option.label}</span>
-                        {sortConfig.field === option.field && (
-                          <span className="text-xs font-medium">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <PortalPopover
+                  open={sortOpen}
+                  onClose={() => setSortOpen(false)}
+                  anchorRef={sortRef}
+                  align="end"
+                  variant="dashboard"
+                  estimatedWidth={192}
+                  estimatedHeight={200}
+                  className="w-48"
+                  bodyClassName="p-2"
+                >
+                  {[
+                    { field: 'date', label: 'Date' },
+                    { field: 'validUntil', label: 'Valid Until' },
+                    { field: 'amount', label: 'Amount' },
+                    { field: 'clientName', label: 'Client' }
+                  ].map((option) => (
+                    <DashboardMenuItem 
+                      key={option.field}
+                      active={sortConfig.field === option.field}
+                      onClick={() => handleSortChange(option.field)}
+                    >
+                      <span>{option.label}</span>
+                      {sortConfig.field === option.field && (
+                        <span className="text-xs font-medium">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </DashboardMenuItem>
+                  ))}
+                </PortalPopover>
               </div>
               
               {/* Export button */}
@@ -961,7 +974,7 @@ const QuotationsPage = () => {
                                   <Edit size={16} />
                                 </button>
                                 <button 
-                                  className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                   title="Duplicate"
                                   onClick={() => handleDuplicateQuotation(quotation.id)}
                                 >

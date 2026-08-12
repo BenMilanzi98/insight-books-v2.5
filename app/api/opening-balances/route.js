@@ -105,8 +105,8 @@ export async function POST(request) {
       ok: true,
       created: result.created,
       idempotencyKey: result.idempotencyKey,
-      transactionId: result.transaction.id,
-      reference: result.transaction.reference,
+      transactionId: result.transaction?.id || result.batch?.id || null,
+      reference: result.transaction?.reference || result.batch?.id || result.idempotencyKey,
     });
   } catch (error) {
     console.error('opening-balances POST:', error);

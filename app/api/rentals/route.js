@@ -20,6 +20,7 @@ import {
   normalizeOutboundRentalKind,
   outboundKindLabel,
 } from '@/lib/rentalKinds';
+import { resolveOutboundInvoiceSource, OUTBOUND_INVOICE_SOURCE } from '@/lib/rentalSourceTags';
 import { isLegacyRentalBookingEnabled, shouldPostInvoiceOnBook } from '@/lib/rentalBookingPolicy';
 import { parseMoney } from '@/lib/money';
 
@@ -293,11 +294,15 @@ export async function POST(request) {
               : `${outboundKindLabel(kind)} line`,
         }));
 
+        const source = resolveOutboundInvoiceSource(kind);
+
         newInvoice = await tx.invoice.create({
           data: {
             invoiceNumber,
             title:
-              kind === 'rental' ? 'Room / space rental' : 'Quantity rental (equipment pool)',
+              source === OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE
+                ? 'Room / space rental'
+                : 'Customer hire (equipment pool)',
             orderNumber: null,
             clientId,
             createdById: user.id,
@@ -309,7 +314,7 @@ export async function POST(request) {
             totalDiscountAmount: calculations.totalDiscountAmount,
             total: calculations.total,
             status: 'Pending',
-            notes: notes || null,
+            notes: [notes, source ? `source=${source}` : null].filter(Boolean).join('\n') || null,
             tenantId: user.tenantId,
             branchId,
             isRentalInvoice: true,

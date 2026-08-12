@@ -644,7 +644,7 @@ export default function TaxCodesManagement() {
               <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Net due (period)</span>
-                  <span className="font-semibold text-purple-600">{formatCurrency(balance.netDueInPeriod)}</span>
+                  <span className="font-semibold text-blue-600">{formatCurrency(balance.netDueInPeriod)}</span>
                 </div>
               </div>
             )}
@@ -784,12 +784,12 @@ export default function TaxCodesManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Avg Tax Rate</p>
-              <p className="text-2xl font-bold text-purple-600 mt-1">
+              <p className="text-2xl font-bold text-blue-600 mt-1">
                 {taxTypes.length > 0 ? (totalTaxRate / taxTypes.length).toFixed(2) : 0}%
               </p>
             </div>
-            <div className="p-3 bg-purple-50 rounded-xl">
-              <Percent className="text-purple-600" size={24} />
+            <div className="p-3 bg-blue-50 rounded-xl">
+              <Percent className="text-blue-600" size={24} />
             </div>
           </div>
         </div>
@@ -1429,8 +1429,8 @@ export default function TaxCodesManagement() {
                       <p className="text-green-100 text-sm">Sales</p>
                       <p className="text-3xl font-bold mt-1">{taxReports.summary.saleCount}</p>
                     </div>
-                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 text-white">
-                      <p className="text-purple-100 text-sm">Tax Collected</p>
+                    <div className="bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl p-5 text-white">
+                      <p className="text-sky-100 text-sm">Tax Collected</p>
                       <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums sm:text-3xl">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
                     </div>
                   </div>
@@ -1496,7 +1496,7 @@ export default function TaxCodesManagement() {
                                 <td className="px-5 py-3 text-sm text-gray-500">{new Date(sale.saleDate).toLocaleDateString()}</td>
                                 <td className="px-5 py-3 text-sm text-gray-500">{sale.clientName}</td>
                                 <td className="px-5 py-3 text-sm text-gray-500">{formatCurrency(sale.taxableAmount)}</td>
-                                <td className="px-5 py-3 text-sm font-semibold text-purple-600">{formatCurrency(sale.taxAmount)}</td>
+                                <td className="px-5 py-3 text-sm font-semibold text-blue-600">{formatCurrency(sale.taxAmount)}</td>
                               </tr>
                             ))}
                           </tbody>

@@ -1,53 +1,50 @@
-### Task 6: Payment revenue recognition helper + wire partial-payment
+### Task 6: Damage / repair operator hooks (minimal tracing)
 
 **Files:**
-- Create: `lib/ensureInvoicePaymentRevenueRecognition.js`
-- Modify: `app/api/invoices/partial-payment/route.js`
-- Modify: `test/invoicePartialPaymentSalesAccounting.test.js`
-- Test: `test/ensureInvoicePaymentRevenueRecognition.test.js`
+- Create: `app/api/rentals/charges/damage/route.js` (or extend complete/return)
+- Modify: `app/rentals/RentalsClient.js` — optional “Record damage” on active booking
+- Modify: expense create path **or** document notes convention — prefer small API that creates an Expense with `notes` including `source=REPAIR` + `rentalTransactionId=`
 
 **Interfaces:**
-- Produces: `ensureInvoicePaymentRevenueRecognition({ db, tenantId, userId, invoiceId, paymentId, paymentAmount, hasPermission })`
-- Logic:
-  1. Load invoice (`total`, `taxAmount`)
-  2. Find posted `Invoice` JE for invoice; if none, return `{ skipped: 'no_issue_journal' }` (caller should have run issue ensure first)
-  3. If any credit line on that JE is to Sales Revenue account (legacy): return `{ skipped: 'legacy_accrual' }`
-  4. If `Invoice-Revenue` already exists for `paymentId`: return `{ skipped: 'already_posted' }`
-  5. Sum prior `Invoice-Revenue` totals for this invoice’s payments (or sum recognized nets from journals linked by payment ids on invoice)
-  6. If payment settles remaining balance (`remaining after this payment ≤ MONEY_TOLERANCE`): `recognizedNet = computeFinalPaymentRecognizedNet(...)` else `computePaymentRecognizedNet(...)`
-  7. Call `postInvoiceRevenueRecognitionAccounting`
+- `POST /api/rentals/charges/damage` body `{ transactionId, amount, description }` → creates Customer Invoice line charge **or** standalone Pending invoice with `isRentalInvoice:true` + notes `source=DAMAGE`, linked via notes/`orderNumber=rt.id` if no FK; prefer creating `Invoice` + payment path on `/invoices`.
+- `POST /api/rentals/charges/repair` body `{ transactionId?, rentalAssetId, amount, description }` → Expense with tagged notes for Reports.
 
-**Legacy detection:** load Invoice JE lines with accounts; if any credited account maps to purpose `SALES_REVENUE` or `accountCode === '4100'` (Product Sales), treat as legacy.
+Keep YAGNI: if V2 `RentalCharge` billing already exists for contracts, call into it when `contractId` present; for legacy RT-only bookings use invoice/expense tagging above.
 
-Wire `partial-payment/route.js` inside the transaction **after** payment create + `postCustomerPaymentAccounting`:
+- [ ] **Step 1: Unit test for tag helpers used by damage/repair create**
+
+Extend `test/rentalSourceTags.test.js`:
 
 ```js
-await ensureInvoiceSalesAccounting({ db: tx, tenantId, userId, invoiceId, force: true });
-// create payment + update invoice status...
-await postCustomerPaymentAccounting({ ... });
-await ensureInvoicePaymentRevenueRecognition({
-  db: tx,
-  tenantId: user.tenantId,
-  userId: user.id,
-  invoiceId,
-  paymentId: payment.id,
-  paymentAmount: numericAmount,
+import { formatRentalTraceNote } from '../lib/rentalSourceTags.js';
+
+it('formats repair/damage notes for report scraping', () => {
+  expect(formatRentalTraceNote({ event: 'REPAIR', rentalTransactionId: 'rt-1' })).toContain('source=REPAIR');
+  expect(formatRentalTraceNote({ event: 'DAMAGE', rentalTransactionId: 'rt-1' })).toContain('source=DAMAGE');
 });
 ```
 
-Update static test:
+Implement:
 
 ```js
-expect(source).toContain('ensureInvoicePaymentRevenueRecognition');
-expect(source).toContain('ensureInvoiceSalesAccounting');
+export function formatRentalTraceNote({ event, rentalTransactionId, rentalAssetId }) {
+  return [
+    `source=${event}`,
+    rentalTransactionId ? `rentalTransactionId=${rentalTransactionId}` : null,
+    rentalAssetId ? `rentalAssetId=${rentalAssetId}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 ```
 
-- [ ] **Step 1: Failing unit tests** for skip legacy / pro-rata / final payment (mock db + adapter)
+- [ ] **Step 2: Implement damage invoice create + repair expense create** following existing invoice/expense patterns in the codebase (copy money helpers, tax optional 0 for v1 damage unless tax types selected).
 
-- [ ] **Step 2: Run — FAIL**
+- [ ] **Step 3: Wire minimal UI actions on Rentals + Customer hire lists.**
 
-- [ ] **Step 3: Implement helper + wire route**
+- [ ] **Step 4: Confirm Reports picks up tagged rows.**
 
-- [ ] **Step 4: Run related vitest files — PASS**
+- [ ] **Step 5: Commit only if user asked**
 
 ---
+

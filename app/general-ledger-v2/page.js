@@ -12,7 +12,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import PageHeader from '@/components/shell/PageHeader';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 
 const firstDayOfMonth = () => {
@@ -172,24 +173,24 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="rounded border p-3">
+        <PosStylePanel className="p-3">
           <div className="text-xs uppercase text-slate-500">Opening</div>
           <div className="text-lg font-semibold tabular-nums">{opening.display}</div>
           {opening.abnormal && <Badge tone="warn">abnormal</Badge>}
-        </div>
-        <div className="rounded border p-3">
+        </PosStylePanel>
+        <PosStylePanel className="p-3">
           <div className="text-xs uppercase text-slate-500">Period debits</div>
           <div className="text-lg font-semibold tabular-nums">{period.debit}</div>
-        </div>
-        <div className="rounded border p-3">
+        </PosStylePanel>
+        <PosStylePanel className="p-3">
           <div className="text-xs uppercase text-slate-500">Period credits</div>
           <div className="text-lg font-semibold tabular-nums">{period.credit}</div>
-        </div>
-        <div className="rounded border p-3">
+        </PosStylePanel>
+        <PosStylePanel className="p-3">
           <div className="text-xs uppercase text-slate-500">Closing</div>
           <div className="text-lg font-semibold tabular-nums">{closing.display}</div>
           {closing.abnormal && <Badge tone="warn">abnormal</Badge>}
-        </div>
+        </PosStylePanel>
       </div>
 
       <table className="w-full text-left text-sm">
@@ -300,25 +301,22 @@ export default function GeneralLedgerV2Page() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
+    <div className="w-full">
+      <div className="mx-auto max-w-6xl space-y-6">
+      <PosStylePageHeader
         title="General Ledger"
         description="Canonical ledger — every figure derives exclusively from posted journal lines. Read-only."
         actions={
           !selectedAccount ? (
-            <a
-              className="rounded-[var(--radius-sm)] border border-[var(--border-default)] px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
-              href={exportUrl}
-            >
+            <PosStyleHeaderButton as="a" href={exportUrl}>
               Export CSV
-            </a>
+            </PosStyleHeaderButton>
           ) : null
         }
       />
 
-
       {!selectedAccount && (
-        <section className="flex flex-wrap items-end gap-3 rounded border p-4">
+        <PosStylePanel className="flex flex-wrap items-end gap-3 p-4" as="section">
           <label className="text-sm">
             <span className="mb-1 block text-xs uppercase text-slate-500">From</span>
             <input
@@ -346,12 +344,12 @@ export default function GeneralLedgerV2Page() {
             Include zero-activity accounts
           </label>
           <button
-            className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="rounded bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
             onClick={() => setFilters(draft)}
           >
             Apply
           </button>
-        </section>
+        </PosStylePanel>
       )}
 
       {error && <p className="text-red-600">{error}</p>}
@@ -368,7 +366,7 @@ export default function GeneralLedgerV2Page() {
         summary && (
           <>
             {summary.anomalies?.length > 0 && (
-              <section className="rounded border border-amber-300 bg-amber-50 p-4 text-sm">
+              <PosStylePanel className="border border-amber-300 bg-amber-50 p-4 text-sm" as="section" accent={false}>
                 <h2 className="mb-1 font-semibold text-amber-800">Integrity anomalies</h2>
                 <ul className="list-inside list-disc text-amber-800">
                   {summary.anomalies.map((a, i) => (
@@ -377,26 +375,27 @@ export default function GeneralLedgerV2Page() {
                     </li>
                   ))}
                 </ul>
-              </section>
+              </PosStylePanel>
             )}
 
             <section className="grid grid-cols-2 gap-4 md:grid-cols-3">
-              <div className="rounded border p-4">
+              <PosStylePanel className="p-4">
                 <div className="text-xs uppercase text-slate-500">Period debits</div>
                 <div className="text-xl font-bold tabular-nums">{summary.totals.periodDebit}</div>
-              </div>
-              <div className="rounded border p-4">
+              </PosStylePanel>
+              <PosStylePanel className="p-4">
                 <div className="text-xs uppercase text-slate-500">Period credits</div>
                 <div className="text-xl font-bold tabular-nums">{summary.totals.periodCredit}</div>
-              </div>
-              <div className="rounded border p-4">
+              </PosStylePanel>
+              <PosStylePanel className="p-4">
                 <div className="text-xs uppercase text-slate-500">Double entry</div>
                 <div className="text-xl font-bold">
                   {summary.totals.balanced ? <Badge tone="ok">Balanced</Badge> : <Badge tone="bad">UNBALANCED</Badge>}
                 </div>
-              </div>
+              </PosStylePanel>
             </section>
 
+            <PosStylePanel className="overflow-x-auto p-4">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b text-xs uppercase text-slate-500">
@@ -432,11 +431,13 @@ export default function GeneralLedgerV2Page() {
                 ))}
               </tbody>
             </table>
+            </PosStylePanel>
           </>
         )
       )}
 
       {journalId && <JournalModal journalId={journalId} onClose={() => setJournalId(null)} />}
+      </div>
     </div>
   );
 }

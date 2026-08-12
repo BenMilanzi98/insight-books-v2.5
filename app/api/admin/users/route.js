@@ -28,7 +28,10 @@ export async function GET(request) {
     const tenant = searchParams.get('tenant') || '';
 
     // Build where clause for filtering
-    const where = {};
+    const where = {
+      // Soft-deleted users stay out of the default admin directory.
+      NOT: { status: 'deleted' },
+    };
     
     if (search) {
       where.OR = [
@@ -49,6 +52,10 @@ export async function GET(request) {
         where.isActive = false;
       } else if (status === 'pending') {
         where.status = 'pending';
+      } else if (status === 'deleted') {
+        // Explicitly request archived/deleted users
+        delete where.NOT;
+        where.status = 'deleted';
       }
     }
     

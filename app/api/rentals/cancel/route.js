@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { reverseRentalBooking } from '@/lib/rentalReverseService';
 
-/**
- * Cancel a **draft** booking only: removes availability and deletes the draft invoice (cascade removes rental transaction).
- * Posted invoices must be voided from Invoicing (reverses GL) before deleting operational data.
- */
 export async function POST(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -21,46 +18,26 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { transactionId } = body;
+    const { transactionId, reason } = body;
     if (!transactionId) {
       return NextResponse.json({ error: 'transactionId is required' }, { status: 400 });
     }
 
-    const rt = await prisma.rentalTransaction.findFirst({
-      where: { id: transactionId, tenantId: user.tenantId },
-      include: { items: { include: { rentalAsset: true } }, invoice: true },
+    const result = await reverseRentalBooking({
+      prisma,
+      tenantId: user.tenantId,
+      userId: user.id,
+      transactionId,
+      reason: reason?.trim() || 'Rental booking reversed',
     });
-    if (!rt) {
-      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-    }
-    if (['completed', 'cancelled'].includes(rt.status)) {
-      return NextResponse.json({ error: 'Transaction already closed' }, { status: 400 });
-    }
+    if (result.ok) return NextResponse.json(result);
 
-    const invStatus = String(rt.invoice?.status || '').toLowerCase();
-    if (invStatus !== 'draft') {
-      return NextResponse.json(
-        {
-          error:
-            'Only draft rental invoices can be cancelled here. Void the invoice from Invoicing if it was already posted.',
-        },
-        { status: 400 }
-      );
-    }
-
-    await prisma.$transaction(async (tx) => {
-      for (const item of rt.items) {
-        if (item.rentalAsset.kind === 'rental') {
-          await tx.rentalAsset.update({
-            where: { id: item.rentalAssetId },
-            data: { status: 'available' },
-          });
-        }
-      }
-      await tx.invoice.delete({ where: { id: rt.invoiceId } });
-    });
-
-    return NextResponse.json({ ok: true, transactionId });
+    const statusByCode = {
+      NOT_FOUND: 404,
+      NEED_CREDIT_REFUND: 409,
+      CLOSED: 400,
+    };
+    return NextResponse.json(result, { status: statusByCode[result.code] || 500 });
   } catch (e) {
     console.error('[rentals cancel]', e);
     return NextResponse.json({ error: 'Failed to cancel' }, { status: 500 });

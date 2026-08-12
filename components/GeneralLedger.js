@@ -17,13 +17,14 @@ import {
   Hash
 } from "lucide-react";
 import Link from "next/link";
-import { calculateDateRange } from "@/lib/dateUtils";
+import { calculateDateRange, toYmdLocal } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { cn } from "@/lib/utils";
 import { getPermission } from "@/lib/permissions";
 import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
 import BusinessScopeSelector, { useBusinessScope } from "@/components/BusinessScopeSelector";
 import { appendBusinessScopeParams } from "@/lib/businessScopeStorage";
+import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import { useSearchParams } from "next/navigation";
 
 const GeneralLedger = () => {
@@ -87,7 +88,6 @@ const GeneralLedger = () => {
   });
 
   // State for custom date range
-  const [showCustomDateRange, setShowCustomDateRange] = useState(false);
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [pagePermissions, setPagePermissions] = useState({
@@ -143,26 +143,25 @@ const GeneralLedger = () => {
   useEffect(() => {
     if (timeframe !== "custom") {
       const range = calculateDateRange(timeframe);
-      // Ensure we store dates as strings
       setDateRange({
-        startDate: formatDateString(range.startDate),
-        endDate: formatDateString(range.endDate)
+        startDate: toYmdLocal(range.startDate),
+        endDate: toYmdLocal(range.endDate)
       });
-      // Reset custom date inputs when switching to predefined timeframe
-      setShowCustomDateRange(false);
-    } else {
-      setShowCustomDateRange(true);
     }
   }, [timeframe]);
 
-  // Apply custom date range
-  const applyCustomDateRange = () => {
-    if (customStartDate && customEndDate) {
-      setDateRange({
-        startDate: customStartDate, // These are already strings from the input
-        endDate: customEndDate
-      });
-    }
+  const handleTimeframeChange = (next) => {
+    setTimeframe(next);
+  };
+
+  const handleCustomDateChange = (range) => {
+    setCustomStartDate(range.startDate);
+    setCustomEndDate(range.endDate);
+    setDateRange({
+      startDate: range.startDate,
+      endDate: range.endDate
+    });
+    setTimeframe('custom');
   };
 
   // Fetch accounts for filtering
@@ -416,16 +415,7 @@ const GeneralLedger = () => {
     }
   };
 
-  // Date range options for the filter dropdown
-  const dateRangeOptions = [
-    { value: "today", label: "Today" },
-    { value: "thisWeek", label: "This Week" },
-    { value: "thisMonth", label: "This Month" },
-    { value: "lastMonth", label: "Last Month" },
-    { value: "thisQuarter", label: "This Quarter" },
-    { value: "thisYear", label: "This Year" },
-    { value: "custom", label: "Custom Range" }
-  ];
+  // Date range options provided by UniversalDateRangeFilter
 
   // Pagination handlers
   const handleNextPage = () => {
@@ -455,7 +445,7 @@ const GeneralLedger = () => {
       cn(
         "min-w-[2.25rem] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
         active
-          ? "bg-indigo-600 text-white shadow-sm"
+          ? "bg-blue-600 text-white shadow-sm"
           : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
       );
 
@@ -510,10 +500,10 @@ const GeneralLedger = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-sky-50/40">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* Header */}
-        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6 sm:mb-8">
+        <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-500 shadow-xl shadow-blue-200/50 p-6 sm:p-8 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
@@ -521,7 +511,7 @@ const GeneralLedger = () => {
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">General Ledger</h1>
-                <p className="text-indigo-100 text-sm sm:text-base mt-0.5">View and filter journal entries</p>
+                <p className="text-blue-100 text-sm sm:text-base mt-0.5">View and filter journal entries</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-3">
@@ -543,7 +533,7 @@ const GeneralLedger = () => {
               )}
               {pagePermissions.canCreateJournal && (
                 <Link href="/journal-entries/new">
-                  <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold transition-all shadow-lg">
+                  <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-semibold transition-all shadow-lg">
                     <Plus size={18} />
                     New Entry
                   </button>
@@ -569,8 +559,8 @@ const GeneralLedger = () => {
                 <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-slate-800 sm:text-3xl">{summary.totalTransactions}</p>
                 <p className="text-xs text-slate-400 mt-2">{formatDateDisplay(dateRange.startDate)} – {formatDateDisplay(dateRange.endDate)}</p>
               </div>
-              <div className="p-3 rounded-xl bg-indigo-100">
-                <Hash className="w-6 h-6 text-indigo-600" />
+              <div className="p-3 rounded-xl bg-blue-100">
+                <Hash className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </div>
@@ -615,7 +605,7 @@ const GeneralLedger = () => {
                   placeholder="Search by description, account, or reference..."
                   className={cn(
                     "w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50",
-                    "focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 focus:bg-white transition-all"
+                    "focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 focus:bg-white transition-all"
                   )}
                   value={searchTerm}
                   onChange={handleSearchChange}
@@ -623,22 +613,17 @@ const GeneralLedger = () => {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-3">
-              <div className="relative flex-1 sm:flex-initial min-w-[140px]">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                <select
-                  className="w-full sm:w-auto pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 appearance-none cursor-pointer"
-                  value={timeframe}
-                  onChange={(e) => setTimeframe(e.target.value)}
-                >
-                  {dateRangeOptions.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
+              <UniversalDateRangeFilter
+                timeframe={timeframe}
+                onTimeframeChange={handleTimeframeChange}
+                onCustomDateChange={handleCustomDateChange}
+                showRefresh={false}
+                size="default"
+              />
               <div className="relative flex-1 sm:flex-initial min-w-[160px]">
                 <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                 <select
-                  className="w-full sm:w-auto pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 appearance-none cursor-pointer"
+                  className="w-full sm:w-auto pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 appearance-none cursor-pointer"
                   value={accountFilter}
                   onChange={(e) => setAccountFilter(e.target.value)}
                 >
@@ -660,7 +645,7 @@ const GeneralLedger = () => {
                 className={cn(
                   "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all",
                   showAdvancedFilters
-                    ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                    ? "bg-blue-100 text-blue-700 border border-blue-200"
                     : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200/80"
                 )}
               >
@@ -669,37 +654,6 @@ const GeneralLedger = () => {
               </button>
             </div>
           </div>
-
-          {showCustomDateRange && (
-            <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 mb-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Start date</label>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">End date</label>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={applyCustomDateRange}
-                  className="px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          )}
 
           {showAdvancedFilters && (
             <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
@@ -710,13 +664,13 @@ const GeneralLedger = () => {
                   placeholder="Invoice or payment reference"
                   value={referenceFilter}
                   onChange={(e) => setReferenceFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                 />
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Balance type</label>
                 <select
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                   value={balanceFilter}
                   onChange={(e) => setBalanceFilter(e.target.value)}
                 >
@@ -728,7 +682,7 @@ const GeneralLedger = () => {
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Void / refund reversals</label>
                 <select
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                   value={reversalFilter}
                   onChange={(e) => {
                     setReversalFilter(e.target.value);
@@ -743,7 +697,7 @@ const GeneralLedger = () => {
               <div className="flex-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Per page</label>
                 <select
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                   value={limit}
                   onChange={(e) => setLimit(Number(e.target.value))}
                 >
@@ -761,7 +715,7 @@ const GeneralLedger = () => {
         <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
-              <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+              <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
               <p className="text-slate-500 font-medium">Loading ledger...</p>
             </div>
           ) : transactions.length === 0 ? (
@@ -797,7 +751,7 @@ const GeneralLedger = () => {
                       <tr
                         key={transaction.id}
                         className={cn(
-                          "hover:bg-indigo-50/50 transition-colors",
+                          "hover:bg-blue-50/60 transition-colors",
                           idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
                         )}
                       >
@@ -807,7 +761,7 @@ const GeneralLedger = () => {
                         <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateDisplay(transaction.date)}</td>
                         <td className="px-4 py-3 text-slate-800 max-w-[200px] truncate" title={transaction.description}>{transaction.description}</td>
                         <td className="px-4 py-3">
-                          <span className="font-medium text-indigo-600">{transaction.reference}</span>
+                          <span className="font-medium text-blue-600">{transaction.reference}</span>
                         </td>
                         <td className="px-4 py-3 text-center">
                           {transaction.isReversal ? (
@@ -840,7 +794,7 @@ const GeneralLedger = () => {
                         <td className="px-4 py-3 text-center">
                           <button
                             type="button"
-                            className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             title="View details"
                             onClick={() => openDetails(transaction)}
                           >
@@ -903,7 +857,7 @@ const GeneralLedger = () => {
             <div className="p-6 overflow-y-auto flex-1">
               {detailsLoading && (
                 <div className="flex items-center gap-2 text-slate-500">
-                  <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
                   Loading details...
                 </div>
               )}

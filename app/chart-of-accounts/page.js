@@ -10,7 +10,6 @@ import {
   XCircle,
   AlertCircle,
   X,
-  BookOpen,
   Calendar,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -19,6 +18,8 @@ import { downloadExcel, downloadExcelWorkbook, downloadPDF } from '@/lib/exportU
 import PermissionGuard from '@/components/PermissionGuard';
 import BusinessScopeSelector, { useBusinessScope } from '@/components/BusinessScopeSelector';
 import SystemLedgerCoaTable from '@/components/chart-of-accounts/SystemLedgerCoaTable';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import { appendBusinessScopeParams } from '@/lib/businessScopeStorage';
 import { COA_SYNTHETIC_DIRECT_PREFIX, isCoaSyntheticDirectRow } from '@/lib/coaChartRollup.js';
 import { COA_RECONCILE_TOLERANCE } from '@/lib/coaMoney.js';
@@ -599,8 +600,6 @@ const ChartOfAccountsPage = () => {
     setShowViewModal(true);
   };
 
-  const coaBtnSecondary =
-    'inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]';
   const periodLabel =
     dateFrom && dateTo
       ? `${dateFrom} — ${dateTo}`
@@ -614,84 +613,76 @@ const ChartOfAccountsPage = () => {
       ? 'bg-slate-900 text-white shadow-sm'
       : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm';
 
+  const headerDescription =
+    !loading && accountCount > 0 ? (
+      <>
+        <span className="font-medium text-slate-700">{accountCount}</span> accounts
+        {periodLabel !== 'All dates' ? (
+          <>
+            {' '}
+            · balances for <span className="font-medium text-slate-700">{periodLabel}</span>
+          </>
+        ) : null}
+      </>
+    ) : (
+      'General ledger structure and posted balances'
+    );
+
   return (
     <PermissionGuard permission="accounts.view">
-      <div className="min-h-screen bg-[#f4f5f7]">
-        <div className="mx-auto max-w-[1680px] px-4 py-8 pb-20 sm:px-6 lg:px-10 lg:py-10">
+      <div className="w-full">
           {/* Header */}
-          <header className="mb-6 flex flex-col gap-5 sm:mb-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
-                <BookOpen size={20} strokeWidth={1.75} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[1.75rem]">
-                  Chart of accounts
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  {!loading && accountCount > 0 ? (
-                    <>
-                      <span className="font-medium text-slate-700">{accountCount}</span> accounts
-                      {periodLabel !== 'All dates' ? (
-                        <>
-                          {' '}
-                          · balances for <span className="font-medium text-slate-700">{periodLabel}</span>
-                        </>
-                      ) : null}
-                    </>
-                  ) : (
-                    'General ledger structure and posted balances'
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+          <PosStylePageHeader
+            title="Chart of accounts"
+            description={headerDescription}
+            actions={
+              <>
               <BusinessScopeSelector
                 mode={businessScopeMode}
                 selectedTenantIds={businessScopeTenantIds}
                 onChange={setBusinessScope}
                 className="w-full sm:w-auto"
               />
-              <button
+              <PosStyleHeaderButton
                 type="button"
                 onClick={handleInitializeBaseline}
-                className={coaBtnSecondary}
                 title="Creates missing standard GL accounts, default payment accounts, and tax accounts"
               >
-                <CheckCircle size={16} strokeWidth={2} className="text-emerald-600" />
+                <CheckCircle size={16} strokeWidth={2} className="mr-2 text-emerald-600" />
                 Sync
-              </button>
-              <button type="button" onClick={() => handleImportTemplate('retail')} className={coaBtnSecondary}>
-                <Upload size={16} strokeWidth={2} />
+              </PosStyleHeaderButton>
+              <PosStyleHeaderButton type="button" onClick={() => handleImportTemplate('retail')}>
+                <Upload size={16} strokeWidth={2} className="mr-2" />
                 Templates
-              </button>
-              <button type="button" onClick={handleExportExcel} className={coaBtnSecondary}>
-                <FileSpreadsheet size={16} strokeWidth={2} />
+              </PosStyleHeaderButton>
+              <PosStyleHeaderButton type="button" onClick={handleExportExcel}>
+                <FileSpreadsheet size={16} strokeWidth={2} className="mr-2" />
                 Export
-              </button>
-              <label className={`${coaBtnSecondary} cursor-pointer`}>
-                <Upload size={16} strokeWidth={2} />
+              </PosStyleHeaderButton>
+              <PosStyleHeaderButton as="label" className="cursor-pointer">
+                <Upload size={16} strokeWidth={2} className="mr-2" />
                 Import
                 <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
-              </label>
+              </PosStyleHeaderButton>
               <button
                 type="button"
                 onClick={() => {
                   resetForm();
                   setShowAddModal(true);
                 }}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99]"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99]"
               >
                 <Plus size={16} strokeWidth={2.5} />
                 Add account
               </button>
-            </div>
-          </header>
+              </>
+            }
+          />
 
           {/* Filters */}
-          <section
-            className="mb-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm"
-            aria-label="Chart of accounts filters"
+          <PosStylePanel
+            className="mb-6 overflow-hidden"
+            as="section"
           >
             <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
               <div className="relative">
@@ -833,7 +824,7 @@ const ChartOfAccountsPage = () => {
                 </div>
               ) : null}
             </div>
-          </section>
+          </PosStylePanel>
 
           {error && (
             <div
@@ -890,7 +881,7 @@ const ChartOfAccountsPage = () => {
                 <button
                   type="button"
                   onClick={handleInitializeBaseline}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
                 >
                   Sync standard CoA
                 </button>
@@ -904,8 +895,6 @@ const ChartOfAccountsPage = () => {
               </>
             }
           />
-        </div>
-      </div>
 
         {/* Add Account Modal */}
         {showAddModal && (
@@ -1031,7 +1020,7 @@ const ChartOfAccountsPage = () => {
                     <select
                       value={mergeTargetId}
                       onChange={(e) => setMergeTargetId(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       disabled={mergeLoading}
                     >
                       <option value="">Select target…</option>
@@ -1073,7 +1062,7 @@ const ChartOfAccountsPage = () => {
                     <button
                       type="button"
                       onClick={handleMergeAccounts}
-                      className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={mergeLoading || !mergeTargetId}
                     >
                       {mergeLoading ? 'Merging…' : 'Merge accounts'}
@@ -1084,6 +1073,7 @@ const ChartOfAccountsPage = () => {
             </div>
           </div>
         )}
+      </div>
     </PermissionGuard>
   );
 };
@@ -1126,7 +1116,7 @@ const AccountModal = ({
   const parent5700Id = useMemo(() => findCustomExpensesParentId(accounts), [accounts]);
 
   const field =
-    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20';
   const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500';
 
   return (
@@ -1271,7 +1261,7 @@ const AccountModal = ({
                     value="Debit"
                     checked={formData.normalBalance === 'Debit'}
                     onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
-                    className="border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+                    className="border-slate-300 text-blue-600 focus:ring-blue-500/30"
                     disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
                   Debit
@@ -1282,7 +1272,7 @@ const AccountModal = ({
                     value="Credit"
                     checked={formData.normalBalance === 'Credit'}
                     onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
-                    className="border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+                    className="border-slate-300 text-blue-600 focus:ring-blue-500/30"
                     disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
                   Credit
@@ -1344,7 +1334,7 @@ const AccountModal = ({
               type="checkbox"
               checked={formData.isActive}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
             />
             <span className="text-sm font-medium text-slate-800">Account is active</span>
           </label>
@@ -1361,7 +1351,7 @@ const AccountModal = ({
           <button
             type="button"
             onClick={onSave}
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700"
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700"
           >
             {isEdit ? 'Save changes' : 'Create account'}
           </button>
@@ -1588,15 +1578,15 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
         aria-modal="true"
         aria-labelledby="coa-view-account-title"
       >
-        <div className="shrink-0 border-b border-indigo-100/80 bg-gradient-to-br from-indigo-50/90 via-white to-slate-50 px-5 py-4 sm:px-6 sm:py-5">
+        <div className="shrink-0 border-b border-blue-100/80 bg-gradient-to-br from-blue-50/90 via-white to-slate-50 px-5 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Account details</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Account details</p>
               <h2 id="coa-view-account-title" className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                 {account.accountName || account.name || 'Unnamed account'}
               </h2>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="rounded-lg bg-indigo-600/10 px-2.5 py-1 font-mono text-sm font-semibold text-indigo-800 ring-1 ring-indigo-200/60">
+                <span className="rounded-lg bg-blue-600/10 px-2.5 py-1 font-mono text-sm font-semibold text-blue-800 ring-1 ring-blue-200/60">
                   {account.accountCode || account.code || 'N/A'}
                 </span>
                 <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">
@@ -1702,7 +1692,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                 {account.parentAccount ? (
                   <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                     <span className="text-slate-500">Parent · </span>
-                    <span className="font-mono font-semibold text-indigo-800">
+                    <span className="font-mono font-semibold text-blue-800">
                       {account.parentAccount.accountCode || account.parentAccount.code || '—'}
                     </span>
                     <span className="text-slate-700"> — {account.parentAccount.accountName || account.parentAccount.name || ''}</span>
@@ -1752,8 +1742,8 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                     <tbody className="divide-y divide-slate-100">
                       {subtreeRows.map(({ row, depth }) => (
                         <tr key={row.id} className="bg-white hover:bg-slate-50/80">
-                          <td className="px-3 py-2.5 font-mono text-xs font-semibold tabular-nums text-indigo-800 sm:text-sm">
-                            <span style={{ paddingLeft: `${depth * 14}px` }} className="inline-block border-l-2 border-indigo-200 pl-2">
+                          <td className="px-3 py-2.5 font-mono text-xs font-semibold tabular-nums text-blue-800 sm:text-sm">
+                            <span style={{ paddingLeft: `${depth * 14}px` }} className="inline-block border-l-2 border-blue-200 pl-2">
                               {row.accountCode || row.code}
                             </span>
                           </td>
@@ -1771,7 +1761,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                           <td colSpan={3} className="px-3 py-2.5 text-right text-slate-600">
                             Total (direct sub-accounts only)
                           </td>
-                          <td className="px-3 py-2.5 text-right font-mono tabular-nums text-indigo-900">
+                          <td className="px-3 py-2.5 text-right font-mono tabular-nums text-blue-900">
                             {formatCurrency(directChildrenTotal)}
                           </td>
                         </tr>
@@ -1866,7 +1856,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-900">
                             {row.accumulatedAmount != null ? formatCurrency(row.accumulatedAmount) : '—'}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums text-indigo-900">
+                          <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums text-blue-900">
                             {row.runningTotalAfterThisSource != null
                               ? formatCurrency(row.runningTotalAfterThisSource)
                               : '—'}
@@ -1913,7 +1903,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                             <span className="text-right tabular-nums text-slate-600" title="This invoice (accumulated)">
                               {formatCurrency(inv.accumulatedAmount ?? inv.actualRemaining)}
                             </span>
-                            <span className="text-right tabular-nums font-semibold text-indigo-900" title="Running AR total">
+                            <span className="text-right tabular-nums font-semibold text-blue-900" title="Running AR total">
                               {inv.runningTotalAfterThisSource != null
                                 ? formatCurrency(inv.runningTotalAfterThisSource)
                                 : '—'}
@@ -1953,7 +1943,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 min-h-[44px]"
+            className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 min-h-[44px]"
           >
             Close
           </button>

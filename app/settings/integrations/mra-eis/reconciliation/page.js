@@ -159,7 +159,7 @@ export default function MraEisReconciliationPage() {
         <button type="button" onClick={processOutbox} className="rounded bg-slate-900 px-4 py-2 text-sm text-white">
           Process recon outbox
         </button>
-        <button type="button" onClick={processRetries} className="rounded bg-indigo-800 px-4 py-2 text-sm text-white">
+        <button type="button" onClick={processRetries} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
           Process authorized retries
         </button>
         <button type="button" onClick={recoverReceipts} className="rounded border px-4 py-2 text-sm">

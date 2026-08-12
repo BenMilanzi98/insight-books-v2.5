@@ -1,90 +1,113 @@
-# Task 1 Report — Failing unit tests for Unpaid-always auto bill
+# Task 1 Report: Source tags + operator labels
 
+**Status:** DONE  
 **Date:** 2026-08-11  
-**Status:** **DONE (TDD RED)**  
-**Scope:** Create failing Vitest coverage for `autoCreateBillFromReceipt` only. No production code changes (Task 2). No git commit.
+**Commits:** none (WORKING_TREE)
 
-## Verdict
+---
 
-Task 1 TDD RED phase complete. The new unit test file asserts that goods-receipt auto-bills are always **Unpaid** (including when GRNI is enabled) and that supplier balance is incremented. One test fails against current production behavior, confirming the expected RED state before Task 2 implementation.
+## Summary
 
-## Brief note
+Implemented outbound invoice source tagging (`RENTAL_SPACE` / `CUSTOMER_HIRE`), stable rental trace event constants, operator-facing label rename for quantity pool (`Customer hire`), and rental invoice title/notes stamping on create via `resolveOutboundInvoiceSource`. No schema migration.
 
-The file at `.superpowers/sdd/task-1-brief.md` contained stale content (Deferred Revenue purpose task). Test code and values were taken verbatim from the authoritative plan: `docs/superpowers/plans/2026-08-11-goods-receipt-stock-unpaid-bill.md` Task 1, which matches the user task description.
+---
 
-## Deliverables
+## TDD Evidence
 
-| Item | Result |
-|------|--------|
-| Create `tests/unit/purchases/autoCreateBillFromReceipt.test.js` | **DONE** |
-| Mock `@/lib/purchases/grniPolicy` | **DONE** |
-| Four test cases (GRNI on, GRNI off, idempotency, empty items) | **DONE** |
-| Production code changes | **NONE** (by design) |
-| Git commit | **NONE** (global constraint) |
+### RED (Step 2)
 
-## Test file summary
+Command:
+```bash
+npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js
+```
 
-**Path:** `tests/unit/purchases/autoCreateBillFromReceipt.test.js`
+Result: **FAIL** (exit code 1)
 
-| Test | Expected in Task 1 (RED) | Actual result |
-|------|--------------------------|---------------|
-| creates Unpaid bill and increments supplier balance when GRNI is enabled | **FAIL** | **FAIL** ✓ |
-| creates Unpaid bill when GRNI is disabled | PASS | PASS |
-| returns existing bill without creating a second one | PASS | PASS |
-| returns null when receipt has no items | PASS | PASS |
+- `test/rentalSourceTags.test.js` — suite failed: `Cannot find module '../lib/rentalSourceTags.js'`
+- `test/rentalKinds.test.js` — 1 failed: `expected 'Quantity rental' to be 'Customer hire'`
 
-**Result:** 1 failed | 3 passed (4 total) — correct RED evidence.
+### GREEN (Step 4)
 
-## TDD RED evidence
+Command:
+```bash
+npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js
+```
 
-**Command:**
+Result: **PASS** — 2 files, 8 tests, all passed (951ms)
+
+---
+
+## Files Changed
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `lib/rentalSourceTags.js` | Created | `OUTBOUND_INVOICE_SOURCE`, `RENTAL_TRACE_EVENT`, `resolveOutboundInvoiceSource()` |
+| `test/rentalSourceTags.test.js` | Created | Unit tests for source resolution and trace constants |
+| `lib/rentalKinds.js` | Modified | `outboundKindLabel()` returns `'Customer hire'` for quantity pool |
+| `test/rentalKinds.test.js` | Modified | Updated label expectation |
+| `app/api/rentals/route.js` | Modified | Invoice create uses source tags for title/notes |
+
+---
+
+## Implementation Notes
+
+### `lib/rentalSourceTags.js`
+
+- Delegates kind normalization to existing `normalizeOutboundRentalKind` / `OUTBOUND_RENTAL_KIND` from `rentalKinds.js`.
+- `resolveOutboundInvoiceSource('rental'|'space')` → `RENTAL_SPACE`
+- `resolveOutboundInvoiceSource('hiring'|'quantity_pool')` → `CUSTOMER_HIRE`
+- Unknown/inbound kinds (`supplier_hire`, `null`) → `null`
+- `RENTAL_TRACE_EVENT` exports all eight constants per brief (REVENUE, TAX, REVERSAL, DAMAGE, DAMAGE_LOSS, REPAIR, SUPPLIER_HIRE_SPEND, UTILIZATION)
+
+### `lib/rentalKinds.js`
+
+- Single-line change: quantity pool operator label `'Quantity rental'` → `'Customer hire'`
+
+### `app/api/rentals/route.js`
+
+- Imports `resolveOutboundInvoiceSource`, `OUTBOUND_INVOICE_SOURCE`
+- Invoice title:
+  - `RENTAL_SPACE` → `'Room / space rental'`
+  - otherwise → `'Customer hire (equipment pool)'`
+- Notes append `source=<SOURCE>` on second line when source resolves; user notes preserved
+- `isRentalInvoice: true` unchanged
+- No new Prisma fields
+
+---
+
+## Self-Review
+
+| Check | Result |
+|-------|--------|
+| Matches brief interfaces verbatim | Yes |
+| TDD order (fail → implement → pass) | Yes |
+| No schema migration | Yes |
+| `isRentalInvoice: true` preserved | Yes |
+| Linter errors on touched files | None |
+| Downstream deps (`resolveOutboundInvoiceSource`, `RENTAL_TRACE_EVENT`) exported | Yes |
+
+### Route behaviour delta
+
+- Quantity-pool invoice title changed from `'Quantity rental (equipment pool)'` to `'Customer hire (equipment pool)'` — intentional per brief.
+- Notes now include `source=RENTAL_SPACE` or `source=CUSTOMER_HIRE` when applicable; previously notes were user-only.
+
+### Out of scope (later tasks)
+
+- No API route tests for invoice create stamping (brief only specified unit tests).
+- `RENTAL_TRACE_EVENT` constants exported but not yet consumed — expected for Task 2+.
+
+---
+
+## Concerns
+
+None blocking. Minor note: any UI or docs still referencing `'Quantity rental'` operator label may need alignment in later tasks; grep of `test/` and `lib/` shows no remaining references.
+
+---
+
+## Verification Commands
 
 ```bash
-npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
+npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js
 ```
 
-**Output:**
-
-```
- RUN  v4.1.2 C:/laragon/www/insight-books-v2.5
-
- ❯ tests/unit/purchases/autoCreateBillFromReceipt.test.js (4 tests | 1 failed) 21ms
-     × creates Unpaid bill and increments supplier balance when GRNI is enabled 16ms
-
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-
- FAIL  tests/unit/purchases/autoCreateBillFromReceipt.test.js > autoCreateBillFromReceipt > creates Unpaid bill and increments supplier balance when GRNI is enabled
-AssertionError: expected 'Draft' to be 'Unpaid' // Object.is equality
-
-Expected: "Unpaid"
-Received: "Draft"
-
- ❯ tests/unit/purchases/autoCreateBillFromReceipt.test.js:72:25
-     70|     const bill = await autoCreateBillFromReceipt({ tx, ...baseArgs });
-     71|
-     72|     expect(bill.status).toBe('Unpaid');
-       |                         ^
-     73|     expect(tx.supplierBill.create).toHaveBeenCalledTimes(1);
-     74|     const data = tx.supplierBill.create.mock.calls[0][0].data;
-
- Test Files  1 failed (1)
-      Tests  1 failed | 3 passed (4)
-```
-
-**Root cause (current production):** In `lib/goodsReceiptFollowOn.js`, `autoCreateBillFromReceipt` sets `billStatus = grniEnabled ? 'Draft' : 'Unpaid'` and skips `supplier.update` when GRNI is enabled (lines 127–184). The failing test correctly exposes this Draft/GRNI branch.
-
-## Self-review
-
-| Check | Outcome |
-|-------|---------|
-| Test code matches plan verbatim | **PASS** |
-| No production code touched | **PASS** |
-| Vitest alias `@/` resolves (`vitest.config.js`) | **PASS** |
-| RED failure is the GRNI-enabled case (not import/setup error) | **PASS** |
-| Other three cases pass (GRNI-off already Unpaid; idempotency; empty items) | **PASS** |
-| Linter clean on new file | **PASS** |
-| Ready for Task 2 (always-Unpaid implementation) | **PASS** |
-
-## Next step (Task 2)
-
-Modify `lib/goodsReceiptFollowOn.js` → `autoCreateBillFromReceipt` to always create `status: 'Unpaid'`, always attach `journalEntryId`, always set finalize fields, and always increment supplier balance. Re-run the same vitest command; expected: **4/4 PASS**.
+Expected: 8/8 pass.

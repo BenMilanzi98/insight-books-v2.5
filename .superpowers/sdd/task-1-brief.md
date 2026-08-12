@@ -1,154 +1,136 @@
-### Task 1: Failing unit tests for Unpaid-always auto bill
+### Task 1: Source tags + operator labels
 
 **Files:**
-- Create: `tests/unit/purchases/autoCreateBillFromReceipt.test.js`
-- Modify: (none yet)
+- Create: `lib/rentalSourceTags.js`
+- Create: `test/rentalSourceTags.test.js`
+- Modify: `lib/rentalKinds.js`
+- Modify: `test/rentalKinds.test.js`
 
 **Interfaces:**
-- Consumes: `autoCreateBillFromReceipt({ tx, goodsReceipt, supplier, purchaseOrder, tenantId, userId, journalEntryId })`
-- Produces: Vitest coverage that fails while GRNI Draft behavior remains
+- Produces:
+  - `OUTBOUND_INVOICE_SOURCE = { RENTAL_SPACE: 'RENTAL_SPACE', CUSTOMER_HIRE: 'CUSTOMER_HIRE' }`
+  - `resolveOutboundInvoiceSource(kind: string|null): 'RENTAL_SPACE'|'CUSTOMER_HIRE'|null`
+  - `RENTAL_TRACE_EVENT = { REVENUE, TAX, REVERSAL, DAMAGE, DAMAGE_LOSS, REPAIR, SUPPLIER_HIRE_SPEND, UTILIZATION }`
+  - `outboundKindLabel(kind)` returns `'Customer hire'` for quantity pool (was `'Quantity rental'`)
 
-- [ ] **Step 1: Write the failing test file**
+- [ ] **Step 1: Write failing tests**
 
-Create `tests/unit/purchases/autoCreateBillFromReceipt.test.js`:
+Create `test/rentalSourceTags.test.js`:
 
 ```js
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import {
+  OUTBOUND_INVOICE_SOURCE,
+  resolveOutboundInvoiceSource,
+  RENTAL_TRACE_EVENT,
+} from '../lib/rentalSourceTags.js';
 
-vi.mock('@/lib/purchases/grniPolicy', () => ({
-  isPurchasesGrniEnabled: vi.fn(),
-}));
-
-import { isPurchasesGrniEnabled } from '@/lib/purchases/grniPolicy';
-import { autoCreateBillFromReceipt } from '@/lib/goodsReceiptFollowOn';
-
-function makeTx({ existingBill = null } = {}) {
-  const created = { id: 'bill-1', billNumber: 'GRB-GR-001', status: 'Unpaid' };
-  return {
-    supplierBill: {
-      findFirst: vi
-        .fn()
-        // first call: idempotency check; later calls: bill-number uniqueness
-        .mockResolvedValueOnce(existingBill)
-        .mockResolvedValue(null),
-      create: vi.fn().mockImplementation(async ({ data }) => ({
-        ...created,
-        ...data,
-        id: 'bill-1',
-      })),
-    },
-    supplier: {
-      update: vi.fn().mockResolvedValue({}),
-    },
-  };
-}
-
-const baseArgs = {
-  goodsReceipt: {
-    id: 'gr-1',
-    receiptNumber: 'GR-001',
-    receiptDate: new Date('2026-08-01T00:00:00.000Z'),
-    totalAmount: 250,
-    purchaseOrderId: 'po-1',
-    supplierReference: null,
-    notes: null,
-    items: [
-      {
-        lineNumber: 1,
-        productId: 'prod-1',
-        quantityReceived: 5,
-        unitCost: 50,
-        notes: '',
-      },
-    ],
-  },
-  supplier: {
-    id: 'sup-1',
-    paymentTerms: 30,
-    currency: 'MWK',
-  },
-  purchaseOrder: { id: 'po-1', paymentTerms: 30 },
-  tenantId: 'tenant-1',
-  userId: 'user-1',
-  journalEntryId: 'je-1',
-};
-
-describe('autoCreateBillFromReceipt', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+describe('rentalSourceTags', () => {
+  it('maps space rental kind to RENTAL_SPACE', () => {
+    expect(resolveOutboundInvoiceSource('rental')).toBe(OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE);
+    expect(resolveOutboundInvoiceSource('space')).toBe(OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE);
   });
 
-  it('creates Unpaid bill and increments supplier balance when GRNI is enabled', async () => {
-    isPurchasesGrniEnabled.mockResolvedValue(true);
-    const tx = makeTx();
-
-    const bill = await autoCreateBillFromReceipt({ tx, ...baseArgs });
-
-    expect(bill.status).toBe('Unpaid');
-    expect(tx.supplierBill.create).toHaveBeenCalledTimes(1);
-    const data = tx.supplierBill.create.mock.calls[0][0].data;
-    expect(data.status).toBe('Unpaid');
-    expect(data.journalEntryId).toBe('je-1');
-    expect(data.finalizedAt).toBeInstanceOf(Date);
-    expect(data.finalizedById).toBe('user-1');
-    expect(data.amountPaid).toBe(0);
-    expect(data.totalAmount).toBe(250);
-    expect(tx.supplier.update).toHaveBeenCalledWith({
-      where: { id: 'sup-1' },
-      data: { currentBalance: { increment: 250 } },
-    });
+  it('maps quantity pool / hiring kind to CUSTOMER_HIRE', () => {
+    expect(resolveOutboundInvoiceSource('hiring')).toBe(OUTBOUND_INVOICE_SOURCE.CUSTOMER_HIRE);
+    expect(resolveOutboundInvoiceSource('quantity_pool')).toBe(OUTBOUND_INVOICE_SOURCE.CUSTOMER_HIRE);
   });
 
-  it('creates Unpaid bill when GRNI is disabled', async () => {
-    isPurchasesGrniEnabled.mockResolvedValue(false);
-    const tx = makeTx();
-
-    await autoCreateBillFromReceipt({ tx, ...baseArgs });
-
-    const data = tx.supplierBill.create.mock.calls[0][0].data;
-    expect(data.status).toBe('Unpaid');
-    expect(tx.supplier.update).toHaveBeenCalled();
+  it('returns null for unknown / inbound kinds', () => {
+    expect(resolveOutboundInvoiceSource('supplier_hire')).toBeNull();
+    expect(resolveOutboundInvoiceSource(null)).toBeNull();
   });
 
-  it('returns existing bill without creating a second one', async () => {
-    isPurchasesGrniEnabled.mockResolvedValue(true);
-    const existing = { id: 'existing-bill', status: 'Unpaid', billNumber: 'GRB-GR-001' };
-    const tx = makeTx({ existingBill: existing });
-
-    const bill = await autoCreateBillFromReceipt({ tx, ...baseArgs });
-
-    expect(bill).toEqual(existing);
-    expect(tx.supplierBill.create).not.toHaveBeenCalled();
-    expect(tx.supplier.update).not.toHaveBeenCalled();
-  });
-
-  it('returns null when receipt has no items', async () => {
-    isPurchasesGrniEnabled.mockResolvedValue(true);
-    const tx = makeTx();
-    const bill = await autoCreateBillFromReceipt({
-      tx,
-      ...baseArgs,
-      goodsReceipt: { ...baseArgs.goodsReceipt, items: [] },
-    });
-    expect(bill).toBeNull();
-    expect(tx.supplierBill.create).not.toHaveBeenCalled();
+  it('exports stable trace event constants', () => {
+    expect(RENTAL_TRACE_EVENT.REVERSAL).toBe('REVERSAL');
+    expect(RENTAL_TRACE_EVENT.DAMAGE).toBe('DAMAGE');
+    expect(RENTAL_TRACE_EVENT.REPAIR).toBe('REPAIR');
+    expect(RENTAL_TRACE_EVENT.SUPPLIER_HIRE_SPEND).toBe('SUPPLIER_HIRE_SPEND');
   });
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+Update expectation in `test/rentalKinds.test.js`:
 
-Run:
-
-```bash
-npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
+```js
+it('labels quantity pool for operators', () => {
+  expect(outboundKindLabel('hiring')).toBe('Customer hire');
+  expect(isQuantityPoolKind('hiring')).toBe(true);
+});
 ```
 
-Expected: FAIL — at least the GRNI-enabled case fails because create payload still uses `Draft` / skips `supplier.update`.
+- [ ] **Step 2: Run tests — expect FAIL**
 
-- [ ] **Step 3: Commit**
+Run: `npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js`
 
-Skip unless the user explicitly asks to commit.
+Expected: FAIL — missing module and/or label still `'Quantity rental'`.
+
+- [ ] **Step 3: Implement**
+
+Create `lib/rentalSourceTags.js`:
+
+```js
+import { normalizeOutboundRentalKind, OUTBOUND_RENTAL_KIND } from '@/lib/rentalKinds';
+
+export const OUTBOUND_INVOICE_SOURCE = Object.freeze({
+  RENTAL_SPACE: 'RENTAL_SPACE',
+  CUSTOMER_HIRE: 'CUSTOMER_HIRE',
+});
+
+export const RENTAL_TRACE_EVENT = Object.freeze({
+  REVENUE: 'REVENUE',
+  TAX: 'TAX',
+  REVERSAL: 'REVERSAL',
+  DAMAGE: 'DAMAGE',
+  DAMAGE_LOSS: 'DAMAGE_LOSS',
+  REPAIR: 'REPAIR',
+  SUPPLIER_HIRE_SPEND: 'SUPPLIER_HIRE_SPEND',
+  UTILIZATION: 'UTILIZATION',
+});
+
+export function resolveOutboundInvoiceSource(kind) {
+  const normalized = normalizeOutboundRentalKind(kind);
+  if (normalized === OUTBOUND_RENTAL_KIND.RENTAL) return OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE;
+  if (normalized === OUTBOUND_RENTAL_KIND.QUANTITY_POOL) return OUTBOUND_INVOICE_SOURCE.CUSTOMER_HIRE;
+  return null;
+}
+```
+
+In `lib/rentalKinds.js`, change `outboundKindLabel`:
+
+```js
+export function outboundKindLabel(kind) {
+  return isQuantityPoolKind(kind) ? 'Customer hire' : 'Rental';
+}
+```
+
+In `app/api/rentals/route.js` invoice `create` data, set title using tags (keep behaviour, clearer copy):
+
+```js
+import { resolveOutboundInvoiceSource, OUTBOUND_INVOICE_SOURCE } from '@/lib/rentalSourceTags';
+// ...
+const source = resolveOutboundInvoiceSource(kind);
+title:
+  source === OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE
+    ? 'Room / space rental'
+    : 'Customer hire (equipment pool)',
+notes: [notes, source ? `source=${source}` : null].filter(Boolean).join('\n') || null,
+```
+
+Keep `isRentalInvoice: true`. Do not add Prisma fields unless tests prove notes are insufficient for Reports (Reports will join `rentalTransaction.kind`).
+
+- [ ] **Step 4: Run tests — expect PASS**
+
+Run: `npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js`
+
+Expected: PASS
+
+- [ ] **Step 5: Commit only if user asked**
+
+```bash
+git add lib/rentalSourceTags.js test/rentalSourceTags.test.js lib/rentalKinds.js test/rentalKinds.test.js app/api/rentals/route.js
+# git commit only when user requests
+```
 
 ---
 

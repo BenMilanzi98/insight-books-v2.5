@@ -30,7 +30,7 @@ export default function RentalReconcilePage() {
     <PermissionGuard permissions={['rentals.view', 'accounting.view', 'invoices.view']}>
       <div className="mx-auto max-w-5xl p-6">
         <div className="mb-4 text-sm text-gray-500">
-          <Link href="/rentals" className="text-indigo-600 hover:underline">
+          <Link href="/rentals" className="text-blue-600 hover:underline">
             Rental &amp; Hiring
           </Link>
           <span className="mx-2">/</span>
@@ -97,13 +97,13 @@ export default function RentalReconcilePage() {
         </ul>
 
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
-          <Link href="/rentals/contracts-v2" className="text-indigo-600 underline">
+          <Link href="/rentals/contracts-v2" className="text-blue-600 underline">
             Contracts V2
           </Link>
-          <Link href="/rentals/inbound-hiring" className="text-indigo-600 underline">
+          <Link href="/rentals/inbound-hiring" className="text-blue-600 underline">
             Supplier hiring
           </Link>
-          <Link href="/rentals/quotations-v2" className="text-indigo-600 underline">
+          <Link href="/rentals/quotations-v2" className="text-blue-600 underline">
             Quotations
           </Link>
         </div>

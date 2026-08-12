@@ -201,7 +201,7 @@ export const FinancialSummaryPanel = ({
       value: data.activeClients,
       format: 'integer',
       icon: <Users size={16} />,
-      iconColor: 'text-purple-600',
+      iconColor: 'text-blue-600',
       subtitle: 'With recent activity',
       onClick: () => onViewReport?.('customer-report')
     });
@@ -360,7 +360,7 @@ export const PerformanceSnapshot = ({
           onClick={() => onViewReport?.('financial-ratios')}
         >
           <div className="flex items-center">
-            <Share2 size={16} className="text-purple-600 mr-2" />
+            <Share2 size={16} className="text-blue-600 mr-2" />
             <span className="text-gray-700">View Financial Ratios</span>
           </div>
           <ArrowRight size={16} className="text-gray-400" />

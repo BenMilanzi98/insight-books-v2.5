@@ -25,7 +25,10 @@ export async function POST(request) {
   } catch (e) {
     const code = e?.code;
     const status =
-      code === 'ALREADY_OPEN' || code === 'ALREADY_CLOSED'
+      code === 'ALREADY_OPEN' ||
+      code === 'CAPITAL_UNMAPPED' ||
+      code === 'TILL_FLOAT_UNMAPPED' ||
+      code === 'CASH_COA_UNMAPPED'
         ? 409
         : code === 'INVALID_OPENING_BALANCE'
           ? 400

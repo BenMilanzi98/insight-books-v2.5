@@ -34,7 +34,8 @@ import {
 import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
 import EmploymentContractsPanel from "@/components/hr/EmploymentContractsPanel";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
-import PageHeader from "@/components/shell/PageHeader";
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import ClickableStatCard from '@/components/ui/ClickableStatCard';
 import { useRouter } from 'next/navigation';
 
@@ -1459,7 +1460,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 type="button"
                 onClick={handleSaveCurrentStep}
                 disabled={isSubmitting || uploadingDocuments}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
                 {(isSubmitting || uploadingDocuments) && (
                   <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -2599,16 +2600,16 @@ const EmployeeManagement = () => {
         </div>
       )}
 
-      <PageHeader
+      <PosStylePageHeader
         title="Employee Management"
         description="Manage your employees and their information"
         actions={
-        <div className="flex flex-wrap gap-2">
-          <label className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md flex items-center gap-2 hover:bg-gray-50 cursor-pointer">
-            <Download size={16} />
+        <>
+          <label className="inline-flex items-center rounded-lg border border-gray-300 bg-white/80 px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-all hover:bg-white hover:shadow-md cursor-pointer">
+            <Download size={16} className="mr-2" />
             <span>Export</span>
             <select
-              className="bg-transparent border-0 text-sm font-medium text-gray-800 focus:ring-0 cursor-pointer min-w-[10rem]"
+              className="bg-transparent border-0 text-sm font-medium text-gray-800 focus:ring-0 cursor-pointer min-w-[10rem] ml-1"
               defaultValue=""
               onChange={(e) => {
                 const v = e.target.value;
@@ -2623,60 +2624,51 @@ const EmployeeManagement = () => {
               <option value="pdf">PDF (print / archive)</option>
             </select>
           </label>
-          <button 
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md flex items-center gap-2 hover:bg-gray-50"
-            onClick={handleDownloadTemplate}
-            title="Download Excel import template"
-          >
-            <Download size={16} />
-            <span>Download Template</span>
-          </button>
-          <button 
-            className="px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-md flex items-center gap-2 hover:bg-blue-50"
+          <PosStyleHeaderButton type="button" onClick={handleDownloadTemplate} title="Download Excel import template">
+            <Download size={16} className="mr-2" />
+            Download Template
+          </PosStyleHeaderButton>
+          <PosStyleHeaderButton
+            type="button"
             onClick={() => {
               setImportResults(null);
               setImportFile(null);
               setShowImportModal(true);
             }}
           >
-            <Upload size={16} />
-            <span>Import Employees</span>
-          </button>
-          <button 
-            className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
-            onClick={() => setShowIDCardGenerator(true)}
-            title="Generate Employee ID Cards"
-          >
-            <CreditCard size={16} />
-            <span>Generate ID Cards</span>
-          </button>
-          <button
+            <Upload size={16} className="mr-2" />
+            Import Employees
+          </PosStyleHeaderButton>
+          <PosStyleHeaderButton type="button" onClick={() => setShowIDCardGenerator(true)} title="Generate Employee ID Cards">
+            <CreditCard size={16} className="mr-2" />
+            Generate ID Cards
+          </PosStyleHeaderButton>
+          <PosStyleHeaderButton
             type="button"
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center gap-2 hover:bg-indigo-700"
             onClick={openPayeBulkModal}
             title="Apply or remove PAYE (Malawi income tax) for multiple employees"
           >
-            <Percent size={16} />
-            <span>Apply PAYE…</span>
-          </button>
+            <Percent size={16} className="mr-2" />
+            Apply PAYE…
+          </PosStyleHeaderButton>
           {selectedEmployeeIds.size > 0 && (
             <button
-              className="px-4 py-2 bg-red-600 text-white rounded-md flex items-center gap-2 hover:bg-red-700 disabled:opacity-50"
+              className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50"
               onClick={handleBulkDelete}
               disabled={isBulkDeleting}
             >
-              <Trash2 size={16} />
-              <span>{isBulkDeleting ? "Deleting…" : `Delete selected (${selectedEmployeeIds.size})`}</span>
+              <Trash2 size={16} className="mr-2" />
+              {isBulkDeleting ? "Deleting…" : `Delete selected (${selectedEmployeeIds.size})`}
             </button>
           )}
-          <button 
-            className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
+          <button
+            className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
             onClick={handleAddEmployee}
           >
-            <Plus size={16} />
-            <span>Add Employee</span>
+            <Plus size={16} className="mr-2" />
+            Add Employee
           </button>
-        </div>
+        </>
         }
       />
 
@@ -2690,7 +2682,7 @@ const EmployeeManagement = () => {
           active={filterStatus === 'All'}
           onClick={() => setFilterStatus('All')}
           iconWrapClassName="bg-blue-100 text-blue-600"
-          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          barClassName="from-blue-400 via-sky-500 to-blue-600"
         />
         <ClickableStatCard
           label="Active"
@@ -2727,6 +2719,7 @@ const EmployeeManagement = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
         {/* Employee Table - 3 columns */}
         <div className="lg:col-span-3">
+          <PosStylePanel className="p-4 sm:p-6">
           {/* Filters */}
       <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
         <div className="relative flex-grow max-w-md">
@@ -2817,7 +2810,7 @@ const EmployeeManagement = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -3057,8 +3050,9 @@ const EmployeeManagement = () => {
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
+          </PosStylePanel>
         </div>
         
         {/* Deductions Management - 1 column */}
@@ -3818,7 +3812,7 @@ const EmployeeManagement = () => {
               </button>
               <button
                 type="button"
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 disabled={payeBulkSubmitting}
                 onClick={handleSubmitBulkPaye}
               >

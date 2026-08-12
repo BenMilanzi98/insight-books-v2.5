@@ -68,8 +68,8 @@ export default function RefundSaleModal({
         <div className="mt-3">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-purple-100">
-                <DollarSign className="h-6 w-6 text-purple-600" />
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <DollarSign className="h-6 w-6 text-blue-600" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 ml-3">
                 Process Refund
@@ -167,7 +167,7 @@ export default function RefundSaleModal({
                   !refundMethod ||
                   refundReason.trim().length < MIN_AUDIT_REASON_LENGTH
                 }
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <div className="flex items-center">

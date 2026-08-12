@@ -15,3 +15,5 @@ export { default as MobileDataCard } from './MobileDataCard';
 export { default as FilterBar } from './FilterBar';
 export { default as Toast } from './Toast';
 export { default as QuickActions } from './QuickActions';
+export { default as PortalPopover } from './PortalPopover';
+export { default as DashboardMenuPanel, DashboardMenuChip, DashboardMenuItem } from './DashboardMenuPanel';

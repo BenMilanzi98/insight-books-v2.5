@@ -22,7 +22,7 @@ describe('rentalKinds', () => {
   });
 
   it('labels quantity pool for operators', () => {
-    expect(outboundKindLabel('hiring')).toBe('Quantity rental');
+    expect(outboundKindLabel('hiring')).toBe('Customer hire');
     expect(isQuantityPoolKind('hiring')).toBe(true);
   });
 });

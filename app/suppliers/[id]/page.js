@@ -257,8 +257,8 @@ export default function SupplierDetailPage() {
                       {formatCurrency(summary.summary?.availableCredit || 0)}
                     </p>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center">
-                    <CreditCard size={20} className="text-purple-600" />
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                    <CreditCard size={20} className="text-blue-600" />
                   </div>
                 </div>
               </div>

@@ -113,6 +113,10 @@ export async function GET(request, { params }) {
       items: itemsWithTitle,
       preparedBy: invoice.createdBy?.name || 'N/A',
       preparedById: invoice.createdBy?.id || null,
+      totalPaid,
+      amountDue: outstandingAmount,
+      remainingBalance: outstandingAmount,
+      status: invoice.status,
       paymentInfo: {
         totalPaid,
         outstandingAmount,

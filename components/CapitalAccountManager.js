@@ -403,7 +403,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+        <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
         <p className="text-slate-500 font-medium">Loading capital account...</p>
       </div>
     );
@@ -462,14 +462,14 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-indigo-600" />
+            <Wallet className="h-6 w-6 text-blue-600" />
             Capital Account
           </h2>
           <p className="text-sm text-slate-500 lg:text-right">
             Linked to GL{" "}
             <a
               href={`/chart-of-accounts?search=${encodeURIComponent(glAccount?.code || "3100")}`}
-              className="font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+              className="font-mono font-semibold text-blue-600 hover:text-blue-800 hover:underline"
             >
               {glAccount?.code || "3100"}
             </a>
@@ -514,14 +514,14 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 setError(null);
                 setShowTransferModal(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
             >
               <ArrowRightLeft className="h-4 w-4" />
               Transfer Funds
             </button>
             <a
               href="/capital-account/transfers"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
             >
               <ArrowRightLeft className="h-4 w-4" />
               View Transfers
@@ -543,9 +543,9 @@ const CapitalAccountManager = ({ onboarding = false }) => {
             label="Current Balance"
             value={formatCurrency(capitalAccount?.balance || 0)}
             icon={TrendingUp}
-            valueClassName={(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-indigo-900'}
-            barClassName={(capitalAccount?.balance || 0) <= 0 ? 'from-amber-400 via-yellow-500 to-orange-500' : 'from-indigo-400 via-blue-500 to-violet-500'}
-            iconWrapClassName={(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}
+            valueClassName={(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-blue-900'}
+            barClassName={(capitalAccount?.balance || 0) <= 0 ? 'from-amber-400 via-yellow-500 to-orange-500' : 'from-blue-500 via-sky-500 to-indigo-500'}
+            iconWrapClassName={(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}
             helper={`Cumulative contributed capital: ${formatCurrency(capitalAccount?.ownerContributedCapital ?? 0)}`}
           >
             <p className="mt-1 text-xs text-slate-500">
@@ -569,8 +569,8 @@ const CapitalAccountManager = ({ onboarding = false }) => {
             value={glAccount?.code || capitalAccount?.code || "3100"}
             helper={glAccount?.name || "Owner's Capital"}
             icon={Building2}
-            barClassName="from-violet-400 via-purple-500 to-indigo-500"
-            iconWrapClassName="bg-violet-100 text-violet-600"
+            barClassName="from-blue-500 via-sky-500 to-indigo-500"
+            iconWrapClassName="bg-blue-100 text-blue-600"
           />
         </div>
       </div>
@@ -580,10 +580,10 @@ const CapitalAccountManager = ({ onboarding = false }) => {
         <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-              <ArrowRightLeft className="h-5 w-5 text-indigo-600" />
+              <ArrowRightLeft className="h-5 w-5 text-blue-600" />
               Recent Transfers
             </h3>
-            <a href="/capital-account/transfers" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+            <a href="/capital-account/transfers" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
               View all transfers →
             </a>
           </div>
@@ -600,7 +600,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {recentTransfers.map((transfer) => (
-                  <tr key={transfer.id} className="hover:bg-indigo-50/30 transition-colors">
+                  <tr key={transfer.id} className="hover:bg-blue-50/30 transition-colors">
                     <td className="p-3">{formatDate(transfer.date)}</td>
                     <td className="p-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${
@@ -645,7 +645,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               const height = maxBalance > 0 ? (record.balance / maxBalance) * 100 : 0;
               return (
                 <div key={index} className="flex-1 flex flex-col items-center">
-                  <div className="w-full bg-indigo-500 rounded-t transition-all" style={{ height: `${Math.max(height, 4)}%` }} />
+                  <div className="w-full bg-blue-500 rounded-t transition-all" style={{ height: `${Math.max(height, 4)}%` }} />
                   <div className="text-xs text-slate-500 mt-2 text-center truncate w-full">{formatDate(record.date)}</div>
                   <div className="text-xs font-medium text-slate-700 mt-1">{formatCurrency(record.balance)}</div>
                 </div>
@@ -1039,7 +1039,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
           <StatCard
             label="Asset Contributions"
             value={formatCurrency(contributionSummary.totalAssetContributions)}
-            barClassName="from-blue-400 via-indigo-500 to-blue-600"
+            barClassName="from-blue-400 via-sky-500 to-blue-600"
             valueClassName="text-blue-900"
           />
           <StatCard
@@ -1050,8 +1050,8 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 : contributionSummary.totalCapital
             )}
             helper="Increases with new contributions; not reduced by transfers to payment accounts."
-            barClassName="from-indigo-400 via-violet-500 to-purple-500"
-            valueClassName="text-indigo-900"
+            barClassName="from-blue-500 via-sky-500 to-indigo-500"
+            valueClassName="text-blue-900"
           />
         </div>
         {contributions.length > 0 ? (
@@ -1083,10 +1083,10 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                       </span>
                     </td>
                     <td className="py-2 px-3 text-slate-700">{c.description}</td>
-                    <td className="py-2 px-3 font-mono text-xs text-violet-700">{c.coaAccountCode || "—"}</td>
+                    <td className="py-2 px-3 font-mono text-xs text-blue-700">{c.coaAccountCode || "—"}</td>
                     <td className="py-2 px-3 text-slate-500">{c.debitAccountName}</td>
                     <td className="py-2 px-3 text-right font-medium text-slate-800">{formatCurrency(c.amount)}</td>
-                    <td className="py-2 px-3 text-right font-bold text-indigo-700">{formatCurrency(c.runningTotal)}</td>
+                    <td className="py-2 px-3 text-right font-bold text-blue-700">{formatCurrency(c.runningTotal)}</td>
                   </tr>
                 ))}
               </tbody>

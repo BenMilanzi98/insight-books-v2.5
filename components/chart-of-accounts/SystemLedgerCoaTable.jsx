@@ -47,8 +47,8 @@ const ROOT_THEME = {
     rowBg: 'bg-sky-50/50',
   },
   '3000': {
-    accent: 'border-l-[3px] border-l-violet-500',
-    rowBg: 'bg-violet-50/50',
+    accent: 'border-l-[3px] border-l-blue-500',
+    rowBg: 'bg-blue-50/50',
   },
   '4000': {
     accent: 'border-l-[3px] border-l-amber-500',
@@ -77,7 +77,7 @@ function typeBadgeClass(t) {
   const x = String(t || '').toLowerCase();
   if (x === 'asset') return 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/70';
   if (x === 'liability') return 'bg-sky-50 text-sky-900 ring-1 ring-sky-200/70';
-  if (x === 'equity') return 'bg-violet-50 text-violet-900 ring-1 ring-violet-200/70';
+  if (x === 'equity') return 'bg-blue-50 text-blue-900 ring-1 ring-blue-200/70';
   if (x === 'income' || x === 'revenue') return 'bg-amber-50 text-amber-950 ring-1 ring-amber-200/70';
   if (x === 'expense') return 'bg-rose-50 text-rose-900 ring-1 ring-rose-200/70';
   return 'bg-slate-100 text-slate-800 ring-1 ring-slate-200/80';
@@ -186,14 +186,14 @@ export default function SystemLedgerCoaTable({
   const renderLedgerExtrasDropdown = (title, items) => {
     if (!items?.length) return null;
     return (
-      <details className="mt-2 rounded-lg border border-indigo-100/90 bg-indigo-50/40 p-2.5 open:shadow-sm">
-        <summary className="cursor-pointer select-none text-xs font-semibold text-indigo-900 hover:text-indigo-950">
+      <details className="mt-2 rounded-lg border border-blue-100/90 bg-blue-50/40 p-2.5 open:shadow-sm">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-blue-900 hover:text-blue-950">
           {title}{' '}
           <span className="ml-1 rounded-md bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-700 ring-1 ring-slate-200/80">
             {items.length}
           </span>
         </summary>
-        <ul className="mt-2 max-h-56 space-y-1.5 overflow-y-auto border-t border-indigo-200/40 pt-2 pl-0.5">
+        <ul className="mt-2 max-h-56 space-y-1.5 overflow-y-auto border-t border-blue-200/40 pt-2 pl-0.5">
           {items.map((a) => (
             <li
               key={a.id}
@@ -320,9 +320,9 @@ export default function SystemLedgerCoaTable({
           <td className="px-2 py-2 align-middle sm:px-4 sm:py-2.5 md:px-5 md:py-2.5">
             <div className="flex items-center gap-2.5 min-w-0" style={{ paddingLeft: `${indentLevel * 14}px` }}>
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center" aria-hidden>
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300" />
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-300" />
               </span>
-              <code className="shrink-0 rounded-lg bg-indigo-50/90 px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums text-indigo-950 ring-1 ring-indigo-200/60">
+              <code className="shrink-0 rounded-lg bg-blue-50/90 px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums text-blue-950 ring-1 ring-blue-200/60">
                 {synth.accountCode || synth.code}
               </code>
             </div>
@@ -332,7 +332,7 @@ export default function SystemLedgerCoaTable({
               <span className="min-w-0 text-[12px] font-medium leading-snug text-slate-800">
                 {synth.accountName || synth.name || 'Direct postings'}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-950 ring-1 ring-indigo-200/70">
+              <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-950 ring-1 ring-blue-200/70">
                 Direct
               </span>
             </div>
@@ -427,7 +427,7 @@ export default function SystemLedgerCoaTable({
                 <button
                   type="button"
                   onClick={() => toggleExpand(structKey)}
-                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40 hover:text-indigo-900 active:scale-[0.98]"
+                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40 hover:text-blue-900 active:scale-[0.98]"
                   aria-expanded={isExpanded}
                 >
                   {isExpanded ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
@@ -467,7 +467,7 @@ export default function SystemLedgerCoaTable({
                 </span>
               ) : null}
               {primary?.mergedIntoAccount ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-900 ring-1 ring-violet-100" title="System merge: row and code kept for audit; pickers use target">
+                <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-900 ring-1 ring-blue-100" title="System merge: row and code kept for audit; pickers use target">
                   → {primary.mergedIntoAccount.accountCode}{' '}
                   {primary.mergedIntoAccount.accountName || ''}
                 </span>
@@ -601,7 +601,7 @@ export default function SystemLedgerCoaTable({
                 type="button"
                 onClick={() => primary && onMergeAccount?.(primary)}
                 disabled={!primary}
-                className={`touch-manipulation rounded-md p-2.5 sm:p-2 ${!primary ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 transition-colors hover:bg-white hover:text-violet-700'}`}
+                className={`touch-manipulation rounded-md p-2.5 sm:p-2 ${!primary ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 transition-colors hover:bg-white hover:text-blue-700'}`}
                 title={
                   !primary
                     ? 'No ledger row'

@@ -107,6 +107,50 @@ const InvoiceModal = ({
   const [showClientModal, setShowClientModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState(null);
+  const [templateOverrides, setTemplateOverrides] = useState({});
+
+  const parseTemplateContent = (template) => {
+    try {
+      return typeof template?.content === 'string'
+        ? JSON.parse(template.content || '{}')
+        : { ...(template?.content || {}) };
+    } catch {
+      return {};
+    }
+  };
+
+  const resolveTemplate = (id) => {
+    const base = templates.find((t) => t.id === id);
+    if (!base) return null;
+    return templateOverrides[id] ? { ...base, ...templateOverrides[id] } : base;
+  };
+
+  const applyTemplateAppearance = async (patch) => {
+    const current = resolveTemplate(formData.templateId);
+    if (!current) return;
+    const next = {
+      ...current,
+      content: { ...parseTemplateContent(current), ...patch },
+    };
+    setTemplateOverrides((prev) => ({ ...prev, [current.id]: next }));
+    onTemplateChange(next);
+    if (!current.id || String(current.id).startsWith('temp-')) return;
+    try {
+      await fetch('/api/invoice/templates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          id: current.id,
+          name: current.name,
+          isDefault: !!current.isDefault,
+          content: JSON.stringify(next.content),
+        }),
+      });
+    } catch {
+      /* preview still uses local override */
+    }
+  };
   
   // NEW: Tax types state and default for inflow (sales/invoices) - auto-populated from settings
   const [taxTypes, setTaxTypes] = useState([]);
@@ -1062,6 +1106,40 @@ const InvoiceModal = ({
                 {errors.templateId && (
                   <p className="text-red-500 text-xs mt-1">{errors.templateId}</p>
                 )}
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    { id: 'classic', label: 'Classic', style: 'standard' },
+                    { id: 'modern', label: 'Modern', style: 'professional' },
+                    { id: 'compact', label: 'Compact', style: 'minimal' },
+                    { id: 'bold', label: 'Bold', style: 'bold' },
+                  ].map((layout) => {
+                    const current = resolveTemplate(formData.templateId);
+                    const content = parseTemplateContent(current);
+                    const active = String(content.style || 'standard') === layout.style;
+                    return (
+                      <button
+                        key={layout.id}
+                        type="button"
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${active ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-700'}`}
+                        onClick={() => applyTemplateAppearance({
+                          style: layout.style,
+                          primaryColor: content.primaryColor || '#0075be',
+                        })}
+                      >
+                        {layout.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                  Colour
+                  <input
+                    type="color"
+                    className="h-9 w-14 cursor-pointer rounded border border-gray-300"
+                    value={parseTemplateContent(resolveTemplate(formData.templateId)).primaryColor || '#0075be'}
+                    onChange={(e) => applyTemplateAppearance({ primaryColor: e.target.value })}
+                  />
+                </label>
               </div>
             </div>
             
@@ -1178,19 +1256,19 @@ const InvoiceModal = ({
                                 {filteredProducts.map(product => (
                                   <div 
                                     key={product.id}
-                                        className={`p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex justify-between items-center ${product.stockLevel <= 0 ? 'opacity-50' : ''}`}
+                                        className={`p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex justify-between items-center ${!product.isService && product.stockLevel <= 0 ? 'opacity-50' : ''}`}
                                     onClick={() => handleProductSelect(index, product)}
                                   >
                                     <div>
                                           <p className="font-medium">{product.name}</p>
                                           <div className="flex text-xs text-gray-500 gap-2">
                                             {product.sku && <span>SKU: {product.sku}</span>}
-                                            <span>In stock: {product.stockLevel !== null ? product.stockLevel : 'N/A'}</span>
+                                            <span>{product.isService ? 'Service' : `In stock: ${product.stockLevel !== null ? product.stockLevel : 'N/A'}`}</span>
                                           </div>
                                     </div>
                                     <div className="text-right">
                                           <p className="font-medium">{formatCurrency(product.price)}</p>
-                                          {product.stockLevel <= 0 ? (
+                                          {!product.isService && product.stockLevel <= 0 ? (
                                             <span className="text-xs text-red-500">Out of stock</span>
                                           ) : (
                                             <button 
@@ -1591,7 +1669,7 @@ const InvoiceModal = ({
       <InvoiceReceiptModal
         isOpen={showReceiptModal}
         invoice={createdInvoice}
-        template={templates.find(t => t.id === (createdInvoice?.templateId || formData.templateId))}
+        template={resolveTemplate(createdInvoice?.templateId || formData.templateId)}
         branding={{}}
         onClose={() => setShowReceiptModal(false)}
       />

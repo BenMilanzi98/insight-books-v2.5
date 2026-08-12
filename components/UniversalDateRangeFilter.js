@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, ChevronDown, X, RefreshCw, Loader2, Clock, X as XIcon } from 'lucide-react';
 import { 
   getAvailableTimeframes, 
@@ -10,6 +10,8 @@ import {
   formatDate,
   formatPeriodRange
 } from '@/lib/dateUtils';
+import PortalPopover from '@/components/ui/PortalPopover';
+import { DashboardMenuChip } from '@/components/ui/DashboardMenuPanel';
 
 /**
  * Universal Date Range Filter Component
@@ -37,8 +39,14 @@ export const UniversalDateRangeFilter = ({
   const [customEndDate, setCustomEndDate] = useState('');
   const [validationError, setValidationError] = useState('');
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const timeframes = getAvailableTimeframes();
+
+  const closeDropdown = useCallback(() => {
+    setIsDropdownOpen(false);
+    setShowCustomRange(false);
+  }, []);
 
   // Initialize custom dates when switching to custom (sync with parent timeframe)
   /* eslint-disable react-hooks/set-state-in-effect -- intentional one-time fill when parent sets timeframe to custom */
@@ -54,21 +62,6 @@ export const UniversalDateRangeFilter = ({
     }
   }, [timeframe, customStartDate, customEndDate, onCustomDateChange]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-        setShowCustomRange(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   // Handle timeframe selection
   const handleTimeframeSelect = (selectedTimeframe) => {
@@ -151,9 +144,11 @@ export const UniversalDateRangeFilter = ({
 
   return (
     <div className={`flex flex-wrap gap-2 ${className}`} ref={containerRef}>
-      {/* Main Date Range Selector */}
+      {/* Main Date Range Selector — panel portaled above glass cards / stacking contexts */}
       <div className="relative">
         <button
+          ref={triggerRef}
+          type="button"
           className={`flex items-center justify-between rounded-md transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses[size]} ${variantClasses[variant]}`}
           onClick={() => !disabled && setIsDropdownOpen(!isDropdownOpen)}
           disabled={disabled || loading}
@@ -173,84 +168,80 @@ export const UniversalDateRangeFilter = ({
           />
         </button>
 
-        {/* Horizontal Dropdown Panel - Just Below Selector */}
-        {isDropdownOpen && (
-          <div className="absolute top-full left-0 mt-2 min-w-[400px] max-w-[500px] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-[99999] animate-in slide-in-from-top-2 duration-200">
-            {/* Gradient Top Border */}
-            <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500" />
-            
-            {/* Content */}
-            <div className="p-4 bg-gradient-to-br from-gray-50/50 to-white">
-              {showCustomRange ? (
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => {
-                        setCustomStartDate(e.target.value);
-                        setValidationError('');
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                      max={customEndDate}
-                    />
-                  </div>
-                  <ChevronDown size={16} className="text-gray-400 mb-2 rotate-[-90deg]" />
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => {
-                        setCustomEndDate(e.target.value);
-                        setValidationError('');
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                      min={customStartDate}
-                    />
-                  </div>
-                  <div className="flex gap-2 pb-0.5">
-                    <button
-                      onClick={handleCustomDateReset}
-                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      onClick={handleCustomDateApply}
-                      className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 text-sm font-medium transition-colors"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {timeframes.map((tf) => (
-                    <button
-                      key={tf.value}
-                      className={`flex-shrink-0 px-4 py-2.5 rounded-lg transition-all duration-200 ${
-                        timeframe === tf.value 
-                          ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
-                          : 'bg-white border border-gray-200 text-gray-700 hover:border-indigo-300 hover:shadow-sm'
-                      }`}
-                      onClick={() => handleTimeframeSelect(tf.value)}
-                    >
-                      <span className={`text-sm font-medium ${timeframe === tf.value ? 'text-white' : 'text-gray-900'}`}>
-                        {tf.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {validationError && (
-                <p className="text-red-500 text-xs mt-2">{validationError}</p>
-              )}
+        <PortalPopover
+          open={isDropdownOpen}
+          onClose={closeDropdown}
+          anchorRef={triggerRef}
+          align="start"
+          variant="dashboard"
+          estimatedWidth={480}
+          estimatedHeight={220}
+          className="min-w-[min(400px,calc(100vw-16px))] max-w-[500px]"
+        >
+          {showCustomRange ? (
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => {
+                    setCustomStartDate(e.target.value);
+                    setValidationError('');
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  max={customEndDate}
+                />
+              </div>
+              <ChevronDown size={16} className="text-gray-400 mb-2 rotate-[-90deg] hidden sm:block" />
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => {
+                    setCustomEndDate(e.target.value);
+                    setValidationError('');
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  min={customStartDate}
+                />
+              </div>
+              <div className="flex gap-2 pb-0.5">
+                <button
+                  type="button"
+                  onClick={handleCustomDateReset}
+                  className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCustomDateApply}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 text-sm font-medium transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {timeframes.map((tf) => (
+                <DashboardMenuChip
+                  key={tf.value}
+                  active={timeframe === tf.value}
+                  onClick={() => handleTimeframeSelect(tf.value)}
+                >
+                  {tf.label}
+                </DashboardMenuChip>
+              ))}
+            </div>
+          )}
+
+          {validationError && (
+            <p className="text-red-500 text-xs mt-2">{validationError}</p>
+          )}
+        </PortalPopover>
       </div>
 
       {/* Custom Date Range Input (when shown inline) */}

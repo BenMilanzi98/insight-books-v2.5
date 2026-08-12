@@ -104,7 +104,7 @@ export default function BusinessScopeSelector({
         className={`inline-flex items-center gap-2 text-sm text-gray-600 ${className}`}
         title={single?.name || 'Business'}
       >
-        <Building2 className="w-4 h-4 text-indigo-600" />
+        <Building2 className="w-4 h-4 text-blue-600" />
         <span className="font-medium truncate max-w-[200px]">{single?.name || 'Business'}</span>
       </div>
     );
@@ -121,7 +121,7 @@ export default function BusinessScopeSelector({
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <Building2 className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-indigo-600 shrink-0`} />
+        <Building2 className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-blue-600 shrink-0`} />
         <span className="font-medium truncate max-w-[220px]">{label}</span>
         <ChevronDown className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-gray-400 shrink-0`} />
       </button>
@@ -149,7 +149,7 @@ export default function BusinessScopeSelector({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search businesses…"
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
@@ -179,12 +179,12 @@ export default function BusinessScopeSelector({
                     type="button"
                     onClick={() => toggleDraft(tenant.id)}
                     className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left text-sm hover:bg-gray-50 ${
-                      checked ? 'bg-indigo-50 text-indigo-900' : 'text-gray-800'
+                      checked ? 'bg-blue-50 text-blue-900' : 'text-gray-800'
                     }`}
                   >
                     <span
                       className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                        checked ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
+                        checked ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
                       }`}
                     >
                       {checked && <Check className="w-3 h-3 text-white" />}
@@ -210,7 +210,7 @@ export default function BusinessScopeSelector({
                 type="button"
                 disabled={!draftIds.length}
                 onClick={() => applyMode('custom', draftIds)}
-                className="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 Apply ({draftIds.length || 0})
               </button>
@@ -228,7 +228,7 @@ function ScopeOption({ active, label, description, onClick }) {
       type="button"
       onClick={onClick}
       className={`w-full text-left px-2 py-2 rounded-lg hover:bg-gray-50 ${
-        active ? 'bg-indigo-50 ring-1 ring-indigo-200' : ''
+        active ? 'bg-blue-50 ring-1 ring-blue-200' : ''
       }`}
     >
       <p className="text-sm font-medium text-gray-900">{label}</p>

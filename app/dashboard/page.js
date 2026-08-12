@@ -196,7 +196,7 @@ const DashboardBarChart = ({ data }) => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-4">
           <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-indigo-500 mr-2"></div>
+            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
             <span className="text-sm text-gray-600">Income</span>
           </div>
           <div className="flex items-center">
@@ -257,7 +257,7 @@ const DashboardBarChart = ({ data }) => {
                     {/* Income Bar */}
                     <div className={`${barWidth} flex justify-center group relative h-64`}>
                       <div
-                        className={`${barWidth} bg-indigo-500 rounded-t transition-all duration-300 group-hover:bg-indigo-600 self-end`}
+                        className={`${barWidth} bg-blue-500 rounded-t transition-all duration-300 group-hover:bg-blue-600 self-end`}
                         style={{ height: `${incomeHeight}%` }}
                       >
                         <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
@@ -297,7 +297,7 @@ const SkeletonBarChart = () => (
     {/* Chart Legend */}
     <div className="flex items-center justify-end space-x-4 mb-4">
       <div className="flex items-center">
-        <div className="w-3 h-3 rounded-full bg-indigo-500 mr-2"></div>
+        <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
         <span className="text-sm text-gray-600">Income</span>
       </div>
       <div className="flex items-center">
@@ -1018,8 +1018,8 @@ const BusinessOwnerDashboard = () => {
       <div className="flex w-full items-center justify-center p-4 sm:p-6">
         <div className="text-center max-w-sm">
           <div className="relative w-16 h-16 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Checking access</h2>
           <p className="text-xs text-gray-500">Verifying permissions…</p>
@@ -1033,8 +1033,8 @@ const BusinessOwnerDashboard = () => {
       <div className="flex w-full items-center justify-center p-4 sm:p-6">
         <div className="text-center max-w-sm">
           <div className="relative w-16 h-16 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Opening POS</h2>
           <p className="text-sm text-gray-600">You do not have dashboard access. Redirecting…</p>
@@ -1055,7 +1055,7 @@ const BusinessOwnerDashboard = () => {
           <p className="text-gray-600 text-sm mb-6">{error}</p>
           <button 
             onClick={() => window.location.reload()}
-            className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+            className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           >
             Try Again
           </button>
@@ -1109,7 +1109,7 @@ const BusinessOwnerDashboard = () => {
               className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 px-6 py-6 text-white">
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-sky-600 to-blue-500 px-6 py-6 text-white">
                 <button
                   type="button"
                   onClick={closeAndroidAppNotice}
@@ -1144,7 +1144,7 @@ const BusinessOwnerDashboard = () => {
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <a
                     href={ANDROID_APP_RELEASE_NOTICE.downloadUrl}
-                    className="inline-flex flex-1 items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    className="inline-flex flex-1 items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
                     Go to download page
                     <ArrowRight className="ml-2 h-4 w-4" />
@@ -1227,10 +1227,10 @@ const BusinessOwnerDashboard = () => {
           {/* Business Overview Card */}
           <div className="mb-6 sm:mb-8 relative">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
-              <div className="p-6 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5 rounded-t-2xl border-b border-gray-100">
+              <div className="p-6 bg-gradient-to-r from-blue-500/5 via-transparent to-sky-500/5 rounded-t-2xl border-b border-gray-100">
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                   <div className="flex items-center space-x-4 min-w-0">
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 ring-4 ring-white/50">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 bg-gradient-to-br from-blue-500 via-sky-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 ring-4 ring-white/50">
                       <Building className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
                     </div>
                     <div className="min-w-0">
@@ -1240,7 +1240,7 @@ const BusinessOwnerDashboard = () => {
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-gray-500">Your business dashboard</span>
                         <span className="text-gray-300">•</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${hasMultipleBusinesses ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${hasMultipleBusinesses ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                           {hasMultipleBusinesses ? 'Multi-business account' : 'Single business account'}
                         </span>
                       </div>
@@ -1292,7 +1292,7 @@ const BusinessOwnerDashboard = () => {
                     {hasMultipleBusinesses && (
                       <button
                         onClick={() => window.location.href = '/switch-tenant'}
-                        className="inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-200 hover:-translate-y-0.5 transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-500 to-sky-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-200 hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <ArrowRight className="h-4 w-4 mr-2" />
                         Switch Business
@@ -1311,7 +1311,7 @@ const BusinessOwnerDashboard = () => {
                 </div>
 
                 {hasMultipleBusinesses && (
-                  <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200/50">
+                  <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-sky-50 rounded-xl border border-blue-200/50">
                     <p className="text-sm text-blue-700 flex items-center gap-2">
                       <span className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs">
                         <Building size={12} />
@@ -1446,7 +1446,7 @@ const BusinessOwnerDashboard = () => {
               />
             ) : null}
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-sky-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
                 <BarChart3 size={20} className="text-white" />
               </div>
               <div>
@@ -1523,7 +1523,7 @@ const BusinessOwnerDashboard = () => {
                   className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left hover:bg-gray-50/80 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-violet-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-200">
+                    <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
                       <Package size={20} className="text-white" />
                     </div>
                     <div className="min-w-0">
@@ -1576,15 +1576,15 @@ const BusinessOwnerDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Income & Expenses Bar Chart */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-400 via-purple-500 to-violet-500"></div>
-              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500"></div>
+              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-gradient-to-r from-blue-500/5 via-transparent to-sky-500/5">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-blue-500 to-sky-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
                     <BarChart3 size={20} className="text-white" />
                   </div>
                   <h2 className="font-bold text-gray-800 truncate">Income & Expense Overview</h2>
                 </div>
-                <a href="/reports-v2" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-indigo-100 text-indigo-600 rounded-lg text-sm font-medium transition-all duration-200">
+                <a href="/reports-v2" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-all duration-200">
                   Detailed Report 
                   <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                 </a>
@@ -1905,7 +1905,7 @@ const BusinessOwnerDashboard = () => {
                   </div>
                   <a
                     href="/stock"
-                    className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-indigo-600 font-medium"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-blue-600 font-medium"
                   >
                     Manage in Stock
                   </a>
@@ -1992,7 +1992,7 @@ const BusinessOwnerDashboard = () => {
                               onClick={() => {
                                 window.location.href = `/purchases/suppliers?restock=true&productId=${alert.id}&tab=orders`;
                               }}
-                              className="text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-all duration-200 transform hover:scale-105 hover:bg-indigo-50 px-3 py-1 rounded-lg"
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-all duration-200 transform hover:scale-105 hover:bg-blue-50 px-3 py-1 rounded-lg"
                             >
                               Restock
                             </button>

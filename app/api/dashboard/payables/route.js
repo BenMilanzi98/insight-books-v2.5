@@ -11,9 +11,30 @@ import {
 } from '@/lib/dashboardTenantScope';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 
-// Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const CLOSED_BILL_STATUSES = ['Draft', 'Cancelled', 'Paid'];
+
+function agingIndex(daysPastDue) {
+  if (daysPastDue <= 30) return 0;
+  if (daysPastDue <= 60) return 1;
+  if (daysPastDue <= 90) return 2;
+  return 3;
+}
+
+function bucketPayable(now, dueDate) {
+  const due = dueDate ? new Date(dueDate) : now;
+  const valid = !Number.isNaN(due.getTime());
+  const effectiveDue = valid ? due : now;
+  const daysDiff = Math.floor((now - effectiveDue) / (1000 * 60 * 60 * 24));
+  return {
+    daysDiff,
+    daysPastDue: daysDiff > 0 ? daysDiff : 0,
+    overdue: daysDiff > 0,
+    notDue: daysDiff < 0,
+  };
+}
 
 export async function GET(request) {
   try {
@@ -37,269 +58,140 @@ export async function GET(request) {
     const { tenantIds, branchScoped } = scope;
     const tw = tenantWhereIn(tenantIds);
     const userQ = userForDashboardBranchFilter(user, branchScoped);
+    const branchId = branchScoped ? user?.currentBranchId : null;
 
     const now = new Date();
-    
-    // Get all Posted GoodsReceipt records (these represent inventory received that needs to be paid for)
-    // Filter by branch through goods receipt items -> products -> branchId
-    // Note: GoodsReceipt model doesn't have branchId, so we filter through product relationships
-    const goodsReceiptWhere = {
+
+    const billWhere = {
       ...tw,
-      status: 'Posted'
+      status: { notIn: CLOSED_BILL_STATUSES },
     };
-    
-    // If user has a branch selected, filter goods receipts by products in that branch
-    if (branchScoped && user?.currentBranchId) {
-      goodsReceiptWhere.items = {
-        some: {
-          product: {
-            branchId: user.currentBranchId
-          }
-        }
-      };
-    }
-    
-    const postedReceipts = await prisma.goodsReceipt.findMany({
-      where: goodsReceiptWhere,
-      select: {
-        id: true,
-        receiptNumber: true,
-        receiptDate: true,
-        totalAmount: true,
-        supplier: {
-          select: {
-            id: true,
-            supplierName: true
-          }
-        },
-        supplierBills: {
-          // Exclude settled/cancelled; balance due is applied in JS (avoids the old over-broad OR that matched almost every bill)
-          where: {
-            ...tw,
-            status: { notIn: ['Paid', 'Cancelled'] },
+    if (branchId) {
+      billWhere.OR = [
+        { goodsReceiptId: null },
+        {
+          goodsReceipt: {
+            items: { some: { product: { branchId } } },
           },
-          select: {
-            id: true,
-            billNumber: true,
-            totalAmount: true,
-            amountPaid: true,
-            status: true,
-            billDate: true,
-            dueDate: true,
-            supplier: {
-              select: {
-                supplierName: true
-              }
-            }
-          }
-        }
-      }
-    });
-    
-    // Get all Expenses with Pending or Partially paid status
-    const expenses = await prisma.expense.findMany({
-      where: addBranchFilter(userQ, {
-        ...tw,
-        paymentStatus: { in: ['Pending', 'Partially'] },
-        isDeleted: false
+        },
+      ];
+    }
+
+    const [bills, expenses] = await Promise.all([
+      prisma.supplierBill.findMany({
+        where: billWhere,
+        select: {
+          id: true,
+          billNumber: true,
+          totalAmount: true,
+          amountPaid: true,
+          status: true,
+          billDate: true,
+          dueDate: true,
+          goodsReceiptId: true,
+          goodsReceipt: {
+            select: { receiptNumber: true, receiptDate: true },
+          },
+          supplier: {
+            select: { id: true, supplierName: true },
+          },
+        },
       }),
-      select: {
-        id: true,
-        amount: true,
-        paidAmount: true,
-        paymentStatus: true,
-        date: true,
-        description: true,
-        merchant: true,
-        category: true,
-        paymentReference: true
-      }
-    });
-    
-    // Calculate aging buckets
+      prisma.expense.findMany({
+        where: addBranchFilter(userQ, {
+          ...tw,
+          paymentStatus: { in: ['Pending', 'Partially'] },
+          isDeleted: false,
+        }),
+        select: {
+          id: true,
+          amount: true,
+          paidAmount: true,
+          paymentStatus: true,
+          date: true,
+          description: true,
+          merchant: true,
+          category: true,
+          paymentReference: true,
+        },
+      }),
+    ]);
+
     const aging = [
-      { range: "0-30 days", amount: 0 },
-      { range: "31-60 days", amount: 0 },
-      { range: "61-90 days", amount: 0 },
-      { range: ">90 days", amount: 0 }
+      { range: '0-30 days', amount: 0 },
+      { range: '31-60 days', amount: 0 },
+      { range: '61-90 days', amount: 0 },
+      { range: '>90 days', amount: 0 },
     ];
-    
+
     let total = 0;
     let overdue = 0;
     let notDue = 0;
-    
-    // Process supplier bills from posted receipts
-    postedReceipts.forEach(receipt => {
-      receipt.supplierBills.forEach(bill => {
-        const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid);
-        if (balanceDue > 0) {
-          if (!bill.dueDate) {
-            console.warn(`Bill ${bill.billNumber} has no due date, skipping aging calculation`);
-            return;
-          }
-          const dueDate = new Date(bill.dueDate);
-          if (isNaN(dueDate.getTime())) {
-            console.warn(`Bill ${bill.billNumber} has invalid due date: ${bill.dueDate}`);
-            return;
-          }
-          
-          const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-          
-          total = addMoney(total, balanceDue);
-          
-          if (daysDiff < 0) {
-            notDue = addMoney(notDue, balanceDue);
-            aging[0].amount = addMoney(aging[0].amount, balanceDue); // Not yet due goes into 0-30 days bucket
-          } else {
-            overdue = addMoney(overdue, balanceDue);
-            
-            // Add to appropriate aging bucket
-            if (daysDiff <= 30) {
-              aging[0].amount = addMoney(aging[0].amount, balanceDue);
-            } else if (daysDiff <= 60) {
-              aging[1].amount = addMoney(aging[1].amount, balanceDue);
-            } else if (daysDiff <= 90) {
-              aging[2].amount = addMoney(aging[2].amount, balanceDue);
-            } else {
-              aging[3].amount = addMoney(aging[3].amount, balanceDue);
-            }
-          }
-        }
-      });
-    });
-    
-    // Process expenses
-    expenses.forEach(expense => {
-      // Calculate the amount owed (total amount minus amount already paid)
-      let amountOwed = parseMoney(expense.amount);
-      if (expense.paymentStatus === 'Partially' && expense.paidAmount) {
-        amountOwed = subtractMoney(expense.amount, expense.paidAmount);
-      }
-      
-      if (amountOwed <= 0) {
-        return;
-      }
-      
-      if (!expense.date) {
-        console.warn(`Expense ${expense.id} has no date, skipping aging calculation`);
-        return;
-      }
-      
-      const expenseDate = new Date(expense.date);
-      if (isNaN(expenseDate.getTime())) {
-        console.warn(`Expense ${expense.id} has invalid date: ${expense.date}`);
-        return;
-      }
-      
-      // For expenses, assume they are due 30 days after the expense date
-      const dueDate = new Date(expenseDate);
-      dueDate.setDate(dueDate.getDate() + 30);
-      
-      const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-      
-      total = addMoney(total, amountOwed);
-      
-      if (daysDiff < 0) {
-        notDue = addMoney(notDue, amountOwed);
-        aging[0].amount = addMoney(aging[0].amount, amountOwed); // Not yet due goes into 0-30 days bucket
-      } else {
-        overdue = addMoney(overdue, amountOwed);
-        
-        // Add to appropriate aging bucket
-        if (daysDiff <= 30) {
-          aging[0].amount = addMoney(aging[0].amount, amountOwed);
-        } else if (daysDiff <= 60) {
-          aging[1].amount = addMoney(aging[1].amount, amountOwed);
-        } else if (daysDiff <= 90) {
-          aging[2].amount = addMoney(aging[2].amount, amountOwed);
-        } else {
-          aging[3].amount = addMoney(aging[3].amount, amountOwed);
-        }
-      }
-    });
-    
-    // Prepare outstanding payables list for detailed view
     const outstandingPayables = [];
-    
-    // Add supplier bills from posted receipts
-    postedReceipts.forEach(receipt => {
-      receipt.supplierBills.forEach(bill => {
-        const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid);
-        if (balanceDue > 0) {
-          if (!bill.dueDate) {
-            return;
-          }
-          const dueDate = new Date(bill.dueDate);
-          if (isNaN(dueDate.getTime())) {
-            return;
-          }
-          
-          const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-          
-          let payableStatus = 'Pending';
-          if (daysDiff < 0) {
-            payableStatus = 'Not Due';
-          } else if (daysDiff > 0) {
-            payableStatus = 'Overdue';
-          } else if (bill.status === 'Partially Paid' || bill.status === 'Partial') {
-            payableStatus = 'Partial';
-          }
-          
-          outstandingPayables.push({
-            id: bill.id,
-            type: 'bill',
-            referenceNumber: bill.billNumber,
-            supplierId: receipt.supplier?.id,
-            supplierName: bill.supplier?.supplierName || receipt.supplier?.supplierName || 'Unknown',
-            receiptNumber: receipt.receiptNumber,
-            receiptDate: receipt.receiptDate,
-            billDate: bill.billDate,
-            dueDate: bill.dueDate,
-            total: bill.totalAmount,
-            amountPaid: bill.amountPaid || 0,
-            amountOwed: balanceDue,
-            status: payableStatus,
-            daysPastDue: daysDiff > 0 ? daysDiff : 0,
-            originalStatus: bill.status
-          });
-        }
+
+    for (const bill of bills) {
+      const balanceDue = subtractMoney(bill.totalAmount, bill.amountPaid || 0);
+      if (balanceDue <= 0) continue;
+
+      const bucket = bucketPayable(now, bill.dueDate);
+      total = addMoney(total, balanceDue);
+      aging[agingIndex(bucket.daysPastDue)].amount = addMoney(
+        aging[agingIndex(bucket.daysPastDue)].amount,
+        balanceDue
+      );
+      if (bucket.overdue) overdue = addMoney(overdue, balanceDue);
+      if (bucket.notDue) notDue = addMoney(notDue, balanceDue);
+
+      let payableStatus = 'Pending';
+      if (bucket.notDue) payableStatus = 'Not Due';
+      else if (bucket.overdue) payableStatus = 'Overdue';
+      else if (['Partially Paid', 'Partial'].includes(bill.status)) payableStatus = 'Partial';
+
+      outstandingPayables.push({
+        id: bill.id,
+        type: 'bill',
+        referenceNumber: bill.billNumber,
+        supplierId: bill.supplier?.id,
+        supplierName: bill.supplier?.supplierName || 'Unknown',
+        receiptNumber: bill.goodsReceipt?.receiptNumber || null,
+        receiptDate: bill.goodsReceipt?.receiptDate || null,
+        billDate: bill.billDate,
+        dueDate: bill.dueDate || now.toISOString(),
+        total: bill.totalAmount,
+        amountPaid: bill.amountPaid || 0,
+        amountOwed: balanceDue,
+        status: payableStatus,
+        daysPastDue: bucket.daysPastDue,
+        originalStatus: bill.status,
       });
-    });
-    
-    // Add expenses
-    expenses.forEach(expense => {
+    }
+
+    for (const expense of expenses) {
       let amountOwed = parseMoney(expense.amount);
       if (expense.paymentStatus === 'Partially' && expense.paidAmount) {
         amountOwed = subtractMoney(expense.amount, expense.paidAmount);
       }
-      
-      if (amountOwed <= 0) {
-        return;
-      }
-      
-      if (!expense.date) {
-        return;
-      }
-      
+      if (amountOwed <= 0 || !expense.date) continue;
+
       const expenseDate = new Date(expense.date);
-      if (isNaN(expenseDate.getTime())) {
-        return;
-      }
-      
+      if (Number.isNaN(expenseDate.getTime())) continue;
       const dueDate = new Date(expenseDate);
       dueDate.setDate(dueDate.getDate() + 30);
-      
-      const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
-      
+
+      const bucket = bucketPayable(now, dueDate);
+      total = addMoney(total, amountOwed);
+      aging[agingIndex(bucket.daysPastDue)].amount = addMoney(
+        aging[agingIndex(bucket.daysPastDue)].amount,
+        amountOwed
+      );
+      if (bucket.overdue) overdue = addMoney(overdue, amountOwed);
+      if (bucket.notDue) notDue = addMoney(notDue, amountOwed);
+
       let payableStatus = 'Pending';
-      if (daysDiff < 0) {
-        payableStatus = 'Not Due';
-      } else if (daysDiff > 0) {
-        payableStatus = 'Overdue';
-      } else if (expense.paymentStatus === 'Partially') {
-        payableStatus = 'Partial';
-      }
-      
+      if (bucket.notDue) payableStatus = 'Not Due';
+      else if (bucket.overdue) payableStatus = 'Overdue';
+      else if (expense.paymentStatus === 'Partially') payableStatus = 'Partial';
+
       outstandingPayables.push({
         id: expense.id,
         type: 'expense',
@@ -314,26 +206,30 @@ export async function GET(request) {
         amountPaid: expense.paidAmount || 0,
         amountOwed: amountOwed,
         status: payableStatus,
-        daysPastDue: daysDiff > 0 ? daysDiff : 0,
+        daysPastDue: bucket.daysPastDue,
         originalStatus: expense.paymentStatus,
         description: expense.description,
-        category: expense.category
+        category: expense.category,
       });
-    });
-    
+    }
+
     return NextResponse.json({
       accountsPayable: {
         current: total,
         overdue,
         notDue,
-        aging
+        aging,
       },
       payables: outstandingPayables,
       glVerification:
         tenantIds.length === 1
           ? (
               await import('@/lib/apAgingService').then((m) =>
-                m.generateAPAgingFromTransactions(tenantIds[0], new Date(), branchScoped ? userQ.currentBranchId : null)
+                m.generateAPAgingFromTransactions(
+                  tenantIds[0],
+                  new Date(),
+                  branchScoped ? userQ.currentBranchId : null
+                )
               )
             ).verification
           : null,

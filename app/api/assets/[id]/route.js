@@ -132,11 +132,30 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Invalid asset id' }, { status: 400 });
     }
     const body = await request.json();
+    const tenantId = user.tenantId;
+
+    let categoryId = body.categoryId;
+    if (!categoryId && body.newCategoryName?.trim()) {
+      const categoryName = body.newCategoryName.trim();
+      let created = await prisma.assetCategory.findFirst({
+        where: { tenantId, name: { equals: categoryName, mode: 'insensitive' } },
+      });
+      if (!created) {
+        created = await prisma.assetCategory.create({
+          data: {
+            tenantId,
+            name: categoryName,
+            description: body.newCategoryDescription?.trim() || null,
+          },
+        });
+      }
+      categoryId = created.id;
+    }
 
     // Validate required fields
-    if (!body.name || !body.categoryId || !body.purchaseDate || !body.originalCost) {
+    if (!body.name || !categoryId || !body.purchaseDate || !body.originalCost) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, categoryId, purchaseDate, originalCost' },
+        { error: 'Missing required fields: name, category, purchaseDate, originalCost' },
         { status: 400 }
       );
     }
@@ -159,7 +178,7 @@ export async function PUT(request, { params }) {
     // Validate category exists
     const category = await prisma.assetCategory.findFirst({
       where: {
-        id: body.categoryId,
+        id: categoryId,
         tenantId: user.tenantId
       }
     });
@@ -192,7 +211,7 @@ export async function PUT(request, { params }) {
       data: {
         name: body.name,
         description: body.description,
-        categoryId: body.categoryId,
+        categoryId,
         purchaseDate: new Date(body.purchaseDate),
         originalCost: parseFloat(body.originalCost) || 0,
         usefulLifeYears: parseInt(body.usefulLifeYears) || 1,

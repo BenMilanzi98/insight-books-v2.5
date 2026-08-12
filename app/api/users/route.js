@@ -1,5 +1,6 @@
 // app/api/users/route.js - Modified to ensure tenant isolation
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { resolveHiddenPrimaryBranchId } from '@/lib/hiddenPrimaryBranch';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
@@ -326,8 +327,14 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error creating user:', error);
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'This email is already used for a user in this business' },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
-      { error: 'Failed to create user. Please try again.' },
+      { error: error?.message || 'Failed to create user. Please try again.' },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
-import { buildPayeSummaryReport } from '@/lib/payrollEngine/payeSummaryService';
+import { buildPayeSummaryReport, emptyPayeSummary } from '@/lib/payrollEngine/payeSummaryService';
 import { resolveReportTenantScope } from '@/lib/reportTenantScope';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +26,7 @@ export async function GET(request) {
       'payroll.view',
       'payroll.export',
       'hr.view',
+      'reports.view',
     ]);
     if (perm) return perm;
 
@@ -56,8 +57,11 @@ export async function GET(request) {
   } catch (error) {
     console.error('paye-summary GET:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch PAYE summary', details: error.message },
-      { status: 500 },
+      {
+        ...emptyPayeSummary(),
+        error: error.message || 'Failed to fetch PAYE summary',
+      },
+      { status: 200 },
     );
   }
 }

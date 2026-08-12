@@ -128,9 +128,9 @@ export async function POST(request) {
         const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase(); // 6 random chars
         const candidate = `${timestamp}${randomPart}`.toUpperCase();
         
-        // Check if this ID already exists
-        const existing = await prisma.employee.findUnique({
-          where: { employeeId: candidate },
+        // employeeId is unique per tenant, not globally
+        const existing = await prisma.employee.findFirst({
+          where: { tenantId: user.tenantId, employeeId: candidate },
           select: { id: true }
         });
         

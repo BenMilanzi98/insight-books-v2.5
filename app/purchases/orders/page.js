@@ -12,7 +12,7 @@ import StatCard from "@/components/ui/StatCard";
 const statusColors = {
   Draft: "bg-gray-100 text-gray-800",
   Approved: "bg-blue-100 text-blue-800",
-  Sent: "bg-indigo-100 text-indigo-800",
+  Sent: "bg-blue-100 text-blue-800",
   "Partially Received": "bg-yellow-100 text-yellow-800",
   Received: "bg-green-100 text-green-800",
   Cancelled: "bg-red-100 text-red-800",
@@ -375,7 +375,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    className="text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                    className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
                   >
                     {uploading ? "Uploading…" : "Replace"}
                   </button>
@@ -402,7 +402,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
               {uploadError && <p className="text-sm text-red-600">{uploadError}</p>}
               {order.supplierId && (
                 <p className="text-xs text-gray-500">
-                  <a href={`/purchases/suppliers/${order.supplierId}`} className="text-indigo-600 hover:underline">
+                  <a href={`/purchases/suppliers/${order.supplierId}`} className="text-blue-600 hover:underline">
                     View supplier ledger →
                   </a>
                 </p>
@@ -783,7 +783,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               Order type
             </label>
             <select
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               value={form.orderType}
               onChange={(e) => handleChange("orderType", e.target.value)}
             >
@@ -799,7 +799,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               Supplier <span className="text-red-500">*</span>
             </label>
             <select
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               value={form.supplierId}
               onChange={(e) => handleChange("supplierId", e.target.value)}
               required
@@ -815,7 +815,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           <div>
             <label className="block text-sm font-medium text-gray-700">Status</label>
             <select
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               value={form.status}
               onChange={(e) => handleChange("status", e.target.value)}
             >
@@ -830,7 +830,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             <label className="block text-sm font-medium text-gray-700">PO Date *</label>
             <input
               type="date"
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               value={form.poDate}
               onChange={(e) => handleChange("poDate", e.target.value)}
               required
@@ -841,7 +841,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             <input
               type="date"
               min={form.poDate || undefined}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               value={form.expectedDeliveryDate}
               onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}
             />
@@ -852,7 +852,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                 type="checkbox"
                 checked={form.pricesIncludeTax}
                 onChange={(e) => handleChange("pricesIncludeTax", e.target.checked)}
-                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-gray-700">Prices include tax</span>
             </label>
@@ -1160,7 +1160,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           <div>
             <label className="block text-sm font-medium text-gray-700">Notes</label>
             <textarea
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               rows={3}
               value={form.notes}
               onChange={(e) => handleChange("notes", e.target.value)}
@@ -1176,9 +1176,9 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               <span className="text-gray-600">Total Tax</span>
               <span className="font-medium text-gray-900">MWK {totalTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
-            <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-              <span className="text-xs uppercase tracking-wide text-indigo-700">Grand Total</span>
-              <span className="text-lg font-semibold text-indigo-900">MWK {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <div className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+              <span className="text-xs uppercase tracking-wide text-blue-700">Grand Total</span>
+              <span className="text-lg font-semibold text-blue-900">MWK {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
@@ -1195,7 +1195,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-indigo-700 disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? "Saving…" : isEdit ? "Update Purchase Order" : "Save Purchase Order"}
         </button>
@@ -1382,12 +1382,12 @@ export default function PurchaseOrdersPage() {
           <input
             type="text"
             placeholder="Search PO number or supplier…"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <select
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >

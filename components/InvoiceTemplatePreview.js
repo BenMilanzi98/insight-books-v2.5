@@ -767,9 +767,14 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
   // Return the appropriate template based on style
   switch (style) {
     case 'professional':
+    case 'modern':
       return renderProfessionalTemplate();
     case 'minimal':
+    case 'compact':
       return renderMinimalTemplate();
+    case 'bold':
+      return renderProfessionalTemplate();
+    case 'classic':
     case 'standard':
     default:
       return renderStandardTemplate();

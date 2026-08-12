@@ -33,7 +33,7 @@ export default function ReportingCurrencySelector({
         aria-hidden
       />
       <select
-        className="w-full appearance-none pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+        className="w-full appearance-none pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
         value={value || ''}
         onChange={(e) => onChange(e.target.value || null)}
         aria-label="Reporting currency for consolidated reports"

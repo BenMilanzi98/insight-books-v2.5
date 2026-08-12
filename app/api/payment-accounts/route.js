@@ -182,7 +182,7 @@ export async function POST(request) {
             parentGlCode: trimmedParentGl || null,
           });
 
-    if (['Bank', 'Mobile Money', 'Wallet'].includes(trimmedType) && !resolvedParent) {
+    if (['Bank', 'Mobile Money', 'Wallet', 'POS Terminal'].includes(trimmedType) && !resolvedParent) {
       return NextResponse.json(
         {
           error:

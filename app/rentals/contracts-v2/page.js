@@ -121,7 +121,7 @@ export default function RentalContractsV2Page() {
     <PermissionGuard permissions={['rentals.view', 'invoices.view']}>
       <div className="mx-auto max-w-6xl p-6">
         <div className="mb-4 text-sm text-gray-500">
-          <Link href="/rentals" className="text-indigo-600 hover:underline">
+          <Link href="/rentals" className="text-blue-600 hover:underline">
             Rental &amp; Hiring
           </Link>
           <span className="mx-2">/</span>
@@ -130,7 +130,7 @@ export default function RentalContractsV2Page() {
         <h1 className="text-2xl font-semibold text-gray-900">Outbound rental contracts</h1>
         <p className="mt-1 text-sm text-gray-600">
           Draft → approve → deposit (liability) → dispatch → return → bill. Legacy bookings remain on{' '}
-          <Link href="/rentals" className="text-indigo-600 underline">
+          <Link href="/rentals" className="text-blue-600 underline">
             Rentals
           </Link>
           .
@@ -213,7 +213,7 @@ export default function RentalContractsV2Page() {
               type="button"
               disabled={busy}
               onClick={create}
-              className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
               Create draft
             </button>
@@ -228,7 +228,7 @@ export default function RentalContractsV2Page() {
                     type="button"
                     onClick={() => setSelectedId(row.id)}
                     className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                      selectedId === row.id ? 'bg-indigo-50' : ''
+                      selectedId === row.id ? 'bg-blue-50' : ''
                     }`}
                   >
                     <div className="font-medium">{row.contractNumber}</div>

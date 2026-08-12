@@ -211,12 +211,12 @@ export default function VoidRefundDemoPage() {
           </p>
         </div>
 
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <div className="flex items-center mb-4">
-            <FileText className="h-8 w-8 text-purple-600 mr-3" />
-            <h3 className="text-lg font-semibold text-purple-800">Audit Trail</h3>
+            <FileText className="h-8 w-8 text-blue-600 mr-3" />
+            <h3 className="text-lg font-semibold text-blue-800">Audit Trail</h3>
           </div>
-          <p className="text-purple-700 text-sm">
+          <p className="text-blue-700 text-sm">
             Every void and refund action is logged with detailed information including 
             reasons, timestamps, and user details for compliance.
           </p>
@@ -298,7 +298,7 @@ export default function VoidRefundDemoPage() {
                        invoice.payments?.some(p => p.status === 'Completed') && (
                         <button
                           onClick={() => openRefundModal(invoice)}
-                          className="text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                          className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
                           title="Process Refund"
                         >
                           Refund

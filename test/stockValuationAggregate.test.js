@@ -14,6 +14,12 @@ describe('stockValuationAggregate', () => {
     ).toBe(10000.73);
   });
 
+  it('returns 0 when quantity is 0 even if stored value is stale', () => {
+    expect(
+      productLineValue({ stockLevel: 0, cost: 10, totalStockValue: 500 })
+    ).toBe(0);
+  });
+
   it('sums multiple product lines without whole-number rounding', () => {
     const total = sumPhysicalInventoryProductLines([
       { stockLevel: 2, cost: 10000.73, totalStockValue: null },

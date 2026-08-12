@@ -44,7 +44,34 @@ export async function GET(request) {
       tenantId: user.tenantId
     };
     if (productId) where.productId = productId;
-    if (branchId) where.branchId = branchId;
+    // Scope by product branch (include tenant-wide null), not transaction.branchId —
+    // sales/invoices usually write InventoryTransaction.branchId = null.
+    if (branchId && !productId) {
+      const scopedProducts = await prisma.product.findMany({
+        where: {
+          tenantId: user.tenantId,
+          OR: [{ branchId }, { branchId: null }],
+        },
+        select: { id: true },
+      });
+      const ids = scopedProducts.map((p) => p.id);
+      if (ids.length === 0) {
+        return NextResponse.json({ movements: [], total: 0 });
+      }
+      where.productId = { in: ids };
+    } else if (branchId && productId) {
+      const product = await prisma.product.findFirst({
+        where: {
+          id: productId,
+          tenantId: user.tenantId,
+          OR: [{ branchId }, { branchId: null }],
+        },
+        select: { id: true },
+      });
+      if (!product) {
+        return NextResponse.json({ movements: [], total: 0 });
+      }
+    }
     if (fromDate || toDate) {
       where.createdAt = {};
       if (fromDate) where.createdAt.gte = new Date(fromDate);

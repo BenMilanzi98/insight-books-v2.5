@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { reverseSourceJournals } from '@/lib/accountingV2/application/reverseSourceJournals.js';
 
@@ -65,6 +66,11 @@ export async function POST(request, { params }) {
     await assertPeriodOpen(user.tenantId, voidDate);
 
     // Fresh-books: reverse V2 journals only (no Transaction.create / balance mutation).
+    const canAdminVoid =
+      isFullAccessTenantRole(user) ||
+      hasPermission(user, 'invoices.delete') ||
+      hasPermission(user, 'invoices.void');
+
     const v2Reversal = await reverseSourceJournals({
       tenantId: user.tenantId,
       userId: user.id,
@@ -73,6 +79,14 @@ export async function POST(request, { params }) {
       sourceIds: [invoiceId],
       requireJournals: true,
       postingDate: voidDate.toISOString().slice(0, 10),
+      approvalOverride: canAdminVoid
+        ? {
+            approvedById: user.id,
+            approvedAt: voidDate.toISOString(),
+            createdById: null,
+            allowSelfApproval: true,
+          }
+        : null,
     });
 
     const updatedInvoice = await prisma.$transaction(async (tx) => {

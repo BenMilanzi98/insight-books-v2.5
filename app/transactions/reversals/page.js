@@ -26,6 +26,8 @@ import ReversalDetailDrawer from '@/components/TransactionReversal/ReversalDetai
 import ReversalPendingApprovals from '@/components/TransactionReversal/ReversalPendingApprovals';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import StatCard from '@/components/ui/StatCard';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 const ReversalsPage = () => {
   const { t } = useI18n();
@@ -296,30 +298,18 @@ const ReversalsPage = () => {
   return (
     <div className="w-full">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        {/* Header */}
-        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                <RotateCcw className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{t('navigation.reversals')}</h1>
-                <p className="text-indigo-100 text-sm mt-0.5">{t('common.empty.noRecords')}</p>
-              </div>
-            </div>
-            {pagePermissions.canExportReversals && reversals.length > 0 && (
-              <button
-                type="button"
-                onClick={handleExport}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-all"
-              >
-                <Download className="w-5 h-5" />
+        <PosStylePageHeader
+          title={t('navigation.reversals')}
+          description={t('common.empty.noRecords')}
+          actions={
+            pagePermissions.canExportReversals && reversals.length > 0 ? (
+              <PosStyleHeaderButton type="button" onClick={handleExport}>
+                <Download className="mr-2 h-5 w-5" />
                 Export CSV
-              </button>
-            )}
-          </div>
-        </div>
+              </PosStyleHeaderButton>
+            ) : null
+          }
+        />
 
         <ReversalPendingApprovals currentUserId={currentUserId} />
 
@@ -358,13 +348,13 @@ const ReversalsPage = () => {
             label="Payroll"
             value={totals.byType?.payroll || 0}
             icon={Users}
-            barClassName="from-indigo-400 via-blue-500 to-violet-500"
-            iconWrapClassName="bg-indigo-100 text-indigo-600"
+            barClassName="from-slate-400 via-slate-500 to-slate-600"
+            iconWrapClassName="bg-slate-100 text-slate-600"
           />
         </div>
 
         {/* Filters */}
-        <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
+        <PosStylePanel className="mb-6 p-4 sm:p-6">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-2">Transaction Type</label>
@@ -433,10 +423,10 @@ const ReversalsPage = () => {
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             </form>
           </div>
-        </div>
+        </PosStylePanel>
 
         {/* Results Table */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 overflow-hidden">
+        <PosStylePanel className="overflow-hidden">
           {isLoading ? (
             <div className="p-8 text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
@@ -606,7 +596,7 @@ const ReversalsPage = () => {
               </div>
             </div>
           )}
-        </div>
+        </PosStylePanel>
 
         <ReversalDetailDrawer
           open={Boolean(selectedReversal)}

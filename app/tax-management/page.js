@@ -442,7 +442,7 @@ export default function TaxManagement() {
                       onClick={() => setActiveTab((prev) => (prev === 'collected' ? 'summary' : 'collected'))}
                       valueClassName="text-blue-700"
                       iconWrapClassName="bg-blue-100 text-blue-600"
-                      barClassName="from-blue-400 via-indigo-500 to-blue-600"
+                      barClassName="from-blue-400 via-sky-500 to-blue-600"
                     >
                       <span className="block text-sm text-blue-600">
                         On {formatCurrency(taxData.collectedTaxes.totalTaxableAmount)} taxable amount
@@ -500,12 +500,12 @@ export default function TaxManagement() {
                             Tax collected on sales/invoices
                           </p>
                         </div>
-                        <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                          <p className="text-xs font-medium text-indigo-700 uppercase">Net VAT Payable</p>
-                          <p className="text-xl font-bold text-indigo-800 mt-1">
+                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                          <p className="text-xs font-medium text-blue-700 uppercase">Net VAT Payable</p>
+                          <p className="text-xl font-bold text-blue-800 mt-1">
                             {formatCurrency(taxData.vatSummary.netVatPayable)}
                           </p>
-                          <p className="text-xs text-indigo-600 mt-1">
+                          <p className="text-xs text-blue-600 mt-1">
                             Output VAT − Input VAT
                           </p>
                         </div>

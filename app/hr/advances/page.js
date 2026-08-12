@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate, toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 import StatCard from "@/components/ui/StatCard";
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function SalaryAdvancesManagement() {
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
@@ -220,10 +222,27 @@ export default function SalaryAdvancesManagement() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Salary Advances Management</h1>
-        <p className="text-gray-600">Manage employee salary advances and track repayments</p>
-      </div>
+      <PosStylePageHeader
+        title="Salary Advances Management"
+        description="Manage employee salary advances and track repayments"
+        actions={
+          <button
+            onClick={() => {
+              const newDate = todayYmdLocal();
+              setFormData(prev => ({
+                ...prev,
+                advanceDate: newDate,
+                reference: generateReference(newDate, prev.employeeId || '')
+              }));
+              setShowCreateModal(true);
+            }}
+            className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
+          >
+            <Plus size={20} className="mr-2" />
+            New Salary Advance
+          </button>
+        }
+      />
 
       {notification && (
         <div className={`mb-4 p-4 rounded-lg ${
@@ -241,7 +260,7 @@ export default function SalaryAdvancesManagement() {
           icon={AlertCircle}
           helper={`${formatCurrency(totalActive)} outstanding`}
           valueClassName="text-blue-600"
-          barClassName="from-blue-400 via-indigo-500 to-blue-600"
+          barClassName="from-blue-400 via-sky-500 to-blue-600"
           iconWrapClassName="bg-blue-100 text-blue-600"
         />
         <StatCard
@@ -262,23 +281,9 @@ export default function SalaryAdvancesManagement() {
         />
       </div>
 
-      {/* Actions and Filters */}
-      <div className="mb-6 flex gap-3 items-center">
-        <button
-          onClick={() => {
-            const newDate = todayYmdLocal();
-            setFormData(prev => ({
-              ...prev,
-              advanceDate: newDate,
-              reference: generateReference(newDate, prev.employeeId || '')
-            }));
-            setShowCreateModal(true);
-          }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus size={20} />
-          New Salary Advance
-        </button>
+      {/* Filters and Table */}
+      <PosStylePanel className="overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b flex gap-3 items-center">
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -299,7 +304,6 @@ export default function SalaryAdvancesManagement() {
       </div>
 
       {/* Advances Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -401,7 +405,7 @@ export default function SalaryAdvancesManagement() {
             </tbody>
           </table>
         </div>
-      </div>
+      </PosStylePanel>
 
       {/* Create Modal */}
       {showCreateModal && (

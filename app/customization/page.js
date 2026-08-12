@@ -546,6 +546,27 @@ function CustomizationContent() {
     setInvoiceTemplates(invoiceTemplates.map(template => 
       template.id === id ? { ...template, name } : template
     ));
+    if (activeTemplate?.id === id) {
+      setActiveTemplate({ ...activeTemplate, name });
+    }
+  };
+
+  const parseTemplateContent = (template) => {
+    try {
+      return typeof template?.content === 'string'
+        ? JSON.parse(template.content || '{}')
+        : { ...(template?.content || {}) };
+    } catch {
+      return {};
+    }
+  };
+
+  const patchActiveTemplateContent = (patch) => {
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const next = { ...parseTemplateContent(prev), ...patch };
+      return { ...prev, content: JSON.stringify(next) };
+    });
   };
   
   const handlePreviewTemplate = (template) => {
@@ -1116,21 +1137,56 @@ function CustomizationContent() {
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Layout
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {[
+                              { id: 'classic', label: 'Classic', style: 'standard' },
+                              { id: 'modern', label: 'Modern', style: 'professional' },
+                              { id: 'compact', label: 'Compact', style: 'minimal' },
+                              { id: 'bold', label: 'Bold', style: 'bold' },
+                            ].map((layout) => {
+                              const content = parseTemplateContent(activeTemplate);
+                              const active = String(content.style || 'standard') === layout.style;
+                              return (
+                                <button
+                                  key={layout.id}
+                                  type="button"
+                                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${active ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-700'}`}
+                                  onClick={() => patchActiveTemplateContent({ style: layout.style })}
+                                >
+                                  {layout.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Invoice colour
+                          </label>
+                          <input
+                            type="color"
+                            className="h-10 w-16 cursor-pointer rounded border border-gray-300"
+                            value={parseTemplateContent(activeTemplate).primaryColor || brandSettings.primaryColor || '#0075be'}
+                            onChange={(e) => patchActiveTemplateContent({ primaryColor: e.target.value })}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
                             Template Settings
                           </label>
                           <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                            <p className="text-sm text-gray-500 mb-4">
-                              Template editing feature is still in development. In the future, you'll be able to fully customize your invoice templates with a visual editor.
-                            </p>
-                            
-                            <div className="space-y-3 mt-4">
+                            <div className="space-y-3">
                               <div className="flex items-center">
                                 <input
                                   id="showLogo"
                                   type="checkbox"
                                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                  checked={true}
-                                  readOnly
+                                  checked={parseTemplateContent(activeTemplate).showLogo !== false}
+                                  onChange={(e) => patchActiveTemplateContent({ showLogo: e.target.checked })}
                                 />
                                 <label htmlFor="showLogo" className="ml-2 block text-sm text-gray-700">
                                   Show company logo
@@ -1142,33 +1198,15 @@ function CustomizationContent() {
                                   id="showFooter"
                                   type="checkbox"
                                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                  checked={true}
-                                  readOnly
+                                  checked={parseTemplateContent(activeTemplate).showFooter !== false}
+                                  onChange={(e) => patchActiveTemplateContent({ showFooter: e.target.checked })}
                                 />
                                 <label htmlFor="showFooter" className="ml-2 block text-sm text-gray-700">
                                   Show email footer text
                                 </label>
                               </div>
-                              
-                              <div className="flex items-center">
-                                <input
-                                  id="showIssueDate"
-                                  type="checkbox"
-                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                  checked={true}
-                                  readOnly
-                                />
-                                <label htmlFor="showIssueDate" className="ml-2 block text-sm text-gray-700">
-                                  Show issue date
-                                </label>
-                              </div>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="flex items-start space-x-2 text-sm text-blue-700 bg-blue-50 p-4 rounded-md">
-                          <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div>Coming soon: Advanced template editor with drag-and-drop functionality.</div>
                         </div>
                       </div>
                     )}

@@ -234,14 +234,14 @@ export async function GET(request) {
       }
     }
     
-    // Use UTC dates for consistency
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const yesterday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
-    
+    const localYmd = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+
     const pastWeek = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
-      return date;
-    }).reverse();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+    });
 
     let cogsAccountIds = [];
     try {
@@ -309,8 +309,8 @@ export async function GET(request) {
     const weeklyTrend = await Promise.all(
       pastWeek.map(async (date) => {
         try {
-          const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
-          const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+          const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+          const dayEnd = endOfLocalDay(date);
           const dayMetrics = await periodMetrics(dayStart, dayEnd);
           return { revenue: dayMetrics.revenue, expenses: dayMetrics.expenses };
         } catch (e) {
@@ -331,13 +331,13 @@ export async function GET(request) {
     return NextResponse.json({
       dailyMetrics: {
         today: {
-          date: today.toISOString().split('T')[0],
+          date: localYmd(today),
           revenue: todayRevenue,
           expenses: todayExpensesTotal,
           transactions: todayInvoiceCount + todaySaleCount
         },
         yesterday: {
-          date: yesterday.toISOString().split('T')[0],
+          date: localYmd(yesterday),
           revenue: yesterdayRevenue,
           expenses: yesterdayExpensesTotal,
           transactions: 0 // Add similar count if needed

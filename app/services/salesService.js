@@ -523,47 +523,91 @@ export const fetchProductsForSalePage = async (params = {}) => {
 };
 
 // Fetch all products for sale across pages (server-backed, de-duplicated)
-export const fetchProductsForSaleAll = async (params = {}) => {
-  try {
-    const { search, category, pageSize = 100, maxPages = 50, branchId, allBranches } = params;
+async function fetchCatalogPages({
+  search,
+  category,
+  pageSize,
+  maxPages,
+  branchId,
+  allBranches,
+  catalog,
+  pos,
+}) {
+  const allProducts = [];
+  const seenIds = new Set();
+  for (let page = 1; page <= maxPages; page++) {
+    const queryParams = new URLSearchParams();
+    if (search) queryParams.append('search', search);
+    if (category && category !== 'all') queryParams.append('category', category);
+    if (branchId) queryParams.append('branchId', branchId);
+    if (allBranches) queryParams.append('allBranches', 'true');
+    if (pos) queryParams.append('pos', '1');
+    queryParams.append('catalog', catalog);
+    queryParams.append('limit', pageSize);
+    queryParams.append('page', String(page));
 
-    const allProducts = [];
-    const seenIds = new Set();
-
-    for (let page = 1; page <= maxPages; page++) {
-      const queryParams = new URLSearchParams();
-      if (search) queryParams.append('search', search);
-      if (category && category !== 'all') queryParams.append('category', category);
-      if (branchId) queryParams.append('branchId', branchId);
-      if (allBranches) queryParams.append('allBranches', 'true');
-      queryParams.append('pos', '1');
-      queryParams.append('catalog', 'products');
-      queryParams.append('limit', pageSize);
-      queryParams.append('page', String(page));
-
-      const url = `/api/stock?${queryParams.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Error fetching products (page ${page}): ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const products = Array.isArray(data.products) ? data.products : [];
-
-      for (const product of products) {
-        if (product && !seenIds.has(product.id)) {
-          seenIds.add(product.id);
-          allProducts.push(product);
-        }
-      }
-
-      const pagination = data.pagination || {};
-      if (!pagination.totalPages || page >= pagination.totalPages) {
-        break;
+    const url = `/api/stock?${queryParams.toString()}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Error fetching ${catalog} (page ${page}): ${response.statusText}`);
+    }
+    const data = await response.json();
+    const products = Array.isArray(data.products) ? data.products : [];
+    for (const product of products) {
+      if (product && !seenIds.has(product.id)) {
+        seenIds.add(product.id);
+        allProducts.push(
+          product.isService ? { ...product, stockLevel: null, isService: true } : product
+        );
       }
     }
+    const pagination = data.pagination || {};
+    if (!pagination.totalPages || page >= pagination.totalPages) break;
+  }
+  return allProducts;
+}
 
-    return allProducts;
+export const fetchProductsForSaleAll = async (params = {}) => {
+  try {
+    const {
+      search,
+      category,
+      pageSize = 100,
+      maxPages = 50,
+      branchId,
+      allBranches,
+      includeServices = true,
+    } = params;
+
+    const products = await fetchCatalogPages({
+      search,
+      category,
+      pageSize,
+      maxPages,
+      branchId,
+      allBranches,
+      catalog: 'products',
+      pos: '1',
+    });
+    if (!includeServices) return products;
+
+    try {
+      const services = await fetchCatalogPages({
+        search,
+        category,
+        pageSize,
+        maxPages,
+        branchId,
+        allBranches,
+        catalog: 'services',
+        pos: false,
+      });
+      return [...products, ...services];
+    } catch (svcErr) {
+      console.warn('Service catalog fetch skipped:', svcErr?.message || svcErr);
+      return products;
+    }
+
   } catch (error) {
     console.error('Error fetching all products for sale:', error);
     throw error;

@@ -133,8 +133,8 @@ function DemoRequestForm() {
       {/* Form Container */}
       <div className="relative">
         {/* Background decoration */}
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-3xl transform rotate-1"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-3xl transform -rotate-1"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-sky-50 to-cyan-50 rounded-3xl transform rotate-1"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-50 via-blue-50 to-sky-50 rounded-3xl transform -rotate-1"></div>
 
         {/* Form Card */}
         <div className="relative bg-white rounded-2xl shadow-2xl p-8 md:p-12 border border-gray-100">
@@ -251,7 +251,7 @@ function DemoRequestForm() {
             {/* Demo Scheduling Section */}
             <div className="space-y-6">
               <div className="flex items-center space-x-3 mb-6">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-sky-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-sm font-bold">📅</span>
                 </div>
                 <h3 className="text-xl font-semibold text-gray-800">Demo Scheduling</h3>
@@ -372,7 +372,7 @@ function DemoRequestForm() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="group relative bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-12 py-4 rounded-xl font-bold text-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transform hover:scale-105 shadow-xl hover:shadow-2xl"
+                className="group relative bg-gradient-to-r from-blue-600 to-sky-600 text-white px-12 py-4 rounded-xl font-bold text-lg hover:from-blue-700 hover:to-sky-700 focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transform hover:scale-105 shadow-xl hover:shadow-2xl"
               >
                 <span className="relative z-10 flex items-center justify-center space-x-3">
                   {isSubmitting ? (
@@ -387,7 +387,7 @@ function DemoRequestForm() {
                     </>
                   )}
                 </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-sky-600 to-blue-600 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </button>
             </div>
           </form>

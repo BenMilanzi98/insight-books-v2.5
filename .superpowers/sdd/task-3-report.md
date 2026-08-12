@@ -1,56 +1,51 @@
-# Task 3 Report: Return linked bill ids from receipts POST
+# Task 3 Report: Sidebar — three hubs + redirects + route permissions
 
-## Status
-
-**GREEN** — POST `/api/purchases/receipts` now returns linked bill fields on success.
+**Status:** DONE  
+**Date:** 2026-08-11  
+**Commits:** none
 
 ## Summary
 
-After the create transaction completes, the handler looks up `SupplierBill` by `goodsReceiptId` and adds `supplierBillId`, `billNumber`, and `billStatus` to the 201 response payload.
+Collapsed Rental & Hiring sidebar to three hub links (Rentals, Hirings, Reports). Deep-link routes remain permission-gated but hidden from nav. Legacy `/rentals/hiring` and `/rentals/inbound-hiring` redirect to Hirings tabs; stub hub pages prevent 404s until Task 4/5.
 
 ## Changes Made
 
-### `app/api/purchases/receipts/route.js`
+### `components/Sidebar/Sidebar.js`
 
-1. **Added** post-transaction lookup:
+- **masterAdmin** expandable `subItems`, **`rental` group**, and dynamic **`rentalSubItems`**: now only `/rentals`, `/rentals/hirings`, `/rentals/reports`
+- **`NAV_ROUTE_PERMISSION_OVERRIDES`**: added `/rentals/hirings` and `/rentals/reports`; kept deep-link entries (`/rentals/hiring`, `/rentals/contracts-v2`, `/rentals/quotations-v2`, `/rentals/reconcile`, `/rentals/inbound-hiring`)
 
-```js
-const linkedBill = goodsReceiptOut
-  ? await prisma.supplierBill.findFirst({
-      where: { tenantId: user.tenantId, goodsReceiptId: goodsReceiptOut.id },
-      select: { id: true, billNumber: true, status: true },
-    })
-  : null;
-```
+### `next.config.mjs`
 
-2. **Extended** `responsePayload` with:
-   - `supplierBillId: linkedBill?.id || null`
-   - `billNumber: linkedBill?.billNumber || null`
-   - `billStatus: linkedBill?.status || null`
+- Redirects: `/rentals/hiring` → `/rentals/hirings?tab=customer`, `/rentals/inbound-hiring` → `/rentals/hirings?tab=supplier` (non-permanent)
 
-### Unchanged
+### Page redirects (query-string fallback)
 
-- Transaction logic, inventory posting, service PO flows, GET handler, error handling
-- `return NextResponse.json({ goodsReceipt: responsePayload }, { status: 201 })`
+- `app/rentals/hiring/page.js` — server `redirect()` to customer tab
+- `app/rentals/inbound-hiring/page.js` — server `redirect()` to supplier tab (replaces full UI until Task 4 extracts component)
 
-## Self-Review
+### Stub hub pages
 
-- Lookup runs **after** transaction commit, so auto-created bills from `applyGoodsReceiptInventoryPosting` are visible.
-- Scoped by `tenantId` + `goodsReceiptId` — matches schema index on `SupplierBill.goodsReceiptId`.
-- Null-safe when no bill exists (deferred posting, service receipts, or pre-bill edge cases).
-- Fields use `|| null` so missing bills surface as JSON `null`, not `undefined`.
-- No linter errors on modified file.
+- `app/rentals/hirings/page.js` — “Coming soon” placeholder
+- `app/rentals/reports/page.js` — “Coming soon” placeholder
 
-## Tests
+## Verification
 
-- **Automated**: Not added (optional per brief).
-- **Manual smoke** (not run in this session): same-day inventory receive should yield `inventoryAppliedAt` set, non-null `supplierBillId`, `billStatus === "Unpaid"`. Deferred/future-dated receipts should return null bill fields until posting runs.
-
-## Commits
-
-None.
+- Linter: no errors on modified files
+- Manual sidebar check: not run in this session (dev server running; requires authenticated session)
 
 ## Concerns
 
-- Service receipts that create bills via `createBillFromApprovedServicePO` (PO-level, not `goodsReceiptId`-linked) will still return null bill fields — expected; those bills are not keyed to the receipt.
-- If multiple bills ever share a `goodsReceiptId`, `findFirst` returns an arbitrary match; current idempotency in `autoCreateBillFromReceipt` should prevent duplicates.
+1. **Inbound-hiring UI removed** — page is now a redirect stub; Task 4 must extract and wire supplier tab UI.
+2. **Dual redirect paths** — both `next.config.mjs` and page-level `redirect()` exist; page redirect wins for App Router and preserves `?tab=` reliably.
+3. **Stub pages** — Hirings/Reports show placeholder until Task 4/5 replace them.
+
+## Follow-up fix (inbound-hiring UI extraction)
+
+**Status:** DONE (no commit)
+
+Restored supplier-hiring UI from `git show HEAD:app/rentals/inbound-hiring/page.js` into `components/rentals/InboundHiringPanel.jsx` (`export default function InboundHiringPanel`). Kept `PermissionGuard` and all `/api/hiring-v2/*` calls unchanged.
+
+- `app/rentals/inbound-hiring/page.js` — still redirects to `/rentals/hirings?tab=supplier`
+- `app/rentals/hirings/page.js` — wired via `components/rentals/HiringsHub.jsx`: `?tab=supplier` renders `InboundHiringPanel`; default/customer tab shows Task 4 placeholder note
+- Customer tab (`?tab=customer`) still placeholder until Task 4 extracts quantity-rental UI

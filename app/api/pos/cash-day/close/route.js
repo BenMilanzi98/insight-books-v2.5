@@ -19,7 +19,7 @@ export async function POST(request) {
     });
     return NextResponse.json({ success: true, register });
   } catch (e) {
-    const status = e?.code === 'NOT_OPEN' ? 400 : 500;
+    const status = e?.code === 'NOT_OPEN' || e?.code === 'CLOSE_USER_REQUIRED' ? 400 : 500;
     return NextResponse.json({ error: e?.message || 'Failed to close day', code: e?.code }, { status });
   }
 }

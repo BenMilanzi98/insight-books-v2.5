@@ -36,6 +36,8 @@ import PaymentHistory from "@/components/PaymentHistory";
 import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
 import PageHeader from "@/components/shell/PageHeader";
 import ClickableStatCard from '@/components/ui/ClickableStatCard';
+import PortalPopover from '@/components/ui/PortalPopover';
+import { DashboardMenuItem } from '@/components/ui/DashboardMenuPanel';
 
 import { 
   fetchInvoices, 
@@ -57,11 +59,11 @@ const formatInvoiceMoney = (amount) =>
 function invoiceRemainingDue(invoice) {
   const total = parseMoney(invoice.total);
   const paid = parseMoney(invoice.totalPaid);
-  const fromApi = invoice.amountDue ?? invoice.remainingBalance;
-  if (fromApi != null && fromApi !== '') {
-    return parseMoney(fromApi);
+  const computed = Math.max(0, subtractMoney(total, paid));
+  if (invoice.amountDue != null && invoice.amountDue !== '') {
+    return parseMoney(invoice.amountDue);
   }
-  return Math.max(0, subtractMoney(total, paid));
+  return computed;
 }
 
 // Status badge component with improved styling
@@ -77,7 +79,12 @@ const StatusBadge = ({ status }) => {
     "partial": { class: "bg-blue-50 text-blue-700 border border-blue-200", icon: CreditCard, iconClass: "text-blue-500" },
   };
 
-  const config = statusConfig[status] || statusConfig["Pending"];
+  const normalized = String(status || 'Pending');
+  const config =
+    statusConfig[normalized] ||
+    statusConfig[normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase()] ||
+    statusConfig[normalized.toLowerCase()] ||
+    statusConfig.Pending;
   const Icon = config.icon;
 
   return (
@@ -165,7 +172,7 @@ const InvoicingPage = () => {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [invoiceForPreview, setInvoiceForPreview] = useState(null);
   
-  // Filter and sort refs for click outside handling
+  // Filter/sort trigger refs (panels render in a portal)
   const filterRef = useRef(null);
   const sortRef = useRef(null);
   const [sendInvoiceModalOpen, setSendInvoiceModalOpen] = useState(false);
@@ -196,7 +203,7 @@ const InvoicingPage = () => {
     { key: 'paid', label: 'Paid Invoices', icon: CheckCircle, barClassName: 'from-emerald-400 via-green-500 to-teal-500', valueClassName: 'text-emerald-700', iconWrapClassName: 'bg-emerald-100 text-emerald-600' },
     { key: 'pending', label: 'Pending', icon: Clock, barClassName: 'from-amber-400 via-yellow-500 to-orange-500', valueClassName: 'text-amber-700', iconWrapClassName: 'bg-amber-100 text-amber-600' },
     { key: 'overdue', label: 'Overdue', icon: AlertCircle, barClassName: 'from-red-400 via-rose-500 to-red-600', valueClassName: 'text-red-700', iconWrapClassName: 'bg-red-100 text-red-600' },
-    { key: 'partial', label: 'Partial', icon: CreditCard, barClassName: 'from-blue-400 via-indigo-500 to-blue-600', valueClassName: 'text-blue-700', iconWrapClassName: 'bg-blue-100 text-blue-600' },
+    { key: 'partial', label: 'Partial', icon: CreditCard, barClassName: 'from-blue-500 via-sky-500 to-indigo-500', valueClassName: 'text-blue-700', iconWrapClassName: 'bg-blue-100 text-blue-600' },
   ];
 
   const handleStatCardClick = (key) => {
@@ -531,16 +538,6 @@ const InvoicingPage = () => {
     loadBrandingSettings();
   }, [activeTab, pagination.page, sortBy, sortOrder, filterOptions.dateFrom, filterOptions.dateTo, filterOptions.client, filterOptions.status]);
 
-  // Handle click outside to close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (filterRef.current && !filterRef.current.contains(event.target)) setFilterOpen(false);
-      if (sortRef.current && !sortRef.current.contains(event.target)) setSortOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Handle search query changes with debounce
   useEffect(() => {
     if (searchTimeout) clearTimeout(searchTimeout);
@@ -837,127 +834,148 @@ const InvoicingPage = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {/* Filter dropdown */}
-              <div className="relative" ref={filterRef}>
+              <div className="relative">
                 <button 
+                  ref={filterRef}
+                  type="button"
                   className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                  onClick={() => setFilterOpen(!filterOpen)}
+                  onClick={() => { setFilterOpen(!filterOpen); setSortOpen(false); }}
                 >
                   <Filter size={16} className="mr-2 text-gray-500" />
                   Filter
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
-                {filterOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-10 p-5">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-semibold text-gray-900">Filter Invoices</h3>
-                      <button className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
-                        <X size={18} />
-                      </button>
+                <PortalPopover
+                  open={filterOpen}
+                  onClose={() => setFilterOpen(false)}
+                  anchorRef={filterRef}
+                  align="end"
+                  variant="dashboard"
+                  estimatedWidth={320}
+                  estimatedHeight={380}
+                  className="w-80"
+                >
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-semibold text-gray-900">Filter Invoices</h3>
+                    <button type="button" className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
+                      <X size={18} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                      <select 
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={filterOptions.status}
+                        onChange={(e) => handleFilterChange('status', e.target.value)}
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="pending">Pending</option>
+                        <option value="paid">Paid</option>
+                        <option value="overdue">Overdue</option>
+                      </select>
                     </div>
                     
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-                        <select 
-                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={filterOptions.status}
-                          onChange={(e) => handleFilterChange('status', e.target.value)}
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="draft">Draft</option>
-                          <option value="pending">Pending</option>
-                          <option value="paid">Paid</option>
-                          <option value="overdue">Overdue</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
-                        <select 
-                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={filterOptions.client}
-                          onChange={(e) => handleFilterChange('client', e.target.value)}
-                        >
-                          <option value="">All Clients</option>
-                          {clients.map(client => (
-                            <option key={client.id} value={client.id}>{client.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
-                          <input 
-                            type="date"
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={filterOptions.dateFrom}
-                            onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
-                          <input 
-                            type="date"
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={filterOptions.dateTo}
-                            onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-                          />
-                        </div>
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
+                      <select 
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={filterOptions.client}
+                        onChange={(e) => handleFilterChange('client', e.target.value)}
+                      >
+                        <option value="">All Clients</option>
+                        {clients.map(client => (
+                          <option key={client.id} value={client.id}>{client.name}</option>
+                        ))}
+                      </select>
                     </div>
                     
-                    <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
-                      <button 
-                        className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        onClick={resetFilters}
-                      >
-                        Reset
-                      </button>
-                      <button 
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        onClick={applyFilters}
-                      >
-                        Apply Filters
-                      </button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
+                        <input 
+                          type="date"
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={filterOptions.dateFrom}
+                          onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
+                        <input 
+                          type="date"
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={filterOptions.dateTo}
+                          onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
-                )}
+                  
+                  <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
+                    <button 
+                      type="button"
+                      className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      onClick={resetFilters}
+                    >
+                      Reset
+                    </button>
+                    <button 
+                      type="button"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      onClick={applyFilters}
+                    >
+                      Apply Filters
+                    </button>
+                  </div>
+                </PortalPopover>
               </div>
               
               {/* Sort dropdown */}
-              <div className="relative" ref={sortRef}>
+              <div className="relative">
                 <button 
+                  ref={sortRef}
+                  type="button"
                   className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                  onClick={() => setSortOpen(!sortOpen)}
+                  onClick={() => { setSortOpen(!sortOpen); setFilterOpen(false); }}
                 >
                   <ArrowUpDown size={16} className="mr-2 text-gray-500" />
                   Sort
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
-                {sortOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 z-10 p-2">
-                    {[
-                      { field: 'date', label: 'Date' },
-                      { field: 'dueDate', label: 'Due Date' },
-                      { field: 'total', label: 'Amount' },
-                      { field: 'clientName', label: 'Client' }
-                    ].map((option) => (
-                      <button 
-                        key={option.field}
-                        className={`w-full text-left px-3 py-2.5 text-sm rounded-md hover:bg-gray-50 flex items-center justify-between ${sortBy === option.field ? 'bg-blue-50 text-blue-600' : ''}`}
-                        onClick={() => handleSortChange(option.field)}
-                      >
-                        <span>{option.label}</span>
-                        {sortBy === option.field && (
-                          <span className="text-xs font-medium">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <PortalPopover
+                  open={sortOpen}
+                  onClose={() => setSortOpen(false)}
+                  anchorRef={sortRef}
+                  align="end"
+                  variant="dashboard"
+                  estimatedWidth={192}
+                  estimatedHeight={200}
+                  className="w-48"
+                  bodyClassName="p-2"
+                >
+                  {[
+                    { field: 'date', label: 'Date' },
+                    { field: 'dueDate', label: 'Due Date' },
+                    { field: 'total', label: 'Amount' },
+                    { field: 'clientName', label: 'Client' }
+                  ].map((option) => (
+                    <DashboardMenuItem 
+                      key={option.field}
+                      active={sortBy === option.field}
+                      onClick={() => handleSortChange(option.field)}
+                    >
+                      <span>{option.label}</span>
+                      {sortBy === option.field && (
+                        <span className="text-xs font-medium">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </DashboardMenuItem>
+                  ))}
+                </PortalPopover>
               </div>
               
               {/* Export button */}
@@ -1041,41 +1059,18 @@ const InvoicingPage = () => {
                             const total = parseMoney(invoice.total);
                             const paid = parseMoney(invoice.totalPaid);
                             const remaining = invoiceRemainingDue(invoice);
-                            const unpaidStatuses = ['Pending', 'Partial', 'Overdue'];
-                            const showRemainingPrimary =
-                              unpaidStatuses.includes(invoice.status) || (remaining > 0 && remaining < total - 0.005);
-
-                            if (showRemainingPrimary) {
-                              return (
-                                <>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    MWK {formatInvoiceMoney(remaining)}
-                                  </div>
-                                  <div className="text-xs text-amber-700">Remaining</div>
-                                  {(paid > 0 || Math.abs(remaining - total) > 0.005) && (
-                                    <div className="text-xs text-gray-500 mt-0.5">
-                                      Total: MWK {formatInvoiceMoney(total)}
-                                    </div>
-                                  )}
-                                  {paid > 0 && (
-                                    <div className="text-xs text-emerald-600">
-                                      Paid: MWK {formatInvoiceMoney(paid)}
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            }
-
                             return (
                               <>
                                 <div className="text-sm font-bold text-gray-900">
                                   MWK {formatInvoiceMoney(total)}
                                 </div>
-                                {paid > 0 && (
-                                  <div className="text-xs text-emerald-600">
-                                    Paid: MWK {formatInvoiceMoney(paid)}
-                                  </div>
-                                )}
+                                <div className="text-xs text-gray-500">Total</div>
+                                <div className="text-xs text-emerald-600">
+                                  Paid: MWK {formatInvoiceMoney(paid)}
+                                </div>
+                                <div className="text-xs text-amber-700">
+                                  Remaining: MWK {formatInvoiceMoney(remaining)}
+                                </div>
                               </>
                             );
                           })()}
@@ -1140,7 +1135,7 @@ const InvoicingPage = () => {
                             {invoice.status !== 'void' && invoice.status !== 'draft' && 
                              invoice.payments?.some(p => p.status === 'Completed') && pagePermissions.canUpdateInvoices && (
                               <button 
-                                className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                 title="Process Refund"
                                 onClick={() => openRefundModal(invoice)}
                               >

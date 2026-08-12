@@ -146,7 +146,7 @@ const AccountingPeriodsPage = () => {
 
           {!roleDenied && (
             <>
-              <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+              <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-500 shadow-xl shadow-blue-200/50 p-6 sm:p-8 mb-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">

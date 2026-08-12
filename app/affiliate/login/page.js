@@ -53,7 +53,11 @@ export default function AffiliateLoginPage() {
       });
 
       console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Response headers:', Object.fromEntries(
+        typeof response.headers?.entries === 'function'
+          ? response.headers.entries()
+          : []
+      ));
 
       const data = await response.json();
       console.log('Response data:', data);

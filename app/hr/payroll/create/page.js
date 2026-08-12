@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
 import { DollarSign, Calculator, Plus, Trash2, Save, Eye, AlertCircle, CheckCircle } from "lucide-react";
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function PayrollCreation() {
   const [employees, setEmployees] = useState([]);
@@ -193,16 +195,15 @@ export default function PayrollCreation() {
   return (
     <div className="w-full">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Payroll Creation</h1>
-          <p className="text-gray-600">Create payroll with Malawi PAYE calculation and custom deductions</p>
-        </div>
+        <PosStylePageHeader
+          title="Payroll Creation"
+          description="Create payroll with Malawi PAYE calculation and custom deductions"
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Employee Selection */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow p-6">
+            <PosStylePanel className="p-6">
               <h2 className="text-lg font-semibold mb-4">Select Employee</h2>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {employees.map(employee => (
@@ -227,12 +228,12 @@ export default function PayrollCreation() {
                   </div>
                 ))}
               </div>
-            </div>
+            </PosStylePanel>
           </div>
 
           {/* Payroll Configuration */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow p-6">
+            <PosStylePanel className="p-6">
               <h2 className="text-lg font-semibold mb-4">Payroll Configuration</h2>
               
               {selectedEmployee && (
@@ -337,13 +338,13 @@ export default function PayrollCreation() {
                   </button>
                 </div>
               )}
-            </div>
+            </PosStylePanel>
           </div>
         </div>
 
         {/* Calculation Results */}
         {calculation && (
-          <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <PosStylePanel className="mt-6 p-6">
             <h2 className="text-lg font-semibold mb-4">Payroll Calculation Results</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -405,7 +406,7 @@ export default function PayrollCreation() {
               <Save size={20} className="mr-2" />
               {saving ? 'Saving...' : 'Save Payroll'}
             </button>
-          </div>
+          </PosStylePanel>
         )}
 
         {/* Custom Deduction Modal */}

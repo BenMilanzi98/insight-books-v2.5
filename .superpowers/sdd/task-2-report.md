@@ -1,3 +1,62 @@
+# Task 2 Report: Reverse orchestrator
+
+**Status:** DONE  
+**Date:** 2026-08-11  
+**Commits:** none (WORKING_TREE)
+
+## Summary
+
+Implemented transactional booking reversal for draft, unpaid posted, paid, completed, missing, and already-cancelled rental transactions. The cancel API now delegates to the service, the rentals UI exposes **Reverse** for open bookings, and paid-invoice reversals direct operators to refund or credit the invoice first.
+
+## TDD Evidence
+
+### RED
+
+```bash
+npx vitest run test/rentalReverseService.test.js
+```
+
+Result: **FAIL** — `Cannot find module '../lib/rentalReverseService.js'`.
+
+### GREEN
+
+```bash
+npx vitest run test/rentalReverseService.test.js test/rentalSourceTags.test.js test/rentalAvailability.test.js
+```
+
+Result: **PASS** — 3 files, 14 tests, 0 failures.
+
+## Files Changed
+
+| File | Action | Purpose |
+|---|---|---|
+| `lib/rentalReverseService.js` | Created | Reversal orchestration, availability release, asset restock, invoice unwind, and audit log |
+| `lib/invoiceVoidService.js` | Created | Shared invoice void update/audit helper plus posted-invoice GL reversal adapter |
+| `test/rentalReverseService.test.js` | Created | Unit coverage for not found, idempotent, paid, completed, draft, and posted-unpaid paths |
+| `app/api/rentals/cancel/route.js` | Modified | Delegates reversal and maps domain codes to HTTP 404/409/400 |
+| `app/api/invoices/void/route.js` | Modified | Uses the shared in-transaction invoice void helper |
+| `app/rentals/RentalsClient.js` | Modified | Replaces draft-only cancel control with Reverse and payment-specific 409 guidance |
+
+## Behaviour
+
+- Draft/missing invoice: deletes any draft invoice, clears `invoiceId`, marks the rental transaction cancelled.
+- Posted unpaid invoice: voids the invoice, keeps `invoiceId` for reports, then marks the transaction cancelled.
+- Completed payments: returns `NEED_CREDIT_REFUND` before availability or asset status changes.
+- Completed booking: returns `CLOSED`.
+- Cancelled booking: safe idempotent success.
+- Reversal deletes availability rows; only space/rental assets are explicitly returned to `available`.
+- `RENTAL_BOOKING_REVERSED` audit details include the source resolved by `resolveOutboundInvoiceSource`.
+
+## Verification
+
+- Focused rental tests: **14 passing**.
+- IDE diagnostics: no errors on all touched files.
+- `git diff --check`: passed (only an existing LF→CRLF warning).
+- Targeted ESLint process produced no output and did not finish after 84 seconds, so it was stopped; this is non-blocking because IDE diagnostics were clean.
+
+## Concerns
+
+The V2 journal reversal keeps the invoice route's established independent posting boundary. If a later database mutation fails after journals reverse, operator recovery may be required; this pre-existing transactional boundary is preserved rather than changed in this task.
 # Task 2 Report: Always Unpaid in `autoCreateBillFromReceipt`
 
 ## Status
@@ -72,3 +131,23 @@ All four test cases pass:
 ## Commits
 
 None.
+
+---
+
+## Task 2 Review Fixes (2026-08-11)
+
+**Status:** PASS — Critical/Important findings addressed; no commit created.
+
+- `voidPostedInvoice` now calls `assertPeriodOpen(tenantId, voidDate, db)` before GL or invoice writes, so a locked period fails with the accounting-period service's clear error.
+- It passes the rental transaction client as `db` to `reverseSourceJournals`; the V2 posting boundary joins that client, so journal reversals roll back with the invoice, availability, and booking updates.
+- Added helper coverage proving the shared transaction is used and locked periods stop before journal/invoice work; rental coverage proves a locked-period void failure leaves stock and the booking untouched.
+
+**Verification**
+
+```bash
+npx vitest run test/invoiceVoidService.test.js test/rentalReverseService.test.js
+# PASS — 2 files, 9 tests
+
+npx vitest run test/rentalReverseService.test.js
+# PASS — 1 file, 7 tests
+```

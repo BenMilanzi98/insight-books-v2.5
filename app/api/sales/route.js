@@ -1238,6 +1238,9 @@ export async function POST(request) {
                 if (!productForStock) {
                   throw new Error(`Product with ID ${item.productId} not found`);
                 }
+                if (productForStock.isService) {
+                  return null;
+                }
                 const baseQty = resolveSaleItemBaseQuantity(item, productForStock);
 
                 await tx.inventoryTransaction.create({

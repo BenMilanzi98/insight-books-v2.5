@@ -91,7 +91,7 @@ export default function EISDashboardPage() {
         <StatCard label="Approved" value={data?.approved || 0} icon={CheckCircle} barClassName="from-emerald-400 via-green-500 to-teal-500" iconWrapClassName="bg-green-50 text-green-600" />
         <StatCard label="Pending" value={(data?.pending || 0) + (data?.submitted || 0)} icon={Clock} barClassName="from-amber-400 via-yellow-500 to-orange-500" iconWrapClassName="bg-yellow-50 text-yellow-600" />
         <StatCard label="Rejected" value={data?.rejected || 0} icon={XCircle} barClassName="from-red-400 via-rose-500 to-pink-500" iconWrapClassName="bg-red-50 text-red-600" />
-        <StatCard label="Success Rate" value={`${data?.successRate || 0}%`} icon={TrendingUp} barClassName="from-indigo-400 via-violet-500 to-purple-500" iconWrapClassName="bg-indigo-50 text-indigo-600" />
+        <StatCard label="Success Rate" value={`${data?.successRate || 0}%`} icon={TrendingUp} barClassName="from-blue-400 via-sky-500 to-indigo-500" iconWrapClassName="bg-blue-50 text-blue-600" />
       </div>
 
       {data?.monthlyUsage && (

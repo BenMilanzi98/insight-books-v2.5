@@ -80,7 +80,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    const stepId = body.stepId;
+    const aliases = { clients: 'customers', openingStock: 'inventory', openingBalancesReview: 'openingBalances' };
+    const stepId = aliases[body.stepId] || body.stepId;
     if (!stepId || !STEP_IDS.has(stepId)) {
       return NextResponse.json({ error: 'Invalid or missing stepId' }, { status: 400 });
     }

@@ -49,7 +49,7 @@ async function resolveCashLikeAccount(accounts, paymentAccount) {
     return byCode('1110') || preferLeaf('1100') || byCode('1010');
   }
   if (type.includes('petty')) {
-    return byCode('1120') || preferLeaf('1120');
+    return byCode('1110') || preferLeaf('1100');
   }
   if (type.includes('bank') || type.includes('cheque')) {
     return preferLeaf('1130') || byCode('1131') || byCode('1130');

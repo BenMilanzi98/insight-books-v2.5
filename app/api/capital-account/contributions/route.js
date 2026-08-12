@@ -14,6 +14,7 @@ import {
 } from '@/lib/capitalCoaHelpers';
 import { registerAssetFromCapitalContribution } from '@/lib/capitalContributionAssetRegister';
 import { postGlEntry, AccountingEngineError } from '@/lib/accountingEngine';
+import { AccountingV2Error } from '@/lib/accountingV2/domain/errors.js';
 import { fetchCapitalContributions } from '@/lib/capitalContributionsQuery';
 import { syncCapitalParentRollupBalance } from '@/lib/capitalCoaHelpers';
 
@@ -409,7 +410,7 @@ export async function POST(request) {
           contributionAccountId: equityAccountForCredit.id,
           contributionAccountCode: equityAccountForCredit.accountCode,
           capitalParentGlCode: OWNERS_CAPITAL_GL_CODE,
-          transactionId: transaction.id,
+          transactionId: transaction?.journalEntryId || transaction?.id || null,
           debitLineAccountId: debitAccount.id,
           creditLineAccountId: equityAccountForCredit.id,
           assetName: assetName || null,
@@ -425,7 +426,7 @@ export async function POST(request) {
           {
             tenantId: user.tenantId,
             userId: user.id,
-            transactionId: transaction.id,
+            transactionId: transaction?.journalEntryId || transaction?.id || null,
             reference,
             assetName,
             assetType,
@@ -460,14 +461,14 @@ export async function POST(request) {
       {
         message: 'Capital contribution recorded successfully',
         contribution: {
-          id: transaction.id,
+          id: transaction?.journalEntryId || transaction?.id || reference,
           date: entryDate,
           amount: parsedAmount,
           type,
           description: txDescription,
           reference,
           debitAccountName: debitAccount.name || debitAccount.accountName,
-          transactionId: transaction.id,
+          transactionId: transaction?.journalEntryId || transaction?.id || null,
           coaAccountCode: equityAccountForCredit.accountCode,
           capitalParentGlCode: OWNERS_CAPITAL_GL_CODE,
           capitalParentGlName: OWNERS_CAPITAL_GL_NAME,
@@ -506,9 +507,28 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+    // Accounting V2 typed errors (journal persist, non-posting account, etc.)
+    if (error instanceof AccountingV2Error) {
+      console.error('Capital contribution accounting error:', {
+        code: error.code,
+        message: error.userMessage,
+        diagnostic: error.diagnostic,
+      });
+      return NextResponse.json(
+        {
+          error: error.userMessage || error.message,
+          code: error.code,
+          retryable: Boolean(error.retryable),
+        },
+        { status: error.httpStatus || 500 }
+      );
+    }
     console.error('Error creating capital contribution:', error);
     return NextResponse.json(
-      { error: 'Failed to create capital contribution' },
+      {
+        error: error?.message || 'Failed to create capital contribution',
+        code: error?.code || undefined,
+      },
       { status: 500 }
     );
   }

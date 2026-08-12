@@ -409,8 +409,8 @@ export const PosDailyReport = ({
               <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Transactions</p>
               <p className="text-xl font-bold text-slate-800 mt-1">{transactionCount}</p>
             </div>
-            <div className="rounded-2xl border border-violet-200/80 p-4 sm:p-5 bg-gradient-to-br from-violet-50 to-white shadow-sm border-l-4 border-l-violet-500">
-              <p className="text-xs font-medium text-violet-700 uppercase tracking-wide">Items sold</p>
+            <div className="rounded-2xl border border-sky-200/80 p-4 sm:p-5 bg-gradient-to-br from-sky-50 to-white shadow-sm border-l-4 border-l-sky-500">
+              <p className="text-xs font-medium text-sky-700 uppercase tracking-wide">Items sold</p>
               <p className="text-xl font-bold text-slate-800 mt-1">{itemsSold}</p>
             </div>
             <div className="rounded-2xl border border-amber-200/80 p-4 sm:p-5 bg-gradient-to-br from-amber-50 to-white shadow-sm border-l-4 border-l-amber-500">
@@ -1035,8 +1035,8 @@ export const ProfitabilityAnalysisReport = ({
 
   if (!data && !loading && !error) {
     return (
-      <div className="text-center p-8 bg-gradient-to-br from-slate-50 to-violet-50/50 rounded-2xl border border-slate-200">
-        <PieChart size={48} className="mx-auto text-violet-500 mb-4" />
+      <div className="text-center p-8 bg-gradient-to-br from-slate-50 to-sky-50/60 rounded-2xl border border-slate-200">
+        <PieChart size={48} className="mx-auto text-sky-500 mb-4" />
         <h3 className="text-lg font-medium text-slate-700">No data available</h3>
         <p className="text-slate-500 mt-2">Please select a time period and generate the report.</p>
       </div>

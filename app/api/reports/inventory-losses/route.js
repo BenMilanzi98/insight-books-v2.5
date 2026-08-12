@@ -378,6 +378,25 @@ export async function GET(request) {
 
     items = enrichRowsWithTenantName(items, tMap);
 
+    try {
+      const { buildInventoryLossFromStock } = await import('@/lib/inventoryLossFromStock.js');
+      const stockLoss = await buildInventoryLossFromStock(prisma, {
+        tenantId: primaryTenantId,
+        startDate: start,
+        endDate: end,
+        eventType,
+      });
+      const seen = new Set(items.map((i) => i.id));
+      for (const row of stockLoss.items || []) {
+        if (!seen.has(row.id)) {
+          items.push(row);
+          seen.add(row.id);
+        }
+      }
+    } catch (stockErr) {
+      console.warn('Inventory loss report: stock movement merge skipped', stockErr?.message || stockErr);
+    }
+
 
 
     const summary = items.reduce(

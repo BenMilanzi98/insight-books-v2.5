@@ -23,7 +23,7 @@ function parseFilters(searchParams) {
 
 export async function GET(request) {
   try {
-    const perm = await requireAnyPermission(request, ['payroll.export', 'payroll.view', 'hr.view']);
+    const perm = await requireAnyPermission(request, ['payroll.export', 'payroll.view', 'hr.view', 'reports.view']);
     if (perm) return perm;
 
     const user = await getUserFromSession(request);

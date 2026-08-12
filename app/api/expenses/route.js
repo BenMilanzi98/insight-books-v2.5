@@ -412,15 +412,26 @@ export async function GET(request) {
           ...expense,
           amount: formattedAmount, // display-ready string
           date: formattedDate,
-          attachments: attachments.map((attachment) => ({
-            id: attachment.id,
-            name: attachment.filename,
-            type: attachment.fileType,
-            size: formatFileSize(attachment.fileSize),
-            date: attachment.uploadedAt
-              ? attachment.uploadedAt.toISOString().split('T')[0]
-              : new Date().toISOString().split('T')[0],
-          })),
+          attachments: attachments.map((attachment) => {
+            const raw = String(attachment.filePath || '');
+            const url = raw.startsWith('/api/')
+              ? raw
+              : raw.startsWith('/uploads/')
+                ? `/api${raw}`
+                : raw
+                  ? `/api/uploads/${raw.replace(/^\/+/, '')}`
+                  : null;
+            return {
+              id: attachment.id,
+              name: attachment.filename,
+              type: attachment.fileType,
+              size: formatFileSize(attachment.fileSize),
+              url,
+              date: attachment.uploadedAt
+                ? attachment.uploadedAt.toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0],
+            };
+          }),
           isCOGS: false // Flag to identify regular expenses
         };
       })

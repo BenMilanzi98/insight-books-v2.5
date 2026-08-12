@@ -235,7 +235,7 @@ export default function MraEisCataloguePage() {
             />
           </label>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={busy} className="rounded bg-indigo-800 px-3 py-2 text-sm text-white disabled:opacity-50" onClick={() => sync('PRODUCTS')}>
+            <button type="button" disabled={busy} className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50" onClick={() => sync('PRODUCTS')}>
               Sync products (MOCK)
             </button>
             <button type="button" disabled={busy} className="rounded bg-slate-800 px-3 py-2 text-sm text-white disabled:opacity-50" onClick={() => sync('SERVICES')}>

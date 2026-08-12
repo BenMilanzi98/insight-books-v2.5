@@ -123,7 +123,8 @@ async function resolveAccountForPurpose(db, tenantId, purpose) {
     case 'CASH_ON_HAND':
       return (await findByCode(db, tenantId, '1110')) || (await findByCode(db, tenantId, '1010'));
     case 'PETTY_CASH':
-      return findByCode(db, tenantId, legacyCode || '1120');
+      // 1120 retired — resolve to main cash only
+      return (await findByCode(db, tenantId, '1110')) || (await findByCode(db, tenantId, legacyCode || '1110'));
     case 'PRIMARY_BANK':
       return findBankPostingLeaf(db, tenantId);
     case 'MOBILE_MONEY': {

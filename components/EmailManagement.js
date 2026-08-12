@@ -286,7 +286,7 @@ const EmailManagement = () => {
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="flex items-center">
-            <CheckSquare className="h-8 w-8 text-purple-500" />
+            <CheckSquare className="h-8 w-8 text-blue-500" />
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-500">Selected</p>
               <p className="text-2xl font-bold text-gray-900">{stats.selectedCount}</p>

@@ -33,11 +33,10 @@ const CATEGORIES = [
     name: 'Core Accounting',
     reports: [
       { type: 'TRIAL_BALANCE', name: 'Trial Balance', description: 'Opening, movement and closing balances per account from posted journal lines.' },
-      { type: 'INCOME_STATEMENT', name: 'Income Statement', description: 'Period revenue, cost of sales, expenses, EBITDA and net profit.' },
-      { type: 'PROFIT_ANALYSIS', name: 'Profit Analysis', description: 'Same P&L engine totals with gross and net margin ratios.' },
+      { type: 'INCOME_STATEMENT', name: 'Profit & Loss', description: 'Revenue, COGS, operating expenses, tax and net profit.' },
+      { type: 'PROFIT_ANALYSIS', name: 'Profit Analysis', description: 'Full P&L drill-down with gross and net margin ratios.' },
       { type: 'BALANCE_SHEET', name: 'Statement of Financial Position', description: 'Cumulative assets, liabilities and equity as of a date.' },
       { type: 'CASH_FLOW', name: 'Cash Flow Statement', description: 'Operating, investing and financing cash movements (indirect method).' },
-      { type: 'EQUITY_STATEMENT', name: 'Statement of Changes in Equity', description: 'Opening equity, movements and closing equity.' },
     ],
   },
   {
@@ -50,11 +49,11 @@ const CATEGORIES = [
   {
     name: 'Sales and Operations (JE money)',
     reports: [
-      { type: 'SALES', name: 'Sales Report', description: 'JE revenue, COGS and sales tax with invoice document context.' },
-      { type: 'EXPENSES', name: 'Expense Report', description: 'JE expense movements with expense document context.' },
-      { type: 'DAILY_POS', name: 'Daily POS Report', description: 'JE sales totals with POS receipt/shift context notes.' },
-      { type: 'STOCK_MOVEMENTS', name: 'Stock Movement Report', description: 'Inventory JE debits/credits; quantities stay in stock domain.' },
-      { type: 'INVENTORY_LOSS', name: 'Inventory Loss Report', description: 'JE loss and write-off expense accounts.' },
+      { type: 'SALES', name: 'Sales Report', description: 'JE revenue/COGS with POS and invoice insights (top customers, products, trend).' },
+      { type: 'EXPENSES', name: 'Expense Report', description: 'JE expense totals with category, trend and largest-expense insights.' },
+      { type: 'DAILY_POS', name: 'Daily Sales (POS)', description: 'Same data as POS Daily Sales — completed till sales for the day.' },
+      { type: 'STOCK_MOVEMENTS', name: 'Stock Movement Report', description: 'Quantity movement from Inventory Management; JE inventory valuation alongside.' },
+      { type: 'INVENTORY_LOSS', name: 'Inventory Loss Report', description: 'Stock-out / write-off movements from inventory records, reconciled to JE.' },
     ],
   },
   {
@@ -71,7 +70,7 @@ const CATEGORIES = [
   {
     name: 'Management',
     reports: [
-      { type: 'BUDGET_VS_ACTUAL', name: 'Budget versus Actual', description: 'GL actuals against budget models.' },
+      { type: 'BUDGET_VS_ACTUAL', name: 'Budget versus Actual', description: 'Budget → Actual → Variance with correct favourable sign for expenses.' },
     ],
   },
 ];
@@ -332,7 +331,7 @@ function ReportsPageInner() {
           className="relative w-full shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-xl backdrop-blur-sm lg:w-72"
           aria-label="Report selector"
         >
-          <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+          <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500" />
           <div className="mb-4 flex items-center gap-2 pt-1">
             <div className="rounded-lg bg-blue-100 p-2">
               <FileText className="h-4 w-4 text-blue-700" />
@@ -357,7 +356,7 @@ function ReportsPageInner() {
                         aria-current={active ? 'true' : undefined}
                         className={`block w-full rounded-xl px-3 py-2.5 text-left text-sm transition-all ${
                           active
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white shadow-md'
+                            ? 'bg-blue-600 font-semibold text-white shadow-md'
                             : 'bg-white/60 text-gray-700 hover:bg-blue-50 hover:text-blue-800'
                         }`}
                       >
@@ -451,7 +450,7 @@ function ReportsPageInner() {
 
           {report && (
             <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-xl backdrop-blur-sm sm:p-6">
-              <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
+              <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500" />
               <div className="mb-4 flex flex-wrap items-center gap-3 pt-1">
                 <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
                   {displayReportName(report.reportName)}
@@ -526,7 +525,16 @@ function ReportsPageInner() {
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr className="text-left text-gray-500">
                         <th className="px-3 py-2.5 font-semibold">Line</th>
-                        <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+                        {report.lines.some((l) => l.budgetAmount) ? (
+                          <>
+                            <th className="px-3 py-2.5 text-right font-semibold">Budget</th>
+                            <th className="px-3 py-2.5 text-right font-semibold">Actual</th>
+                            <th className="px-3 py-2.5 text-right font-semibold">Variance</th>
+                            <th className="px-3 py-2.5 text-right font-semibold">%</th>
+                          </>
+                        ) : (
+                          <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+                        )}
                         {report.lines.some((l) => l.comparativeAmount) && (
                           <th className="px-3 py-2.5 text-right font-semibold">Comparative</th>
                         )}
@@ -547,9 +555,24 @@ function ReportsPageInner() {
                               {l.label}
                               {l.warningStatus && <Badge tone="warn">{l.warningStatus}</Badge>}
                             </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">
-                              {l.lineType === 'SECTION' ? '' : fmt(l.currentAmount)}
-                            </td>
+                            {report.lines.some((x) => x.budgetAmount) ? (
+                              <>
+                                <td className="px-3 py-2.5 text-right tabular-nums">{l.budgetAmount ? fmt(l.budgetAmount) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums">
+                                  {l.lineType === 'SECTION' ? '' : fmt(l.currentAmount)}
+                                </td>
+                                <td className={`px-3 py-2.5 text-right tabular-nums ${l.metadata?.isFavourable === false ? 'text-red-600' : 'text-emerald-700'}`}>
+                                  {l.budgetVariance ? fmt(l.budgetVariance) : '—'}
+                                </td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-xs text-gray-600">
+                                  {l.variancePercentage != null ? `${Number(l.variancePercentage).toFixed(1)}%` : '—'}
+                                </td>
+                              </>
+                            ) : (
+                              <td className="px-3 py-2.5 text-right tabular-nums">
+                                {l.lineType === 'SECTION' ? '' : fmt(l.currentAmount)}
+                              </td>
+                            )}
                             {report.lines.some((x) => x.comparativeAmount) && (
                               <td className="px-3 py-2.5 text-right tabular-nums">
                                 {l.comparativeAmount ? fmt(l.comparativeAmount) : ''}
@@ -607,6 +630,67 @@ function ReportsPageInner() {
                   </table>
                 )}
               </div>
+
+              {report.operationalContext && (
+                <div className="mt-6 space-y-4 rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                  <h3 className="text-sm font-bold text-sky-900">Operational insights</h3>
+                  {report.operationalContext.topCustomers && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase text-sky-800">Top customers</p>
+                      <ul className="text-sm text-gray-700">
+                        {report.operationalContext.topCustomers.map((c) => (
+                          <li key={c.name} className="flex justify-between">
+                            <span>{c.name}</span>
+                            <span className="tabular-nums">{Number(c.amount || 0).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {report.operationalContext.topProducts && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase text-sky-800">Top products</p>
+                      <ul className="text-sm text-gray-700">
+                        {report.operationalContext.topProducts.map((p) => (
+                          <li key={p.name} className="flex justify-between">
+                            <span>{p.name}</span>
+                            <span className="tabular-nums">{Number(p.amount || 0).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {report.operationalContext.byCategory && (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase text-sky-800">By category</p>
+                      <ul className="text-sm text-gray-700">
+                        {report.operationalContext.byCategory.slice(0, 8).map((c) => (
+                          <li key={c.category} className="flex justify-between">
+                            <span>{c.category}</span>
+                            <span className="tabular-nums">{Number(c.amount || 0).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {report.operationalContext.items && (
+                    <p className="text-sm text-gray-700">
+                      {report.operationalContext.summary?.totalCount ?? report.operationalContext.items.length} inventory loss movement(s).
+                    </p>
+                  )}
+                  {report.operationalContext.productMovements && (
+                    <p className="text-sm text-gray-700">
+                      {report.operationalContext.productMovements.length} product(s) with stock movement in this period.
+                    </p>
+                  )}
+                  {report.operationalContext.latest?.totalSales != null && (
+                    <p className="text-sm text-gray-700">
+                      POS daily sales: {Number(report.operationalContext.latest.totalSales).toLocaleString()} ·{' '}
+                      {report.operationalContext.latest.transactionCount || 0} transactions.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </main>

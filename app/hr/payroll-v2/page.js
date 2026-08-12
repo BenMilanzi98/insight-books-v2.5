@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 const ACTIONS = ['load', 'calculate', 'submit', 'approve', 'post', 'pay', 'reverse'];
 
@@ -129,19 +131,19 @@ export default function PayrollWorkbenchV2Page() {
 
   return (
     <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Payroll Workbench (V2)</h1>
-          <p className="mt-1 text-sm text-gray-600">
+      <PosStylePageHeader
+        title="Payroll Workbench (V2)"
+        description={
+          <>
             Command-driven runs: load → calculate → submit → approve → post → pay.
             Legacy create flow remains at{' '}
-            <Link className="text-indigo-600 underline" href="/hr/payroll">
+            <Link className="text-blue-600 underline" href="/hr/payroll">
               Payroll Processing
             </Link>
             .
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {error ? (
         <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -149,7 +151,7 @@ export default function PayrollWorkbenchV2Page() {
         </div>
       ) : null}
 
-      <div className="mb-6 grid gap-4 rounded border border-gray-200 bg-white p-4 md:grid-cols-3">
+      <PosStylePanel className="mb-6 grid gap-4 p-4 md:grid-cols-3">
         <label className="text-sm text-gray-700">
           Period start
           <input
@@ -173,12 +175,12 @@ export default function PayrollWorkbenchV2Page() {
             type="button"
             disabled={busy || !periodStart || !periodEnd}
             onClick={createRun}
-            className="rounded bg-indigo-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
             Create run
           </button>
         </div>
-      </div>
+      </PosStylePanel>
 
       <div className="mb-4">
         <label className="text-sm font-medium text-gray-700">Select run</label>
@@ -198,7 +200,7 @@ export default function PayrollWorkbenchV2Page() {
 
       {run ? (
         <div className="space-y-4">
-          <div className="rounded border border-gray-200 bg-white p-4">
+          <PosStylePanel className="p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-lg font-medium">{run.runNumber}</div>
@@ -241,9 +243,9 @@ export default function PayrollWorkbenchV2Page() {
                 </ul>
               </div>
             ) : null}
-          </div>
+          </PosStylePanel>
 
-          <div className="rounded border border-gray-200 bg-white p-4">
+          <PosStylePanel className="p-4">
             <h2 className="mb-2 font-medium">Account mappings (required before Post/Pay)</h2>
             <textarea
               className="h-48 w-full rounded border font-mono text-xs"
@@ -258,15 +260,15 @@ export default function PayrollWorkbenchV2Page() {
             >
               Save mappings
             </button>
-          </div>
+          </PosStylePanel>
 
-          <div className="rounded border border-gray-200 bg-white p-4">
+          <PosStylePanel className="p-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="font-medium">Employee results</h2>
               <button
                 type="button"
                 onClick={loadReconcile}
-                className="text-sm text-indigo-600 underline"
+                className="text-sm text-blue-600 underline"
               >
                 Run reconciliation
               </button>
@@ -298,10 +300,10 @@ export default function PayrollWorkbenchV2Page() {
                 <p className="text-sm text-gray-500">No results yet — run Calculate.</p>
               ) : null}
             </div>
-          </div>
+          </PosStylePanel>
 
           {reconcile ? (
-            <div className="rounded border border-gray-200 bg-white p-4">
+            <PosStylePanel className="p-4">
               <h2 className="mb-2 font-medium">Reconciliation</h2>
               <p className="mb-2 text-sm text-gray-600">
                 {reconcile.summary?.runs} run(s), {reconcile.summary?.unbalanced} unbalanced
@@ -313,7 +315,7 @@ export default function PayrollWorkbenchV2Page() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </PosStylePanel>
           ) : null}
         </div>
       ) : null}

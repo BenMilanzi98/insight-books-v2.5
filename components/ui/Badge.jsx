@@ -6,7 +6,7 @@ const tones = {
   warning: 'bg-amber-50 text-amber-900 ring-amber-200',
   danger: 'bg-red-50 text-red-800 ring-red-200',
   info: 'bg-blue-50 text-blue-800 ring-blue-200',
-  primary: 'bg-indigo-50 text-indigo-800 ring-indigo-200',
+  primary: 'bg-blue-50 text-blue-800 ring-blue-200',
 };
 
 /**

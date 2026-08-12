@@ -7,7 +7,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Landmark,
   Upload,
   RefreshCw,
   CheckCircle2,
@@ -16,7 +15,8 @@ import {
   FileSpreadsheet,
   PlayCircle,
 } from 'lucide-react';
-import PageHeader from '@/components/shell/PageHeader';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 
 async function api(url, options) {
@@ -33,9 +33,9 @@ const STATUS_STYLES = {
   DRAFT: 'bg-slate-100 text-slate-700',
   IN_PROGRESS: 'bg-blue-100 text-blue-800',
   IN_REVIEW: 'bg-amber-100 text-amber-800',
-  APPROVED: 'bg-indigo-100 text-indigo-800',
+  APPROVED: 'bg-blue-100 text-blue-800',
   COMPLETED: 'bg-emerald-100 text-emerald-800',
-  REOPENED: 'bg-violet-100 text-violet-800',
+  REOPENED: 'bg-sky-100 text-sky-800',
   REVERSED: 'bg-rose-100 text-rose-800',
 };
 
@@ -57,6 +57,7 @@ export default function BankReconciliationPage() {
   const [selectedStmt, setSelectedStmt] = useState(null);
   const [selectedBook, setSelectedBook] = useState(null);
   const [candidates, setCandidates] = useState([]);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
 
   const notify = (msg, isErr) => {
     if (isErr) setError(msg);
@@ -71,7 +72,9 @@ export default function BankReconciliationPage() {
         setPaymentAccountId(data.accounts[0].id);
       }
     } catch (e) {
-      notify(e.message, true);
+      const msg = e.message || '';
+      setFeatureDisabled(/FEATURE_DISABLED|not enabled/i.test(msg));
+      notify(msg, true);
     }
   }, [paymentAccountId]);
 
@@ -215,26 +218,21 @@ export default function BankReconciliationPage() {
   const recon = workspace?.reconciliation;
 
   return (
-    <div className="min-h-screen bg-[var(--background-secondary)] py-2 md:py-4">
+    <div className="w-full">
       <div className="mx-auto max-w-7xl space-y-6">
-        <PageHeader
+        <PosStylePageHeader
           title="Bank Reconciliation"
           description="Match bank statement evidence to posted General Ledger lines. Totals are calculated on the server — difference must be zero to complete (no plug journals)."
-          breadcrumb={
-            <Landmark className="h-5 w-5 text-emerald-700" aria-hidden="true" />
-          }
           actions={
-            <button
+            <PosStyleHeaderButton
               type="button"
               onClick={() => (activeId ? loadWorkspace(activeId) : loadAccounts())}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
             >
-              <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+              <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
               Refresh
-            </button>
+            </PosStyleHeaderButton>
           }
         />
-
 
         {error ? (
           <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -243,8 +241,37 @@ export default function BankReconciliationPage() {
           </div>
         ) : null}
 
+        {featureDisabled ? (
+          <PosStylePanel className="p-4">
+            <h2 className="text-sm font-semibold text-slate-800">Enable Bank Reconciliation</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Turn on statement matching for this business and mark cash/bank payment accounts as reconcilable.
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await api('/api/bank-reconciliation/enable', { method: 'POST' });
+                  setFeatureDisabled(false);
+                  notify('');
+                  await loadAccounts();
+                } catch (e) {
+                  notify(e.message, true);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Enable Bank Reconciliation
+            </button>
+          </PosStylePanel>
+        ) : null}
+
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:col-span-1">
+          <PosStylePanel className="p-4 lg:col-span-1">
             <h2 className="text-sm font-semibold text-slate-800">Bank account</h2>
             <select
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -270,7 +297,7 @@ export default function BankReconciliationPage() {
                   <button
                     type="button"
                     onClick={() => loadWorkspace(r.id)}
-                    className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-slate-50 ${activeId === r.id ? 'bg-emerald-50' : ''}`}
+                    className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-slate-50 ${activeId === r.id ? 'bg-blue-50' : ''}`}
                   >
                     <span>{fmt(r.statementDate)} · v{r.version}</span>
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[r.status] || ''}`}>{r.status}</span>
@@ -306,16 +333,16 @@ export default function BankReconciliationPage() {
                 type="button"
                 disabled={!paymentAccountId || !createForm.statementClosingBalance || busy}
                 onClick={createRecon}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <PlayCircle className="h-4 w-4" />
                 Start reconciliation
               </button>
             </div>
-          </div>
+          </PosStylePanel>
 
           <div className="space-y-4 lg:col-span-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <PosStylePanel className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-800">Summary (server)</h2>
                 {recon ? (
@@ -350,15 +377,15 @@ export default function BankReconciliationPage() {
                   <ActionBtn onClick={() => runAction('reopen', { reason: 'User reopen' })} label="Reopen" />
                   <a
                     href={`/api/bank-reconciliation/export/${activeId}?format=csv`}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 backdrop-blur-sm hover:bg-white hover:shadow-md"
                   >
                     <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
                   </a>
                 </div>
               ) : null}
-            </div>
+            </PosStylePanel>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <PosStylePanel className="p-4">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 <Upload className="h-4 w-4" /> Import statement
               </h2>
@@ -367,7 +394,7 @@ export default function BankReconciliationPage() {
                 <button type="button" disabled={!file || busy} onClick={previewImport} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-50">
                   Preview
                 </button>
-                <button type="button" disabled={!importPreview || busy} onClick={confirmImport} className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50">
+                <button type="button" disabled={!importPreview || busy} onClick={confirmImport} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                   Confirm import
                 </button>
               </div>
@@ -376,13 +403,13 @@ export default function BankReconciliationPage() {
                   {importPreview.totalRows} rows · {importPreview.duplicateRowCount} prior duplicates · balance valid: {String(importPreview.balanceCheck?.valid)}
                 </p>
               ) : null}
-            </div>
+            </PosStylePanel>
           </div>
         </section>
 
         {workspace ? (
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <PosStylePanel>
               <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">Statement lines</div>
               <div className="max-h-96 overflow-auto">
                 <table className="w-full text-left text-xs">
@@ -399,7 +426,7 @@ export default function BankReconciliationPage() {
                       <tr
                         key={s.id}
                         onClick={() => setSelectedStmt(s.id)}
-                        className={`cursor-pointer border-t border-slate-50 hover:bg-emerald-50/50 ${selectedStmt === s.id ? 'bg-emerald-50' : ''}`}
+                        className={`cursor-pointer border-t border-slate-50 hover:bg-blue-50/50 ${selectedStmt === s.id ? 'bg-blue-50' : ''}`}
                       >
                         <td className="px-3 py-2 whitespace-nowrap">{fmt(s.transactionDate)}</td>
                         <td className="px-3 py-2">{s.description}</td>
@@ -410,16 +437,16 @@ export default function BankReconciliationPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </PosStylePanel>
 
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <PosStylePanel>
               <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                 <span className="text-sm font-semibold">GL candidates (book)</span>
                 <button
                   type="button"
                   disabled={!selectedStmt || !selectedBook}
                   onClick={linkMatch}
-                  className="inline-flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-40"
                 >
                   <Link2 className="h-3.5 w-3.5" /> Match selected
                 </button>
@@ -448,12 +475,12 @@ export default function BankReconciliationPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </PosStylePanel>
           </section>
         ) : null}
 
         {workspace?.matches?.length ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <PosStylePanel className="p-4" as="section">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Matches
             </h2>
@@ -465,7 +492,7 @@ export default function BankReconciliationPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </PosStylePanel>
         ) : null}
       </div>
     </div>
@@ -479,8 +506,8 @@ function ActionBtn({ onClick, label, primary }) {
       onClick={onClick}
       className={
         primary
-          ? 'rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800'
-          : 'rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50'
+          ? 'rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700'
+          : 'rounded-md border border-slate-300 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 backdrop-blur-sm hover:bg-white hover:shadow-md'
       }
     >
       {label}

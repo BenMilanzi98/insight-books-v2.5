@@ -12,6 +12,8 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 export default function BenefitsPage() {
   const [benefits, setBenefits] = useState([]);
@@ -131,7 +133,7 @@ export default function BenefitsPage() {
   const iconForName = (name) => {
     const n = (name || "").toLowerCase();
     if (n.includes("house") || n.includes("housing") || n.includes("accommodation"))
-      return <Home className="text-indigo-600" size={20} />;
+      return <Home className="text-blue-600" size={20} />;
     if (n.includes("airtime") || n.includes("air time"))
       return <Smartphone className="text-green-600" size={20} />;
     return <Gift className="text-amber-600" size={20} />;
@@ -140,22 +142,20 @@ export default function BenefitsPage() {
   return (
     <div className="w-full">
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Benefits & Allowances</h1>
-            <p className="text-gray-600 mt-1">
-              Manage perks such as house allowance, airtime, and other allowances. Assign amounts per employee in Employee Management.
-            </p>
-          </div>
+      <PosStylePageHeader
+        title="Benefits & Allowances"
+        description="Manage perks such as house allowance, airtime, and other allowances. Assign amounts per employee in Employee Management."
+        actions={
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500"
+            className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
           >
-            <Plus size={18} />
+            <Plus size={18} className="mr-2" />
             Add benefit
           </button>
-        </div>
+        }
+      />
 
         {toast.visible && (
           <div
@@ -173,11 +173,11 @@ export default function BenefitsPage() {
         )}
 
         {loading ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+          <PosStylePanel className="p-8 text-center text-gray-500">
             Loading benefits…
-          </div>
+          </PosStylePanel>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <PosStylePanel className="overflow-hidden">
             {benefits.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <Gift className="mx-auto mb-3 text-gray-400" size={48} />
@@ -188,7 +188,7 @@ export default function BenefitsPage() {
                 <button
                   type="button"
                   onClick={openCreate}
-                  className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Add benefit
                 </button>
@@ -228,7 +228,7 @@ export default function BenefitsPage() {
                       <button
                         type="button"
                         onClick={() => openEdit(b)}
-                        className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
                         title="Edit"
                       >
                         <Pencil size={18} />
@@ -246,7 +246,7 @@ export default function BenefitsPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </PosStylePanel>
         )}
 
         {modalOpen && (
@@ -283,7 +283,7 @@ export default function BenefitsPage() {
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. House Allowance, Airtime"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -295,7 +295,7 @@ export default function BenefitsPage() {
                     value={form.description}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                     placeholder="Short description"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -312,7 +312,7 @@ export default function BenefitsPage() {
                         setForm((f) => ({ ...f, defaultAmount: e.target.value }))
                       }
                       placeholder="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -329,7 +329,7 @@ export default function BenefitsPage() {
                         setForm((f) => ({ ...f, defaultPercentage: e.target.value }))
                       }
                       placeholder="—"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -340,7 +340,7 @@ export default function BenefitsPage() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, isActive: e.target.checked }))
                     }
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Active</span>
                 </label>
@@ -355,7 +355,7 @@ export default function BenefitsPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
                     {saving ? "Saving…" : editing ? "Update" : "Create"}
                   </button>

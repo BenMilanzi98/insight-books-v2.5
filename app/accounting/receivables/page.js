@@ -432,8 +432,8 @@ const AccountsReceivable = () => {
           active={false}
           onClick={() => setStatusFilter('All')}
           title="Show all receivables"
-          iconWrapClassName="bg-purple-100 text-purple-600"
-          barClassName="from-violet-400 via-purple-500 to-indigo-500"
+          iconWrapClassName="bg-blue-100 text-blue-600"
+          barClassName="from-blue-400 via-sky-500 to-indigo-500"
         />
       </div>
 

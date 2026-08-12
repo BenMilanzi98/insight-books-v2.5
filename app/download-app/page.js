@@ -290,7 +290,7 @@ export default function DownloadAppPage() {
 
               <div className="mb-6 flex items-center gap-5">
                 <div className="flex h-28 w-28 flex-shrink-0 items-center justify-center rounded-[2rem] border border-white/70 bg-gradient-to-br from-white to-blue-50 p-3 shadow-2xl shadow-black/30">
-                  <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-500 text-4xl font-black text-white">
+                  <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-sky-500 text-4xl font-black text-white">
                     IB
                   </div>
                 </div>
@@ -325,7 +325,7 @@ export default function DownloadAppPage() {
                   type="button"
                   onClick={runDownload}
                   disabled={!canDownload || busy}
-                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 px-8 py-4 text-base font-extrabold text-white shadow-xl shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-sky-500 px-8 py-4 text-base font-extrabold text-white shadow-xl shadow-blue-500/30 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   {busy ? 'Downloading...' : 'Download latest APK'}
                 </button>
@@ -400,7 +400,7 @@ export default function DownloadAppPage() {
                         <button
                           type="button"
                           onClick={runDownload}
-                          className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 font-extrabold text-white shadow-lg shadow-indigo-500/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                          className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 px-6 py-4 font-extrabold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl"
                         >
                           Download APK
                         </button>
@@ -434,7 +434,7 @@ export default function DownloadAppPage() {
                               <div className="h-full w-full animate-pulse rounded-full bg-indigo-500/45" />
                             ) : (
                               <div
-                                className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 transition-[width] duration-150 ease-out"
+                                className="h-full rounded-full bg-gradient-to-r from-blue-600 to-sky-500 transition-[width] duration-150 ease-out"
                                 style={{
                                   width:
                                     downloadPhase === 'saving'
@@ -628,7 +628,7 @@ export default function DownloadAppPage() {
                 type="button"
                 onClick={runDownload}
                 disabled={!canDownload || busy}
-                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3 font-extrabold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 px-5 py-3 font-extrabold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
                 Download latest APK
               </button>

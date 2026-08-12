@@ -349,7 +349,7 @@ function HeroSection() {
 
           <div className="relative w-full max-w-lg mx-auto lg:max-w-none min-w-0 mt-2 sm:mt-0">
             <div
-              className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-indigo-600/35 via-blue-600/20 to-blue-950/30 blur-2xl pointer-events-none"
+              className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-blue-600/35 via-sky-600/20 to-blue-950/30 blur-2xl pointer-events-none"
               aria-hidden
             />
             <div className="relative rounded-2xl border border-sky-400/15 bg-blue-950/35 shadow-2xl shadow-blue-950/60 backdrop-blur-xl overflow-hidden ring-1 ring-indigo-500/20">
@@ -381,7 +381,7 @@ function HeroSection() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-5">
-                  <div className="rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-600/25 to-blue-950/20 p-3 sm:p-4 min-w-0">
+                  <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-blue-950/20 p-3 sm:p-4 min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-200/90 mb-1">
                       Revenue
                     </p>
@@ -502,8 +502,8 @@ function HeroSection() {
 // Features Section — icon accents stay in the blue / indigo family (logo-aligned)
 const FEATURE_ICON_TONES = {
   spotlight:
-    'bg-gradient-to-br from-indigo-600 via-blue-600 to-sky-500 shadow-lg shadow-blue-500/30',
-  indigo: 'bg-gradient-to-br from-indigo-600 to-blue-800 shadow-md shadow-indigo-500/20',
+    'bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-500 shadow-lg shadow-blue-500/30',
+  indigo: 'bg-gradient-to-br from-blue-600 to-cyan-700 shadow-md shadow-blue-500/20',
   blue: 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-md shadow-blue-500/20',
   sky: 'bg-gradient-to-br from-sky-500 to-blue-600 shadow-md shadow-sky-500/25',
   cyan: 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/20',

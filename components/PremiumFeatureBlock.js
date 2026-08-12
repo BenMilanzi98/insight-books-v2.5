@@ -16,12 +16,12 @@ const PremiumFeatureBlock = ({
   };
 
   return (
-    <div className={`bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-8 text-center ${className}`}>
+    <div className={`bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-200 rounded-lg p-8 text-center ${className}`}>
       <div className="max-w-md mx-auto">
         {/* Icon */}
         <div className="flex justify-center mb-4">
           <div className="relative">
-            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-sky-600 rounded-full flex items-center justify-center">
               <Crown className="h-8 w-8 text-white" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
@@ -39,8 +39,8 @@ const PremiumFeatureBlock = ({
           {description}
         </p>
 
-        <div className="bg-white border border-indigo-100 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-center space-x-2 text-sm text-indigo-700">
+        <div className="bg-white border border-blue-100 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-center space-x-2 text-sm text-blue-700">
             <Lock className="h-4 w-4" />
             <span className="font-medium">Upgrade Required</span>
           </div>
@@ -53,31 +53,31 @@ const PremiumFeatureBlock = ({
           </h4>
           <ul className="space-y-2 text-sm text-gray-600">
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               POS (Point of Sale)
             </li>
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               Inventory Tracking
             </li>
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               Expenses Tracking
             </li>
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               Invoices
             </li>
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               Quotations
             </li>
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               Customer Database
             </li>
             <li className="flex items-center">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-3"></div>
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
               Financial Reporting
             </li>
           </ul>
@@ -87,7 +87,7 @@ const PremiumFeatureBlock = ({
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={handleUpgrade}
-            className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+            className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-sky-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
           >
             <Crown className="h-4 w-4 mr-2" />
             Upgrade to Premium
@@ -96,7 +96,7 @@ const PremiumFeatureBlock = ({
           
           <button
             onClick={() => window.location.href = '/subscription'}
-            className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-600 font-medium rounded-lg border border-indigo-300 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+            className="inline-flex items-center justify-center px-6 py-3 bg-white text-blue-600 font-medium rounded-lg border border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
           >
             View Pricing Plans
           </button>

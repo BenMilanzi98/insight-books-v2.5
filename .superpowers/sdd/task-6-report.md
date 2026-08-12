@@ -1,42 +1,25 @@
-# Task 6 Report
+# Task 6 Report: Damage / repair operator hooks
 
 ## Status
-- Implemented `ensureInvoicePaymentRevenueRecognition` in `lib/ensureInvoicePaymentRevenueRecognition.js`.
-- Wired `app/api/invoices/partial-payment/route.js` to call the helper after `postCustomerPaymentAccounting`.
-- Added TDD coverage in `test/ensureInvoicePaymentRevenueRecognition.test.js`.
-- Updated `test/invoicePartialPaymentSalesAccounting.test.js` for the new route wiring.
+Complete. No commit was created.
 
-## Behavior
-- Skips revenue recognition when the invoice issue journal is missing.
-- Skips legacy accrual invoices when the issue journal already credits Sales Revenue (`SALES_REVENUE` mapping, subtype, or account code `4100`).
-- Skips duplicate recognition for payments that already have an `Invoice-Revenue` journal.
-- Uses pro-rata recognition for partial payments and `computeFinalPaymentRecognizedNet` when the remaining balance after the current payment is within `MONEY_TOLERANCE`.
+## Delivered
+- Added `formatRentalTraceNote` and unit coverage for `REPAIR` and `DAMAGE` trace notes.
+- Added authenticated tenant-scoped damage and repair endpoints. Damage creates a pending rental invoice with `source=DAMAGE`; repair creates a draft repair expense with `source=REPAIR`.
+- Extended rental reports to classify tagged damage invoices as damages rather than revenue.
+- Added Damage and Repair actions to the shared Rentals / Customer hire booking list.
 
 ## Verification
-- Red phase captured:
-  - missing helper module
-  - missing route wiring assertion
-- Green phase passed:
-  - `npm test -- test/ensureInvoicePaymentRevenueRecognition.test.js test/invoicePartialPaymentSalesAccounting.test.js test/invoiceDeferredRevenue.test.js`
-  - `npm test -- test/ensureInvoicePaymentRevenueRecognition.test.js test/invoicePartialPaymentSalesAccounting.test.js test/invoiceDeferredRevenue.test.js test/ensureInvoiceSalesAccounting.test.js test/invoiceRevenueRecognitionAdapter.test.js`
-- `ReadLints` reported no linter errors in the touched files.
+- `npx vitest run test/rentalSourceTags.test.js test/rentalReportsService.test.js` — PASS (9 tests).
+- `npx eslint "lib/rentalSourceTags.js" "lib/rentalReportsService.js" "app/api/rentals/charges/damage/route.js" "app/api/rentals/charges/repair/route.js" "app/rentals/RentalsClient.js"` — PASS.
 
 ## Concerns
-- No functional blockers found.
-- One transient Vitest timeout appeared on the first combined run of the adjacent suite, but the isolated adapter file and the full rerun both passed cleanly.
+- Repair records stay Draft/Pending for the normal expense approval/payment workflow; they are immediately visible to rental reports through their trace note.
+- Recording a repair requires the tenant's active postable `5380` Repairs & Maintenance account.
 
-## Commits
-- None
-
-## Reviewer Fixes
-- Strengthened `test/invoicePartialPaymentSalesAccounting.test.js` to assert source call order using `indexOf` comparisons:
-  - `ensureInvoiceSalesAccounting` before `tx.payment.create`
-  - `postCustomerPaymentAccounting` before `ensureInvoicePaymentRevenueRecognition`
-  - `ensureInvoicePaymentRevenueRecognition` after `postCustomerPaymentAccounting`
-- Kept the existing `toContain(...)` checks in place.
-- Added quick unit coverage for helper skip cases:
-  - `no_issue_journal`
-  - `already_posted`
-- Re-ran:
-  - `npx vitest run test/invoicePartialPaymentSalesAccounting.test.js test/ensureInvoicePaymentRevenueRecognition.test.js`
-- Result: 2 files passed, 7 tests passed.
+## Important findings follow-up (2026-08-11)
+- Damage invoices now resolve the tenant's mapped `OTHER_INCOME` system-purpose account with the CoA V2 resolver (module `RENTALS`, transaction type `DAMAGE`), rather than the rental revenue default. This intentionally requires a valid configured mapping and does not invent a GL code.
+- Damage and repair trace notes add `rentalSource=CUSTOMER_HIRE` for hiring bookings, and `customer_hire` reports include only matching tagged rows (while `space` excludes them).
+- The repair action prompts for the affected asset when a booking has more than one item.
+- Verification: `npx vitest run test/rentalSourceTags.test.js test/rentalReportsService.test.js` — PASS (11 tests).
+- No commit was created.

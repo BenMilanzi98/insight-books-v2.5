@@ -332,9 +332,11 @@ const SettingsPage = () => {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Business Information Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
             <div className="flex items-center mb-6">
-              <Building className="w-6 h-6 text-blue-600 mr-3" />
+              <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <Building className="h-5 w-5" />
+              </div>
               <h2 className="text-xl font-semibold text-gray-900">Business Information</h2>
             </div>
             
@@ -372,7 +374,7 @@ const SettingsPage = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Primary Color
+                  Invoice &amp; brand colour
                 </label>
                 <input
                   type="color"
@@ -397,9 +399,11 @@ const SettingsPage = () => {
           </div>
 
           {/* Receipt Address Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
             <div className="flex items-center mb-6">
-              <MapPin className="w-6 h-6 text-green-600 mr-3" />
+              <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+                <MapPin className="h-5 w-5" />
+              </div>
               <h2 className="text-xl font-semibold text-gray-900">Receipt Business Address</h2>
             </div>
             <p className="text-sm text-gray-600 mb-6">
@@ -480,9 +484,11 @@ const SettingsPage = () => {
           </div>
 
           {/* Receipt Customization Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
             <div className="flex items-center mb-6">
-              <FileText className="w-6 h-6 text-purple-600 mr-3" />
+              <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <FileText className="h-5 w-5" />
+              </div>
               <h2 className="text-xl font-semibold text-gray-900">Receipt Customization</h2>
             </div>
             <p className="text-sm text-gray-600 mb-6">
@@ -530,9 +536,11 @@ const SettingsPage = () => {
           </div>
 
           {/* Other Settings Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
             <div className="flex items-center mb-6">
-              <Settings className="w-6 h-6 text-gray-600 mr-3" />
+              <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                <Settings className="h-5 w-5" />
+              </div>
               <h2 className="text-xl font-semibold text-gray-900">Other Settings</h2>
             </div>
             
@@ -590,9 +598,11 @@ const SettingsPage = () => {
           </div>
 
           {/* Data Export Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
             <div className="flex items-center mb-4">
-              <Download className="w-6 h-6 text-indigo-600 mr-3" />
+              <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <Download className="h-5 w-5" />
+              </div>
               <h2 className="text-xl font-semibold text-gray-900">Data Export</h2>
             </div>
             <p className="text-sm text-gray-600 mb-4">
@@ -602,7 +612,11 @@ const SettingsPage = () => {
               type="button"
               onClick={handleDataExport}
               disabled={isExporting}
-              className={`inline-flex items-center px-4 py-2 rounded-lg font-medium text-white ${isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+              className={`inline-flex items-center rounded-2xl px-4 py-2 font-medium text-white transition-all ${
+                isExporting
+                  ? 'cursor-not-allowed bg-gray-400'
+                  : 'bg-gradient-to-r from-blue-600 to-sky-600 shadow-lg shadow-blue-600/20 hover:from-blue-700 hover:to-sky-700'
+              }`}
             >
               {isExporting ? (
                 <>
@@ -619,9 +633,11 @@ const SettingsPage = () => {
           </div>
 
           {/* Document number counters */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
             <div className="flex items-center mb-4">
-              <Hash className="w-6 h-6 text-amber-600 mr-3" />
+              <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                <Hash className="h-5 w-5" />
+              </div>
               <h2 className="text-xl font-semibold text-gray-900">Document numbers</h2>
             </div>
             <p className="text-sm text-gray-600 mb-4">
@@ -692,7 +708,7 @@ const SettingsPage = () => {
             <button
               type="submit"
               disabled={isSaving}
-              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 px-6 py-3 font-medium text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-700 hover:to-sky-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? (
                 <>

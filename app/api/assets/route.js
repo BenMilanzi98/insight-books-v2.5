@@ -9,6 +9,16 @@ import { updateAccountBalance } from '@/lib/core';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
+import { AccountingV2Error } from '@/lib/accountingV2/domain/errors.js';
+import { createContributionSubAccount, ensureCapitalParentAccount } from '@/lib/capitalCoaHelpers';
+
+function toMoneyNumber(value) {
+  if (value == null || value === '') return 0;
+  const n = typeof value === 'object' && typeof value.toString === 'function'
+    ? Number(value.toString())
+    : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
 /**
  * GET handler for assets
@@ -206,10 +216,25 @@ export async function POST(request) {
     // Parse request body
     const body = await request.json();
     
+    const originalCost = toMoneyNumber(body.originalCost);
+    const usefulLifeYears = parseInt(body.usefulLifeYears, 10);
+
     // Validate required fields
     if (!body.name || !body.purchaseDate || !body.originalCost || !body.usefulLifeYears) {
       return NextResponse.json(
         { error: 'Invalid request. Missing required fields.' },
+        { status: 400 }
+      );
+    }
+    if (!(originalCost > 0)) {
+      return NextResponse.json(
+        { error: 'Original cost must be greater than 0.' },
+        { status: 400 }
+      );
+    }
+    if (!Number.isFinite(usefulLifeYears) || usefulLifeYears < 1) {
+      return NextResponse.json(
+        { error: 'Useful life must be at least 1 year.' },
         { status: 400 }
       );
     }
@@ -315,8 +340,8 @@ export async function POST(request) {
         description: body.description,
         categoryId: categoryId,
         purchaseDate: new Date(body.purchaseDate),
-        originalCost: parseFloat(body.originalCost) || 0,
-        usefulLifeYears: parseInt(body.usefulLifeYears) || 1,
+        originalCost,
+        usefulLifeYears,
         depreciationMethod: body.depreciationMethod || 'straight_line',
         status: body.status || 'active',
         location: body.location,
@@ -345,27 +370,36 @@ export async function POST(request) {
       }
     });
     
-    // Create journal entry for asset purchase (only for new assets, not existing ones)
-    if (!isExistingAsset) {
-      await createAssetJournalEntry(asset, 'purchase', tenantId, user.id, paymentAccountId, paymentMethodKey);
-      
-      // Create Payment record for payment processing view
-      await prisma.payment.create({
-        data: {
-          amount: asset.originalCost,
-          paymentDate: new Date(asset.purchaseDate),
-          paymentMethod: paymentMethodKey,
-          type: 'asset',
-          sourceAccount: paymentMethodKey,
-          reference: `Asset Purchase - ${asset.name}`,
-          notes: `Purchase of ${asset.name} (${category.name})`,
-          status: 'Completed',
-          tenantId: tenantId
-        }
-      });
-    } else {
-      // Owner-contributed / pre-existing asset: Dr Asset, Cr Owner's Equity
-      await createAssetJournalEntry(asset, 'purchase', tenantId, user.id, null, null);
+    try {
+      // Create journal entry for asset purchase (only for new assets, not existing ones)
+      if (!isExistingAsset) {
+        await createAssetJournalEntry(asset, 'purchase', tenantId, user.id, paymentAccountId, paymentMethodKey);
+        
+        // Create Payment record for payment processing view
+        await prisma.payment.create({
+          data: {
+            amount: originalCost,
+            paymentDate: new Date(asset.purchaseDate),
+            paymentMethod: paymentMethodKey,
+            type: 'asset',
+            sourceAccount: paymentMethodKey,
+            reference: `Asset Purchase - ${asset.name}`,
+            notes: `Purchase of ${asset.name} (${category.name})`,
+            status: 'Completed',
+            tenantId: tenantId
+          }
+        });
+      } else {
+        // Owner-contributed / pre-existing asset: Dr Asset, Cr Owner's Equity
+        await createAssetJournalEntry(asset, 'purchase', tenantId, user.id, null, null);
+      }
+    } catch (journalErr) {
+      try {
+        await prisma.asset.delete({ where: { id: asset.id } });
+      } catch (_) {
+        /* best-effort rollback */
+      }
+      throw journalErr;
     }
     
     // Create audit log entry
@@ -397,9 +431,18 @@ export async function POST(request) {
       code: error.code,
       meta: error.meta
     });
+    if (error instanceof AccountingV2Error) {
+      return NextResponse.json(
+        {
+          error: error.userMessage || error.message,
+          code: error.code,
+        },
+        { status: error.httpStatus || 500 }
+      );
+    }
     return NextResponse.json(
       { error: `Failed to create asset: ${error.message}` },
-      { status: 500 }
+      { status: error?.httpStatus || 500 }
     );
   }
 }
@@ -500,75 +543,51 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
       console.log('Created accumulated depreciation account:', accumulatedDepreciationAccount.id);
     }
     
-    // Get or create Owner's Capital equity account
-    let ownersCapitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: tenantId,
-        accountName: { contains: "Owner's Capital", mode: 'insensitive' },
-        accountType: 'Equity',
-        isActive: true
-      }
-    });
-    
-    if (!ownersCapitalAccount) {
-      ownersCapitalAccount = await prisma.account.findFirst({
-        where: {
-          tenantId: tenantId,
-          name: { contains: "Owner's Capital", mode: 'insensitive' },
-          type: 'EQUITY',
-          isActive: true
-        }
-      });
-    }
-    
-    if (!ownersCapitalAccount) {
-      ownersCapitalAccount = await prisma.account.create({
-        data: {
-          accountCode: '3100',
-          accountName: "Owner's Capital",
-          accountType: 'Equity',
-          normalBalance: 'Credit',
-          isActive: true,
-          tenantId: tenantId
-        }
-      });
-    }
-    
+    const originalCost = toMoneyNumber(asset.originalCost);
+    const accumulatedDepreciation = toMoneyNumber(asset.accumulatedDepreciation);
+
     if (entryType === 'purchase') {
       if (asset.isExistingAsset) {
-        // For existing assets, create opening balance entry
+        // Credit a postable 3101+ contribution leaf — 3100 is a non-posting parent.
+        const parentCapital = await ensureCapitalParentAccount(tenantId, prisma);
+        const equityCreditAccount = await createContributionSubAccount(
+          tenantId,
+          parentCapital,
+          prisma,
+          asset.name || 'Existing asset'
+        );
         const purchaseDate = asset.purchaseDate instanceof Date ? asset.purchaseDate : new Date(asset.purchaseDate);
         const referenceNumber = await generateReferenceNumber(prisma, tenantId, purchaseDate);
         
         await createTransactionWithEntries([
           {
             accountId: assetAccount.id,
-            debitAmount: asset.originalCost,
+            debitAmount: originalCost,
             creditAmount: 0,
             description: `Owner contribution — ${asset.name}`
           },
           {
-            accountId: ownersCapitalAccount.id,
+            accountId: equityCreditAccount.id,
             debitAmount: 0,
-            creditAmount: asset.originalCost,
+            creditAmount: originalCost,
             description: `Owner's Capital — ${asset.name}`
           }
         ], `Owner Contribution — ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber, asset.id);
         
         // If there's accumulated depreciation, create that entry too
-        if (asset.accumulatedDepreciation > 0) {
+        if (accumulatedDepreciation > 0) {
           const depReferenceNumber = await generateReferenceNumber(prisma, tenantId, purchaseDate);
           await createTransactionWithEntries([
             {
-              accountId: ownersCapitalAccount.id,
-              debitAmount: asset.accumulatedDepreciation,
+              accountId: equityCreditAccount.id,
+              debitAmount: accumulatedDepreciation,
               creditAmount: 0,
               description: `Opening balance - Accumulated Depreciation for ${asset.name}`
             },
             {
               accountId: accumulatedDepreciationAccount.id,
               debitAmount: 0,
-              creditAmount: asset.accumulatedDepreciation,
+              creditAmount: accumulatedDepreciation,
               description: `Opening balance - Accumulated Depreciation for ${asset.name}`
             }
           ], `Opening Balance - Accumulated Depreciation - ${asset.name}`, tenantId, userId, purchaseDate, depReferenceNumber, `${asset.id}-accum-ob`);
@@ -596,7 +615,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
         
         console.log('Creating transaction for asset purchase:', {
           assetName: asset.name,
-          amount: asset.originalCost,
+          amount: originalCost,
           assetAccountId: assetAccount.id,
           paymentAccountId: paymentAccount.id,
           referenceNumber
@@ -605,19 +624,19 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
         const transaction = await createTransactionWithEntries([
           {
             accountId: assetAccount.id,
-            debitAmount: asset.originalCost,
+            debitAmount: originalCost,
             creditAmount: 0,
             description: `Purchase of ${asset.name}`
           },
           {
             accountId: paymentAccount.id,
             debitAmount: 0,
-            creditAmount: asset.originalCost,
+            creditAmount: originalCost,
             description: `Purchase of ${asset.name}`
           }
         ], `Asset Purchase - ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber, asset.id);
         
-        console.log('Transaction created:', transaction.id);
+        console.log('Transaction created:', transaction?.journalEntryId || transaction?.id);
         
       // Update payment method balance
       if (paymentMethodKey) {
@@ -631,7 +650,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
       data: {
         assetId: asset.id,
         entryType: entryType,
-        amount: asset.originalCost,
+        amount: originalCost,
         description: `${entryType} - ${asset.name}`
       }
     });
@@ -666,12 +685,15 @@ async function createTransactionWithEntries(
   }
 
   // Validate balance
-  const totalDebits = entries.reduce((sum, entry) => sum + parseFloat(entry.debitAmount || 0), 0);
-  const totalCredits = entries.reduce((sum, entry) => sum + parseFloat(entry.creditAmount || 0), 0);
+  const totalDebits = entries.reduce((sum, entry) => sum + toMoneyNumber(entry.debitAmount), 0);
+  const totalCredits = entries.reduce((sum, entry) => sum + toMoneyNumber(entry.creditAmount), 0);
   const difference = Math.abs(totalDebits - totalCredits);
 
   if (difference > 0.01) {
     throw new Error(`Transaction does not balance. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}, Difference: ${difference.toFixed(2)}`);
+  }
+  if (!(totalDebits > 0)) {
+    throw new Error('Posting amount must be positive.');
   }
 
   const transactionDate = entryDate || new Date();
@@ -681,8 +703,8 @@ async function createTransactionWithEntries(
   const lines = entries.map((entry, index) => ({
     lineNumber: index + 1,
     accountId: entry.accountId,
-    debitAmount: parseFloat(entry.debitAmount || 0),
-    creditAmount: parseFloat(entry.creditAmount || 0),
+    debitAmount: toMoneyNumber(entry.debitAmount),
+    creditAmount: toMoneyNumber(entry.creditAmount),
     description: entry.description || description,
   }));
 

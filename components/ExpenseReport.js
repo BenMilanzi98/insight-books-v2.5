@@ -86,8 +86,8 @@ export const ExpenseReport = ({
               </p>
               <p className="text-xs text-slate-500 mt-1">{data.expensesByMonth?.length || 0} months in selected period</p>
             </div>
-            <div className="bg-gradient-to-br from-violet-50 to-white p-4 sm:p-5 rounded-2xl border border-violet-200/80 shadow-sm border-l-4 border-l-violet-500">
-              <h3 className="text-sm font-medium text-violet-700 mb-1">Top expense category</h3>
+            <div className="bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 rounded-2xl border border-sky-200/80 shadow-sm border-l-4 border-l-sky-500">
+              <h3 className="text-sm font-medium text-sky-700 mb-1">Top expense category</h3>
               {data.expensesByCategory?.length > 0 ? (
                 (() => {
                   const top = [...data.expensesByCategory].sort((a, b) => b.total - a.total)[0];

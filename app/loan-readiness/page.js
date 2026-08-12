@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Landmark, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import StatCard from '@/components/ui/StatCard';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 async function api(url, options) {
   const res = await fetch(url, options);
@@ -264,29 +266,17 @@ export default function LoanReadinessPage() {
   const capacity = preview?.debtCapacity;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-            <Landmark className="w-7 h-7 text-teal-700" />
-            Loan Readiness Centre
-          </h1>
-          <p className="text-sm text-slate-600 mt-1 max-w-3xl">
-            Internal advisory financing preparation. Scores and capacity estimates are not lender
-            decisions and do not guarantee funding. Proposed facilities never post to the General
-            Ledger.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={busy}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 text-sm"
-        >
-          <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
-      </header>
+    <div className="w-full space-y-6">
+      <PosStylePageHeader
+        title="Loan Readiness Centre"
+        description="Internal advisory financing preparation. Scores and capacity estimates are not lender decisions and do not guarantee funding. Proposed facilities never post to the General Ledger."
+        actions={
+          <PosStyleHeaderButton type="button" onClick={load} disabled={busy}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
+            Refresh
+          </PosStyleHeaderButton>
+        }
+      />
 
       {error ? (
         <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -329,7 +319,7 @@ export default function LoanReadinessPage() {
         />
       </section>
 
-      <section className="rounded-lg border border-slate-200 p-4 bg-white space-y-4">
+      <PosStylePanel className="space-y-4 p-4" as="section">
         <h2 className="font-medium">Loan request (proposed — not actual)</h2>
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-sm">
@@ -444,10 +434,10 @@ export default function LoanReadinessPage() {
           Separation of duties: the preparer cannot review or approve. A different user must mark
           reviewed before approval.
         </p>
-      </section>
+      </PosStylePanel>
 
       {preview?.proposedFacilityProjection ? (
-        <section className="rounded-lg border border-slate-200 p-4 bg-white text-sm">
+        <PosStylePanel className="p-4 text-sm" as="section">
           <h2 className="font-medium mb-1">Proposed facility three-statement (advisory)</h2>
           <p className="text-xs text-slate-500 mb-2">
             {preview.proposedFacilityProjection.integration?.note}
@@ -467,7 +457,7 @@ export default function LoanReadinessPage() {
               {String(preview.proposedFacilityProjection.integration?.interestInPnl)}
             </div>
           </div>
-        </section>
+        </PosStylePanel>
       ) : null}
 
       {capacity ? (
@@ -487,7 +477,7 @@ export default function LoanReadinessPage() {
       ) : null}
 
       {score?.dimensions?.length ? (
-        <section className="rounded-lg border border-slate-200 p-4 bg-white overflow-x-auto">
+        <PosStylePanel className="overflow-x-auto p-4" as="section">
           <h2 className="font-medium mb-2">Score dimensions (weights transparent)</h2>
           <table className="min-w-full text-xs">
             <thead>
@@ -509,11 +499,11 @@ export default function LoanReadinessPage() {
               ))}
             </tbody>
           </table>
-        </section>
+        </PosStylePanel>
       ) : null}
 
       {preview?.risks?.length ? (
-        <section className="rounded-lg border border-slate-200 p-4 bg-white">
+        <PosStylePanel className="p-4" as="section">
           <h2 className="font-medium mb-2">Risk findings</h2>
           <ul className="space-y-2 text-sm">
             {preview.risks.map((r, i) => (
@@ -532,10 +522,10 @@ export default function LoanReadinessPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </PosStylePanel>
       ) : null}
 
-      <section className="rounded-lg border border-slate-200 p-4 bg-white">
+      <PosStylePanel className="p-4" as="section">
         <h2 className="font-medium mb-2">Assessment cycles</h2>
         {(cycles || []).length === 0 ? (
           <p className="text-sm text-slate-500">No assessments yet.</p>
@@ -556,7 +546,7 @@ export default function LoanReadinessPage() {
             ))}
           </ul>
         )}
-      </section>
+      </PosStylePanel>
 
       <p className="text-xs text-slate-500">{preview?.disclaimer}</p>
     </div>

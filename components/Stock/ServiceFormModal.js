@@ -218,7 +218,7 @@ export default function ServiceFormModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col border border-slate-200/80">
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 bg-gradient-to-r from-slate-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-violet-100 text-violet-700 shrink-0">
+            <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shrink-0">
               <Briefcase className="w-5 h-5" aria-hidden />
             </div>
             <div className="min-w-0">
@@ -289,7 +289,7 @@ export default function ServiceFormModal({
                     key={opt.value}
                     className={`inline-flex items-center gap-2 cursor-pointer rounded-lg border px-3 py-2 text-sm transition-colors ${
                       billingType === opt.value
-                        ? "border-violet-500 bg-violet-50 text-violet-900"
+                        ? "border-blue-500 bg-blue-50 text-blue-900"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                     }`}
                   >
@@ -299,7 +299,7 @@ export default function ServiceFormModal({
                       value={opt.value}
                       checked={billingType === opt.value}
                       onChange={() => setBillingType(opt.value)}
-                      className="text-violet-600 focus:ring-violet-500"
+                      className="text-blue-600 focus:ring-blue-500"
                     />
                     {opt.label}
                   </label>
@@ -346,7 +346,7 @@ export default function ServiceFormModal({
                           prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
                         );
                       }}
-                      className="rounded border-slate-300 text-violet-600"
+                      className="rounded border-slate-300 text-blue-600"
                     />
                     <span className="text-slate-800">{t.taxName}</span>
                     <span className="text-slate-500 text-xs">({t.taxRate ?? 0}%)</span>
@@ -384,7 +384,7 @@ export default function ServiceFormModal({
             type="submit"
             form="service-modal-form"
             disabled={submitting || !canSubmit || loadingMeta}
-            className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>

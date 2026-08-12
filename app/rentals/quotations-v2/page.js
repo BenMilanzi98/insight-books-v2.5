@@ -106,7 +106,7 @@ export default function QuotationsV2Page() {
     <PermissionGuard permissions={['rentals.view']}>
       <div className="mx-auto max-w-6xl p-6">
         <div className="mb-4 text-sm text-gray-500">
-          <Link href="/rentals" className="text-indigo-600 hover:underline">
+          <Link href="/rentals" className="text-blue-600 hover:underline">
             Rental &amp; Hiring
           </Link>
           <span className="mx-2">/</span>
@@ -115,7 +115,7 @@ export default function QuotationsV2Page() {
         <h1 className="text-2xl font-semibold">Quotations &amp; reservations</h1>
         <p className="mt-1 text-sm text-gray-600">
           No journals on quote/hold. Convert reservation → draft contract on{' '}
-          <Link href="/rentals/contracts-v2" className="text-indigo-600 underline">
+          <Link href="/rentals/contracts-v2" className="text-blue-600 underline">
             Contracts V2
           </Link>
           .
@@ -165,7 +165,7 @@ export default function QuotationsV2Page() {
               type="button"
               disabled={busy}
               onClick={createQuote}
-              className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
               Create quotation
             </button>

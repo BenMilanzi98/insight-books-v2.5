@@ -1,206 +1,289 @@
-﻿diff --git a/app/purchases/receipts/page.js b/app/purchases/receipts/page.js
-index 99fa9436..436c0d6f 100644
---- a/app/purchases/receipts/page.js
-+++ b/app/purchases/receipts/page.js
-@@ -2,20 +2,21 @@
- 
- import { useEffect, useMemo, useState } from "react";
- import { format } from "date-fns";
- import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
- import {
-   assertReceiptDateOnOrAfterPurchaseOrder,
-   getPurchaseOrderMinReceiptDateStr,
-   isReceiptDateStrictlyAfterTodayUTC,
- } from "@/lib/goodsReceiptDateUtils";
- import { receiptUnitCostFromPurchaseOrderLine } from "@/lib/receiptUnitCostFromPoLine";
-+import StatCard from "@/components/ui/StatCard";
- 
- const statusOptions = ["Draft", "Posted"];
- 
- async function fetchReceipts(params = {}) {
-   const searchParams = new URLSearchParams();
-   Object.entries(params).forEach(([key, value]) => {
-     if (value) searchParams.set(key, value);
+# Task 4
+ M app/rentals/RentalsClient.js
+?? app/rentals/hirings/
+?? components/rentals/
+?? test/hiringsWorkspace.test.js
+
+diff --git a/app/rentals/RentalsClient.js b/app/rentals/RentalsClient.js
+index c7527086..1fb7fa80 100644
+--- a/app/rentals/RentalsClient.js
++++ b/app/rentals/RentalsClient.js
+@@ -103,7 +103,7 @@ function rangeOverlapsEvents(startIso, endIso, events) {
    });
-   const res = await fetch(`/api/purchases/receipts?${searchParams.toString()}`, {
-     cache: "no-store",
-@@ -735,29 +736,21 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
-           disabled={saving}
-           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-indigo-700 disabled:opacity-50"
-         >
-           {saving ? "Posting..." : "Post Receipt"}
-         </button>
-       </div>
-     </form>
-   );
  }
  
--function SummaryCard({ label, value, helper }) {
--  return (
--    <div className="rounded-xl border border-gray-200 bg-white p-4 ">
--      <div className="text-sm font-medium text-gray-500">{label}</div>
--      <div className="mt-1 text-2xl font-semibold text-gray-900">{value}</div>
--      {helper && <div className="mt-1 text-xs text-gray-500">{helper}</div>}
--    </div>
--  );
--}
-+
- 
- function ReceiptDetails({ receipt, onClose }) {
-   if (!receipt) return null;
-   return (
-     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-       <div className="w-full max-w-3xl rounded-xl bg-white ">
-         <div className="flex items-center justify-between border-b px-6 py-4">
-           <div>
-             <h2 className="text-xl font-semibold text-gray-900">{receipt.receiptNumber}</h2>
-             <p className="text-sm text-gray-500">
-@@ -865,20 +858,21 @@ export default function GoodsReceiptsPage() {
-   const [receipts, setReceipts] = useState([]);
-   const [suppliers, setSuppliers] = useState([]);
-   const [purchaseOrders, setPurchaseOrders] = useState([]);
-   const [products, setProducts] = useState([]);
-   const [statusFilter, setStatusFilter] = useState("");
-   const [supplierFilter, setSupplierFilter] = useState("");
-   const [loading, setLoading] = useState(true);
-   const [error, setError] = useState(null);
-   const [showForm, setShowForm] = useState(false);
-   const [viewingReceipt, setViewingReceipt] = useState(null);
-+  const [receiveNotice, setReceiveNotice] = useState(null);
- 
-   const loadData = async () => {
-     setLoading(true);
-     try {
-       const [receiptData, supplierData, productData, poData] = await Promise.all([
-         fetchReceipts({ status: statusFilter, supplierId: supplierFilter }),
-         fetch("/api/purchases/suppliers").then((res) => res.json()),
-         fetch("/api/stock").then((res) => res.json()),
-         fetch("/api/purchases/orders?status=Approved").then((res) => res.json()),
-       ]);
-@@ -927,22 +921,47 @@ export default function GoodsReceiptsPage() {
-     const draft = receipts.filter((receipt) => receipt.status === "Draft").length;
-     const posted = receipts.filter((receipt) => receipt.status === "Posted").length;
-     const pendingStock = receipts.filter((r) => r.stockPostingPending).length;
-     const inventoryValue = receipts
-       .filter((receipt) => receipt.status === "Posted")
-       .reduce((sum, receipt) => sum + Number(receipt.totalAmount || 0), 0);
-     return { total, draft, posted, pendingStock, inventoryValue };
-   }, [receipts]);
- 
-   const handleCreate = async (payload) => {
--    await postReceipt(payload);
-+    const result = await postReceipt(payload);
-+    const gr = result?.goodsReceipt || null;
-     setShowForm(false);
-+
-+    if (payload?.receiptType === "inventory" || (gr?.items && gr.items.length > 0)) {
-+      if (gr?.deferredStockPosting || gr?.stockPostingPending) {
-+        setReceiveNotice({
-+          tone: "warning",
-+          title: "Receipt posted ΓÇö stock deferred",
-+          body: "This receipt date is in the future. Stock and the unpaid bill will apply on the receipt date.",
-+          billNumber: gr?.billNumber || null,
-+        });
-+      } else {
-+        setReceiveNotice({
-+          tone: "success",
-+          title: "Goods received",
-+          body: gr?.billNumber
-+            ? `Stock updated. Unpaid bill ${gr.billNumber} is ready to pay.`
-+            : "Stock updated. An unpaid supplier bill is ready on Bills / Payments.",
-+          billNumber: gr?.billNumber || null,
-+          supplierBillId: gr?.supplierBillId || null,
-+        });
-+      }
-+    } else {
-+      setReceiveNotice(null);
-+    }
-+
-     await loadData();
+-export default function RentalsClient({ mode }) {
++export default function RentalsClient({ mode, embedded = false }) {
+   const kind = mode === "hiring" ? "hiring" : "rental";
+   const [stats, setStats] = useState(null);
+   const [assets, setAssets] = useState([]);
+@@ -431,8 +431,8 @@ export default function RentalsClient({ mode }) {
+     }
    };
  
-   return (
-     <div className="space-y-6 p-6">
-       <div className="flex flex-wrap items-center justify-between gap-4">
-         <div>
-           <h1 className="text-2xl font-semibold text-gray-900">
-             {activeReceiptTab === "service" ? "Service Receipts" : "Goods Receipts"}
-           </h1>
-@@ -979,38 +998,72 @@ export default function GoodsReceiptsPage() {
-             activeReceiptTab === "service"
-               ? "bg-indigo-600 text-white"
-               : "text-gray-700 hover:bg-gray-50"
-           }`}
-         >
-           Goods/Service Receipt
-         </button>
-       </div>
- 
-       <div className="grid gap-4 md:grid-cols-4">
--        <SummaryCard label="Receipts" value={stats.total} helper="All statuses" />
-+        <StatCard label="Receipts" value={stats.total} helper="All statuses" />
-         {activeReceiptTab === "inventory" ? (
--          <SummaryCard
-+          <StatCard
-             label="Stock pending"
-             value={stats.pendingStock}
-             helper="Posted, not in stock yet"
-           />
-         ) : (
--          <SummaryCard label="Draft" value={stats.draft} />
-+          <StatCard label="Draft" value={stats.draft} />
-         )}
--        <SummaryCard label="Posted" value={stats.posted} />
--        <SummaryCard
-+        <StatCard label="Posted" value={stats.posted} />
-+        <StatCard
-           label="Posted Inventory"
-           value={`MWK ${stats.inventoryValue.toLocaleString()}`}
-           helper="Added to stock"
-         />
-       </div>
- 
-+      {receiveNotice && (
-+        <div
-+          className={`rounded-xl border px-4 py-3 text-sm ${
-+            receiveNotice.tone === "warning"
-+              ? "border-amber-200 bg-amber-50 text-amber-900"
-+              : "border-emerald-200 bg-emerald-50 text-emerald-900"
-+          }`}
-+        >
-+          <div className="flex flex-wrap items-start justify-between gap-3">
-+            <div>
-+              <p className="font-semibold">{receiveNotice.title}</p>
-+              <p className="mt-1">{receiveNotice.body}</p>
-+              {receiveNotice.tone === "success" && (
-+                <p className="mt-2 flex flex-wrap gap-3">
-+                  <a href="/purchases/bills" className="font-medium underline underline-offset-2">
-+                    Open Bills
-+                  </a>
-+                  <a href="/purchases/payments" className="font-medium underline underline-offset-2">
-+                    Open Payments
-+                  </a>
+-  const cancelDraft = async (id) => {
+-    if (!confirm("Cancel this draft booking? The draft invoice will be removed.")) return;
++  const reverseBooking = async (id) => {
++    if (!confirm("Reverse this booking? Draft invoices are deleted; unpaid posted invoices are voided.")) return;
+     setErr(null);
+     try {
+       const res = await fetch("/api/rentals/cancel", {
+@@ -441,6 +441,9 @@ export default function RentalsClient({ mode }) {
+         body: JSON.stringify({ transactionId: id }),
+       });
+       const data = await res.json();
++      if (res.status === 409) {
++        throw new Error("Invoice has payments — refund/credit on /invoices first, then reverse.");
++      }
+       if (!res.ok) throw new Error(data.error || "Failed");
+       await load();
+     } catch (e) {
+@@ -501,55 +504,61 @@ export default function RentalsClient({ mode }) {
+     <PermissionGuard permissions={["rentals.view", "invoices.view", "invoices.create"]}>
+       <div className="min-h-screen bg-slate-50">
+         <div className="w-full max-w-none px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
+-          <header className="mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
+-            <div>
+-              <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+-                Rental &amp; Hiring
+-              </p>
+-              <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+-                {kind === "rental" ? (
+-                  <Building2 className="h-8 w-8 text-indigo-600" />
+-                ) : (
+-                  <Wrench className="h-8 w-8 text-amber-600" />
+-                )}
+-                {title}
+-              </h1>
+-              <p className="mt-2 max-w-2xl text-sm text-slate-600">{subtitle}</p>
+-              <div className="mt-4 flex flex-wrap gap-2">
+-                <Link
+-                  href="/rentals"
+-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+-                    kind === "rental"
+-                      ? "bg-indigo-600 text-white"
+-                      : "bg-white text-slate-700 ring-1 ring-slate-200"
+-                  }`}
+-                >
+-                  Rentals
+-                </Link>
+-                <Link
+-                  href="/rentals/hiring"
+-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+-                    kind === "hiring"
+-                      ? "bg-amber-600 text-white"
+-                      : "bg-white text-slate-700 ring-1 ring-slate-200"
+-                  }`}
+-                >
+-                  Quantity rentals
+-                </Link>
+-                <Link
+-                  href="/rentals/inbound-hiring"
+-                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200 hover:bg-amber-50"
+-                >
+-                  Supplier hiring
+-                </Link>
+-                <Link
+-                  href="/invoice"
+-                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+-                >
+-                  Invoicing
+-                </Link>
++          <header
++            className={`mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between ${
++              embedded ? 'sm:justify-end' : ''
++            }`}
++          >
++            {!embedded && (
++              <div>
++                <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">
++                  Rental &amp; Hiring
 +                </p>
-+              )}
-+            </div>
-+            <button
-+              type="button"
-+              onClick={() => setReceiveNotice(null)}
-+              className="text-xs font-medium opacity-70 hover:opacity-100"
-+            >
-+              Dismiss
-+            </button>
-+          </div>
-+        </div>
-+      )}
-+
-       <div className="rounded-lg border border-gray-200 bg-white p-4 ">
-         <div className="mb-4 grid gap-3 md:grid-cols-3">
-           <select
-             className="rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-             value={supplierFilter}
-             onChange={(e) => setSupplierFilter(e.target.value)}
-           >
-             <option value="">All Suppliers</option>
-             {suppliers.map((supplier) => (
-               <option key={supplier.id} value={supplier.id}>
++                <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
++                  {kind === "rental" ? (
++                    <Building2 className="h-8 w-8 text-indigo-600" />
++                  ) : (
++                    <Wrench className="h-8 w-8 text-amber-600" />
++                  )}
++                  {title}
++                </h1>
++                <p className="mt-2 max-w-2xl text-sm text-slate-600">{subtitle}</p>
++                <div className="mt-4 flex flex-wrap gap-2">
++                  <Link
++                    href="/rentals"
++                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
++                      kind === "rental"
++                        ? "bg-indigo-600 text-white"
++                        : "bg-white text-slate-700 ring-1 ring-slate-200"
++                    }`}
++                  >
++                    Rentals
++                  </Link>
++                  <Link
++                    href="/rentals/hirings?tab=customer"
++                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
++                      kind === "hiring"
++                        ? "bg-amber-600 text-white"
++                        : "bg-white text-slate-700 ring-1 ring-slate-200"
++                    }`}
++                  >
++                    Customer hire
++                  </Link>
++                  <Link
++                    href="/rentals/hirings?tab=supplier"
++                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200 hover:bg-amber-50"
++                  >
++                    Supplier hire
++                  </Link>
++                  <Link
++                    href="/invoice"
++                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
++                  >
++                    Invoicing
++                  </Link>
++                </div>
+               </div>
+-            </div>
++            )}
+             <div className="flex flex-wrap gap-2">
+               <button
+                 type="button"
+@@ -731,13 +740,13 @@ export default function RentalsClient({ mode }) {
+                                 Complete
+                               </button>
+                             )}
+-                            {t.invoice?.status?.toLowerCase?.() === "draft" && (
++                            {["booked", "active", "overdue"].includes(t.status) && (
+                               <button
+                                 type="button"
+                                 className="ml-2 text-xs font-semibold text-rose-600 hover:underline"
+-                                onClick={() => cancelDraft(t.id)}
++                                onClick={() => reverseBooking(t.id)}
+                               >
+-                                Cancel draft
++                                Reverse
+                               </button>
+                             )}
+                           </td>
+
+=== components/rentals/HiringsHub.jsx ===
+'use client';
+
+import { Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import PermissionGuard from '@/components/PermissionGuard';
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import InboundHiringPanel from '@/components/rentals/InboundHiringPanel';
+import RentalsClient from '@/app/rentals/RentalsClient';
+
+function HiringsHubInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tab = searchParams.get('tab') === 'supplier' ? 'supplier' : 'customer';
+  const setTab = (next) => router.replace(`/rentals/hirings?tab=${next}`);
+
+  return (
+    <PermissionGuard permissions={['rentals.view']}>
+      <div className="w-full p-4 sm:p-6">
+        <PosStylePageHeader
+          title="Hirings"
+          description="Customer hire (outbound) and supplier hire (inbound)"
+        />
+        <div className="mb-4 flex gap-2" role="tablist" aria-label="Hiring type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'customer'}
+            onClick={() => setTab('customer')}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+              tab === 'customer'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            Customer hire
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'supplier'}
+            onClick={() => setTab('supplier')}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+              tab === 'supplier'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            Supplier hire
+          </button>
+        </div>
+        {tab === 'customer' ? (
+          <RentalsClient mode="hiring" embedded />
+        ) : (
+          <InboundHiringPanel embedded />
+        )}
+      </div>
+    </PermissionGuard>
+  );
+}
+
+export default function HiringsHub() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading…</div>}>
+      <HiringsHubInner />
+    </Suspense>
+  );
+}
+
+=== app/rentals/hirings/page.js ===
+import HiringsHub from '@/components/rentals/HiringsHub';
+
+export const metadata = {
+  title: 'Hirings | InsightBooks',
+  description: 'Customer and supplier hiring hub.',
+};
+
+export default function HiringsPage() {
+  return <HiringsHub />;
+}
+
+=== test/hiringsWorkspace.test.js ===
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+const root = process.cwd();
+const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+
+describe('hirings workspace', () => {
+  it('provides customer and supplier tabs in a shared, suspense-wrapped workspace', () => {
+    const hub = read('components/rentals/HiringsHub.jsx');
+
+    expect(hub).toContain("import { Suspense } from 'react'");
+    expect(hub).toContain('PosStylePageHeader');
+    expect(hub).toContain('Customer hire');
+    expect(hub).toContain('Supplier hire');
+    expect(hub).toContain('router.replace(`/rentals/hirings?tab=${next}`)');
+    expect(hub).toContain('<RentalsClient mode="hiring" embedded />');
+    expect(hub).toContain('<InboundHiringPanel embedded />');
+  });
+
+  it('allows the customer hiring client to suppress duplicate page chrome', () => {
+    const rentalsClient = read('app/rentals/RentalsClient.js');
+
+    expect(rentalsClient).toContain('export default function RentalsClient({ mode, embedded = false })');
+    expect(rentalsClient).toContain('{!embedded && (');
+  });
+
+  it('allows the supplier panel to run inside the shared workspace chrome', () => {
+    const supplierPanel = read('components/rentals/InboundHiringPanel.jsx');
+
+    expect(supplierPanel).toContain('export default function InboundHiringPanel({ embedded = false })');
+    expect(supplierPanel).toContain('{!embedded && (');
+  });
+});
+
+=== RentalsClient embedded prop ===
+106:export default function RentalsClient({ mode, embedded = false }) {
+509:              embedded ? 'sm:justify-end' : ''
+512:            {!embedded && (

@@ -17,6 +17,8 @@ import {
   PlayCircle, ShieldCheck, History, ClipboardList, AlertTriangle, X,
   ChevronRight, FileClock, Database,
 } from 'lucide-react';
+import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 
 const fmtDate = (d) => (d ? String(d).slice(0, 10) : '—');
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString() : '—');
@@ -116,7 +118,7 @@ function YearSetupCard({ onDone, notify }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg shadow-slate-200/50">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold text-slate-800">
-        <CalendarDays className="h-5 w-5 text-indigo-600" /> Create Financial Year
+        <CalendarDays className="h-5 w-5 text-blue-600" /> Create Financial Year
       </h2>
       <p className="mb-4 text-sm text-slate-600">
         The server generates all monthly periods atomically from your business calendar configuration
@@ -127,7 +129,7 @@ function YearSetupCard({ onDone, notify }) {
           <label className="mb-1 block text-sm font-medium text-slate-700">Start year</label>
           <input
             type="number"
-            className="w-32 rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50"
+            className="w-32 rounded-xl border border-slate-200 px-3 py-2.5 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/50"
             value={startYear}
             onChange={(e) => setStartYear(e.target.value)}
           />
@@ -145,7 +147,7 @@ function YearSetupCard({ onDone, notify }) {
             type="button"
             disabled={busy}
             onClick={doCreateAndOpen}
-            className="rounded-xl bg-indigo-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            className="rounded-xl bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
           >
             Create and open {preview.code}
           </button>
@@ -289,12 +291,12 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
           <RefreshCw className="h-3.5 w-3.5" /> Run automated checks
         </button>
         {run.status === 'IN_PROGRESS' && (
-          <button type="button" disabled={busy} onClick={() => act({ action: 'submit-review', closeRunId: run.id }, 'Close submitted for review.')} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={() => act({ action: 'submit-review', closeRunId: run.id }, 'Close submitted for review.')} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
             Submit for review
           </button>
         )}
         {run.status === 'READY_FOR_REVIEW' && (
-          <button type="button" disabled={busy} onClick={() => act({ action: 'approve-close', closeRunId: run.id }, 'Close approved.')} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={() => act({ action: 'approve-close', closeRunId: run.id }, 'Close approved.')} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
             Approve close (second person)
           </button>
         )}
@@ -410,7 +412,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
                 const reason = window.prompt('Detailed reason for reopening (required, audited):');
                 if (reason) act({ action: 'request-reopen', reason }, 'Reopening requested — awaiting a second-person approval.');
               }}
-              className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               Request reopening
             </button>
@@ -435,11 +437,11 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
 
       {/* Pending reopen approvals */}
       {pendingReopen.map((r) => (
-        <div key={r.id} className="mb-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm">
-          <p className="font-semibold text-violet-900">Reopening requested by {r.requestedBy}</p>
-          <p className="mb-2 text-violet-800">{r.reason}</p>
+        <div key={r.id} className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm">
+          <p className="font-semibold text-blue-900">Reopening requested by {r.requestedBy}</p>
+          <p className="mb-2 text-blue-800">{r.reason}</p>
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={() => act({ action: 'approve-reopen', reopenRequestId: r.id }, 'Period reopened under restricted correction scope.')} className="rounded bg-violet-600 px-3 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">
+            <button type="button" disabled={busy} onClick={() => act({ action: 'approve-reopen', reopenRequestId: r.id }, 'Period reopened under restricted correction scope.')} className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               Approve (second person)
             </button>
             <button
@@ -449,7 +451,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
                 const rejectionReason = window.prompt('Reason for rejection:');
                 if (rejectionReason) act({ action: 'reject-reopen', reopenRequestId: r.id, rejectionReason }, 'Reopening rejected.');
               }}
-              className="rounded border border-violet-300 px-3 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+              className="rounded border border-blue-300 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
             >
               Reject
             </button>
@@ -601,7 +603,7 @@ function IntegrityPanel({ notify }) {
             onClick={() => {
               if (window.confirm('Execute the legacy period migration? Canonical years and periods are created and posted journals gain period references. Dates and amounts are never changed.')) migrate(true);
             }}
-            className="rounded-lg border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+            className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
           >
             Execute migration
           </button>
@@ -688,37 +690,26 @@ export default function FinancialCalendarV2Page() {
   return (
     <div className="w-full">
       <div className="w-full px-4 py-6 pb-12 sm:px-6 lg:px-8 lg:py-8">
-        {/* Header */}
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 p-6 shadow-xl shadow-indigo-200/50 sm:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl bg-white/20 p-3 backdrop-blur-sm">
-                <Calendar className="h-8 w-8 text-white sm:h-10 sm:w-10" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Financial Calendar</h1>
-                <p className="mt-0.5 text-sm text-indigo-100">
-                  Canonical financial years, controlled period close, reopening and audit — server-enforced.
-                </p>
-              </div>
-            </div>
-            {summary?.currentFinancialYear && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  ['Current year', summary.currentFinancialYear.code],
-                  ['Current period', summary.currentPeriod?.name ?? '—'],
-                  ['Days remaining', summary.currentPeriodDaysRemaining ?? '—'],
-                  ['Open / closing', `${summary.openPeriodCount} / ${summary.closingPeriodCount}`],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-white/15 px-4 py-2.5 text-white backdrop-blur-sm">
-                    <div className="text-[11px] uppercase tracking-wider text-indigo-100">{label}</div>
-                    <div className="text-lg font-bold">{value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+        <PosStylePageHeader
+          title="Financial Calendar"
+          description="Canonical financial years, controlled period close, reopening and audit — server-enforced."
+        />
+
+        {summary?.currentFinancialYear ? (
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ['Current year', summary.currentFinancialYear.code],
+              ['Current period', summary.currentPeriod?.name ?? '—'],
+              ['Days remaining', summary.currentPeriodDaysRemaining ?? '—'],
+              ['Open / closing', `${summary.openPeriodCount} / ${summary.closingPeriodCount}`],
+            ].map(([label, value]) => (
+              <PosStylePanel key={label} className="px-4 py-2.5">
+                <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
+                <div className="text-lg font-bold text-[var(--text-primary)]">{value}</div>
+              </PosStylePanel>
+            ))}
           </div>
-        </div>
+        ) : null}
 
         {alert && (
           <div className={`mb-6 flex items-center gap-3 rounded-xl p-4 shadow-sm ${alert.type === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-800' : 'border border-rose-200 bg-rose-50 text-rose-800'}`}>
@@ -729,7 +720,7 @@ export default function FinancialCalendarV2Page() {
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-700" />
           </div>
         ) : (
           <div className="space-y-6">
@@ -738,11 +729,11 @@ export default function FinancialCalendarV2Page() {
             {hasCalendar && (
               <>
                 {/* Year timeline */}
-                <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg shadow-slate-200/50">
+                <PosStylePanel className="p-6">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-lg font-semibold text-slate-800">Financial Years</h2>
                     <select
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-500/50"
                       value={yearFilter}
                       onChange={(e) => setYearFilter(e.target.value)}
                     >
@@ -758,12 +749,12 @@ export default function FinancialCalendarV2Page() {
                         key={y.id}
                         type="button"
                         onClick={() => setYearFilter(yearFilter === y.id ? '' : y.id)}
-                        className={`rounded-xl border px-4 py-3 text-left transition-colors ${yearFilter === y.id ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-200'}`}
+                        className={`rounded-xl border px-4 py-3 text-left transition-colors ${yearFilter === y.id ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-200'}`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-slate-800">{y.code}</span>
                           <StatusBadge status={y.status} />
-                          {y.isCurrent && <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white">CURRENT</span>}
+                          {y.isCurrent && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">CURRENT</span>}
                         </div>
                         <div className="mt-1 text-xs text-slate-500">{fmtDate(y.startDate)} → {fmtDate(y.endDate)} · {y.numberOfPeriods} periods</div>
                       </button>
@@ -772,10 +763,10 @@ export default function FinancialCalendarV2Page() {
                   <div className="mt-4 border-t border-slate-100 pt-4">
                     <YearSetupCardInline onDone={load} notify={notify} />
                   </div>
-                </div>
+                </PosStylePanel>
 
                 {/* Period cards */}
-                <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg shadow-slate-200/50">
+                <PosStylePanel className="p-6">
                   <h2 className="mb-4 text-lg font-semibold text-slate-800">Accounting Periods</h2>
                   {visiblePeriods.length === 0 ? (
                     <p className="py-8 text-center text-slate-500">No periods for this selection.</p>
@@ -788,7 +779,7 @@ export default function FinancialCalendarV2Page() {
                             key={p.id}
                             type="button"
                             onClick={() => setSelectedPeriodId(p.id)}
-                            className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${selectedPeriodId === p.id ? 'border-indigo-400 ring-2 ring-indigo-200' : isCurrent ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 bg-white'}`}
+                            className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${selectedPeriodId === p.id ? 'border-blue-400 ring-2 ring-blue-200' : isCurrent ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-white'}`}
                           >
                             <div className="mb-1 flex items-center justify-between gap-2">
                               <span className="font-semibold text-slate-800">{p.name}</span>
@@ -797,7 +788,7 @@ export default function FinancialCalendarV2Page() {
                             <div className="text-xs text-slate-500">{p.code} · {fmtDate(p.startDate)} – {fmtDate(p.endDate)}</div>
                             <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400">
                               {p.lockDate && <span className="flex items-center gap-0.5 text-amber-600"><Lock className="h-3 w-3" /> locked ≤ {fmtDate(p.lockDate)}</span>}
-                              {isCurrent && <span className="font-semibold text-indigo-600">current</span>}
+                              {isCurrent && <span className="font-semibold text-blue-600">current</span>}
                               <ChevronRight className="ml-auto h-3.5 w-3.5" />
                             </div>
                           </button>
@@ -805,7 +796,7 @@ export default function FinancialCalendarV2Page() {
                       })}
                     </div>
                   )}
-                </div>
+                </PosStylePanel>
 
                 {/* Period detail + close dashboard */}
                 {selectedPeriodId && (
@@ -865,7 +856,7 @@ function YearSetupCardInline({ onDone, notify }) {
             setBusy(false);
           }
         }}
-        className="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
         Create + open
       </button>

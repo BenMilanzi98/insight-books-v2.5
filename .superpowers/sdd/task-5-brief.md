@@ -1,58 +1,133 @@
-### Task 5: Regression check — stock path still runs
+### Task 5: Reports service + API + page
 
 **Files:**
-- Verify only: `lib/applyGoodsReceiptInventoryPosting.js` (no change unless a bug is found)
+- Create: `lib/rentalReportsService.js`
+- Create: `test/rentalReportsService.test.js`
+- Create: `app/api/rentals/reports/route.js`
+- Create/Replace: `app/rentals/reports/page.js`
 
 **Interfaces:**
-- Consumes: existing call to `autoCreateBillFromReceipt` after FIFO / inventory transactions
-- Produces: confirmation stock + bill still coupled for non-deferred receipts
+- Produces: `buildRentalHiringReport({ prisma, tenantId, from, to, type })` →
 
-- [ ] **Step 1: Confirm call order is intact**
-
-In `lib/applyGoodsReceiptInventoryPosting.js`, verify these still run in order inside one transaction:
-
-1. `createFifoBatch(...)` per line (increments `Product.stockLevel`)
-2. `inventoryTransaction.create` with `type: 'goods_receipt'`
-3. `createPurchaseReceiptJournalEntry(...)`
-4. set `inventoryAppliedAt`
-5. `autoCreateBillFromReceipt(...)`
-
-Do not reorder. Do not add payment creation.
-
-- [ ] **Step 2: Re-run unit tests**
-
-```bash
-npx vitest run tests/unit/purchases/autoCreateBillFromReceipt.test.js
+```js
+{
+  revenue: { total, bySource: { RENTAL_SPACE, CUSTOMER_HIRE } },
+  tax: { total },
+  reversals: { count, total },
+  damages: { total, count },
+  repairs: { total, count },
+  utilization: { spaceBookings, customerHireBookings, qtyDays },
+  supplierHireSpend: { total, count },
+  rows: Array<{ date, type, label, amount, invoiceId?, transactionId?, href? }>
+}
 ```
 
-Expected: PASS.
+Filter `type`: `all` | `space` | `customer_hire` | `supplier_hire`.
 
-- [ ] **Step 3: Done checklist vs spec success criteria**
+- [ ] **Step 1: Failing tests with fake prisma**
 
-- [ ] Stock increases on same-day receive
-- [ ] Unpaid bill on Bills
-- [ ] Bill selectable on Payments
-- [ ] Works with GRNI on (unit test + manual if flag can be toggled)
-- [ ] No payment auto-created
-- [ ] Idempotent bill (unit test)
+```js
+import { describe, it, expect, vi } from 'vitest';
+import { buildRentalHiringReport } from '../lib/rentalReportsService.js';
+
+describe('buildRentalHiringReport', () => {
+  it('sums outbound invoice revenue/tax and voids as reversals; excludes supplier from revenue', async () => {
+    const prisma = {
+      invoice: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'i1',
+            status: 'Paid',
+            total: 1000,
+            taxAmount: 150,
+            issueDate: new Date('2026-08-01'),
+            isRentalInvoice: true,
+            voidedAt: null,
+            rentalTransaction: { id: 'rt1', kind: 'rental', startAt: new Date('2026-08-01'), endAt: new Date('2026-08-02') },
+          },
+          {
+            id: 'i2',
+            status: 'void',
+            total: 500,
+            taxAmount: 75,
+            issueDate: new Date('2026-08-03'),
+            isRentalInvoice: true,
+            voidedAt: new Date('2026-08-04'),
+            rentalTransaction: { id: 'rt2', kind: 'hiring', startAt: new Date('2026-08-03'), endAt: new Date('2026-08-05') },
+          },
+        ]),
+      },
+      rentalCharge: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'c1', chargeType: 'DAMAGE', amount: 80, billingStatus: 'BILLED', createdAt: new Date('2026-08-02') },
+        ]),
+      },
+      expense: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'e1', amount: 120, notes: 'source=REPAIR rentalAssetId=asset-1', expenseDate: new Date('2026-08-02') },
+        ]),
+      },
+      hireAgreement: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      // If supplier bills live on SupplierBill with hire link, mock that instead — inspect hiring-v2 bill action and match real model.
+      supplierBill: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'sb1', total: 300, status: 'Unpaid', billDate: new Date('2026-08-01'), notes: 'source=SUPPLIER_HIRE' },
+        ]),
+      },
+    };
+
+    const report = await buildRentalHiringReport({
+      prisma,
+      tenantId: 't1',
+      from: new Date('2026-08-01'),
+      to: new Date('2026-08-31'),
+      type: 'all',
+    });
+
+    expect(report.revenue.total).toBe(1000);
+    expect(report.tax.total).toBe(150);
+    expect(report.reversals.count).toBe(1);
+    expect(report.damages.total).toBe(80);
+    expect(report.repairs.total).toBe(120);
+    expect(report.supplierHireSpend.total).toBe(300);
+    expect(report.revenue.total).not.toBe(1300);
+  });
+});
+```
+
+Adjust mocks to **real** Prisma model names used by hiring-v2 bill posting (read `app/api/hiring-v2/agreements/[id]/[action]/route.js` before implementing and align the test).
+
+- [ ] **Step 2: Run — expect FAIL**
+
+- [ ] **Step 3: Implement aggregator**
+
+Rules:
+- Revenue: `isRentalInvoice` invoices in range where status not in `void`/`draft`/`cancelled`; classify via `rentalTransaction.kind`.
+- Tax: sum `taxAmount` for those revenue invoices.
+- Reversals: rental invoices with `status=void` or `voidedAt` set in range (use voidedAt for period).
+- Damages: `RentalCharge` where `chargeType` matches `/damage|loss/i`.
+- Repairs: expenses whose `notes` contain `source=REPAIR` or `RENTAL_REPAIR` (document this convention in hub UI for operators recording repairs); if Expense model field names differ, map accordingly.
+- Utilization: count RTs by kind; qty-days ≈ sum over items of `quantity * billableUnits` or day span × qty.
+- Supplier spend: bills/accruals tagged from hiring-v2 (inspect actual write path).
+
+- [ ] **Step 4: API route**
+
+`GET /api/rentals/reports?from=&to=&type=`
+Auth via session + `rentals.view`; return JSON report.
+
+Add tenant API access if needed: already covered by `/api/rentals` prefix.
+
+- [ ] **Step 5: Reports page**
+
+`/rentals/reports` with date filters, type select, metric cards, simple table of `rows`, links to `/invoices` when `invoiceId` present. Use `PosStylePageHeader` / glass panels.
+
+- [ ] **Step 6: Tests PASS + smoke**
+
+Run: `npx vitest run test/rentalReportsService.test.js`
+
+- [ ] **Step 7: Commit only if user asked**
 
 ---
-
-## Spec coverage self-review
-
-| Spec requirement | Task |
-|------------------|------|
-| Stock ↑ on receive (existing path) | Task 5 verify + Task 4 manual |
-| Always Unpaid auto-bill (incl. GRNI) | Tasks 1–2 |
-| Balance increment on auto-bill | Tasks 1–2 |
-| Idempotent one bill per receipt | Task 1 |
-| No payment at receive | Tasks 2, 5 (explicit non-goal) |
-| Future-date deferral unchanged | Task 4 warning notice only; no cron change |
-| API bill ids for UI | Task 3 |
-| UI toast/notice + links | Task 4 |
-| Service receipts unchanged | Not modified |
-
-## Placeholder scan
-
-No TBD / “implement later” steps. Commit steps are explicit no-ops unless user asks.
 
