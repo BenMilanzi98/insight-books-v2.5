@@ -2,7 +2,7 @@
   "app\\expenses\\page.js -> @/app/cogs/page": {
     "id": 13464,
     "files": [
-      "static/chunks/13464.598d38e12843c1b8.js"
+      "static/chunks/13464.d4c5d22f2cddc737.js"
     ]
   },
   "app\\expenses\\page.js -> @/components/COGSExpensesTable": {
@@ -20,7 +20,7 @@
   "app\\expenses\\page.js -> @/components/COGSSummaryChart": {
     "id": 48575,
     "files": [
-      "static/chunks/7591-2cfd6cc4190d6ad3.js",
+      "static/chunks/7591-4ee690e05a86101c.js",
       "static/chunks/48575.465c0b30a69debc2.js"
     ]
   },
@@ -96,7 +96,7 @@
   "app\\pos\\page.js -> @/components/pos/PosTillGateModals": {
     "id": 93318,
     "files": [
-      "static/chunks/93318.7c43256a794b8abe.js"
+      "static/chunks/93318.204f6e089eb3f1fa.js"
     ]
   },
   "app\\services\\salesService.js -> @/lib/receiptPaperWidth": {
@@ -126,7 +126,7 @@
   "app\\stock\\page.js -> @/components/FinancialReportComponents": {
     "id": 48382,
     "files": [
-      "static/chunks/48382.aa93ef651776ae98.js"
+      "static/chunks/48382.47efec0c76398e9f.js"
     ]
   },
   "app\\stock\\page.js -> @/components/ProductDeletionWarningModal": {
@@ -150,7 +150,7 @@
   "app\\stock\\page.js -> @/components/Stock/ServiceFormModal": {
     "id": 31882,
     "files": [
-      "static/chunks/31882.86a6fe97a1661519.js"
+      "static/chunks/31882.f56b0c6358eddad9.js"
     ]
   },
   "app\\stock\\page.js -> @/components/Stock/SkuConflictModal": {

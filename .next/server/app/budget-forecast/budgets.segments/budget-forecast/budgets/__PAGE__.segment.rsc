@@ -1,6 +1,6 @@
 1:"$Sreact.fragment"
 2:I[61304,[],"ClientPageRoot"]
-3:I[99700,["98500","static/chunks/98500-a1c3ccb6022dcbcf.js","18409","static/chunks/18409-fded1b463fc1468c.js","98114","static/chunks/98114-a2e17d50c19163d7.js","30517","static/chunks/30517-672a8c03293c2705.js","32453","static/chunks/app/budget-forecast/budgets/page-17509f71ad095a27.js"],"default"]
+3:I[99700,["98500","static/chunks/98500-a1c3ccb6022dcbcf.js","18409","static/chunks/18409-fded1b463fc1468c.js","98114","static/chunks/98114-a2e17d50c19163d7.js","30517","static/chunks/30517-ffe63e28de6ed900.js","32453","static/chunks/app/budget-forecast/budgets/page-17509f71ad095a27.js"],"default"]
 6:I[90484,[],"OutletBoundary"]
 7:"$Sreact.suspense"
 0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],null,["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"build"}

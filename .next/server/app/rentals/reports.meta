@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/rentals/layout,_N_T_/rentals/reports/layout,_N_T_/rentals/reports/page,_N_T_/rentals/reports"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/rentals/reports/__PAGE__",
+    "/rentals/reports",
+    "/rentals",
+    "/_index",
+    "/_head"
+  ]
+}

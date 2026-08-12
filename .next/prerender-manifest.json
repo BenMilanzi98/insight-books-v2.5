@@ -7927,6 +7927,30 @@
         "x-next-revalidate-tag-token"
       ]
     },
+    "/rentals/hirings": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/rentals/hirings",
+      "dataRoute": "/rentals/hirings.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
     "/rentals/inbound-hiring": {
       "experimentalBypassFor": [
         {
@@ -7990,6 +8014,30 @@
       "initialRevalidateSeconds": false,
       "srcRoute": "/rentals/reconcile",
       "dataRoute": "/rentals/reconcile.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/rentals/reports": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/rentals/reports",
+      "dataRoute": "/rentals/reports.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -9549,8 +9597,8 @@
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "d402aa68f95bb7c1453d8138fdbb8c09",
-    "previewModeSigningKey": "bf790d8856c8d3dcb376516507706bb7f43f616abd5aa242976645ae031218c7",
-    "previewModeEncryptionKey": "ab2fdcb556d4f82cb39959b9b446d580ec7a2650ed20d9dd614daa105bdb4968"
+    "previewModeId": "9660658524b156676cb872ab420242c3",
+    "previewModeSigningKey": "88b2be8b62e4ee1fbbd06f0c33fc064c5d55c923deec7d54ff7c678f8bee1859",
+    "previewModeEncryptionKey": "0febac5134ccc78b9e266a9deda406d314d92f30745911313c45ddce36b34af4"
   }
 }

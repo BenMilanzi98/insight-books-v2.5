@@ -36,6 +36,18 @@
       "destination": "/tax-management",
       "statusCode": 308,
       "regex": "^(?!/_next)/tax(?:/)?$"
+    },
+    {
+      "source": "/rentals/hiring",
+      "destination": "/rentals/hirings?tab=customer",
+      "statusCode": 307,
+      "regex": "^(?!/_next)/rentals/hiring(?:/)?$"
+    },
+    {
+      "source": "/rentals/inbound-hiring",
+      "destination": "/rentals/hirings?tab=supplier",
+      "statusCode": 307,
+      "regex": "^(?!/_next)/rentals/inbound-hiring(?:/)?$"
     }
   ],
   "headers": [
@@ -4612,6 +4624,12 @@
       "namedRegex": "^/api/bank\\-reconciliation/config(?:/)?$"
     },
     {
+      "page": "/api/bank-reconciliation/enable",
+      "regex": "^/api/bank\\-reconciliation/enable(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/bank\\-reconciliation/enable(?:/)?$"
+    },
+    {
       "page": "/api/bank-reconciliation/import/confirm",
       "regex": "^/api/bank\\-reconciliation/import/confirm(?:/)?$",
       "routeKeys": {},
@@ -6394,6 +6412,18 @@
       "namedRegex": "^/api/purchases/suppliers/bulk(?:/)?$"
     },
     {
+      "page": "/api/purchases/suppliers/bulk-upload",
+      "regex": "^/api/purchases/suppliers/bulk\\-upload(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/purchases/suppliers/bulk\\-upload(?:/)?$"
+    },
+    {
+      "page": "/api/purchases/suppliers/template",
+      "regex": "^/api/purchases/suppliers/template(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/purchases/suppliers/template(?:/)?$"
+    },
+    {
       "page": "/api/quotations",
       "regex": "^/api/quotations(?:/)?$",
       "routeKeys": {},
@@ -6448,6 +6478,18 @@
       "namedRegex": "^/api/rentals/cancel(?:/)?$"
     },
     {
+      "page": "/api/rentals/charges/damage",
+      "regex": "^/api/rentals/charges/damage(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/rentals/charges/damage(?:/)?$"
+    },
+    {
+      "page": "/api/rentals/charges/repair",
+      "regex": "^/api/rentals/charges/repair(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/rentals/charges/repair(?:/)?$"
+    },
+    {
       "page": "/api/rentals/check-availability",
       "regex": "^/api/rentals/check\\-availability(?:/)?$",
       "routeKeys": {},
@@ -6470,6 +6512,12 @@
       "regex": "^/api/rentals/items/return(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/rentals/items/return(?:/)?$"
+    },
+    {
+      "page": "/api/rentals/reports",
+      "regex": "^/api/rentals/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/rentals/reports(?:/)?$"
     },
     {
       "page": "/api/rentals/stats",
@@ -9292,6 +9340,12 @@
       "namedRegex": "^/rentals/hiring(?:/)?$"
     },
     {
+      "page": "/rentals/hirings",
+      "regex": "^/rentals/hirings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/rentals/hirings(?:/)?$"
+    },
+    {
       "page": "/rentals/inbound-hiring",
       "regex": "^/rentals/inbound\\-hiring(?:/)?$",
       "routeKeys": {},
@@ -9308,6 +9362,12 @@
       "regex": "^/rentals/reconcile(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/rentals/reconcile(?:/)?$"
+    },
+    {
+      "page": "/rentals/reports",
+      "regex": "^/rentals/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/rentals/reports(?:/)?$"
     },
     {
       "page": "/reports",

@@ -1,4 +1,4 @@
-exports.id=34340,exports.ids=[12014,34340],exports.modules={5385:(a,b,c)=>{"use strict";c.d(b,{B$:()=>o,E$:()=>k,O8:()=>m,RY:()=>h,vi:()=>n});var d=c(215220),e=c(822480),f=c(12014);let g={subject:"Outstanding Balance Reminder - {{companyName}}",body:`
+exports.id=34340,exports.ids=[34340],exports.modules={5385:(a,b,c)=>{"use strict";c.d(b,{B$:()=>o,E$:()=>k,O8:()=>m,RY:()=>h,vi:()=>n});var d=c(215220),e=c(822480),f=c(12014);let g={subject:"Outstanding Balance Reminder - {{companyName}}",body:`
 Dear {{clientName}},
 
 This is a friendly reminder that you have an outstanding balance with {{companyName}}.

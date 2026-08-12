@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/rentals/layout,_N_T_/rentals/hirings/layout,_N_T_/rentals/hirings/page,_N_T_/rentals/hirings"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/rentals/hirings/__PAGE__",
+    "/rentals/hirings",
+    "/rentals",
+    "/_index",
+    "/_head"
+  ]
+}
