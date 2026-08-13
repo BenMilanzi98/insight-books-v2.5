@@ -123,6 +123,11 @@ export default function PayrollProcessing() {
       return updates;
     });
   }, [paymentAccounts, paymentAccountsLoading]);
+  useEffect(() => {
+    loadAccounts();
+    loadPaymentAccounts();
+  }, []);
+
   const loadAccounts = async () => {
     try {
       setAccountsLoading(true);
@@ -134,10 +139,12 @@ export default function PayrollProcessing() {
       }
       const data = await response.json();
       const categories = Array.isArray(data.categories) ? data.categories : [];
-      setAccounts(filterCoaAccountsForPostingPicker(categories).filter((account) => {
-        const code = account.accountCode || account.code;
-        return String(code || '').trim() === '5200';
-      }));
+      setAccounts(
+        filterCoaAccountsForPostingPicker(categories).filter((account) => {
+          const code = String(account.accountCode || account.code || '').trim();
+          return code === '5200' || code.startsWith('5200-');
+        })
+      );
     } catch (error) {
       console.error('Error loading accounts:', error);
       setAccounts([]);
@@ -176,8 +183,8 @@ export default function PayrollProcessing() {
       const type = normalizeAccountType(account);
       if (type !== 'EXPENSE') return false;
       
-      const code = account.accountCode || account.code;
-      return String(code || '').trim() === '5200';
+      const code = String(account.accountCode || account.code || '').trim();
+      return code === '5200' || code.startsWith('5200-');
     });
   }, [accounts]);
 

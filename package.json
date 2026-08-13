@@ -118,7 +118,7 @@
     "next": "^16.2.9",
     "next-auth": "^4.24.14",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^7.0.13",
     "pg": "^8.14.1",
     "pngjs": "^7.0.0",
     "postgres": "^3.4.5",

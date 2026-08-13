@@ -2,13 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { generateReferenceNumber } from '@/lib/journalService';
-import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
 import { resolveSalaryAdvanceReceivableAccount } from '@/lib/salaryAdvanceGlAccount';
-import { postGlEntry } from '@/lib/accountingEngine/postGlEntry.js';
+import { postSalaryAdvanceAccounting } from '@/lib/accountingV2/adapters/remainingAdapters.js';
 
 /**
  * GET - Get all salary advances for the tenant
@@ -176,7 +174,6 @@ export async function POST(request) {
       // Credit: Cash/Payment Account - decreases cash
       const entryDate = new Date(advanceDate);
       await assertPeriodOpen(user.tenantId, entryDate, tx);
-      const referenceNumber = await generateReferenceNumber(tx, user.tenantId, entryDate);
 
       const advanceLines = [
         {
@@ -195,9 +192,6 @@ export async function POST(request) {
         },
       ];
       const advanceDesc = `Salary Advance: ${employee.name}${reference ? ` (${reference})` : ''}`;
-      const { postSalaryAdvanceAccounting } = await import(
-        '@/lib/accountingV2/adapters/remainingAdapters.js'
-      );
       await postSalaryAdvanceAccounting({
         db: tx,
         tenantId: user.tenantId,
@@ -207,18 +201,6 @@ export async function POST(request) {
         date: entryDate,
         description: advanceDesc,
         lines: advanceLines,
-        legacyPost: () =>
-          postGlEntry({
-            tenantId: user.tenantId,
-            userId: user.id,
-            entryDate,
-            description: advanceDesc,
-            reference: referenceNumber,
-            sourceType: 'SalaryAdvance',
-            sourceId: advance.id,
-            lines: advanceLines,
-            tx,
-          }),
       });
 
       return advance;

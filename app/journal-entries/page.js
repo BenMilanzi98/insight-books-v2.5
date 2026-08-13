@@ -181,6 +181,13 @@ const JournalEntries = () => {
     setDateRange(e.target.value);
     setPage(1); // Reset to first page when date range changes
   };
+
+  const handleCustomDateChange = (range) => {
+    if (range?.startDate) setCustomStartDate(range.startDate);
+    if (range?.endDate) setCustomEndDate(range.endDate);
+    setDateRange('custom');
+    setPage(1);
+  };
   
   // Handle status filter change
   const handleStatusFilterChange = (e) => {

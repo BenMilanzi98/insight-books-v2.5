@@ -182,7 +182,9 @@ export async function POST(request) {
         isEmailVerified: true,
         otpCode: null,
         otpExpiry: null,
-        ...(primaryBranchId ? { defaultBranchId: primaryBranchId } : {}),
+        ...(primaryBranchId
+          ? { defaultBranch: { connect: { id: primaryBranchId } } }
+          : {}),
       },
       include: {
         role: true // Include the role in the returned user object

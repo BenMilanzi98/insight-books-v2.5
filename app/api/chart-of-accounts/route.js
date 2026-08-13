@@ -507,7 +507,11 @@ export async function GET(request) {
 
         const accountCode = String(account.accountCode || account.code || '').trim();
         const accountName = (account.accountName || account.name || '').toLowerCase().trim();
-        const accountType = (account.accountType || account.type || '').trim().toUpperCase();
+        let accountType = (account.accountType || account.type || '').trim().toUpperCase();
+        const codeNum = parseInt(accountCode, 10);
+        if (!Number.isNaN(codeNum) && codeNum >= 1200 && codeNum < 1300) {
+          accountType = 'ASSET';
+        }
 
         /** Parent/header accounts: use only posted GL on this account; roll up children later. */
         const hasChildren =
@@ -587,6 +591,8 @@ export async function GET(request) {
 
         const accountResult = {
           ...account,
+          accountType: accountType === 'ASSET' ? 'Asset' : (account.accountType || account.type),
+          type: accountType === 'ASSET' ? 'Asset' : (account.type || account.accountType),
           /** Posted GL (and documented sub-ledgers) on this account id only (before parent/child rollup). */
           postedDirectBalance: finalBalance,
           currentBalance: finalBalance,

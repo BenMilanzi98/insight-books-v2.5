@@ -980,6 +980,10 @@ export async function POST(request) {
               throw new Error(`Product with ID ${item.productId} not found`);
             }
 
+            if (product.isService) {
+              continue;
+            }
+
             const baseQtyRequested = resolveSaleItemBaseQuantity(item, product);
             
             // Skip check if stockLevel is null (unlimited)

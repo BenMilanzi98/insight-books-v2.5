@@ -106,7 +106,7 @@ export async function PUT(request) {
     if (updateData.department !== undefined) dataToUpdate.department = updateData.department;
     if (updateData.status !== undefined) dataToUpdate.status = updateData.status;
     const primaryBranchId = await resolveHiddenPrimaryBranchId(user.tenantId);
-    if (primaryBranchId) dataToUpdate.defaultBranchId = primaryBranchId;
+    if (primaryBranchId) dataToUpdate.defaultBranch = { connect: { id: primaryBranchId } };
 
     // Hash password if provided
     if (updateData.password) {

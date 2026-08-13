@@ -190,7 +190,6 @@ const TrialBalance = () => {
       }
       
       setLastUpdated(new Date());
-      setTimeframe(apiTimeframe);
     } catch (err) {
       console.error("Error fetching trial balance data:", err);
       setError("Failed to load trial balance data. Please try again.");
