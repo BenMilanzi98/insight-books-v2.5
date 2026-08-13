@@ -73,13 +73,13 @@ describe('ensurePosTillFloatPaymentAccount', () => {
     );
     expect(client.paymentAccount.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        tenantId: 'tenant-1',
+        tenant: { connect: { id: 'tenant-1' } },
         name: 'Till Float',
         accountType: 'Cash',
         reference: 'POS_TILL_FLOAT',
         isSystem: true,
         isActive: true,
-        coaAccountId: 'till-1112',
+        coaAccount: { connect: { id: 'till-1112' } },
       }),
     });
     expect(result).toBe(createdPaymentAccount);

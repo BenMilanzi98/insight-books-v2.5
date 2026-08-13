@@ -200,7 +200,7 @@ export async function POST(request) {
       paymentAccount = await prisma.$transaction(async (tx) => {
         const created = await tx.paymentAccount.create({
           data: {
-            tenantId: user.tenantId,
+            tenant: { connect: { id: user.tenantId } },
             name: trimmedName,
             accountType: trimmedType,
             reference: normalizedReference,
@@ -221,7 +221,18 @@ export async function POST(request) {
           { status: 400 }
         );
       }
-      console.warn('COA link failed for new payment account:', linkErr?.message || linkErr);
+      const linkMessage = String(linkErr?.message || '');
+      if (linkMessage.includes('Argument `tenant` is missing')) {
+        return NextResponse.json(
+          {
+            error: 'Failed to create payment account: tenant relation is required.',
+            code: 'PRISMA_TENANT_RELATION',
+            hint: linkMessage.slice(0, 300),
+          },
+          { status: 400 }
+        );
+      }
+      console.warn('COA link failed for new payment account:', linkMessage || linkErr);
       throw linkErr;
     }
 

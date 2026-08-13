@@ -110,14 +110,14 @@ describe('openPosCashDay', () => {
 
     expect(client.posCashDay.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        tenantId: 'tenant-1',
+        tenant: { connect: { id: 'tenant-1' } },
         branchKey: POS_CASH_BRANCH_KEY,
         businessDate: '2026-08-11',
         status: 'OPEN',
-        systemCashAccountId: 'cash-pa',
-        tillFloatAccountId: 'till-pa',
+        systemCashAccount: { connect: { id: 'cash-pa' } },
+        tillFloatAccount: { connect: { id: 'till-pa' } },
         openingBalance: 0,
-        openedById: 'user-1',
+        openedBy: { connect: { id: 'user-1' } },
         openCount: 1,
       }),
     });
@@ -310,7 +310,7 @@ describe('openPosCashDay', () => {
         fundingCashAmount: null,
         fundingCapitalAmount: null,
         closedAt: null,
-        closedById: null,
+        closedBy: { disconnect: true },
       }),
     });
   });
@@ -398,12 +398,12 @@ describe('openPosCashDay', () => {
         data: expect.objectContaining({
           status: 'CLOSED',
           openingBalance: 45,
-          systemCashAccountId: 'cash-pa-old',
-          tillFloatAccountId: 'till-pa-old',
+          systemCashAccount: { connect: { id: 'cash-pa-old' } },
+          tillFloatAccount: { connect: { id: 'till-pa-old' } },
           openedAt: expect.any(Date),
-          openedById: 'user-old',
+          openedBy: { connect: { id: 'user-old' } },
           closedAt,
-          closedById: 'closer-1',
+          closedBy: { connect: { id: 'closer-1' } },
           autoClosed: true,
           totalSalesAtClose: 225,
           closingBalanceAtClose: 270,
@@ -581,7 +581,7 @@ describe('closePosCashDay', () => {
       where: { id: 'day-close-1' },
       data: expect.objectContaining({
         status: 'CLOSED',
-        closedById: 'closer-1',
+        closedBy: { connect: { id: 'closer-1' } },
         autoClosed: false,
         totalSalesAtClose: 30,
         closingBalanceAtClose: 130,
@@ -668,7 +668,7 @@ describe('closePosCashDay', () => {
       where: { id: 'day-auto-1' },
       data: expect.objectContaining({
         status: 'CLOSED',
-        closedById: null,
+        closedBy: { disconnect: true },
         autoClosed: true,
         closeSweepJournalId: null,
       }),
