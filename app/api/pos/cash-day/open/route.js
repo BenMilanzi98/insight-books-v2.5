@@ -30,9 +30,11 @@ export async function POST(request) {
       code === 'TILL_FLOAT_UNMAPPED' ||
       code === 'CASH_COA_UNMAPPED'
         ? 409
-        : code === 'INVALID_OPENING_BALANCE'
-          ? 400
-          : 400;
+        : code === 'MIGRATION_REQUIRED'
+          ? 503
+          : code === 'INVALID_OPENING_BALANCE'
+            ? 400
+            : 400;
     return NextResponse.json({ error: e?.message || 'Failed to open day', code }, { status });
   }
 }
