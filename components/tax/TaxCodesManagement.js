@@ -590,8 +590,11 @@ export default function TaxCodesManagement() {
                   {tax.status}
                 </span>
                 {tax.supersededById ? (
-                  <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
-                    Superseded
+                  <span
+                    className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800"
+                    title="Replaced by a newer rate version. Activate this code to make it current again, or activate the new version."
+                  >
+                    Replaced
                   </span>
                 ) : null}
               </div>

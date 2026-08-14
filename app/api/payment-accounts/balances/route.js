@@ -3,6 +3,10 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
 import { loadPostedGlBalancesByCoaIds } from '@/lib/paymentAccountPostedGlBalance';
+import {
+  isPosTillFloatPaymentAccount,
+  withoutPosTillFloatPaymentAccounts,
+} from '@/lib/posTillFloatAccounts';
 
 async function ensurePaymentCoaForAccounts(tenantId, rows) {
   const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
@@ -19,21 +23,32 @@ async function ensurePaymentCoaForAccounts(tenantId, rows) {
 async function syncPaymentAccountsToCoa(tenantId) {
   await initializeDefaultPaymentAccounts(tenantId, prisma);
 
-  let paymentAccounts = await prisma.paymentAccount.findMany({
-    where: { tenantId, isActive: true },
-    orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
-  });
+  const where = {
+    tenantId,
+    isActive: true,
+  };
+
+  let paymentAccounts = withoutPosTillFloatPaymentAccounts(
+    await prisma.paymentAccount.findMany({
+      where,
+      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+    })
+  );
 
   const { findPaymentAccountsNeedingLeafCoaMigration } = await import('@/lib/paymentAccountCoaLink');
-  const needsLeafMigration = await findPaymentAccountsNeedingLeafCoaMigration(tenantId, prisma);
+  const needsLeafMigration = withoutPosTillFloatPaymentAccounts(
+    await findPaymentAccountsNeedingLeafCoaMigration(tenantId, prisma)
+  ).filter((p) => !isPosTillFloatPaymentAccount(p));
   const needsLink = paymentAccounts.filter((p) => !p.coaAccountId);
   const toCoaFix = [...new Map([...needsLink, ...needsLeafMigration].map((p) => [p.id, p])).values()];
   if (toCoaFix.length > 0) {
     await ensurePaymentCoaForAccounts(tenantId, toCoaFix.slice(0, 80));
-    paymentAccounts = await prisma.paymentAccount.findMany({
-      where: { tenantId, isActive: true },
-      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
-    });
+    paymentAccounts = withoutPosTillFloatPaymentAccounts(
+      await prisma.paymentAccount.findMany({
+        where,
+        orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+      })
+    );
   }
 
   const linkedIds = [
@@ -63,10 +78,12 @@ async function syncPaymentAccountsToCoa(tenantId) {
       );
     }
     if (toRepair.length) {
-      paymentAccounts = await prisma.paymentAccount.findMany({
-        where: { tenantId, isActive: true },
-        orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
-      });
+      paymentAccounts = withoutPosTillFloatPaymentAccounts(
+        await prisma.paymentAccount.findMany({
+          where,
+          orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+        })
+      );
     }
   }
 

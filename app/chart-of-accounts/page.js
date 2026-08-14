@@ -118,7 +118,7 @@ const ChartOfAccountsPage = () => {
     Liability: ['Group', 'Current Liability', 'Non-current Liability', 'Non-Current Liability'],
     Equity: ['Group', 'Equity', 'Capital'],
     Income: ['Group', 'Operating Income', 'Other Income'],
-    Expense: ['Group', 'Cost of Sales', 'Operating Expense', 'Other Expense'],
+    Expense: ['Group', 'Cost of Goods', 'Cost of Sales', 'Operating Expense', 'Other Expense'],
   };
 
   const toInputDate = (d) => {

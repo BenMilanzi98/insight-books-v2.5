@@ -5,6 +5,7 @@ import {
   ALLOWED_PAYMENT_ACCOUNT_TYPES,
   PaymentGlSlotsExhaustedError,
 } from '@/lib/paymentAccountCoaLink';
+import { withoutPosTillFloatPaymentAccounts } from '@/lib/posTillFloatAccounts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ export async function GET(request) {
 
     const where = {
       tenantId: user.tenantId,
-      ...(activeOnly && { isActive: true })
+      ...(activeOnly && { isActive: true }),
     };
 
     let paymentAccounts = await prisma.paymentAccount.findMany({
@@ -58,22 +59,27 @@ export async function GET(request) {
         { name: 'asc' }
       ]
     });
+    paymentAccounts = withoutPosTillFloatPaymentAccounts(paymentAccounts);
 
     const { findPaymentAccountsNeedingLeafCoaMigration } = await import('@/lib/paymentAccountCoaLink');
-    const needsLeafMigration = await findPaymentAccountsNeedingLeafCoaMigration(user.tenantId, prisma);
+    const needsLeafMigration = withoutPosTillFloatPaymentAccounts(
+      await findPaymentAccountsNeedingLeafCoaMigration(user.tenantId, prisma)
+    );
     const needsLink = paymentAccounts.filter((p) => !p.coaAccountId);
     const toCoaFix = [...new Map([...needsLink, ...needsLeafMigration].map((p) => [p.id, p])).values()];
     if (toCoaFix.length > 0) {
       for (const p of toCoaFix.slice(0, 80)) {
         await safeLinkCoa(user.tenantId, p);
       }
-      paymentAccounts = await prisma.paymentAccount.findMany({
-        where,
-        orderBy: [
-          { isSystem: 'desc' },
-          { name: 'asc' },
-        ],
-      });
+      paymentAccounts = withoutPosTillFloatPaymentAccounts(
+        await prisma.paymentAccount.findMany({
+          where,
+          orderBy: [
+            { isSystem: 'desc' },
+            { name: 'asc' },
+          ],
+        })
+      );
     }
 
     return NextResponse.json({ 

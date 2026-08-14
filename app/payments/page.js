@@ -57,8 +57,8 @@ const PaymentAccountsPage = () => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to create payment");
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.details || errorData.error || "Failed to create payment");
     }
 
     showNotification("Transfer completed successfully", "success");
@@ -195,8 +195,7 @@ const PaymentAccountsPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payment Accounts</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Malawi banks (1131–1138), mobile money (1140–1141), and cash (1110). Parent GL rows show rollup totals;
-              your accounts post to child codes such as 1131-01.
+              Active cash, bank, and mobile accounts. Add or activate channels under Manage accounts.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

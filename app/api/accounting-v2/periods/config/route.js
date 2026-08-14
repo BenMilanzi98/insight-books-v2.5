@@ -34,6 +34,23 @@ export async function PUT(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const config = await updateCalendarConfig(prisma, guard.context, body, { reason: body.reason ?? null });
+    // Mirror FY start month onto TenantSettings for settings UI / CoA filters.
+    if (body.fyStartMonth != null) {
+      try {
+        await prisma.tenantSettings.upsert({
+          where: { tenantId: guard.context.businessId },
+          update: { fiscalYearStartMonth: Number(config.fyStartMonth) },
+          create: {
+            tenantId: guard.context.businessId,
+            fiscalYearStartMonth: Number(config.fyStartMonth),
+            currencyCode: 'MWK',
+            taxEnabled: true,
+          },
+        });
+      } catch (mirrorErr) {
+        console.warn('Mirror fyStartMonth to TenantSettings failed:', mirrorErr?.message || mirrorErr);
+      }
+    }
     return NextResponse.json({ config });
   } catch (error) {
     if (error instanceof RangeError) {

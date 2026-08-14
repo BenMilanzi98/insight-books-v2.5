@@ -186,6 +186,7 @@ const PaymentModal = ({
       onClose();
     } catch (err) {
       console.error("Submission error:", err);
+      alert(err?.message || "Failed to record payment");
     } finally {
       setLoading(false);
     }

@@ -213,7 +213,14 @@ export async function PUT(request, { params }) {
     }
     if (calculationType !== undefined) updateData.calculationType = calculationType;
     if (accountId !== undefined) updateData.accountId = accountId || null;
-    if (status !== undefined) updateData.status = status;
+    if (status !== undefined) {
+      updateData.status = status;
+      // Re-activating a code makes it current again — drop leftover supersession markers.
+      if (String(status).toLowerCase() === 'active') {
+        updateData.supersededById = null;
+        updateData.effectiveTo = null;
+      }
+    }
     if (effectiveFrom !== undefined) {
       updateData.effectiveFrom = effectiveFrom ? new Date(effectiveFrom) : null;
     }

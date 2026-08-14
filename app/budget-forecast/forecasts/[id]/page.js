@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
-import BfShell, { StatusBadge, SummaryCard } from '@/components/budget-forecast/BfShell';
+import BfShell, {
+  StatusBadge,
+  BfSecondaryButton,
+  BfTableShell,
+  BF_THEAD_CLASS,
+} from '@/components/budget-forecast/BfShell';
 import { formatCurrency } from '@/lib/currencyUtils';
 
 export default function ForecastDetailPage() {
@@ -60,47 +65,49 @@ export default function ForecastDetailPage() {
         subtitle={`${forecast?.forecastType || ''} · ${forecast?.scenarioType || ''} · calc ${forecast?.calculationVersion || ''}`}
         actions={
           <>
-            <button type="button" onClick={() => router.push('/budget-forecast/forecasts')} className="rounded-lg border px-3 py-2 text-sm">
+            <BfSecondaryButton type="button" onClick={() => router.push('/budget-forecast/forecasts')}>
               Back
-            </button>
-            <button type="button" onClick={() => run('generate')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => run('generate')}>
               Generate
-            </button>
-            <button type="button" onClick={() => run('submit')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => run('submit')}>
               Submit
-            </button>
-            <button type="button" onClick={() => run('approve')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => run('approve')}>
               Approve
-            </button>
-            <button type="button" onClick={() => run('lock')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => run('lock')}>
               Lock
-            </button>
+            </BfSecondaryButton>
           </>
         }
       >
         {error ? <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div> : null}
-        {message ? <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div> : null}
+        {message ? (
+          <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>
+        ) : null}
 
         <div className="mb-4">
           <StatusBadge status={forecast?.status} />
         </div>
 
         {months.length > 0 ? (
-          <div className="mb-6 overflow-x-auto rounded-xl border bg-white shadow-sm">
+          <BfTableShell className="mb-6">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs uppercase text-slate-500">
-                  <th className="px-3 py-2">Month</th>
-                  <th className="px-3 py-2">Opening</th>
-                  <th className="px-3 py-2">Receipts</th>
-                  <th className="px-3 py-2">Payments</th>
-                  <th className="px-3 py-2">Closing</th>
-                  <th className="px-3 py-2">Status</th>
+                <tr className={BF_THEAD_CLASS}>
+                  <th className="px-3 py-2.5">Month</th>
+                  <th className="px-3 py-2.5">Opening</th>
+                  <th className="px-3 py-2.5">Receipts</th>
+                  <th className="px-3 py-2.5">Payments</th>
+                  <th className="px-3 py-2.5">Closing</th>
+                  <th className="px-3 py-2.5">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {months.map((m) => (
-                  <tr key={m.key || m.periodStart} className="border-b border-slate-100">
+                  <tr key={m.key || m.periodStart} className="border-b border-slate-100/80">
                     <td className="px-3 py-2">{m.key || String(m.periodStart).slice(0, 7)}</td>
                     <td className="px-3 py-2">{formatCurrency(m.openingCash || 0)}</td>
                     <td className="px-3 py-2">{formatCurrency(m.expectedReceipts || 0)}</td>
@@ -113,24 +120,24 @@ export default function ForecastDetailPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </BfTableShell>
         ) : null}
 
-        <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+        <BfTableShell>
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs uppercase text-slate-500">
-                <th className="px-3 py-2">Code</th>
-                <th className="px-3 py-2">Account</th>
-                <th className="px-3 py-2">Method</th>
-                <th className="px-3 py-2">Historical</th>
-                <th className="px-3 py-2">Budget</th>
-                <th className="px-3 py-2">Projected</th>
+              <tr className={BF_THEAD_CLASS}>
+                <th className="px-3 py-2.5">Code</th>
+                <th className="px-3 py-2.5">Account</th>
+                <th className="px-3 py-2.5">Method</th>
+                <th className="px-3 py-2.5">Historical</th>
+                <th className="px-3 py-2.5">Budget</th>
+                <th className="px-3 py-2.5">Projected</th>
               </tr>
             </thead>
             <tbody>
               {(forecast?.lines || []).map((line) => (
-                <tr key={line.id} className="border-b border-slate-100">
+                <tr key={line.id} className="border-b border-slate-100/80">
                   <td className="px-3 py-2 font-mono text-xs">{line.accountCodeSnapshot}</td>
                   <td className="px-3 py-2">{line.accountNameSnapshot}</td>
                   <td className="px-3 py-2">{line.forecastMethod}</td>
@@ -144,7 +151,7 @@ export default function ForecastDetailPage() {
           {(forecast?.lines || []).length === 0 ? (
             <p className="p-6 text-sm text-slate-500">No lines yet. Run Generate to build from posted actuals.</p>
           ) : null}
-        </div>
+        </BfTableShell>
       </BfShell>
     </PermissionGuard>
   );

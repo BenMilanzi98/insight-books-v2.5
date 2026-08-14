@@ -24,6 +24,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { REPORT_TYPES } from '@/lib/accountingV2/reporting/reportTypes';
+import ProfitLossReportView from '@/components/reports/ProfitLossReportView';
 
 const firstDayOfYear = () => `${new Date().getFullYear()}-01-01`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -32,18 +33,10 @@ const CATEGORIES = [
   {
     name: 'Core Accounting',
     reports: [
-      { type: 'TRIAL_BALANCE', name: 'Trial Balance', description: 'Opening, movement and closing balances per account from posted journal lines.' },
       { type: 'INCOME_STATEMENT', name: 'Profit & Loss', description: 'Revenue, COGS, operating expenses, tax and net profit.' },
       { type: 'PROFIT_ANALYSIS', name: 'Profit Analysis', description: 'Full P&L drill-down with gross and net margin ratios.' },
       { type: 'BALANCE_SHEET', name: 'Statement of Financial Position', description: 'Cumulative assets, liabilities and equity as of a date.' },
       { type: 'CASH_FLOW', name: 'Cash Flow Statement', description: 'Operating, investing and financing cash movements (indirect method).' },
-    ],
-  },
-  {
-    name: 'Receivables and Payables',
-    reports: [
-      { type: 'RECEIVABLES', name: 'Receivables Aging', description: 'Aging buckets reconciled to the AR control account.' },
-      { type: 'PAYABLES', name: 'Payables Aging', description: 'Aging buckets reconciled to the AP control account.' },
     ],
   },
   {
@@ -60,20 +53,23 @@ const CATEGORIES = [
     name: 'Operations and Controls',
     reports: [
       { type: 'INVENTORY', name: 'Inventory Valuation', description: 'Inventory GL accounts with control reconciliation.' },
-      { type: 'FIXED_ASSETS', name: 'Fixed Asset Register', description: 'Asset, accumulated depreciation and NBV accounts.' },
       { type: 'PAYROLL', name: 'Payroll Summary', description: 'Salaries (Account 5200) and payroll liabilities.' },
       { type: 'LOANS', name: 'Loan Summary', description: 'Loan liabilities and finance costs.' },
       { type: 'TAXES', name: 'Tax Reports', description: 'VAT, PAYE and tax accounts.' },
-      { type: 'EQUITY', name: 'Equity Reports', description: 'Capital, drawings and reserves.' },
-    ],
-  },
-  {
-    name: 'Management',
-    reports: [
-      { type: 'BUDGET_VS_ACTUAL', name: 'Budget versus Actual', description: 'Budget → Actual → Variance with correct favourable sign for expenses.' },
     ],
   },
 ];
+
+/** Report types removed from this hub (still available elsewhere / via API if needed). */
+const HIDDEN_REPORT_TYPES = new Set([
+  'TRIAL_BALANCE',
+  'RECEIVABLES',
+  'PAYABLES',
+  'EQUITY_STATEMENT',
+  'EQUITY',
+  'BUDGET_VS_ACTUAL',
+  'FIXED_ASSETS',
+]);
 
 function Badge({ tone = 'muted', children }) {
   const cls =
@@ -169,11 +165,12 @@ function DrillDownModal({ drill, onClose }) {
 function findReportByType(type) {
   if (!type) return null;
   const upper = String(type).toUpperCase();
+  if (HIDDEN_REPORT_TYPES.has(upper)) return null;
   for (const cat of CATEGORIES) {
     const match = cat.reports.find((r) => r.type === upper);
     if (match) return match;
   }
-  return Object.values(REPORT_TYPES).includes(upper)
+  return Object.values(REPORT_TYPES).includes(upper) && !HIDDEN_REPORT_TYPES.has(upper)
     ? { type: upper, name: upper.replaceAll('_', ' '), description: '' }
     : null;
 }
@@ -236,8 +233,9 @@ function ReportsPageInner() {
   }, [selected, fromDate, toDate, includeZero, isAsOf]);
 
   useEffect(() => {
+    if (selected.type === 'INCOME_STATEMENT') return;
     load();
-  }, [load]);
+  }, [load, selected.type]);
 
   const exportUrl = (format) => {
     const params = new URLSearchParams({ type: selected.type, format });
@@ -372,6 +370,14 @@ function ReportsPageInner() {
 
         {/* Main report panel */}
         <main className="min-w-0 flex-1 space-y-4">
+          {selected.type === 'INCOME_STATEMENT' ? (
+            <ProfitLossReportView
+              onDrill={(line) => {
+                if (line?.lineId) drillInto(line.lineId.split('::')[0]);
+              }}
+            />
+          ) : (
+            <>
           <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-xl backdrop-blur-sm sm:p-5">
             <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500" />
             <div className="mb-3 flex flex-wrap items-center gap-2 pt-1">
@@ -692,6 +698,8 @@ function ReportsPageInner() {
                 </div>
               )}
             </div>
+          )}
+            </>
           )}
         </main>
       </div>

@@ -5,10 +5,13 @@ import { ChevronDown, Check, Building2 } from 'lucide-react';
 import { checkPermission } from '@/lib/permissions';
 
 /**
- * Sidebar control to switch the active business (tenant).
- * Uses /api/tenant/list + /api/tenant/switch (same behavior as /switch-tenant).
+ * Compact sidebar control: selected business + plan/expiry + tenant switch dropdown.
  */
-export default function BranchSwitcher() {
+export default function BranchSwitcher({
+  planLabel = null,
+  expiryLabel = null,
+  isTrial = false,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [tenants, setTenants] = useState([]);
   const [currentTenantId, setCurrentTenantId] = useState(null);
@@ -40,9 +43,15 @@ export default function BranchSwitcher() {
   useEffect(() => {
     let mounted = true;
     checkPermission('system.switchTenant')
-      .then((ok) => { if (mounted) setCanManageBusinesses(!!ok); })
-      .catch(() => { if (mounted) setCanManageBusinesses(false); });
-    return () => { mounted = false; };
+      .then((ok) => {
+        if (mounted) setCanManageBusinesses(!!ok);
+      })
+      .catch(() => {
+        if (mounted) setCanManageBusinesses(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -82,81 +91,75 @@ export default function BranchSwitcher() {
     }
   };
 
+  const metaLine =
+    planLabel || expiryLabel
+      ? [planLabel, expiryLabel].filter(Boolean).join(' · ')
+      : null;
+
   if (loading) {
     return (
-      <div className="relative inline-block w-full">
-        <div className="w-full flex items-center justify-between rounded border border-gray-600 px-3 py-2 text-white bg-gray-800 animate-pulse">
-          <div className="flex flex-col items-start gap-0.5 min-w-0">
-            <span className="text-[10px] uppercase tracking-wide text-gray-400">
-              Businesses
-            </span>
-            <div className="flex items-center gap-2">
-              <Building2 size={16} />
-              <span className="truncate text-sm">Loading...</span>
-            </div>
-          </div>
-        </div>
+      <div className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 animate-pulse">
+        <div className="h-3.5 w-28 rounded bg-white/10 mb-1.5" />
+        <div className="h-2.5 w-36 rounded bg-white/10" />
       </div>
     );
   }
 
   if (tenants.length === 0) {
     return (
-      <div className="w-full rounded border border-gray-600 px-3 py-2 text-white bg-gray-800 text-sm">
-        <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-          Businesses
-        </div>
+      <div className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-white">
         {canManageBusinesses ? (
-          <Link
-            href="/switch-tenant"
-            className="text-blue-300 hover:text-blue-200 underline text-xs"
-          >
+          <Link href="/switch-tenant" className="text-blue-300 hover:text-blue-200 text-xs underline">
             Add or manage businesses
           </Link>
         ) : (
-          <div className="text-gray-300 text-xs">
-            No businesses assigned
-          </div>
+          <div className="text-gray-400 text-xs">No businesses assigned</div>
         )}
       </div>
     );
   }
 
   return (
-    <div ref={rootRef} className="relative inline-block w-full">
+    <div ref={rootRef} className="relative w-full">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={switching}
-        className="w-full flex items-center justify-between rounded border border-gray-600 px-3 py-2 text-white bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-70"
+        className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-2 text-left text-white hover:bg-white/[0.1] transition-colors disabled:opacity-70"
       >
-        <div className="flex flex-col items-start gap-0.5 min-w-0 text-left">
-          <span className="text-[10px] uppercase tracking-wide text-gray-400">
-            Businesses
-          </span>
-          <div className="flex items-center gap-2 min-w-0">
-            <Building2 size={16} className="flex-shrink-0" />
-            <span className="truncate text-sm font-medium">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Building2 size={14} className="flex-shrink-0 text-sky-300" />
+            <span className="truncate text-[13px] font-semibold leading-tight">
               {currentTenant?.name || 'Select business'}
             </span>
           </div>
+          {metaLine && (
+            <div
+              className={`mt-0.5 truncate pl-[20px] text-[10px] leading-tight ${
+                isTrial ? 'text-amber-300/90' : 'text-sky-300/80'
+              }`}
+            >
+              {metaLine}
+            </div>
+          )}
         </div>
         <ChevronDown
-          size={16}
-          className={`transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          size={14}
+          className={`flex-shrink-0 text-white/70 transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 max-h-72 overflow-auto">
-          <div className="py-1">
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+          <div className="max-h-64 overflow-auto py-1">
             {tenants.map((tenant) => (
               <button
                 key={tenant.id}
                 type="button"
                 onClick={() => handleTenantSelect(tenant)}
                 disabled={switching}
-                className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-2 ${
+                className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 ${
                   currentTenantId === tenant.id
                     ? 'bg-blue-50 text-blue-700'
                     : 'text-gray-700 hover:bg-gray-100'
@@ -166,19 +169,24 @@ export default function BranchSwitcher() {
                   <Building2 size={14} className="flex-shrink-0 text-gray-500" />
                   <span className="truncate">{tenant.name}</span>
                 </div>
-                {currentTenantId === tenant.id && (
-                  <Check size={14} className="flex-shrink-0" />
-                )}
+                {currentTenantId === tenant.id && <Check size={14} className="flex-shrink-0" />}
               </button>
             ))}
           </div>
-          <div className="border-t border-gray-200 px-3 py-2 bg-gray-50">
+          <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 flex items-center justify-between gap-2">
             <Link
               href="/switch-tenant"
               className="text-xs text-blue-600 hover:text-blue-800 font-medium"
               onClick={() => setIsOpen(false)}
             >
-              Add or manage businesses
+              Manage businesses
+            </Link>
+            <Link
+              href="/subscription"
+              className="text-xs text-gray-500 hover:text-gray-700"
+              onClick={() => setIsOpen(false)}
+            >
+              Subscription
             </Link>
           </div>
         </div>

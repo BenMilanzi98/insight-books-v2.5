@@ -49,11 +49,13 @@ import { enrichChartAccountsWithPaymentAccounts } from '@/lib/paymentAccountCoaL
 import { enrichChartAccountsWithTaxTypes } from '@/lib/taxTypeCoaLink.js';
 import {
   buildCoaAccountListWhere,
+  withoutPosTillFloatCoaAccounts,
   COA_ACCOUNT_TYPES,
   normalizeCoaAccountType,
 } from '@/lib/coaAccountListWhere.js';
 import { createAccountingContext } from '@/lib/accountingV2/domain/accountingContext.js';
 import { getBusinessLedgerSummary } from '@/lib/accountingV2/ledger/ledgerQueryService.js';
+import { resolveGlBranchScope } from '@/lib/glBranchScope.js';
 
 // Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
@@ -242,7 +244,9 @@ export async function GET(request) {
       });
 
       const rollupOnlyRows = await fetchChartRollupOnlyAccounts(user.tenantId, prisma);
-      accounts = mergeRollupOnlyAccountsForProcessing(accounts, rollupOnlyRows);
+      accounts = withoutPosTillFloatCoaAccounts(
+        mergeRollupOnlyAccountsForProcessing(accounts, rollupOnlyRows)
+      );
 
       // Canonical-only display removed from page controls; full tenant chart stays visible.
     } catch (error) {
@@ -393,12 +397,12 @@ export async function GET(request) {
     }, 0);
 
     /** When set, GL includes this branch plus tenant-wide (null branchId) postings — same as income statement. */
-    const glBranchFilter =
-      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
-        ? { branchId: user.currentBranchId }
-        : {};
+    const glBranchScope = resolveGlBranchScope(user?.currentBranchId);
+    const glBranchFilter = glBranchScope.where;
 
-    const inventorySearchAligned = alignInventorySearchParamsWithGlBranch(searchParams, glBranchFilter);
+    const inventorySearchAligned = alignInventorySearchParamsWithGlBranch(searchParams, {
+      branchId: glBranchScope.branchId || undefined,
+    });
 
     // Inventory — live valuation matching GET /api/stock/statistics (same branch scope as GL above).
     // Date filters apply to posted GL only; inventory overlay stays aligned with Stock Management so 1300 matches /stock.
@@ -459,13 +463,13 @@ export async function GET(request) {
       const context = createAccountingContext({
         businessId: user.tenantId,
         userId: user.id,
-        branchId: glBranchFilter.branchId || null,
+        branchId: glBranchScope.branchId || null,
         sourceChannel: 'api',
       });
       const summary = await getBusinessLedgerSummary(prisma, context, {
         startDate: dateRange.from || undefined,
         endDate: dateRange.to || undefined,
-        branchId: glBranchFilter.branchId || null,
+        branchId: glBranchScope.branchId || null,
         includeZeroActivity: false,
       });
       for (const row of summary.accounts || []) {

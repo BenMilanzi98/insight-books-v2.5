@@ -159,14 +159,14 @@ export async function GET(request) {
       }
     }
 
-    // Catalog: physical products vs billable services (same Product table)
-    // POS catalog must never include services (invoice-only).
-    const catalog = (searchParams.get('catalog') || '').toLowerCase();
-    if (posCatalogMode || catalog === 'products') {
-      where.isService = false;
-    } else if (catalog === 'services') {
-      where.isService = true;
-    }
+  // Catalog: physical products vs billable services (same Product table).
+  // POS loads products + services via separate catalog= requests from the client.
+  const catalog = (searchParams.get('catalog') || '').toLowerCase();
+  if (catalog === 'products' || (posCatalogMode && catalog !== 'services')) {
+    where.isService = false;
+  } else if (catalog === 'services') {
+    where.isService = true;
+  }
     const includeUsageCounts = catalog === 'services' || searchParams.get('usageCounts') === '1';
     
     // Add search filter if provided (name, SKU, barcode; barcode matches prefix/partial via Product + ProductBarcode)
@@ -274,20 +274,23 @@ export async function GET(request) {
           : undefined;
       const { _count: _usageCount, ...productFields } = product;
 
-      // Default values for missing fields
-      const stockLevel = productFields.stockLevel || 0;
       const reorderPoint = productFields.reorderPoint || 10;
-      
+
       // Determine product status based on stock level (services are not inventory-tracked)
       let status;
+      let stockLevel;
       if (productFields.isService) {
         status = 'Service';
-      } else if (stockLevel === 0) {
-        status = 'Out of Stock';
-      } else if (stockLevel <= reorderPoint) {
-        status = 'Low Stock';
+        stockLevel = null;
       } else {
-        status = 'In Stock';
+        stockLevel = productFields.stockLevel ?? 0;
+        if (stockLevel === 0) {
+          status = 'Out of Stock';
+        } else if (stockLevel <= reorderPoint) {
+          status = 'Low Stock';
+        } else {
+          status = 'In Stock';
+        }
       }
       
       // Compute taxRate from productTaxes relation if the field is null/0
@@ -329,6 +332,8 @@ export async function GET(request) {
         ...productFields,
         usageLineCount,
         barcodes,
+        isService: Boolean(productFields.isService),
+        stockLevel,
         // Ensure these fields exist and have default values if null
         category: productFields.category || 'Uncategorized',
         reorderPoint: reorderPoint,

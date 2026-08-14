@@ -47,6 +47,14 @@ export async function GET(request) {
       financialYearStartDate: searchParams.get('financialYearStartDate') || undefined,
       branchId: searchParams.get('branchId') || undefined,
       includeZeroBalances: searchParams.get('includeZeroBalances') === '1',
+      groupBy: searchParams.get('groupBy') || undefined,
+      reportBasis: searchParams.get('reportBasis') || searchParams.get('accountingMethod') || undefined,
+      breakdown: searchParams.get('breakdown') || undefined,
+      currency: searchParams.get('currency') || undefined,
+      applyCitProvision:
+        reportType === 'INCOME_STATEMENT'
+          ? searchParams.get('applyCitProvision') !== 'false'
+          : searchParams.get('applyCitProvision') === 'true',
     };
     const { envelope } = await generateReport(prisma, guard.context, reportType, params, {
       recordRun: false,

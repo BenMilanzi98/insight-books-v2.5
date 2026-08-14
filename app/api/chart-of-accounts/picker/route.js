@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { canUseCoaAccountPicker } from '@/lib/chartOfAccountsAccess';
-import { buildCoaAccountListWhere } from '@/lib/coaAccountListWhere.js';
+import { buildCoaAccountListWhere, withoutPosTillFloatCoaAccounts } from '@/lib/coaAccountListWhere.js';
 import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility.js';
 import { enrichChartAccountsWithPaymentAccounts } from '@/lib/paymentAccountCoaLink.js';
 import { enrichChartAccountsWithTaxTypes } from '@/lib/taxTypeCoaLink.js';
@@ -79,7 +79,7 @@ export async function GET(request) {
       orderBy: [{ accountCode: 'asc' }],
     });
 
-    let mapped = rows.map((acc) => ({
+    let mapped = withoutPosTillFloatCoaAccounts(rows).map((acc) => ({
       ...acc,
       code: acc.code ?? acc.accountCode ?? '',
       name: acc.name ?? acc.accountName ?? '',

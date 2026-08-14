@@ -365,7 +365,15 @@ function AccountRow({ account, mode, onSelect, onEdit, onDelete }) {
   );
 }
 
-function ChannelCard({ channel, mode, onAddAccount, onSelectAccount, onEditAccount, onDeleteAccount }) {
+function ChannelCard({
+  channel,
+  mode,
+  allowAdd,
+  onAddAccount,
+  onSelectAccount,
+  onEditAccount,
+  onDeleteAccount,
+}) {
   const [open, setOpen] = useState(true);
   const hasAccounts = channel.accounts?.length > 0;
 
@@ -393,13 +401,15 @@ function ChannelCard({ channel, mode, onAddAccount, onSelectAccount, onEditAccou
           <p className="text-lg font-bold tabular-nums text-slate-900">
             {formatCurrency(channel.totalBalance)}
           </p>
-          <button
-            type="button"
-            onClick={() => onAddAccount?.(channel.code, channel.accountType)}
-            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-          >
-            <Plus size={14} /> Add
-          </button>
+          {allowAdd ? (
+            <button
+              type="button"
+              onClick={() => onAddAccount?.(channel.code, channel.accountType)}
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            >
+              <Plus size={14} /> Add
+            </button>
+          ) : null}
         </div>
       </div>
       {open ? (
@@ -456,22 +466,26 @@ export default function PaymentChannelsPanel({
     load();
   }, [load, refreshKey]);
 
-  const bankChannels = useMemo(
-    () => (data?.channels || []).filter((c) => c.accountType === "Bank"),
-    [data]
-  );
-  const mobileChannels = useMemo(
-    () => (data?.channels || []).filter((c) => c.accountType === "Mobile Money"),
-    [data]
-  );
+  const isManagement = mode === "management";
 
-  const openAdd = (parentGlCode, accountType) => {
+  const bankChannels = useMemo(() => {
+    const all = (data?.channels || []).filter((c) => c.accountType === "Bank");
+    return isManagement ? all : all.filter((c) => (c.accounts?.length || 0) > 0);
+  }, [data, isManagement]);
+  const mobileChannels = useMemo(() => {
+    const all = (data?.channels || []).filter((c) => c.accountType === "Mobile Money");
+    return isManagement ? all : all.filter((c) => (c.accounts?.length || 0) > 0);
+  }, [data, isManagement]);
+
+  const openAdd = (parentGlCode) => {
+    if (!isManagement) return;
     setEditingAccount(null);
     setDefaultParentGlCode(parentGlCode || "");
     setModalOpen(true);
   };
 
   const openEdit = (account) => {
+    if (!isManagement) return;
     setEditingAccount(account);
     setDefaultParentGlCode(account.parentGlCode || "");
     setModalOpen(true);
@@ -494,6 +508,7 @@ export default function PaymentChannelsPanel({
   return (
     <div className="space-y-8">
       {/* Cash — 1110 */}
+      {(isManagement || (data.cash?.accounts || []).length > 0) ? (
       <section>
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -517,23 +532,34 @@ export default function PaymentChannelsPanel({
               onDelete={onDeleteAccount}
             />
           ))}
+          {!(data.cash?.accounts || []).length ? (
+            <p className="text-xs text-slate-400 text-center py-4 px-2">
+              Cash uses GL 1110 automatically.
+            </p>
+          ) : null}
         </div>
       </section>
+      ) : null}
 
       {/* Banks */}
+      {(isManagement || bankChannels.length > 0) ? (
       <section>
         <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Banks</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Parent accounts 1131–1138 show accumulated totals. Post to child GL accounts only.
+            {isManagement
+              ? "Parent accounts 1131–1138 show accumulated totals. Post to child GL accounts only."
+              : "Only bank accounts you have added. Manage channels under Payment accounts management."}
           </p>
         </div>
+        {bankChannels.length ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {bankChannels.map((ch) => (
             <ChannelCard
               key={ch.code}
               channel={ch}
               mode={mode}
+              allowAdd={isManagement}
               onAddAccount={openAdd}
               onSelectAccount={onSelectAccount}
               onEditAccount={openEdit}
@@ -541,19 +567,33 @@ export default function PaymentChannelsPanel({
             />
           ))}
         </div>
+        ) : (
+          <p className="text-sm text-slate-500 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center">
+            No bank accounts yet. Add them under Manage accounts.
+          </p>
+        )}
       </section>
+      ) : null}
 
       {/* Mobile money */}
+      {(isManagement || mobileChannels.length > 0) ? (
       <section>
         <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Mobile money</h2>
+          {!isManagement ? (
+            <p className="text-xs text-slate-500 mt-0.5">
+              Only mobile accounts you have added. Manage channels under Payment accounts management.
+            </p>
+          ) : null}
         </div>
+        {mobileChannels.length ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {mobileChannels.map((ch) => (
             <ChannelCard
               key={ch.code}
               channel={ch}
               mode={mode}
+              allowAdd={isManagement}
               onAddAccount={openAdd}
               onSelectAccount={onSelectAccount}
               onEditAccount={openEdit}
@@ -561,7 +601,13 @@ export default function PaymentChannelsPanel({
             />
           ))}
         </div>
+        ) : (
+          <p className="text-sm text-slate-500 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center">
+            No mobile money accounts yet. Add them under Manage accounts.
+          </p>
+        )}
       </section>
+      ) : null}
 
       {data.otherAccounts?.length ? (
         <section>
@@ -581,6 +627,7 @@ export default function PaymentChannelsPanel({
         </section>
       ) : null}
 
+      {isManagement ? (
       <PaymentAccountFormModal
         open={modalOpen}
         onClose={() => {
@@ -592,6 +639,7 @@ export default function PaymentChannelsPanel({
         catalog={data.catalog}
         onSaved={() => load()}
       />
+      ) : null}
     </div>
   );
 }

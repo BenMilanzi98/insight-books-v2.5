@@ -38,6 +38,7 @@ import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
 import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanner";
 import SetupWizardReminderBanner from "@/components/SetupWizardReminderBanner";
+import DashboardSetupWizardButton from "@/components/DashboardSetupWizardButton";
 import StatCard from "@/components/ui/StatCard";
 import { SetupWizardProvider } from "@/components/setup/SetupWizardContext";
 import SetupWizardHost from "@/components/setup/SetupWizardHost";
@@ -1189,6 +1190,7 @@ const BusinessOwnerDashboard = () => {
                 aria-label="Live overview"
               />
             }
+            actions={<DashboardSetupWizardButton />}
           />
 
 

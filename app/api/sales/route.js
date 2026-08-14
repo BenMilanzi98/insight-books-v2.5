@@ -498,7 +498,13 @@ export async function POST(request) {
       }
     }
 
-    // Apply default income account for any line missing accountId (client race, offline sync, or partial payloads)
+    // Auto-assign revenue GL: services → 4150, products → 4100 (no tenant picker).
+    if (Array.isArray(data.items) && data.items.length) {
+      const { applyAutomaticSaleRevenueAccounts } = await import('@/lib/coaIncomeAccounts');
+      await applyAutomaticSaleRevenueAccounts(prisma, user.tenantId, data.items);
+    }
+
+    // Apply default income account for any line still missing accountId
     const needsIncomeDefault = data.items.some((item) => {
       const a = item.accountId;
       return a == null || (typeof a === 'string' && a.trim() === '');
@@ -509,7 +515,7 @@ export async function POST(request) {
         return NextResponse.json(
           {
             error:
-              'Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.',
+              'Income account is required. Please go to Chart of Accounts and create Income accounts 4100 Product Sales and 4150 Service Revenue before creating sales.',
           },
           { status: 400 }
         );

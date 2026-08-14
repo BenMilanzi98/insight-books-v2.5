@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { canUseCoaAccountPicker } from '@/lib/chartOfAccountsAccess';
 import { computeCoaAccountBalanceBreakdown } from '@/lib/coaAccountBalanceBreakdown.js';
+import { resolveGlBranchScope } from '@/lib/glBranchScope.js';
 
 /**
  * GET /api/chart-of-accounts/picker/balance?accountId=
@@ -56,10 +57,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const glBranchFilter =
-      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
-        ? { branchId: user.currentBranchId }
-        : {};
+    const glBranchFilter = resolveGlBranchScope(user?.currentBranchId).where;
 
     const breakdown = await computeCoaAccountBalanceBreakdown(prisma, user.tenantId, account, {
       glBranchFilter,

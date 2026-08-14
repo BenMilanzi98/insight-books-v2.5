@@ -99,6 +99,7 @@ export async function GET(request) {
       currencyCode: settings?.currencyCode,
       invoicePrefix: settings?.invoicePrefix,
       enabledModules: settings?.enabledModules,
+      fiscalYearStartMonth: Number(settings?.fiscalYearStartMonth) || 1,
     };
     
     console.log('Tenant Settings API GET - Tenant data from database:', {
@@ -202,6 +203,14 @@ export async function PUT(request) {
         expiryWarnDaysUrgent > expiryWarnDaysEarly
           ? Math.max(1, Math.min(7, expiryWarnDaysEarly))
           : expiryWarnDaysUrgent,
+      fiscalYearStartMonth:
+        body.fiscalYearStartMonth !== undefined
+          ? (() => {
+              const m = Number(body.fiscalYearStartMonth);
+              if (!Number.isInteger(m) || m < 1 || m > 12) return undefined;
+              return m;
+            })()
+          : undefined,
     });
 
     if (Object.keys(tenantFields).length > 0) {
@@ -227,6 +236,29 @@ export async function PUT(request) {
       update: settingsFields,
       create: createPayload
     });
+
+    // Keep V2 financial calendar start month in sync when tenant sets their FY.
+    if (settingsFields.fiscalYearStartMonth != null) {
+      try {
+        const { createAccountingContext } = await import('@/lib/accountingV2/domain/accountingContext.js');
+        const { updateCalendarConfig } = await import(
+          '@/lib/accountingV2/periods/calendarConfigService.js'
+        );
+        const ctx = createAccountingContext({
+          businessId: user.tenantId,
+          userId: user.id,
+          sourceChannel: 'api',
+        });
+        await updateCalendarConfig(
+          prisma,
+          ctx,
+          { fyStartMonth: settingsFields.fiscalYearStartMonth },
+          { reason: 'Updated from tenant settings fiscal year start month' }
+        );
+      } catch (fySyncErr) {
+        console.warn('Fiscal year calendar sync failed (non-fatal):', fySyncErr?.message || fySyncErr);
+      }
+    }
 
     await prisma.auditLog.create({
       data: {

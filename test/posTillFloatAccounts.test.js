@@ -68,6 +68,7 @@ describe('ensurePosTillFloatPaymentAccount', () => {
           isSystem: true,
           systemPurpose: 'POS_TILL_FLOAT',
           postingAllowed: true,
+          visibleInChart: false,
         }),
       })
     );
@@ -108,11 +109,16 @@ describe('ensurePosTillFloatPaymentAccount', () => {
     const repaired = { ...existing, coaAccountId: 'till-1112' };
 
     client.account.findFirst.mockResolvedValueOnce(tillLeaf);
+    client.account.update.mockResolvedValueOnce({ ...tillLeaf, visibleInChart: false });
     client.paymentAccount.findFirst.mockResolvedValueOnce(existing);
     client.paymentAccount.update.mockResolvedValueOnce(repaired);
 
     const result = await ensurePosTillFloatPaymentAccount('tenant-1', client);
 
+    expect(client.account.update).toHaveBeenCalledWith({
+      where: { id: 'till-1112' },
+      data: expect.objectContaining({ visibleInChart: false }),
+    });
     expect(client.paymentAccount.update).toHaveBeenCalledWith({
       where: { id: 'pa-1' },
       data: expect.objectContaining({

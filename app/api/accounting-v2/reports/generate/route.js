@@ -37,6 +37,15 @@ export async function GET(request) {
       branchId: searchParams.get('branchId') || undefined,
       includeZeroBalances: searchParams.get('includeZeroBalances') === '1',
       reportDefinitionVersion: searchParams.get('definitionVersion') || undefined,
+      groupBy: searchParams.get('groupBy') || undefined,
+      reportBasis: searchParams.get('reportBasis') || searchParams.get('accountingMethod') || undefined,
+      breakdown: searchParams.get('breakdown') || undefined,
+      currency: searchParams.get('currency') || undefined,
+      // P&L: default on so CIT applies to the selected period (incl. pre-enable activity).
+      applyCitProvision:
+        reportType === 'INCOME_STATEMENT'
+          ? searchParams.get('applyCitProvision') !== 'false'
+          : searchParams.get('applyCitProvision') === 'true',
     };
     const { envelope } = await generateReport(prisma, guard.context, reportType, params, {
       useCache: searchParams.get('cache') === '1',

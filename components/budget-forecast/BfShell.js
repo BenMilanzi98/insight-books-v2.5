@@ -4,14 +4,52 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ClickableStatCard from '@/components/ui/ClickableStatCard';
 import StatCard from '@/components/ui/StatCard';
-import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
+import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/PosStylePageHeader';
 import PosStylePanel from '@/components/shell/PosStylePanel';
+import { cn } from '@/lib/utils';
+import {
+  BF_PRIMARY_BTN_CLASS,
+  BF_PRIMARY_SUCCESS_BTN_CLASS,
+  BF_TAB_ACTIVE_CLASS,
+  BF_TAB_IDLE_CLASS,
+  BF_THEAD_CLASS,
+} from '@/components/budget-forecast/bfVisualClasses.js';
+
+export {
+  BF_PRIMARY_BTN_CLASS,
+  BF_PRIMARY_SUCCESS_BTN_CLASS,
+  BF_TAB_ACTIVE_CLASS,
+  BF_TAB_IDLE_CLASS,
+  BF_THEAD_CLASS,
+} from '@/components/budget-forecast/bfVisualClasses.js';
 
 const TABS = [
   { href: '/budget-forecast/budgets', label: 'Budgets' },
   { href: '/budget-forecast/forecasts', label: 'Forecasts' },
   { href: '/budget-forecast/reports', label: 'Reports' },
 ];
+
+export function BfPrimaryButton({ success = false, className = '', type = 'button', ...props }) {
+  return (
+    <button
+      type={type}
+      className={cn(success ? BF_PRIMARY_SUCCESS_BTN_CLASS : BF_PRIMARY_BTN_CLASS, className)}
+      {...props}
+    />
+  );
+}
+
+export function BfSecondaryButton(props) {
+  return <PosStyleHeaderButton {...props} />;
+}
+
+export function BfTableShell({ children, accent = 'default', className = '' }) {
+  return (
+    <PosStylePanel accent={accent} className={cn('overflow-x-auto', className)}>
+      {children}
+    </PosStylePanel>
+  );
+}
 
 export default function BfShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
@@ -27,11 +65,7 @@ export default function BfShell({ title, subtitle, actions, children }) {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap ${
-                  active
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-white/80 hover:shadow-md'
-                }`}
+                className={active ? BF_TAB_ACTIVE_CLASS : BF_TAB_IDLE_CLASS}
               >
                 {tab.label}
               </Link>
@@ -61,7 +95,15 @@ export function StatusBadge({ status }) {
   );
 }
 
-export function SummaryCard({ label, value, hint, onClick, active = false, title }) {
+export function SummaryCard({
+  label,
+  value,
+  hint,
+  onClick,
+  active = false,
+  title,
+  barClassName,
+}) {
   if (onClick) {
     return (
       <ClickableStatCard
@@ -71,12 +113,13 @@ export function SummaryCard({ label, value, hint, onClick, active = false, title
         active={active}
         onClick={onClick}
         title={title}
+        barClassName={barClassName}
       />
     );
   }
 
   return (
-    <StatCard label={label} value={value} title={title}>
+    <StatCard label={label} value={value} title={title} barClassName={barClassName}>
       {hint ? <span className="mt-1 block text-xs text-gray-500">{hint}</span> : null}
     </StatCard>
   );

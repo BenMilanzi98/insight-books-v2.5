@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   User,
-  ChevronDown,
   HelpCircle,
   LifeBuoy,
   ChevronRight,
@@ -169,7 +168,6 @@ const iconMap = {
   "Employee Management": Users,
   "Leave Management": CalendarDays,
   "Attendance Tracking": Clock,
-  "Performance Management": TrendingUp,
   "Payroll Processing": DollarSign,
   "Pension (NPS)": Landmark,
   "Gratuity Management": Wallet,
@@ -284,7 +282,6 @@ const NavIcon = ({ name, active, size = 18 }) => {
     "Employee Management": "#06B6D4",
     "Leave Management": "#14B8A6",
     "Attendance Tracking": "#3B82F6",
-    "Performance Management": "#10B981",
     "Payroll Processing": "#22C55E",
     "Pension (NPS)": "#EC4899",
     "Gratuity Management": "#84CC16",
@@ -438,7 +435,6 @@ const navigationByPermission = {
             { href: "/hr/employees", text: "Employee Management", icon: "users" },
             { href: "/hr/leave", text: "Leave Management", icon: "accountingPeriods" },
             { href: "/hr/attendance", text: "Attendance Tracking", icon: "Attendance Tracking" },
-            { href: "/hr/performance", text: "Performance Management", icon: "Performance Management" },
             { href: "/hr/payroll", text: "Payroll Processing", icon: "Payroll Processing" },
             { href: "/hr/payroll/paye-summary", text: "PAYE Summary", icon: "payeSummary" },
             { href: "/hr/benefits", text: "Benefits & Allowances", icon: "benefits" },
@@ -913,7 +909,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       { href: "/hr/employees", text: "Employee Management", icon: "users", permission: "hr.view" },
       { href: "/hr/leave", text: "Leave Management", icon: "accountingPeriods", permissions: ["leave.view", "leave.create", "hr.view"] },
       { href: "/hr/attendance", text: "Attendance Tracking", icon: "Attendance Tracking", permission: "hr.view" },
-      { href: "/hr/performance", text: "Performance Management", icon: "Performance Management", permission: "hr.view" },
       { href: "/hr/payroll", text: "Payroll Processing", icon: "Payroll Processing", permissions: ["payroll.view", "hr.view"] },
       { href: "/hr/payroll/paye-summary", text: "PAYE Summary", icon: "payeSummary", permissions: ["payroll.view", "hr.view", "reports.view"] },
       { href: "/hr/benefits", text: "Benefits & Allowances", icon: "benefits", permission: "hr.view" },
@@ -1375,248 +1370,30 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
       </div>
 
-      {/* Business Name Display */}
+      {/* Compact business switcher + plan / expiry */}
       {!collapsed && user?.tenant && (
-        <Link
-          href="/switch-tenant"
-          className="business-name-section"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "16px",
-            gap: "12px",
-            borderBottom: "1px solid rgba(255,255,255,0.1)",
-            textDecoration: "none",
-            color: "inherit",
-            cursor: "pointer",
-            transition: "background-color 0.2s ease, border-color 0.2s ease",
-            borderRadius: "12px",
-            margin: "8px 8px 0 8px",
-            background: "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)",
-            border: "1px solid rgba(107, 114, 128, 0.15)"
-          }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget;
-            el.style.backgroundColor = "rgba(107, 114, 128, 0.15)";
-            el.style.borderColor = "rgba(107, 114, 128, 0.3)";
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget;
-            el.style.backgroundColor = "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)";
-            el.style.borderColor = "rgba(107, 114, 128, 0.15)";
-          }}
-        >
-          {/* Business Icon */}
-          <div className="business-icon" style={{
-            backgroundColor: "#6b7280",
-            color: "white",
-            width: "40px",
-            height: "40px",
-            borderRadius: "10px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            boxShadow: "none",
-            transition: "background-color 0.2s ease"
-          }}>
-            🏢
-          </div>
-          
-          <div className="business-info" style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px"
-          }}>
-            <div className="business-name" style={{
-              fontSize: "13px",
-              color: "#d1d5db",
-              fontWeight: "600",
-              marginBottom: "2px"
-            }}>
-              {user.tenant.name}
-            </div>
-          </div>
-        </Link>
-      )}
-
-      {/* Businesses: switch active business (tenant) from sidebar */}
-      {!collapsed && user?.tenant && (
-        <div style={{
-          padding: "8px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)"
-        }}>
-          <BusinessSwitcher />
+        <div style={{ padding: '8px 10px 10px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <BusinessSwitcher
+            isTrial={Boolean(subscription?.isTrial)}
+            planLabel={
+              isUserLoading
+                ? null
+                : subscription?.isTrial
+                  ? 'Free Trial'
+                  : getPlanDisplayName(subscription?.plan) || null
+            }
+            expiryLabel={
+              isUserLoading
+                ? null
+                : (subscription?.isTrial && subscription?.trialEndDate) || subscription?.expiresAt
+                  ? `${subscription?.isTrial ? 'Ends' : 'Renews'} ${formatDate(
+                      subscription?.isTrial ? subscription?.trialEndDate : subscription?.expiresAt
+                    )}`
+                  : null
+            }
+          />
         </div>
       )}
-
-      <Link
-        href="/subscription"
-        className="user-section-link"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "16px",
-          gap: "12px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
-          textDecoration: "none",
-          color: "inherit",
-          cursor: "pointer",
-          transition: "background-color 0.2s ease, border-color 0.2s ease",
-          borderRadius: "12px",
-          margin: "8px 8px 0 8px",
-          background: subscription?.isTrial
-            ? "linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)"
-            : "linear-gradient(135deg, rgba(49, 130, 206, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)",
-          border: subscription?.isTrial
-            ? "1px solid rgba(251, 191, 36, 0.2)"
-            : "1px solid rgba(49, 130, 206, 0.15)"
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget;
-          el.style.backgroundColor = subscription?.isTrial
-            ? "rgba(251, 191, 36, 0.15)"
-            : "rgba(49, 130, 206, 0.15)";
-          el.style.borderColor = subscription?.isTrial
-            ? "rgba(251, 191, 36, 0.4)"
-            : "rgba(49, 130, 206, 0.3)";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget;
-          el.style.backgroundColor = subscription?.isTrial
-            ? "linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)"
-            : "linear-gradient(135deg, rgba(49, 130, 206, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)";
-          el.style.borderColor = subscription?.isTrial
-            ? "rgba(251, 191, 36, 0.2)"
-            : "rgba(49, 130, 206, 0.15)";
-        }}
-      >
-        {/* Subscription Icon */}
-        <div className="subscription-icon" style={{
-          backgroundColor: subscription?.isTrial ? "#f59e0b" : "#3b82f6",
-          color: "white",
-          width: "40px",
-          height: "40px",
-          borderRadius: "10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "18px",
-          boxShadow: "none",
-          transition: "background-color 0.2s ease"
-        }}>
-          {subscription?.isTrial ? "⏰" : "👑"}
-        </div>
-        
-        {!collapsed && (
-          <div className="subscription-info" style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            gap: "4px"
-          }}>
-            {isUserLoading ? (
-              // Loading state
-              <>
-                <div style={{
-                  width: "100px",
-                  height: "16px",
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
-                  borderRadius: "6px",
-                  animation: "pulse 1.5s infinite ease-in-out",
-                  marginBottom: "4px"
-                }}></div>
-                <div style={{
-                  width: "80px",
-                  height: "14px",
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
-                  borderRadius: "4px",
-                  animation: "pulse 1.5s infinite ease-in-out",
-                  marginBottom: "4px"
-                }}></div>
-                <div style={{
-                  width: "90px",
-                  height: "12px",
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
-                  borderRadius: "4px",
-                  animation: "pulse 1.5s infinite ease-in-out"
-                }}></div>
-              </>
-            ) : (
-              // Subscription info loaded
-              <>
-                <div className="subscription-header" style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  marginBottom: "2px"
-                }}>
-                  <span className="subscription-label" style={{
-                    fontWeight: "700",
-                    fontSize: "15px",
-                    color: "white",
-                    letterSpacing: "0.5px"
-                  }}>Subscription</span>
-                  {subscription?.isTrial && (
-                    <span className="trial-badge" style={{
-                      backgroundColor: "#f59e0b",
-                      color: "#92400e",
-                      fontSize: "9px",
-                      fontWeight: "700",
-                      padding: "2px 6px",
-                      borderRadius: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px"
-                    }}>Trial</span>
-                  )}
-                </div>
-
-                <div className="subscription-plan" style={{
-                  fontSize: "13px",
-                  color: subscription?.isTrial ? "#fbbf24" : "#60a5fa",
-                  fontWeight: "600",
-                  marginBottom: "2px"
-                }}>
-                  {subscription?.isTrial ? 'Free Trial Active' : getPlanDisplayName(subscription?.plan) || 'No Active Plan'}
-                </div>
-
-                {/* Next Payment Date Display */}
-                {(subscription?.isTrial || subscription?.expiresAt) && (
-                  <div className="next-payment-date" style={{
-                    fontSize: "11px",
-                    color: "rgba(255,255,255,0.75)",
-                    fontWeight: "500",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px"
-                  }}>
-                    <span style={{ fontSize: "10px", opacity: 0.8 }}>⏰</span>
-                    {subscription?.isTrial ? 'Ends' : 'Renews'}: {formatDate(subscription?.isTrial ? subscription?.trialEndDate : subscription?.expiresAt)}
-                  </div>
-                )}
-
-                {user?.role?.name === 'MASTER_ADMIN' && (
-                  <div className="tenant-selector" style={{
-                    marginTop: "6px",
-                    display: "flex",
-                    alignItems: "center",
-                    fontSize: "11px",
-                    color: "rgba(255,255,255,0.6)",
-                    padding: "4px 8px",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderRadius: "6px",
-                    border: "1px solid rgba(255,255,255,0.1)"
-                  }}>
-                    <span>Switch Business Owner</span>
-                    <ChevronDown size={12} style={{ marginLeft: "4px" }} />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </Link>
 
       <div className="nav-content" style={{
         flex: 1,

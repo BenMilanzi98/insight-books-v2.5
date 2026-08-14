@@ -192,26 +192,11 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Resolve default postable income account for items missing accountId (e.g. from older data or UI race)
-    let defaultAccountId = null;
-    const missingAccountId = body.items.some(item => !item.accountId);
-    if (missingAccountId) {
-      const { resolveDefaultPostableRevenueAccountId } = await import('@/lib/coaIncomeAccounts');
-      defaultAccountId = await resolveDefaultPostableRevenueAccountId(prisma, user.tenantId);
-      if (!defaultAccountId) {
-        return NextResponse.json(
-          {
-            error:
-              'Each invoice item must reference an income account. Add a detail Income account (e.g. 4100 Product Sales) in Chart of Accounts.',
-          },
-          { status: 400 }
-        );
-      }
-    }
-    const normalizedItems = body.items.map(item => ({
-      ...item,
-      accountId: item.accountId || defaultAccountId
-    }));
+    // Auto-assign revenue GL: services → 4150, products → 4100 (no tenant picker).
+    const { applyAutomaticSaleRevenueAccounts } = await import('@/lib/coaIncomeAccounts');
+    await applyAutomaticSaleRevenueAccounts(prisma, user.tenantId, body.items);
+
+    const normalizedItems = body.items.map((item) => ({ ...item }));
 
     // Enhanced validation for each item
     for (const item of normalizedItems) {
@@ -224,7 +209,10 @@ export async function PUT(request, { params }) {
 
       if (!item.accountId) {
         return NextResponse.json(
-          { error: 'Each invoice item must reference an income account.' },
+          {
+            error:
+              'Could not resolve income accounts. Ensure Chart of Accounts has 4100 Product Sales and 4150 Service Revenue.',
+          },
           { status: 400 }
         );
       }

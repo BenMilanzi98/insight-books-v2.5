@@ -357,6 +357,10 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Auto-assign revenue GL: services → 4150, products → 4100 (no tenant picker).
+    const { applyAutomaticSaleRevenueAccounts } = await import('@/lib/coaIncomeAccounts');
+    await applyAutomaticSaleRevenueAccounts(prisma, user.tenantId, body.items);
     
     // Enhanced validation for each item
     for (const item of body.items) {
@@ -369,7 +373,10 @@ export async function POST(request) {
 
       if (!item.accountId) {
         return NextResponse.json(
-          { error: 'Each invoice item must reference an income account.' },
+          {
+            error:
+              'Could not resolve income accounts. Ensure Chart of Accounts has 4100 Product Sales and 4150 Service Revenue.',
+          },
           { status: 400 }
         );
       }

@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
-import BfShell, { StatusBadge, SummaryCard } from '@/components/budget-forecast/BfShell';
+import BfShell, {
+  StatusBadge,
+  SummaryCard,
+  BfPrimaryButton,
+} from '@/components/budget-forecast/BfShell';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import { formatCurrency } from '@/lib/currencyUtils';
 
 export default function ForecastsPage() {
@@ -64,24 +69,41 @@ export default function ForecastsPage() {
         {error ? <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div> : null}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard label="Forecast revenue" value={formatCurrency(cards.forecastRevenue || 0)} />
-          <SummaryCard label="Forecast expenses" value={formatCurrency(cards.forecastExpense || 0)} />
-          <SummaryCard label="Forecast profit" value={formatCurrency(cards.forecastProfit || 0)} />
+          <SummaryCard
+            label="Forecast revenue"
+            value={formatCurrency(cards.forecastRevenue || 0)}
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+          />
+          <SummaryCard
+            label="Forecast expenses"
+            value={formatCurrency(cards.forecastExpense || 0)}
+            barClassName="from-rose-400 via-rose-500 to-orange-500"
+          />
+          <SummaryCard
+            label="Forecast profit"
+            value={formatCurrency(cards.forecastProfit || 0)}
+            barClassName="from-blue-500 via-sky-500 to-indigo-500"
+          />
           <SummaryCard label="Forecasts" value={String(cards.forecastCount || 0)} />
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          <section className="lg:col-span-2 rounded-xl border bg-white shadow-sm">
-            <div className="border-b px-4 py-3 text-sm font-semibold">Recent forecasts</div>
-            <ul className="divide-y">
+          <PosStylePanel accent="default" className="lg:col-span-2">
+            <div className="border-b border-white/60 px-4 py-3 text-sm font-semibold text-slate-900">
+              Recent forecasts
+            </div>
+            <ul className="divide-y divide-slate-100/80">
               {(dashboard?.recent || []).length === 0 ? (
                 <li className="p-6 text-sm text-slate-500">No forecasts yet.</li>
               ) : (
                 (dashboard?.recent || []).map((f) => (
                   <li key={f.id}>
-                    <Link href={`/budget-forecast/forecasts/${f.id}`} className="flex justify-between px-4 py-3 hover:bg-slate-50">
+                    <Link
+                      href={`/budget-forecast/forecasts/${f.id}`}
+                      className="flex justify-between px-4 py-3 hover:bg-white/60"
+                    >
                       <div>
-                        <p className="font-medium">{f.name}</p>
+                        <p className="font-medium text-slate-900">{f.name}</p>
                         <p className="text-xs text-slate-500">
                           {f.forecastType} · {f.scenarioType} · {f.calculationVersion}
                         </p>
@@ -92,36 +114,54 @@ export default function ForecastsPage() {
                 ))
               )}
             </ul>
-          </section>
+          </PosStylePanel>
 
-          <section className="rounded-xl border bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold">Generate forecast</h2>
+          <PosStylePanel accent="green" className="p-4">
+            <h2 className="text-sm font-semibold text-slate-900">Generate forecast</h2>
             <form className="mt-4 space-y-3" onSubmit={create}>
               <input
-                className="w-full rounded-lg border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2 text-sm"
                 placeholder="Name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
-              <input type="date" className="w-full rounded-lg border px-3 py-2 text-sm" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
-              <input type="date" className="w-full rounded-lg border px-3 py-2 text-sm" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
-              <select className="w-full rounded-lg border px-3 py-2 text-sm" value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })}>
+              <input
+                type="date"
+                className="w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2 text-sm"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              />
+              <input
+                type="date"
+                className="w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2 text-sm"
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              />
+              <select
+                className="w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2 text-sm"
+                value={form.action}
+                onChange={(e) => setForm({ ...form, action: e.target.value })}
+              >
                 <option value="rolling">Rolling forecast</option>
                 <option value="cashFlow">Cash flow forecast</option>
                 <option value="scenarios">Base / Best / Worst scenarios</option>
                 <option value="create">Draft only</option>
               </select>
-              <select className="w-full rounded-lg border px-3 py-2 text-sm" value={form.scenarioType} onChange={(e) => setForm({ ...form, scenarioType: e.target.value })}>
+              <select
+                className="w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2 text-sm"
+                value={form.scenarioType}
+                onChange={(e) => setForm({ ...form, scenarioType: e.target.value })}
+              >
                 <option value="BASE_CASE">Base case</option>
                 <option value="BEST_CASE">Best case</option>
                 <option value="WORST_CASE">Worst case</option>
               </select>
-              <button type="submit" className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">
+              <BfPrimaryButton type="submit" success className="w-full">
                 Create
-              </button>
+              </BfPrimaryButton>
             </form>
-          </section>
+          </PosStylePanel>
         </div>
       </BfShell>
     </PermissionGuard>

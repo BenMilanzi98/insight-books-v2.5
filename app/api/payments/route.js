@@ -530,8 +530,11 @@ export async function POST(request) {
         }, { status: 404 });
       }
       
-      // Validate sufficient balance for source account
+      // Validate sufficient balance for source account (posted GL for PaymentAccounts)
       const { getAccountBalanceDetails } = await import('@/lib/accountBalanceService');
+      const { resolvePaymentAccountSpendableBalance } = await import(
+        '@/lib/paymentAccountPostedGlBalance'
+      );
       let sourceBalance = 0;
       
       try {
@@ -545,13 +548,11 @@ export async function POST(request) {
             if (!Number.isNaN(stored) && stored > sourceBalance) sourceBalance = stored;
           }
         } else if (sourcePaymentAccountRecord) {
-          const accountBalance = await prisma.accountBalance.findFirst({
-            where: {
-              tenantId: user.tenantId,
-              account: sourceAccount
-            }
-          });
-          sourceBalance = accountBalance?.balance || sourcePaymentAccountRecord.currentBalance || 0;
+          sourceBalance = await resolvePaymentAccountSpendableBalance(
+            user.tenantId,
+            sourcePaymentAccountRecord,
+            prisma
+          );
         }
       } catch (error) {
         console.warn('Could not get source account balance:', error.message);
@@ -702,7 +703,22 @@ export async function POST(request) {
     return NextResponse.json({ message: "Payment recorded", payment: formatPaymentResponse(newPayment) }, { status: 201 });
   } catch (error) {
     console.error("Payment POST error:", error);
-    return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 });
+    const message = error?.message || 'Failed to record payment';
+    const code = error?.code || error?.name || undefined;
+    const status =
+      code === 'SourceNotPostableError' ||
+      error?.name === 'SourceNotPostableError' ||
+      /must be positive|not postable|period/i.test(message)
+        ? 400
+        : 500;
+    return NextResponse.json(
+      {
+        error: status === 500 ? 'Failed to record payment' : message,
+        details: message,
+        code,
+      },
+      { status }
+    );
   }
 }
 

@@ -156,7 +156,7 @@ async function getProductWithValidation(id, tenantId) {
   
   // For unit-managed products, use the main product stock as the source of truth
   // Individual unit stocks are calculated from the main stock for consistency
-  let effectiveStockLevel = stockLevel;
+  let effectiveStockLevel = product.isService ? null : stockLevel;
 
   // Return product with additional computed fields
   // Use actual values from database or fallbacks if they're null

@@ -53,6 +53,7 @@ const SettingsPage = () => {
     currencyCode: 'MWK',
     taxEnabled: true,
     defaultTaxRate: 17.5,
+    fiscalYearStartMonth: 1,
   });
   
   const [isLoading, setIsLoading] = useState(true);
@@ -114,6 +115,7 @@ const SettingsPage = () => {
           currencyCode: data.currencyCode || 'MWK',
           taxEnabled: data.taxEnabled !== undefined ? data.taxEnabled : true,
           defaultTaxRate: data.defaultTaxRate || 0,
+          fiscalYearStartMonth: Number(data.fiscalYearStartMonth) || 1,
         });
       } else {
         const msg = data?.error || `Failed to load settings (${response.status})`;
@@ -560,6 +562,33 @@ const SettingsPage = () => {
                   <option value="GBP">GBP - British Pound</option>
                   <option value="ZAR">ZAR - South African Rand</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Financial year starts
+                </label>
+                <select
+                  value={settings.fiscalYearStartMonth || 1}
+                  onChange={(e) => handleChange('fiscalYearStartMonth', parseInt(e.target.value, 10))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={1}>January (calendar year)</option>
+                  <option value={2}>February</option>
+                  <option value={3}>March</option>
+                  <option value={4}>April</option>
+                  <option value={5}>May</option>
+                  <option value={6}>June</option>
+                  <option value={7}>July</option>
+                  <option value={8}>August</option>
+                  <option value={9}>September</option>
+                  <option value={10}>October</option>
+                  <option value={11}>November</option>
+                  <option value={12}>December</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Default is January–December. Change this if your business uses a different financial year. Existing years are not rewritten automatically.
+                </p>
               </div>
               
               <div>

@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
-import BfShell, { StatusBadge, SummaryCard } from '@/components/budget-forecast/BfShell';
+import BfShell, {
+  StatusBadge,
+  SummaryCard,
+  BfPrimaryButton,
+  BfSecondaryButton,
+  BF_THEAD_CLASS,
+} from '@/components/budget-forecast/BfShell';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import { formatCurrency } from '@/lib/currencyUtils';
 
 export default function BudgetDetailPage() {
@@ -124,29 +131,35 @@ export default function BudgetDetailPage() {
         subtitle={`${budget?.currency || ''} · ${budget?.frequency || ''} · completion ${budget?.completion?.percent ?? 0}%`}
         actions={
           <>
-            <button type="button" onClick={() => router.push('/budget-forecast/budgets')} className="rounded-lg border px-3 py-2 text-sm">
+            <BfSecondaryButton type="button" onClick={() => router.push('/budget-forecast/budgets')}>
               Back
-            </button>
-            <button type="button" onClick={() => runCommand('submit')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => runCommand('submit')}>
               Submit
-            </button>
-            <button type="button" onClick={() => runCommand('approve')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => runCommand('approve')}>
               Approve
-            </button>
-            <button type="button" onClick={() => runCommand('activate')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => runCommand('activate')}>
               Activate
-            </button>
-            <button type="button" onClick={() => runCommand('lock')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => runCommand('lock')}>
               Lock
-            </button>
-            <button type="button" onClick={() => runCommand('revise')} className="rounded-lg border px-3 py-2 text-sm">
+            </BfSecondaryButton>
+            <BfSecondaryButton type="button" onClick={() => runCommand('revise')}>
               Revise
-            </button>
+            </BfSecondaryButton>
           </>
         }
       >
-        {error ? <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{error}</div> : null}
-        {message ? <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div> : null}
+        {error ? (
+          <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            {error}
+          </div>
+        ) : null}
+        {message ? (
+          <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>
+        ) : null}
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <StatusBadge status={budget?.status} />
@@ -156,9 +169,21 @@ export default function BudgetDetailPage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard label="Revenue" value={formatCurrency(totals.rev)} />
-          <SummaryCard label="Expenses" value={formatCurrency(totals.exp)} />
-          <SummaryCard label="Profit" value={formatCurrency(totals.profit)} />
+          <SummaryCard
+            label="Revenue"
+            value={formatCurrency(totals.rev)}
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+          />
+          <SummaryCard
+            label="Expenses"
+            value={formatCurrency(totals.exp)}
+            barClassName="from-rose-400 via-rose-500 to-orange-500"
+          />
+          <SummaryCard
+            label="Profit"
+            value={formatCurrency(totals.profit)}
+            barClassName="from-blue-500 via-sky-500 to-indigo-500"
+          />
           <SummaryCard
             label="Completion"
             value={`${budget?.completion?.percent ?? 0}%`}
@@ -167,10 +192,12 @@ export default function BudgetDetailPage() {
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-xl border bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold">Chart of Accounts</h2>
-            <p className="mt-1 text-xs text-slate-500">Select posting accounts. Parent + child together is rejected.</p>
-            <div className="mt-3 max-h-80 overflow-y-auto divide-y">
+          <PosStylePanel accent="default" className="p-4">
+            <h2 className="text-sm font-semibold text-slate-900">Chart of Accounts</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Select posting accounts. Parent + child together is rejected.
+            </p>
+            <div className="mt-3 max-h-80 overflow-y-auto divide-y divide-slate-100/80">
               {accounts.slice(0, 200).map((a) => {
                 const aid = a.id || a.accountId;
                 const checked = selectedAccountIds.includes(aid);
@@ -183,26 +210,21 @@ export default function BudgetDetailPage() {
                 );
               })}
             </div>
-          </section>
+          </PosStylePanel>
 
-          <section className="rounded-xl border bg-white p-4 shadow-sm overflow-x-auto">
+          <PosStylePanel accent="green" className="overflow-x-auto p-4">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">Annual planner</h2>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={saveLines}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-60"
-              >
+              <h2 className="text-sm font-semibold text-slate-900">Annual planner</h2>
+              <BfPrimaryButton type="button" success disabled={saving} onClick={saveLines}>
                 {saving ? 'Saving…' : 'Save lines'}
-              </button>
+              </BfPrimaryButton>
             </div>
             <table className="mt-3 w-full min-w-[28rem] text-left text-sm">
               <thead>
-                <tr className="border-b text-xs uppercase text-slate-500">
-                  <th className="py-2 pr-2">Code</th>
-                  <th className="py-2 pr-2">Account</th>
-                  <th className="py-2">Annual amount</th>
+                <tr className={BF_THEAD_CLASS}>
+                  <th className="py-2.5 pr-2">Code</th>
+                  <th className="py-2.5 pr-2">Account</th>
+                  <th className="py-2.5">Annual amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -210,12 +232,14 @@ export default function BudgetDetailPage() {
                   const acc = accounts.find((a) => (a.id || a.accountId) === accountId);
                   const line = (budget?.lines || []).find((l) => l.accountId === accountId);
                   return (
-                    <tr key={accountId} className="border-b border-slate-100">
-                      <td className="py-2 pr-2 font-mono text-xs">{line?.accountCodeSnapshot || acc?.accountCode || acc?.code}</td>
+                    <tr key={accountId} className="border-b border-slate-100/80">
+                      <td className="py-2 pr-2 font-mono text-xs">
+                        {line?.accountCodeSnapshot || acc?.accountCode || acc?.code}
+                      </td>
                       <td className="py-2 pr-2">{line?.accountNameSnapshot || acc?.accountName || acc?.name}</td>
                       <td className="py-2">
                         <input
-                          className="w-36 rounded border px-2 py-1"
+                          className="w-36 rounded border border-slate-300 bg-white/90 px-2 py-1"
                           value={lineEdits[accountId] ?? '0'}
                           onChange={(e) => setLineEdits({ ...lineEdits, [accountId]: e.target.value })}
                           inputMode="decimal"
@@ -226,7 +250,7 @@ export default function BudgetDetailPage() {
                 })}
               </tbody>
             </table>
-          </section>
+          </PosStylePanel>
         </div>
       </BfShell>
     </PermissionGuard>

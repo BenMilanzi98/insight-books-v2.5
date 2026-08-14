@@ -6,6 +6,7 @@ import { isPayeTaxType, sumPaidPayeExpenses } from '@/lib/payeExpenseSettlement'
 import {
   applyPostedJournalSweepOnAccount,
   applyTaxInvoicePostedLines,
+  applyV2TaxProvisionJournalsOnAccount,
 } from '@/lib/taxAccountPostedJournalAggregation';
 import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 
@@ -153,7 +154,6 @@ export async function GET(request, { params }) {
     const activeTaxTypeCount = activeTaxTypes.length;
     const activeNonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
     const isOnlyNonPaye = activeNonPayeTypes.length === 1 && activeNonPayeTypes[0].id === taxType.id;
-    const isFirstNonPaye = activeNonPayeTypes.length > 0 && activeNonPayeTypes[0].id === taxType.id;
 
     // Calculate totals
     let totalCollected = 0;
@@ -271,34 +271,57 @@ export async function GET(request, { params }) {
     });
     totalCollected = addMoney(totalCollected, taxInvoiceBucket.totalCollected);
 
-    // Include tax collected from paid/completed invoices
-    if (isOnlyNonPaye || isFirstNonPaye) {
-      const invoicesWithTax = await prisma.invoice.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          status: { in: ['Paid', 'paid', 'Completed', 'completed'] },
-          refundedAt: null,
-          taxAmount: { gt: 0 },
-          ...(Object.keys(dateFilter).length > 0 && {
-            issueDate: dateFilter,
-          }),
-        }),
-        select: { id: true, invoiceNumber: true, issueDate: true, taxAmount: true },
+    try {
+      const invoiceItemTaxes = await prisma.invoiceItemTax.findMany({
+        where: { taxTypeId: taxType.id },
+        include: {
+          invoiceItem: {
+            select: {
+              invoice: {
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  issueDate: true,
+                  status: true,
+                  refundedAt: true,
+                  tenantId: true,
+                  isDeleted: true,
+                },
+              },
+            },
+          },
+        },
       });
-      for (const inv of invoicesWithTax) {
-        if (invoicesAccountedFor.has(inv.id)) continue;
-        const amt = parseMoney(inv.taxAmount);
-        if (amt <= 0) continue;
-        totalCollected = addMoney(totalCollected, amt);
-        const debitAmt = isAsset ? amt : 0;
-        const creditAmt = isLiability ? amt : 0;
+      const byInvoice = new Map();
+      for (const iit of invoiceItemTaxes) {
+        const inv = iit.invoiceItem?.invoice;
+        if (!inv || inv.tenantId !== user.tenantId) continue;
+        if (inv.isDeleted || inv.refundedAt) continue;
+        const statusLower = String(inv.status || '').toLowerCase();
+        if (!['paid', 'completed'].includes(statusLower)) continue;
+        if (Object.keys(dateFilter).length > 0) {
+          const issueDate = new Date(inv.issueDate);
+          if (issueDate < dateFilter.gte || issueDate > dateFilter.lte) continue;
+        }
+        const amt = parseMoney(iit.taxAmount);
+        if (!(amt > 0)) continue;
+        const cur = byInvoice.get(inv.id) || { inv, amount: 0 };
+        cur.amount = addMoney(cur.amount, amt);
+        byInvoice.set(inv.id, cur);
+      }
+      for (const [invId, row] of byInvoice) {
+        if (invoicesAccountedFor.has(invId)) continue;
+        totalCollected = addMoney(totalCollected, row.amount);
+        invoicesAccountedFor.add(invId);
+        const debitAmt = isAsset ? row.amount : 0;
+        const creditAmt = isLiability ? row.amount : 0;
         salesTransactions.push({
-          id: `invoice-${inv.id}`,
-          reference: inv.invoiceNumber || `INV-${inv.id}`,
-          date: inv.issueDate,
-          description: `Tax Collection - ${inv.invoiceNumber || 'Invoice'}`,
+          id: `invoice-${row.inv.id}`,
+          reference: row.inv.invoiceNumber || `INV-${row.inv.id}`,
+          date: row.inv.issueDate,
+          description: `Tax Collection - ${row.inv.invoiceNumber || 'Invoice'}`,
           sourceType: 'Tax-Invoice',
-          sourceId: inv.id,
+          sourceId: row.inv.id,
           transactionType: 'collected',
           debitAmount: debitAmt,
           creditAmount: creditAmt,
@@ -307,6 +330,8 @@ export async function GET(request, { params }) {
           runningBalance: 0,
         });
       }
+    } catch (err) {
+      console.warn('Tax balance detail: InvoiceItemTax query failed', err?.message);
     }
 
     // ========== TAX PAID FROM PURCHASE ORDERS ==========
@@ -361,7 +386,6 @@ export async function GET(request, { params }) {
     const expenseTransactions = [];
     try {
       const taxTypeRate = Number(taxType.taxRate);
-      const isOnlyNonPayeType = activeNonPayeTypes.length === 1 && activeNonPayeTypes[0].id === taxType.id;
 
       const expensesWithTax = await prisma.expense.findMany({
         where: addBranchFilter(user, {
@@ -383,9 +407,8 @@ export async function GET(request, { params }) {
         if (expTaxAmount <= 0) continue;
 
         const rateMatches = taxTypeRate > 0 && Math.abs(expTaxRate - taxTypeRate) < 0.01;
-        const isLegacyData = expTaxRate === 0 && expTaxAmount > 0;
 
-        if (rateMatches || isOnlyNonPayeType || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
+        if (rateMatches) {
           totalPaid = addMoney(totalPaid, expTaxAmount);
           const debitAmt = isLiability ? expTaxAmount : 0;
           const creditAmt = isAsset ? expTaxAmount : 0;
@@ -451,6 +474,16 @@ export async function GET(request, { params }) {
     totalCollected = addMoney(totalCollected, sweepTotals.totalCollected);
     totalPaid = addMoney(totalPaid, sweepTotals.totalPaid);
     totalRefunded = addMoney(totalRefunded, sweepTotals.totalRefunded);
+
+    const v2Totals = { totalCollected: 0, totalPaid: 0, totalRefunded: 0 };
+    await applyV2TaxProvisionJournalsOnAccount(prisma, user, taxType, dateFilter, {
+      totals: v2Totals,
+      pushHistory: (row) => glJournalHistory.push(row),
+      allTaxTypes: [taxType],
+    });
+    totalCollected = addMoney(totalCollected, v2Totals.totalCollected);
+    totalPaid = addMoney(totalPaid, v2Totals.totalPaid);
+    totalRefunded = addMoney(totalRefunded, v2Totals.totalRefunded);
 
     const payrollFallbackTransactions = [];
     if (isPAYE) {

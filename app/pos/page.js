@@ -995,7 +995,7 @@ const POSPage = () => {
 
   // Load products
   const loadProducts = async () => {
-    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v3';
+    const POS_PRODUCTS_CACHE_KEY = 'pos_products_cache_v4';
     const onlyPosProducts = (list) => (Array.isArray(list) ? list : []).filter(Boolean);
     try {
       setIsLoadingProducts(true);
@@ -1123,6 +1123,17 @@ const POSPage = () => {
       </span>
     );
   };
+
+  /** Services are not inventory-tracked — always sellable in POS regardless of stockLevel. */
+  const isPosServiceItem = (product) =>
+    Boolean(product?.isService) || String(product?.status || '').toLowerCase() === 'service';
+
+  const canSellPosItem = (product) => {
+    if (!product) return false;
+    if (isPosServiceItem(product)) return true;
+    if (product.stockLevel === null || product.stockLevel === undefined) return true;
+    return Number(product.stockLevel) > 0;
+  };
   
   // Add product to the current sale
   const addProduct = async (product, qty = quantity) => {
@@ -1147,9 +1158,15 @@ const POSPage = () => {
             detailedProduct = {
               ...product,
               ...productData,
+              // Preserve service flag from either catalog or detail fetch
+              isService: Boolean(product.isService || productData.isService),
               units,
               taxes,
             };
+            if (detailedProduct.isService) {
+              detailedProduct.stockLevel = null;
+              detailedProduct.status = 'Service';
+            }
           }
         }
       } catch (e) {
@@ -1171,8 +1188,8 @@ const POSPage = () => {
       }
     }
 
-    // Stock check only for regular products (unit-managed will validate per-unit in UI)
-    if (!detailedProduct.isService && !isUnitManaged && detailedProduct.stockLevel !== null && detailedProduct.stockLevel < parsedQty) {
+    // Stock check only for physical products (never for services)
+    if (!isPosServiceItem(detailedProduct) && !isUnitManaged && detailedProduct.stockLevel !== null && detailedProduct.stockLevel < parsedQty) {
       setSaleError(`Only ${detailedProduct.stockLevel} units of ${detailedProduct.name} available in stock`);
       return;
     }
@@ -1211,7 +1228,7 @@ const POSPage = () => {
             : p
         ));
       } else {
-        if (detailedProduct.stockLevel !== null && existingProduct.quantity + parsedQty > detailedProduct.stockLevel) {
+        if (!isPosServiceItem(detailedProduct) && detailedProduct.stockLevel !== null && existingProduct.quantity + parsedQty > detailedProduct.stockLevel) {
           setSaleError(`Cannot add ${parsedQty} more units of ${detailedProduct.name}. Only ${detailedProduct.stockLevel - existingProduct.quantity} units available.`);
           return;
         }
@@ -1467,8 +1484,8 @@ const POSPage = () => {
   // Handle quick add of a product
   const handleQuickAdd = (product) => {
     if (!product) return;
-    if (!product.isService && product.stockLevel !== null && product.stockLevel <= 0) {
-      return; // Don't add out-of-stock products
+    if (!canSellPosItem(product)) {
+      return; // Don't add out-of-stock physical products
     }
     
     addProduct(product, 1);
@@ -1482,10 +1499,10 @@ const POSPage = () => {
       return;
     }
     
-    const product = products.find(p => p.id === productId);
+    const product = products.find(p => p.id === productId) || selectedProducts.find(p => p.id === productId);
     
-    // Check if the new quantity exceeds stock level
-    if (product && !product.isService && product.stockLevel !== null && parsedQty > product.stockLevel) {
+    // Check if the new quantity exceeds stock level (services unlimited)
+    if (product && !isPosServiceItem(product) && product.stockLevel !== null && parsedQty > product.stockLevel) {
       setSaleError(`Cannot set quantity to ${parsedQty}. Only ${product.stockLevel} units of ${product.name} available.`);
       return;
     }
@@ -2059,7 +2076,11 @@ const POSPage = () => {
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: Boolean(forceCustom),
-          accountId: resolvedIncomeAccountId, // Always use default revenue account for POS transactions
+          isService: Boolean(
+            product.isService || String(product.status || '').toLowerCase() === 'service'
+          ),
+          // Server overwrites with 4100/4150 from product type; keep a fallback id for validation.
+          accountId: resolvedIncomeAccountId,
           ...(forceCustom
             ? {
                 orderPrice: product.orderPrice ?? 0,
@@ -2786,7 +2807,7 @@ const POSPage = () => {
                       // Add first matching product on Enter
                       if (e.key === 'Enter' && filteredProducts.length > 0) {
                         const product = filteredProducts[0];
-                        if (product.isService || !(product.stockLevel !== null && product.stockLevel <= 0)) {
+                        if (canSellPosItem(product)) {
                           handleQuickAdd(product);
                         }
                       }
@@ -2812,8 +2833,8 @@ const POSPage = () => {
                         filteredProducts.map(product => (
                           <div 
                             key={product.id}
-                            className={`p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition-colors ${!product.isService && product.stockLevel <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            onClick={() => (product.isService || product.stockLevel > 0) && handleQuickAdd(product)}
+                            className={`p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition-colors ${!canSellPosItem(product) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            onClick={() => canSellPosItem(product) && handleQuickAdd(product)}
                           >
                             <div className="flex-1">
                               <div className="flex flex-wrap items-center gap-2">
@@ -2822,14 +2843,14 @@ const POSPage = () => {
                               </div>
                               <div className="flex flex-wrap text-xs text-gray-500 gap-3 mt-1">
                                 {product.sku && <span>SKU: {product.sku}</span>}
-                                <span className={product.isService || (product.stockLevel !== null && product.stockLevel > 0) ? 'text-green-600' : 'text-red-600'}>
-                                  {product.isService ? 'Service' : `Stock: ${product.stockLevel !== null ? product.stockLevel : 'N/A'}`}
+                                <span className={isPosServiceItem(product) || (product.stockLevel !== null && product.stockLevel > 0) ? 'text-green-600' : 'text-red-600'}>
+                                  {isPosServiceItem(product) ? 'Service' : `Stock: ${product.stockLevel !== null ? product.stockLevel : 'N/A'}`}
                                 </span>
                               </div>
                             </div>
                             <div className="text-right ml-4">
                               <p className="font-bold text-gray-900">{formatCurrency(product.price)}</p>
-                              {!product.isService && product.stockLevel <= 0 ? (
+                              {!canSellPosItem(product) ? (
                                 <span className="text-xs text-red-600 font-medium">Out of stock</span>
                               ) : (
                                 <button 
@@ -2851,19 +2872,6 @@ const POSPage = () => {
                 </div>
 
                 <div className="flex gap-2 w-full sm:w-auto items-stretch sm:items-center shrink-0">
-                  <div className="w-full sm:w-24 shrink-0">
-                    <input 
-                      type="number" 
-                      className="w-full h-full min-h-[3rem] p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-center font-semibold" 
-                      min="1" 
-                      value={quantity} 
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setQuantity(val > 0 ? val : 1);
-                      }}
-                      placeholder="Qty"
-                    />
-                  </div>
                   <button
                     type="button"
                     className="px-4 py-2.5 border-2 border-dashed border-gray-300 bg-white/50 backdrop-blur-sm rounded-xl text-gray-700 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all font-medium text-sm whitespace-nowrap w-full sm:w-auto"
@@ -2901,6 +2909,11 @@ const POSPage = () => {
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
                           <div className="flex flex-wrap items-center gap-2">
                             <span>{product.name}</span>
+                            {isPosServiceItem(product) && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800">
+                                Service
+                              </span>
+                            )}
                             {renderProductExpiryBadge(product)}
                           </div>
                         </td>

@@ -14,6 +14,7 @@ import {
   CUSTOM_EXPENSE_HEADER_CODE,
   isCustomExpenseLeafCode,
 } from '@/lib/customExpenseRange.js';
+import { resolveGlBranchScope } from '@/lib/glBranchScope.js';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -68,10 +69,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
     }
 
-    const glBranchFilter =
-      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
-        ? { branchId: user.currentBranchId }
-        : {};
+    const glBranchFilter = resolveGlBranchScope(user?.currentBranchId).where;
 
     const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
 

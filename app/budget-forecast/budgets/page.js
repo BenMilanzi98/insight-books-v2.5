@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
-import BfShell, { StatusBadge, SummaryCard } from '@/components/budget-forecast/BfShell';
+import BfShell, {
+  StatusBadge,
+  SummaryCard,
+  BfPrimaryButton,
+  BfSecondaryButton,
+} from '@/components/budget-forecast/BfShell';
+import PosStylePanel from '@/components/shell/PosStylePanel';
 import { formatCurrency } from '@/lib/currencyUtils';
 
 export default function BudgetsPage() {
@@ -78,15 +84,9 @@ export default function BudgetsPage() {
         title="Budgets"
         subtitle="Plan revenue and expenses against the Chart of Accounts. Budgets never post to the General Ledger."
         actions={
-          <>
-            <button
-              type="button"
-              onClick={migrateBf}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Migrate legacy BF data
-            </button>
-          </>
+          <BfSecondaryButton type="button" onClick={migrateBf}>
+            Migrate legacy BF data
+          </BfSecondaryButton>
         }
       >
         {error ? (
@@ -96,21 +96,38 @@ export default function BudgetsPage() {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard label="Planned revenue" value={formatCurrency(cards.plannedRevenue || 0)} hint="All listed budgets" />
-          <SummaryCard label="Planned expenses" value={formatCurrency(cards.plannedExpense || 0)} />
-          <SummaryCard label="Expected profit" value={formatCurrency(cards.expectedProfit || 0)} />
-          <SummaryCard label="Active completion" value={`${cards.completion || 0}%`} hint={cards.activeStatus || 'No active budget'} />
+          <SummaryCard
+            label="Planned revenue"
+            value={formatCurrency(cards.plannedRevenue || 0)}
+            hint="All listed budgets"
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+          />
+          <SummaryCard
+            label="Planned expenses"
+            value={formatCurrency(cards.plannedExpense || 0)}
+            barClassName="from-rose-400 via-rose-500 to-orange-500"
+          />
+          <SummaryCard
+            label="Expected profit"
+            value={formatCurrency(cards.expectedProfit || 0)}
+            barClassName="from-blue-500 via-sky-500 to-indigo-500"
+          />
+          <SummaryCard
+            label="Active completion"
+            value={`${cards.completion || 0}%`}
+            hint={cards.activeStatus || 'No active budget'}
+          />
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          <section className="lg:col-span-2 rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-4 py-3">
+          <PosStylePanel accent="default" className="lg:col-span-2">
+            <div className="border-b border-white/60 px-4 py-3">
               <h2 className="text-sm font-semibold text-slate-900">Budgets</h2>
             </div>
             {loading ? (
               <p className="p-4 text-sm text-slate-500">Loading…</p>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-slate-100/80">
                 {(dashboard?.recent || []).length === 0 ? (
                   <li className="p-6 text-sm text-slate-500">No budgets yet. Create one to start planning.</li>
                 ) : (
@@ -118,7 +135,7 @@ export default function BudgetsPage() {
                     <li key={b.id}>
                       <Link
                         href={`/budget-forecast/budgets/${b.id}`}
-                        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50"
+                        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-white/60"
                       >
                         <div>
                           <p className="font-medium text-slate-900">{b.name}</p>
@@ -138,15 +155,15 @@ export default function BudgetsPage() {
                 )}
               </ul>
             )}
-          </section>
+          </PosStylePanel>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <PosStylePanel accent="green" className="p-4">
             <h2 className="text-sm font-semibold text-slate-900">Create budget</h2>
             <form className="mt-4 space-y-3" onSubmit={createBudget}>
               <label className="block text-sm">
                 <span className="text-slate-600">Name</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
@@ -156,7 +173,7 @@ export default function BudgetsPage() {
                 <span className="text-slate-600">Start</span>
                 <input
                   type="date"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2"
                   value={form.startDate}
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                   required
@@ -166,7 +183,7 @@ export default function BudgetsPage() {
                 <span className="text-slate-600">End</span>
                 <input
                   type="date"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2"
                   value={form.endDate}
                   onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                   required
@@ -175,7 +192,7 @@ export default function BudgetsPage() {
               <label className="block text-sm">
                 <span className="text-slate-600">Frequency</span>
                 <select
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white/90 px-3 py-2"
                   value={form.frequency}
                   onChange={(e) => setForm({ ...form, frequency: e.target.value })}
                 >
@@ -184,15 +201,11 @@ export default function BudgetsPage() {
                   <option value="ANNUAL">Annual</option>
                 </select>
               </label>
-              <button
-                type="submit"
-                disabled={creating}
-                className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-              >
+              <BfPrimaryButton type="submit" success className="w-full" disabled={creating}>
                 {creating ? 'Creating…' : 'Create draft'}
-              </button>
+              </BfPrimaryButton>
             </form>
-          </section>
+          </PosStylePanel>
         </div>
       </BfShell>
     </PermissionGuard>

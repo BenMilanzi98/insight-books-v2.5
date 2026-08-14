@@ -5,6 +5,8 @@ import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { isPayeTaxType, sumPaidPayeExpenses } from '@/lib/payeExpenseSettlement';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 import { getMalawiTaxCatalogEntry } from '@/lib/malawiTaxCatalog.js';
+import { applyV2TaxProvisionJournalsOnAccount, isCanonicalOwnerOfLinkedTaxAccount } from '@/lib/taxAccountPostedJournalAggregation.js';
+import { isMalawiStandardVatRate } from '@/lib/malawiTaxCatalog.js';
 
 /**
  * GET /api/tax-accounts/balances
@@ -59,15 +61,31 @@ export async function GET(request) {
     const nonPayeTaxTypes = taxTypes.filter(t => Number(t.taxRate) > 0);
     const taxAccountBalances = [];
 
+    /** When several Active taxes share a rate, only one should receive rate-matched sale/expense fallbacks. */
+    const ownsRateMatchedFallback = (taxType, observedRate) => {
+      const rate = Number(observedRate);
+      if (!(rate > 0)) return false;
+      const matches = nonPayeTaxTypes.filter((t) => Math.abs(Number(t.taxRate) - rate) < 0.01);
+      if (matches.length === 0) return false;
+      if (matches.length === 1) return matches[0].id === taxType.id;
+      if (isMalawiStandardVatRate(rate)) {
+        const vat = matches.find((t) => String(t.taxId || '').toUpperCase() === 'MW-VAT');
+        if (vat) return vat.id === taxType.id;
+      }
+      const cit = matches.find((t) => String(t.taxId || '').toUpperCase() === 'MW-CIT');
+      if (cit && Math.abs(rate - 30) < 0.01) return cit.id === taxType.id;
+      const sorted = [...matches].sort((a, b) =>
+        String(a.taxId || a.id).localeCompare(String(b.taxId || b.id))
+      );
+      return sorted[0].id === taxType.id;
+    };
+
     for (const taxType of taxTypes) {
       let totalCollected = 0;
       let totalPaid = 0;
       let totalRefunded = 0;
       const breakdownMap = new Map();
-      const taxTypeRate = Number(taxType.taxRate);
       const isPAYE = isPayeTaxType(taxType);
-      const isOnlyNonPayeTaxType = nonPayeTaxTypes.length === 1 && nonPayeTaxTypes[0].id === taxType.id;
-      const isFirstNonPayeTaxType = nonPayeTaxTypes.length > 0 && nonPayeTaxTypes[0].id === taxType.id;
       let payePaidFromExpensesTotal = 0;
       const payeTaxPaymentRows = [];
       const payePayrollIdsCoveredByGl = new Set();
@@ -153,15 +171,8 @@ export async function GET(request) {
           const saleTaxAmount = parseMoney(sale.taxAmount);
           if (saleTaxAmount <= 0) continue;
 
-          const rateMatches = taxTypeRate > 0 && Math.abs(saleTaxRate - taxTypeRate) < 0.01;
-          const isLegacyData = saleTaxRate === 0 && saleTaxAmount > 0;
-          const hasAnyTaxTypeWithMatchingRate = nonPayeTaxTypes.some(t =>
-            Math.abs(Number(t.taxRate) - saleTaxRate) < 0.01
-          );
-
-          if (rateMatches || isOnlyNonPayeTaxType ||
-              (isLegacyData && isFirstNonPayeTaxType && taxTypeRate > 0) ||
-              (!hasAnyTaxTypeWithMatchingRate && isFirstNonPayeTaxType)) {
+          // Only the unique tax type that owns this rate — never dump VAT onto CIT/etc.
+          if (ownsRateMatchedFallback(taxType, saleTaxRate)) {
             totalCollected = addMoney(totalCollected, saleTaxAmount);
             addToBreakdown(sale.saleDate, 'collected', saleTaxAmount);
           }
@@ -175,8 +186,9 @@ export async function GET(request) {
       // These transactions are linked to the correct tax account per tax type.
       // We collect invoice IDs that have Tax-Invoice postings so we can fall back for unposted ones.
       const invoicesAccountedFor = new Set();
+      const ownsLinkedGl = isCanonicalOwnerOfLinkedTaxAccount(taxType, taxTypes);
       try {
-        if (taxType.accountId) {
+        if (taxType.accountId && ownsLinkedGl) {
           const taxInvoiceTxns = await prisma.transaction.findMany({
             where: {
               tenantId: user.tenantId,
@@ -216,32 +228,53 @@ export async function GET(request) {
         console.warn('Tax balances: Tax-Invoice transaction query failed for', taxType.taxId, err?.message);
       }
 
-      // Fallback: For invoices without Tax-Invoice transactions, use direct aggregation
-      // (only for first/only non-PAYE tax type to avoid double-counting across types)
+      // Invoice line taxes linked to this tax type (never assign another tax's invoice VAT to CIT).
       try {
-        if (isOnlyNonPayeTaxType || (isFirstNonPayeTaxType && taxTypeRate > 0)) {
-          const invoicesWithTax = await prisma.invoice.findMany({
-            where: addBranchFilter(user, {
-              tenantId: user.tenantId,
-              status: { in: ['Paid', 'paid', 'Completed', 'completed'] },
-              refundedAt: null,
-              taxAmount: { gt: 0 },
-              issueDate: dateFilter,
-            }),
-            select: { id: true, issueDate: true, taxAmount: true },
-          });
-
-          for (const inv of invoicesWithTax) {
-            if (invoicesAccountedFor.has(inv.id)) continue;
-            const taxAmt = parseMoney(inv.taxAmount);
-            if (taxAmt > 0) {
-              totalCollected = addMoney(totalCollected, taxAmt);
-              addToBreakdown(inv.issueDate, 'collected', taxAmt);
-            }
-          }
+        const invoiceItemTaxes = await prisma.invoiceItemTax.findMany({
+          where: { taxTypeId: taxType.id },
+          include: {
+            invoiceItem: {
+              select: {
+                invoice: {
+                  select: {
+                    id: true,
+                    issueDate: true,
+                    status: true,
+                    refundedAt: true,
+                    tenantId: true,
+                    branchId: true,
+                    isDeleted: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        const branchId = user?.currentBranchId ?? null;
+        const byInvoice = new Map();
+        for (const iit of invoiceItemTaxes) {
+          const inv = iit.invoiceItem?.invoice;
+          if (!inv || inv.tenantId !== user.tenantId) continue;
+          if (inv.isDeleted || inv.refundedAt) continue;
+          const statusLower = String(inv.status || '').toLowerCase();
+          if (!['paid', 'completed'].includes(statusLower)) continue;
+          if (branchId && inv.branchId != null && inv.branchId !== branchId) continue;
+          const issueDate = new Date(inv.issueDate);
+          if (Number.isNaN(issueDate.getTime()) || issueDate < start || issueDate > end) continue;
+          const taxAmt = parseMoney(iit.taxAmount);
+          if (!(taxAmt > 0)) continue;
+          const cur = byInvoice.get(inv.id) || { date: issueDate, amount: 0 };
+          cur.amount = addMoney(cur.amount, taxAmt);
+          byInvoice.set(inv.id, cur);
+        }
+        for (const [invId, row] of byInvoice) {
+          if (invoicesAccountedFor.has(invId)) continue;
+          totalCollected = addMoney(totalCollected, row.amount);
+          invoicesAccountedFor.add(invId);
+          addToBreakdown(row.date, 'collected', row.amount);
         }
       } catch (err) {
-        console.warn('Tax balances: Invoice fallback query failed for', taxType.taxId, err?.message);
+        console.warn('Tax balances: InvoiceItemTax query failed for', taxType.taxId, err?.message);
       }
 
       // ========== TAX PAID FROM PURCHASE ORDERS ==========
@@ -278,9 +311,6 @@ export async function GET(request) {
 
       // ========== TAX PAID FROM EXPENSES ==========
       try {
-        const isFirstNonPaye = nonPayeTaxTypes.length > 0 && nonPayeTaxTypes[0].id === taxType.id;
-        const isOnlyNonPaye = nonPayeTaxTypes.length === 1 && nonPayeTaxTypes[0].id === taxType.id;
-
         // First: expenses directly linked to this tax type via taxTypeId
         const expensesDirectlyLinked = new Set();
         const directExpenses = await prisma.expense.findMany({
@@ -325,10 +355,7 @@ export async function GET(request) {
           const expTaxAmount = parseMoney(ex.taxAmount);
           if (expTaxAmount <= 0) continue;
 
-          const rateMatches = taxTypeRate > 0 && Math.abs(expTaxRate - taxTypeRate) < 0.01;
-          const isLegacyData = expTaxRate === 0 && expTaxAmount > 0;
-
-          if (rateMatches || isOnlyNonPaye || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
+          if (ownsRateMatchedFallback(taxType, expTaxRate)) {
             totalPaid = addMoney(totalPaid, expTaxAmount);
             addToBreakdown(ex.date, 'paid', expTaxAmount);
           }
@@ -354,7 +381,7 @@ export async function GET(request) {
 
       // ========== CHECK TRANSACTIONS FOR TAX PAYMENTS/REFUNDS ==========
       try {
-        if (taxType.accountId) {
+        if (taxType.accountId && ownsLinkedGl) {
           const transactions = await prisma.transaction.findMany({
             where: {
               tenantId: user.tenantId,
@@ -564,6 +591,19 @@ export async function GET(request) {
         }
       } catch (err) {
         console.warn('Tax balances: Transaction query failed for', taxType.taxId, err?.message);
+      }
+
+      // ========== V2 TAX PROVISIONS (CitProvision etc. on JournalEntry) ==========
+      {
+        const v2Totals = { totalCollected: 0, totalPaid: 0, totalRefunded: 0 };
+        await applyV2TaxProvisionJournalsOnAccount(prisma, user, taxType, dateFilter, {
+          totals: v2Totals,
+          addToBreakdown,
+          allTaxTypes: taxTypes,
+        });
+        totalCollected = addMoney(totalCollected, v2Totals.totalCollected);
+        totalPaid = addMoney(totalPaid, v2Totals.totalPaid);
+        totalRefunded = addMoney(totalRefunded, v2Totals.totalRefunded);
       }
 
       if (isPAYE && payeTaxPaymentRows.length > 0) {

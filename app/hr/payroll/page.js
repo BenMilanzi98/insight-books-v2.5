@@ -99,14 +99,19 @@ export default function PayrollProcessing() {
   }, []);
 
   useEffect(() => {
-    if (accountsLoading || accounts.length === 0) return;
-    
+    if (accountsLoading) return;
+
     setFormData((prev) => {
       const updates = { ...prev };
-      // Always set to 5200 - Salaries & Wages (fixed, cannot be changed)
-      const defaultExpense = getDefaultExpenseAccount();
-      if (defaultExpense) {
-        updates.expenseAccountId = defaultExpense.id;
+      // Prefer exact 5200 from loaded CoA rows (category options may omit accountType).
+      const fromAccounts =
+        accounts.find((a) => String(a.accountCode || a.code || '').trim() === '5200') ||
+        accounts.find((a) => {
+          const code = String(a.accountCode || a.code || '').trim();
+          return code === '5200' || code.startsWith('5200-');
+        });
+      if (fromAccounts?.id) {
+        updates.expenseAccountId = fromAccounts.id;
       }
       return updates;
     });
@@ -180,11 +185,10 @@ export default function PayrollProcessing() {
 
   const expenseAccountOptions = useMemo(() => {
     return accounts.filter((account) => {
-      const type = normalizeAccountType(account);
-      if (type !== 'EXPENSE') return false;
-      
       const code = String(account.accountCode || account.code || '').trim();
-      return code === '5200' || code.startsWith('5200-');
+      if (code === '5200' || code.startsWith('5200-')) return true;
+      const type = normalizeAccountType(account.account || account);
+      return type === 'EXPENSE' && (code === '5200' || code.startsWith('5200-'));
     });
   }, [accounts]);
 
@@ -201,9 +205,14 @@ export default function PayrollProcessing() {
   }, [paymentAccounts]);
 
   const getDefaultExpenseAccount = () => {
-    return expenseAccountOptions.find((account) => {
+    const exact = expenseAccountOptions.find((account) => {
       const code = account.accountCode || account.code;
       return String(code || '').trim() === '5200';
+    });
+    if (exact) return exact;
+    return expenseAccountOptions.find((account) => {
+      const code = String(account.accountCode || account.code || '').trim();
+      return code === '5200' || code.startsWith('5200-');
     }) || null;
   };
 
@@ -804,6 +813,8 @@ export default function PayrollProcessing() {
       
       const payload = {
         ...formData,
+        // Server always resolves canonical 5200; omit stale/empty client id.
+        expenseAccountId: formData.expenseAccountId || undefined,
         periodStart: toYmdLocal(periodStart),
         periodEnd: toYmdLocal(periodEnd),
       };
@@ -1154,16 +1165,16 @@ export default function PayrollProcessing() {
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
                       Loading accounts...
                     </div>
-                  ) : formData.expenseAccountId ? (
+                  ) : (
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
                       {(() => {
-                        const selectedAccount = accounts.find(acc => acc.id === formData.expenseAccountId);
-                        return selectedAccount ? formatAccountOption(selectedAccount) : '5200 - Salaries & Wages';
+                        const selectedAccount =
+                          accounts.find((acc) => acc.id === formData.expenseAccountId) ||
+                          accounts.find((acc) => String(acc.accountCode || acc.code || '').trim() === '5200');
+                        return selectedAccount
+                          ? formatAccountOption(selectedAccount)
+                          : '5200 — Salaries & Wages (auto)';
                       })()}
-                    </div>
-                  ) : (
-                    <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
-                      5200 - Salaries & Wages (required)
                     </div>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
@@ -1237,7 +1248,6 @@ export default function PayrollProcessing() {
                     !formData.payrollMonth ||
                     !formData.payrollYear ||
                     !formData.paymentDate ||
-                    !formData.expenseAccountId ||
                     !formData.paymentAccountId
                   }
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"

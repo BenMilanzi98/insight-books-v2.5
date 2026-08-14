@@ -557,7 +557,9 @@ async function fetchCatalogPages({
       if (product && !seenIds.has(product.id)) {
         seenIds.add(product.id);
         allProducts.push(
-          product.isService ? { ...product, stockLevel: null, isService: true } : product
+          product.isService
+            ? { ...product, isService: true, stockLevel: null, status: 'Service' }
+            : product
         );
       }
     }
