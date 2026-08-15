@@ -56,7 +56,7 @@ const nextConfig = {
   transpilePackages: ['qrcode.react'],
   productionBrowserSourceMaps: false,
   experimental: {
-    // Lower peak memory during webpack production builds (helps small VPSs).
+    // Lower peak memory during webpack production builds (2 GB VPS + swap).
     webpackMemoryOptimizations: true,
     cpus: 1,
     optimizePackageImports: ['lucide-react', 'recharts'],

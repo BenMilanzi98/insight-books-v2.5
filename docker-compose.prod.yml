@@ -5,10 +5,16 @@ services:
     build:
       context: .
       target: runner
+      args:
+        NODE_OPTIONS: --max-old-space-size=1280
     ports:
       - "3000:3000"
+    # Leave headroom for Postgres on a shared 2 GB host
+    mem_limit: 1280m
+    memswap_limit: 1280m
     environment:
       - NODE_ENV=production
+      - NODE_OPTIONS=--max-old-space-size=512
       - DATABASE_URL=postgresql://henmik:Password2030@db:5432/insightbooks?schema=public
       - APP_URL=http://213.165.230.139:3000
       - NEXT_PUBLIC_APP_URL=http://213.165.230.139:3000
@@ -51,10 +57,26 @@ services:
 
   db:
     image: postgres:15-alpine
+    mem_limit: 512m
+    memswap_limit: 512m
     environment:
       POSTGRES_DB: insightbooks
       POSTGRES_USER: henmik
       POSTGRES_PASSWORD: Password2030
+      # Lower shared_buffers so Postgres fits a 2 GB VPS beside Node
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=384MB
+      - -c
+      - max_connections=50
     ports:
       - "5432:5432"
     volumes:

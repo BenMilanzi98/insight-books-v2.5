@@ -72,6 +72,8 @@ jobs:
             prisma \
             next.config.mjs \
             scripts/vps-apply-release.sh \
+            scripts/vps-ensure-swap.sh \
+            scripts/vps-build-2gb.cjs \
             scripts/ci-write-build-manifest.mjs
           echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
           ls -lh "${ARCHIVE}"

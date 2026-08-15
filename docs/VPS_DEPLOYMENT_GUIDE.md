@@ -6,7 +6,7 @@ This guide provides step-by-step instructions for deploying the Insight Books ap
 
 Before starting the deployment, ensure your VPS meets these requirements:
 - Ubuntu 20.04 LTS or higher (or equivalent Linux distribution)
-- At least 2GB RAM and 20GB disk space
+- At least 2GB RAM and 20GB disk space (2 GB: **do not** run `next build` on the VPS — see [VPS_2GB_BUILD.md](./VPS_2GB_BUILD.md))
 - Root or sudo access
 - Internet connection
 
