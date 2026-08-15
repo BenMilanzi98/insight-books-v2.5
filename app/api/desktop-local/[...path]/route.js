@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { isDesktopRuntime } from '@/lib/desktop/runtime.js';
-import { getDesktopDbFromEnv } from '@/lib/desktop/sqlite/db.js';
-import { handleDesktopLocal } from '@/lib/desktop/local/handlers.js';
 import { getUserFromSession } from '@/lib/auth';
 
 export async function GET(request, ctx) {
@@ -21,9 +19,16 @@ export async function DELETE(request, ctx) {
 }
 
 async function dispatch(request, ctx) {
+  // Web/VPS builds must not pull in better-sqlite3 at module load time.
   if (!isDesktopRuntime()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  const [{ getDesktopDbFromEnv }, { handleDesktopLocal }] = await Promise.all([
+    import('@/lib/desktop/sqlite/db.js'),
+    import('@/lib/desktop/local/handlers.js'),
+  ]);
+
   const user = await getUserFromSession(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

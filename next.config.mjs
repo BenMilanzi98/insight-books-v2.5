@@ -61,11 +61,24 @@ const nextConfig = {
     cpus: 1,
     optimizePackageImports: ['lucide-react', 'recharts'],
   },
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     // Serialize webpack work — trades speed for lower RAM on small hosts.
     config.parallelism = 1;
     config.cache = false;
     config.devtool = false;
+    // Desktop-only native addon — never bundle; optional on web/VPS hosts.
+    if (isServer) {
+      const prev = config.externals;
+      config.externals = [
+        ...(Array.isArray(prev) ? prev : prev ? [prev] : []),
+        ({ request }, callback) => {
+          if (request === 'better-sqlite3') {
+            return callback(null, `commonjs ${request}`);
+          }
+          return callback();
+        },
+      ];
+    }
     return config;
   },
   images: {
@@ -103,6 +116,7 @@ const nextConfig = {
     'jsqr',
     'pngjs',
     'qrcode',
+    'better-sqlite3',
   ],
   // Ensure auth pages are not statically generated
   generateBuildId: () => 'build',
