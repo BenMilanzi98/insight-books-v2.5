@@ -26,16 +26,24 @@ describe('allocateNumberPrefix', () => {
 
 function fakePrisma(seed = []) {
   const devices = seed.map((device) => ({ ...device }));
+  const events = [];
   const client = {
     _devices: devices,
+    _events: events,
+    $executeRaw: vi.fn(async () => {
+      events.push('lock');
+      return undefined;
+    }),
     $transaction: async (callback) => callback(client),
     desktopDevice: {
-      findMany: async ({ where }) =>
-        devices.filter(
+      findMany: async ({ where }) => {
+        events.push('read-active');
+        return devices.filter(
           (device) =>
             device.tenantId === where.tenantId &&
             (where.unboundAt === null ? device.unboundAt == null : true)
-        ),
+        );
+      },
       findFirst: async ({ where }) =>
         devices.find((device) => {
           if (where.tenantId && device.tenantId !== where.tenantId) return false;
@@ -72,6 +80,20 @@ function fakePrisma(seed = []) {
 }
 
 describe('bindDesktopDevice', () => {
+  it('takes a tenant advisory lock before reading active devices', async () => {
+    const prisma = fakePrisma([]);
+
+    await bindDesktopDevice({
+      prisma,
+      tenantId: 't1',
+      deviceId: 'pc-a',
+      name: 'Shop',
+    });
+
+    expect(prisma.$executeRaw).toHaveBeenCalledOnce();
+    expect(prisma._events.slice(0, 2)).toEqual(['lock', 'read-active']);
+  });
+
   it('rejects a second active device', async () => {
     const prisma = fakePrisma([
       { tenantId: 't1', deviceId: 'pc-a', numberPrefix: 'TILL1', unboundAt: null },
