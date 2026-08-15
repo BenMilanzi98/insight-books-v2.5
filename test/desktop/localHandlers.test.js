@@ -121,6 +121,81 @@ describe('handleDesktopLocal cash day', () => {
   });
 });
 
+describe('handleDesktopLocal invoices', () => {
+  function createTestInvoice(db) {
+    const res = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: '/api/invoices',
+      body: {
+        clientId: 'c1',
+        subtotal: 1000,
+        total: 1000,
+        items: [{ description: 'Widget', quantity: 1, unitPrice: 1000 }],
+      },
+      now: t0 + 60 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(201);
+    return res.json.invoice.id;
+  }
+
+  it('updates invoice locally and appends invoice.update outbox', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const invoiceId = createTestInvoice(db);
+    const res = handleDesktopLocal({
+      db,
+      method: 'PUT',
+      pathname: `/api/invoices/${invoiceId}`,
+      body: { notes: 'Updated offline', total: 1200, subtotal: 1200 },
+      now: t0 + 120 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.json.invoice.notes).toBe('Updated offline');
+    expect(res.json.invoice.total).toBe(1200);
+    const kinds = listOutbox(db).map((e) => e.kind);
+    expect(kinds).toContain('invoice.create');
+    expect(kinds).toContain('invoice.update');
+  });
+
+  it('voids invoice and records partial payment outbox', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const invoiceId = createTestInvoice(db);
+
+    const voidRes = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: '/api/invoices/void',
+      body: { id: invoiceId, reason: 'Duplicate entry' },
+      now: t0 + 180 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(voidRes.status).toBe(200);
+    expect(voidRes.json.success).toBe(true);
+    expect(voidRes.json.invoice.status).toBe('void');
+    expect(listOutbox(db).some((e) => e.kind === 'invoice.void')).toBe(true);
+
+    const payDb = openDesktopDb(':memory:');
+    seed(payDb);
+    const payInvoiceId = createTestInvoice(payDb);
+    const payRes = handleDesktopLocal({
+      db: payDb,
+      method: 'POST',
+      pathname: '/api/invoices/partial-payment',
+      body: { invoiceId: payInvoiceId, amount: 500, paymentMethod: 'cash' },
+      now: t0 + 240 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(payRes.status).toBe(201);
+    expect(payRes.json.invoice.status).toBe('Partial');
+    expect(payRes.json.invoice.totalPaid).toBe(500);
+    expect(listOutbox(payDb).some((e) => e.kind === 'invoice.payment')).toBe(true);
+  });
+});
+
 describe('handleDesktopLocal clients', () => {
   it('creates client locally and appends customer.upsert outbox', () => {
     const db = openDesktopDb(':memory:');
