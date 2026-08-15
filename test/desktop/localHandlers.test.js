@@ -46,11 +46,28 @@ describe('handleDesktopLocal POS sale', () => {
       now: t0 + 60 * 1000,
       user: { id: 'u1', tenantId: 't1' },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
+    expect(res.json.message).toBe('Sale created successfully');
     expect(res.json.sale.saleNumber).toBe('TILL1-SALE-1');
     expect(getProduct(db, 'p1').quantity).toBe(8);
     expect(listOutbox(db)[0].kind).toBe('pos.sale');
     expect(listOutbox(db)[0].payload.saleNumber).toBe('TILL1-SALE-1');
+  });
+
+  it('accepts unitPrice on sale items', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const res = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: '/api/sales',
+      body: { items: [{ productId: 'p1', quantity: 1, unitPrice: 1000 }] },
+      now: t0 + 60 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(201);
+    expect(res.json.sale.subtotal).toBe(1000);
+    expect(res.json.sale.total).toBe(1000);
   });
 
   it('rejects writes after 24h', () => {
@@ -104,8 +121,8 @@ describe('handleDesktopLocal cash day', () => {
   });
 });
 
-describe('handleDesktopLocal stubs', () => {
-  it('returns 501 for unimplemented operational writes', () => {
+describe('handleDesktopLocal clients', () => {
+  it('creates client locally and appends customer.upsert outbox', () => {
     const db = openDesktopDb(':memory:');
     seed(db);
     const res = handleDesktopLocal({
@@ -116,7 +133,25 @@ describe('handleDesktopLocal stubs', () => {
       now: t0 + 60 * 1000,
       user: { id: 'u1', tenantId: 't1' },
     });
-    expect(res.status).toBe(501);
-    expect(res.json.error).toMatch(/not implemented/i);
+    expect(res.status).toBe(201);
+    expect(res.json.client.name).toBe('Acme');
+    expect(listOutbox(db)[0].kind).toBe('customer.upsert');
+    expect(listOutbox(db)[0].payload.name).toBe('Acme');
+  });
+
+  it('returns 403 not 501 for locked client POST', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const res = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: '/api/clients',
+      body: { name: 'Acme' },
+      now: t0 + 24 * 60 * 60 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(403);
+    expect(res.json.code).toBe(DESKTOP_CODES.SYNC_REQUIRED);
+    expect(res.status).not.toBe(501);
   });
 });
