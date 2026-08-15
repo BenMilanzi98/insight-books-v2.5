@@ -152,6 +152,17 @@ describe('bindDesktopDevice', () => {
       bindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a', name: 'Shop' })
     ).rejects.toMatchObject({ status: 403 });
   });
+
+  it('prefers DEVICE_BOUND when tenant already has an active device', async () => {
+    const prisma = fakePrisma([
+      { tenantId: 't1', deviceId: 'pc-a', numberPrefix: 'TILL1', unboundAt: null },
+      { tenantId: 't2', deviceId: 'pc-b', numberPrefix: 'TILL1', unboundAt: null },
+    ]);
+
+    await expect(
+      bindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-b', name: 'Shop' })
+    ).rejects.toMatchObject({ code: DESKTOP_CODES.DEVICE_BOUND, status: 409 });
+  });
 });
 
 describe('unbindDesktopDevice', () => {
