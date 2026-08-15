@@ -6,5 +6,26 @@
     }
   ],
   "java.import.gradle.java.home": "C:/Program Files/Android/Android Studio1/jbr",
-  "java.configuration.updateBuildConfiguration": "automatic"
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/insight/**",
+    "**/insight_books_android/**/build/**",
+    "**/.dart_tool/**"
+  ],
+  "java.project.importOnFirstTimeStartup": "disabled",
+  "java.project.resourceFilters": [
+    "node_modules",
+    ".git",
+    ".next",
+    "insight"
+  ],
+  "files.exclude": {
+    "**/.next/standalone/insight_books_android": true
+  },
+  "files.watcherExclude": {
+    "**/.next/**": true,
+    "**/insight/insight_books_android/**": true
+  }
 }
